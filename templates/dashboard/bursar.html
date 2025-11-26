@@ -1,0 +1,81 @@
+<!-- templates/dashboard/bursar.html -->
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Bursar Dashboard · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-success text-white me-2">
+      <i class="mdi mdi-cash-multiple"></i>
+    </span>
+    Bursar Dashboard
+  </h3>
+  <p class="text-muted">Cashflow visibility & receivables</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  {% for widget in finance_widgets %}
+  <div class="col-md-3 grid-margin stretch-card">
+    <div class="card text-center">
+      <div class="card-body">
+        <h4 class="card-title mb-2">{{ widget.label }}</h4>
+        <h2 class="text-{{ widget.accent }} mb-0">{{ widget.value }}</h2>
+        <small class="text-muted d-block mt-2">{{ widget.helper }}</small>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row">
+  <div class="col-lg-8 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Outstanding Balances</h4>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Learner</th>
+                <th>Class</th>
+                <th>Guardian</th>
+                <th>Balance</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for balance in balances %}
+              <tr>
+                <td>{{ balance.student }}</td>
+                <td>{{ balance.class }}</td>
+                <td>{{ balance.guardian }}</td>
+                <td>{{ balance.amount }}</td>
+                <td><span class="badge badge-outline-{{ balance.priority_class }}">{{ balance.priority }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Upcoming Fee Events</h4>
+        <ul class="list-arrow">
+          {% for event in fee_events %}
+          <li>
+            <strong>{{ event.title }}</strong>
+            <small class="d-block text-muted">{{ event.date }}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

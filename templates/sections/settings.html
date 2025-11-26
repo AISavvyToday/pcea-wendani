@@ -1,0 +1,28 @@
+<!-- templates/sections/settings.html -->
+{% extends 'base/base.html' %}
+{% block title %}Settings · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-dark text-white me-2">
+      <i class="mdi mdi-tune"></i>
+    </span>
+    System Settings
+  </h3>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row">
+  {% for setting in settings_links %}
+  <div class="col-md-4 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">{{ setting.title }}</h4>
+        <p class="text-muted">{{ setting.description }}</p>
+        <a href="#" class="btn btn-sm btn-gradient-primary">{{ setting.cta }}</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+<!-- templates/sections/communications.html -->
+{% extends 'base/base.html' %}
+{% block title %}Communications · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-warning text-white me-2">
+      <i class="mdi mdi-message-processing-outline"></i>
+    </span>
+    Communications Hub
+  </h3>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-lg-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Recent Broadcasts</h4>
+        <ul class="bullet-line-list">
+          {% for broadcast in broadcasts %}
+          <li>
+            <h6>{{ broadcast.title }}</h6>
+            <p class="text-muted">{{ broadcast.summary }}</p>
+            <p class="text-muted mb-2">{{ broadcast.timestamp }}</p>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Pending Approvals</h4>
+        <div class="list-group list-group-flush">
+          {% for request in approvals %}
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+            <div>
+              <h6 class="mb-0">{{ request.title }}</h6>
+              <small class="text-muted">{{ request.owner }}</small>
+            </div>
+            <span class="badge badge-outline-{{ request.badge_class }}">{{ request.state }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

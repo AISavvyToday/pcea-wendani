@@ -1,0 +1,40 @@
+<!-- templates/dashboard/parent.html -->
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Parent Dashboard · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-warning text-white me-2">
+      <i class="mdi mdi-account-child"></i>
+    </span>
+    Parent Dashboard
+  </h3>
+  <p class="text-muted">Child performance snapshot</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  {% for child in children %}
+  <div class="col-md-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <h4 class="card-title mb-0">{{ child.name }}</h4>
+            <small class="text-muted">{{ child.classroom }}</small>
+          </div>
+          <span class="badge badge-outline-{{ child.badge_class }}">{{ child.status }}</span>
+        </div>
+        <p class="mb-1"><strong>Attendance:</strong> {{ child.attendance }}</p>
+        <p class="mb-1"><strong>Average Grade:</strong> {{ child.average }}</p>
+        <p class="mb-3"><strong>Next Event:</strong> {{ child.next_event }}</p>
+        <a href="#" class="btn btn-sm btn-gradient-primary">View full report</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

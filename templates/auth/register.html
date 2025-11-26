@@ -1,0 +1,65 @@
+<!-- templates/auth/register.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>PWASMS · Register</title>
+    <link rel="stylesheet" href="{% static 'assets/vendors/mdi/css/materialdesignicons.min.css' %}">
+    <link rel="stylesheet" href="{% static 'assets/vendors/css/vendor.bundle.base.css' %}">
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}">
+  </head>
+  <body>
+    <div class="container-scroller">
+      <div class="container-fluid page-body-wrapper full-page-wrapper">
+        <div class="content-wrapper d-flex align-items-center auth px-0">
+          <div class="row w-100 mx-0">
+            <div class="col-lg-4 mx-auto">
+              <div class="auth-form-light text-left py-5 px-4 px-sm-5">
+                <div class="brand-logo mb-4">
+                  <img src="{% static 'assets/images/logo.svg' %}" alt="PWASMS logo" />
+                </div>
+                <h4>Create an account</h4>
+                <h6 class="font-weight-light mb-4">Get role-based access to PWASMS.</h6>
+                <form class="pt-3" method="post">
+                  {% csrf_token %}
+                  <div class="form-group">
+                    <input type="text" class="form-control form-control-lg" name="full_name" placeholder="Full name" />
+                  </div>
+                  <div class="form-group">
+                    <input type="email" class="form-control form-control-lg" name="email" placeholder="Email" />
+                  </div>
+                  <div class="form-group">
+                    <input type="password" class="form-control form-control-lg" name="password1" placeholder="Password" />
+                  </div>
+                  <div class="form-group">
+                    <input type="password" class="form-control form-control-lg" name="password2" placeholder="Confirm password" />
+                  </div>
+                  <div class="mb-4">
+                    <div class="form-check">
+                      <label class="form-check-label text-muted">
+                        <input type="checkbox" class="form-check-input" />
+                        I agree to PWASMS policies
+                      </label>
+                    </div>
+                  </div>
+                  <div class="mt-3 d-grid gap-2">
+                    <button class="btn btn-block btn-gradient-primary btn-lg font-weight-medium auth-form-btn" type="submit">
+                      REGISTER
+                    </button>
+                  </div>
+                  <div class="text-center mt-4 fw-light">
+                    Already have an account? <a href="{% url 'portal:login' %}" class="text-primary">Sign in</a>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{% static 'assets/vendors/js/vendor.bundle.base.js' %}"></script>
+  </body>
+</html>

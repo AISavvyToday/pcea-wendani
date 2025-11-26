@@ -1,0 +1,34 @@
+<!-- templates/sections/resources.html -->
+{% extends 'base/base.html' %}
+{% block title %}Resources · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-secondary text-white me-2">
+      <i class="mdi mdi-folder"></i>
+    </span>
+    Learning Resources
+  </h3>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row">
+  {% for resource in resources %}
+  <div class="col-md-4 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <h5 class="mb-1">{{ resource.title }}</h5>
+            <small class="text-muted">{{ resource.type }}</small>
+          </div>
+          <i class="mdi {{ resource.icon }} text-primary"></i>
+        </div>
+        <p class="text-muted mb-3">{{ resource.description }}</p>
+        <a href="#" class="btn btn-sm btn-outline-primary">Open</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

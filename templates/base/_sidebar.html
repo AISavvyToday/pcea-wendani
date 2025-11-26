@@ -1,0 +1,92 @@
+<!-- templates/base/_sidebar.html -->
+{% load static %}
+<nav class="sidebar sidebar-offcanvas" id="sidebar">
+  <ul class="nav">
+    <li class="nav-item nav-profile">
+      <a href="{% url 'portal:home' %}" class="nav-link">
+        <div class="nav-profile-image">
+          <img src="{% static 'assets/images/faces/face2.jpg' %}" alt="avatar" />
+          <span class="login-status online"></span>
+        </div>
+        <div class="nav-profile-text d-flex flex-column">
+          <span class="font-weight-bold mb-2">PCEA Wendani</span>
+          <span class="text-secondary text-small">Academy</span>
+        </div>
+        <i class="mdi mdi-check-decagram text-success nav-profile-badge"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:home' %}">
+        <span class="menu-title">Home</span>
+        <i class="mdi mdi-view-dashboard-outline menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="collapse" href="#dashboards" aria-expanded="true" aria-controls="dashboards">
+        <span class="menu-title">Dashboards</span>
+        <i class="menu-arrow"></i>
+        <i class="mdi mdi-monitor-dashboard menu-icon"></i>
+      </a>
+      <div class="collapse show" id="dashboards">
+        <ul class="nav flex-column sub-menu">
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_admin' %}">Admin</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_bursar' %}">Bursar</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_teacher' %}">Teacher</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_parent' %}">Parent</a></li>
+        </ul>
+      </div>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:academics_overview' %}">
+        <span class="menu-title">Academics</span>
+        <i class="mdi mdi-school menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:finance_overview' %}">
+        <span class="menu-title">Finance</span>
+        <i class="mdi mdi-cash-multiple menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:communications_overview' %}">
+        <span class="menu-title">Communications</span>
+        <i class="mdi mdi-message-text menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:resources_overview' %}">
+        <span class="menu-title">Resources</span>
+        <i class="mdi mdi-folder-multiple menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'portal:settings_overview' %}">
+        <span class="menu-title">Settings</span>
+        <i class="mdi mdi-cog-outline menu-icon"></i>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="collapse" href="#system-pages" aria-expanded="false" aria-controls="system-pages">
+        <span class="menu-title">System Pages</span>
+        <i class="menu-arrow"></i>
+        <i class="mdi mdi-lock menu-icon"></i>
+      </a>
+      <div class="collapse" id="system-pages">
+        <ul class="nav flex-column sub-menu">
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:login' %}">Login</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:register' %}">Register</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Blank Page</a></li>
+        </ul>
+      </div>
+    </li>
+  </ul>
+</nav>

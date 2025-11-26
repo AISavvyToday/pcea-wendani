@@ -1,0 +1,100 @@
+<!-- templates/dashboard/admin.html -->
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}Admin Dashboard · PWASMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-primary text-white me-2">
+      <i class="mdi mdi-shield-account"></i>
+    </span>
+    Administrator Dashboard
+  </h3>
+  <p class="text-muted mb-0">Realtime oversight across school operations</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  {% for card in stat_cards %}
+  <div class="col-md-4 stretch-card grid-margin">
+    <div class="card {{ card.bg }} card-img-holder text-white">
+      <div class="card-body">
+        <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="chart" />
+        <h4 class="font-weight-normal mb-3">
+          {{ card.title }}
+          <i class="mdi {{ card.icon }} mdi-24px float-end"></i>
+        </h4>
+        <h2 class="mb-4">{{ card.value }}</h2>
+        <h6 class="card-text">{{ card.meta }}</h6>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row">
+  <div class="col-md-7 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <div class="clearfix">
+          <h4 class="card-title float-start">Admissions & Attendance Trends</h4>
+          <div id="visit-sale-chart-legend" class="rounded-legend legend-horizontal legend-top-right float-end"></div>
+        </div>
+        <canvas id="visit-sale-chart" class="mt-4"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-5 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Resource Utilization</h4>
+        <div class="doughnutjs-wrapper d-flex justify-content-center">
+          <canvas id="traffic-chart"></canvas>
+        </div>
+        <div id="traffic-chart-legend" class="rounded-legend legend-vertical legend-bottom-left pt-4"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 grid-margin">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Open Support Tickets</h4>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Owner</th>
+                <th>Topic</th>
+                <th>Status</th>
+                <th>Last Update</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ticket in tickets %}
+              <tr>
+                <td>
+                  <img src="{% static ticket.avatar %}" class="me-2" alt="owner" />
+                  {{ ticket.person }}
+                </td>
+                <td>{{ ticket.subject }}</td>
+                <td>
+                  <span class="badge badge-gradient-{{ ticket.badge }}">{{ ticket.status }}</span>
+                </td>
+                <td>{{ ticket.updated }}</td>
+                <td>{{ ticket.ref }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
