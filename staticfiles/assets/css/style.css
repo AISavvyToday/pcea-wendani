@@ -21522,7 +21522,7 @@ code {
   background: #ffffff;
 }
 .card-weather .card-body:first-child {
-  background: url("../../images/samples/weather.svg") no-repeat center;
+  background: url(../images/samples/weather.svg") no-repeat center;
   background-size: cover;
 }
 .card-weather .weather-date-location {
@@ -24934,15 +24934,15 @@ dl li {
 /* === Landing screens === */
 /* Auth */
 .auth .login-half-bg {
-  background: url("../../images/auth/login-bg.jpg");
+  background: url(../images/auth/login-bg.jpg");
   background-size: cover;
 }
 .auth .register-half-bg {
-  background: url("../../images/auth/register-bg.jpg");
+  background: url(../images/auth/register-bg.jpg");
   background-size: cover;
 }
 .auth.lock-full-bg {
-  background: url("../../images/auth/lockscreen-bg.jpg");
+  background: url(../images/auth/lockscreen-bg.jpg");
   background-size: cover;
 }
 .auth .lock-profile-img {
@@ -26286,4 +26286,3 @@ dl li {
   -webkit-flex-grow: 1;
   flex-grow: 1;
 }
-/*# sourceMappingURL=maps/style.css.map */
