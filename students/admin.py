@@ -1,5 +1,6 @@
 # students/admin.py
 
+from decimal import Decimal
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -119,19 +120,22 @@ class StudentAdmin(admin.ModelAdmin):
         return "-"
     primary_parent_display.short_description = 'Primary Parent'
     
-
     def balance_display(self, obj):
         # Get latest invoice balance
         latest_invoice = obj.invoices.order_by('-term__academic_year__year', '-term__term').first()
-        if latest_invoice:
-            balance = float(latest_invoice.balance) if latest_invoice.balance else 0
-            if balance > 0:
-                return format_html('<span style="color: red;">KES {:,.0f}</span>', balance)
-            elif balance < 0:
-                return format_html('<span style="color: green;">KES {:,.0f} CR</span>', abs(balance))
-            return format_html('<span style="color: green;">Paid</span>')
+        if latest_invoice and latest_invoice.balance is not None:
+            try:
+                balance = Decimal(str(latest_invoice.balance))
+                formatted = f"{abs(balance):,.0f}"
+                if balance > 0:
+                    return format_html('<span style="color: red;">KES {}</span>', formatted)
+                elif balance < 0:
+                    return format_html('<span style="color: green;">KES {} CR</span>', formatted)
+                return format_html('<span style="color: green;">Paid</span>')
+            except (ValueError, TypeError):
+                return "-"
         return "-"
-    balance_display.short_description = 'Balance'    
+    balance_display.short_description = 'Balance'
 
 
 @admin.register(StudentParent)
