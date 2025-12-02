@@ -12,11 +12,15 @@ from .models import (
 class AcademicYearAdmin(admin.ModelAdmin):
     list_display = ('year', 'start_date', 'end_date', 'is_current', 'terms_count')
     list_filter = ('is_current',)
+    search_fields = ('year',)  # ADD THIS LINE
     ordering = ('-year',)
-    
+
     def terms_count(self, obj):
         return obj.terms.count()
     terms_count.short_description = 'Terms'
+
+
+
 
 
 class TermInline(admin.TabularInline):
@@ -28,6 +32,7 @@ class TermInline(admin.TabularInline):
 class TermAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'start_date', 'end_date', 'fee_deadline', 'is_current')
     list_filter = ('academic_year', 'term', 'is_current')
+    search_fields = ('academic_year__year', 'term')  # ADD THIS LINE
     ordering = ('-academic_year__year', 'term')
 
 
