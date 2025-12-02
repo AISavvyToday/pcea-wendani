@@ -59,42 +59,5 @@
   </div>
 </div>
 
-<div class="row">
-  <div class="col-12 grid-margin">
-    <div class="card">
-      <div class="card-body">
-        <h4 class="card-title">Open Support Tickets</h4>
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Owner</th>
-                <th>Topic</th>
-                <th>Status</th>
-                <th>Last Update</th>
-                <th>ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for ticket in tickets %}
-              <tr>
-                <td>
-                  <img src="{% static ticket.avatar %}" class="me-2" alt="owner" />
-                  {{ ticket.person }}
-                </td>
-                <td>{{ ticket.subject }}</td>
-                <td>
-                  <span class="badge badge-gradient-{{ ticket.badge }}">{{ ticket.status }}</span>
-                </td>
-                <td>{{ ticket.updated }}</td>
-                <td>{{ ticket.ref }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+
 {% endblock %}

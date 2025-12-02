@@ -26,6 +26,9 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "").lower() == "true"
 #     "localhost,127.0.0.1",
 # ).split(",")
 
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
+
 ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
@@ -96,10 +99,15 @@ DATABASES = {
     }
 }
 
-# Override with DATABASE_URL in production (Heroku)
-db_from_env = dj_database_url.config(conn_max_age=600, ssl_require=True)
-if db_from_env:
-    DATABASES["default"].update(db_from_env)
+# Override with DATABASE_URL if present (Heroku)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES['default'] = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=True,
+    )
 
 # ------------------------------------------------------------------------------
 # Password validation
