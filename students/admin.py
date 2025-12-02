@@ -119,17 +119,19 @@ class StudentAdmin(admin.ModelAdmin):
         return "-"
     primary_parent_display.short_description = 'Primary Parent'
     
+
     def balance_display(self, obj):
         # Get latest invoice balance
         latest_invoice = obj.invoices.order_by('-term__academic_year__year', '-term__term').first()
         if latest_invoice:
-            if latest_invoice.balance > 0:
-                return format_html('<span style="color: red;">KES {:,.0f}</span>', latest_invoice.balance)
-            elif latest_invoice.balance < 0:
-                return format_html('<span style="color: green;">KES {:,.0f} CR</span>', abs(latest_invoice.balance))
+            balance = float(latest_invoice.balance) if latest_invoice.balance else 0
+            if balance > 0:
+                return format_html('<span style="color: red;">KES {:,.0f}</span>', balance)
+            elif balance < 0:
+                return format_html('<span style="color: green;">KES {:,.0f} CR</span>', abs(balance))
             return format_html('<span style="color: green;">Paid</span>')
         return "-"
-    balance_display.short_description = 'Balance'
+    balance_display.short_description = 'Balance'    
 
 
 @admin.register(StudentParent)
