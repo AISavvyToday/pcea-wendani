@@ -24,6 +24,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("portal.urls", namespace="portal")),
+    # Payment API endpoints
+    path('api/payments/', include('payments.urls', namespace='payments-api')),
 ]
 
 if settings.DEBUG:

@@ -1,0 +1,23 @@
+# File: .coveragerc
+# ============================================================
+# RATIONALE: Coverage configuration for test coverage reports
+# ============================================================
+
+[run]
+source = payments
+omit = 
+    */migrations/*
+    */tests/*
+    */__pycache__/*
+    */management/commands/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+
+[html]
+directory = htmlcov

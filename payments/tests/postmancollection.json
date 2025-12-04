@@ -1,0 +1,484 @@
+{
+  "info": {
+    "name": "PCEA Wendani Payment Integration",
+    "description": "API collection for testing Equity and Co-op bank payment integrations",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://your-app.herokuapp.com",
+      "type": "string"
+    },
+    {
+      "key": "equity_api_key",
+      "value": "your-equity-api-key",
+      "type": "string"
+    },
+    {
+      "key": "coop_username",
+      "value": "your-coop-username",
+      "type": "string"
+    },
+    {
+      "key": "coop_password",
+      "value": "your-coop-password",
+      "type": "string"
+    },
+    {
+      "key": "school_account",
+      "value": "01234567890100",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Equity Bank",
+      "item": [
+        {
+          "name": "Validation - Valid Bill Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Api-Key {{equity_api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"PWA1001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/validation/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "validation", ""]
+            },
+            "description": "Validate a student bill number and get outstanding balance"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"billNumber\": \"PWA1001\",\n    \"customerName\": \"John Doe\",\n    \"amount\": \"45000.00\",\n    \"description\": \"School fees for Term 1 2025 - Grade 5\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Validation - Invalid Bill Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Api-Key {{equity_api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"INVALID999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/validation/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "validation", ""]
+            },
+            "description": "Test validation with non-existent bill number"
+          },
+          "response": [
+            {
+              "name": "Not Found Response",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n    \"error\": \"Bill number not found\",\n    \"responseCode\": \"01\",\n    \"responseMessage\": \"Student with admission number INVALID999 not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Validation - No Auth",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"PWA1001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/validation/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "validation", ""]
+            },
+            "description": "Test validation without authentication header"
+          },
+          "response": [
+            {
+              "name": "Unauthorized Response",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n    \"error\": \"Authentication required\",\n    \"responseCode\": \"99\",\n    \"responseMessage\": \"Invalid or missing API key\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Notification - New Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Api-Key {{equity_api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"PWA1001\",\n    \"amount\": \"25000.00\",\n    \"bankReference\": \"EQ-{{$timestamp}}\",\n    \"transactionDate\": \"2025-01-15T14:30:00\",\n    \"customerName\": \"John Doe Parent\",\n    \"phoneNumber\": \"254712345678\",\n    \"paymentChannel\": \"MOBILE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/notification/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "notification", ""]
+            },
+            "description": "Send payment notification for a new transaction"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"responseCode\": \"00\",\n    \"responseMessage\": \"Payment processed successfully\",\n    \"receiptNumber\": \"RCP2025011500001\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Notification - Duplicate Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Api-Key {{equity_api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"PWA1001\",\n    \"amount\": \"25000.00\",\n    \"bankReference\": \"EQ-DUPLICATE-TEST-001\",\n    \"transactionDate\": \"2025-01-15T14:30:00\",\n    \"customerName\": \"John Doe Parent\",\n    \"phoneNumber\": \"254712345678\",\n    \"paymentChannel\": \"MOBILE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/notification/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "notification", ""]
+            },
+            "description": "Test duplicate transaction handling - run twice with same bankReference"
+          },
+          "response": [
+            {
+              "name": "Duplicate Response",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n    \"responseCode\": \"02\",\n    \"responseMessage\": \"Duplicate transaction - already processed\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Notification - Full Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Api-Key {{equity_api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"billNumber\": \"PWA1001\",\n    \"amount\": \"50000.00\",\n    \"bankReference\": \"EQ-FULL-{{$timestamp}}\",\n    \"transactionDate\": \"2025-01-15T14:30:00\",\n    \"customerName\": \"John Doe Parent\",\n    \"phoneNumber\": \"254712345678\",\n    \"paymentChannel\": \"BRANCH\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/equity/notification/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "equity", "notification", ""]
+            },
+            "description": "Test full payment that clears the balance"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Co-op Bank",
+      "item": [
+        {
+          "name": "IPN - Credit with Admission Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Basic {{coop_auth}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-MSG-{{$timestamp}}\",\n    \"TransactionId\": \"TXN-{{$timestamp}}\",\n    \"AcctNo\": \"{{school_account}}\",\n    \"TxnAmount\": \"30000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"C\",\n    \"CustMemo\": \"School fees payment\",\n    \"Narration1\": \"FT from Parent Name\",\n    \"Narration2\": \"PWA1001 Term 1 fees\",\n    \"Narration3\": \"\",\n    \"EventType\": \"CREDIT\",\n    \"Balance\": \"1500000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "IPN with admission number in narration - should auto-match"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"MessageCode\": \"0\",\n    \"Message\": \"Transaction processed successfully\",\n    \"TransactionId\": \"TXN-1234567890\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "IPN - Credit without Admission Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Basic {{coop_auth}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-NOMATCH-{{$timestamp}}\",\n    \"TransactionId\": \"TXN-NOMATCH-{{$timestamp}}\",\n    \"AcctNo\": \"{{school_account}}\",\n    \"TxnAmount\": \"15000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"C\",\n    \"CustMemo\": \"Payment\",\n    \"Narration1\": \"FT from Unknown Sender\",\n    \"Narration2\": \"General payment\",\n    \"Narration3\": \"\",\n    \"EventType\": \"CREDIT\",\n    \"Balance\": \"1515000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "IPN without admission number - should store for manual matching"
+          },
+          "response": [
+            {
+              "name": "Success - Pending Match",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"MessageCode\": \"0\",\n    \"Message\": \"Transaction received - pending manual matching\",\n    \"TransactionId\": \"TXN-NOMATCH-1234567890\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "IPN - Debit Transaction (Ignored)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Basic {{coop_auth}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-DEBIT-{{$timestamp}}\",\n    \"TransactionId\": \"TXN-DEBIT-{{$timestamp}}\",\n    \"AcctNo\": \"{{school_account}}\",\n    \"TxnAmount\": \"5000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"D\",\n    \"CustMemo\": \"Bank charges\",\n    \"Narration1\": \"Monthly maintenance fee\",\n    \"Narration2\": \"\",\n    \"Narration3\": \"\",\n    \"EventType\": \"DEBIT\",\n    \"Balance\": \"1510000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "Debit transaction - should be acknowledged but not processed"
+          },
+          "response": [
+            {
+              "name": "Acknowledged Response",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"MessageCode\": \"0\",\n    \"Message\": \"Debit transaction acknowledged\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "IPN - Wrong Account Number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Basic {{coop_auth}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-WRONG-{{$timestamp}}\",\n    \"TransactionId\": \"TXN-WRONG-{{$timestamp}}\",\n    \"AcctNo\": \"99999999999999\",\n    \"TxnAmount\": \"10000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"C\",\n    \"CustMemo\": \"Payment\",\n    \"Narration1\": \"Test\",\n    \"Narration2\": \"\",\n    \"Narration3\": \"\",\n    \"EventType\": \"CREDIT\",\n    \"Balance\": \"100000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "IPN with wrong account number - should be rejected"
+          },
+          "response": [
+            {
+              "name": "Invalid Account Response",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n    \"MessageCode\": \"1\",\n    \"Message\": \"Invalid account number\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "IPN - Duplicate Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Basic {{coop_auth}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-DUP-001\",\n    \"TransactionId\": \"TXN-DUP-001\",\n    \"AcctNo\": \"{{school_account}}\",\n    \"TxnAmount\": \"20000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"C\",\n    \"CustMemo\": \"School fees\",\n    \"Narration1\": \"FT from Parent\",\n    \"Narration2\": \"PWA1001\",\n    \"Narration3\": \"\",\n    \"EventType\": \"CREDIT\",\n    \"Balance\": \"1520000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "Test duplicate handling - run twice with same TransactionId"
+          },
+          "response": [
+            {
+              "name": "Duplicate Response",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n    \"MessageCode\": \"2\",\n    \"Message\": \"Duplicate transaction - already processed\",\n    \"TransactionId\": \"TXN-DUP-001\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "IPN - No Authentication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"MessageReference\": \"COOP-NOAUTH-001\",\n    \"TransactionId\": \"TXN-NOAUTH-001\",\n    \"AcctNo\": \"{{school_account}}\",\n    \"TxnAmount\": \"10000.00\",\n    \"TxnDate\": \"2025-01-15\",\n    \"Currency\": \"KES\",\n    \"DrCr\": \"C\",\n    \"CustMemo\": \"Test\",\n    \"Narration1\": \"Test\",\n    \"Narration2\": \"\",\n    \"Narration3\": \"\",\n    \"EventType\": \"CREDIT\",\n    \"Balance\": \"100000.00\",\n    \"ValueDate\": \"2025-01-15\",\n    \"PostingDate\": \"2025-01-15\",\n    \"BranchCode\": \"001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/coop/ipn/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "coop", "ipn", ""]
+            },
+            "description": "Test without authentication header"
+          },
+          "response": [
+            {
+              "name": "Unauthorized Response",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n    \"MessageCode\": \"99\",\n    \"Message\": \"Authentication required\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/health/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "health", ""]
+            },
+            "description": "Check if the payment API is running"
+          },
+          "response": [
+            {
+              "name": "Healthy Response",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n    \"status\": \"healthy\",\n    \"timestamp\": \"2025-01-15T14:30:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate Base64 encoded credentials for Co-op",
+          "const username = pm.collectionVariables.get('coop_username');",
+          "const password = pm.collectionVariables.get('coop_password');",
+          "const credentials = btoa(username + ':' + password);",
+          "pm.collectionVariables.set('coop_auth', credentials);"
+        ]
+      }
+    }
+  ]
+}

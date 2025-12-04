@@ -165,3 +165,21 @@ if not DEBUG:
             "level": "INFO",
         },
     }
+
+
+
+# Bank Integration Settings
+# Equity Bank
+EQUITY_API_KEY = os.environ.get('EQUITY_API_KEY', '')
+
+# Co-operative Bank
+COOP_IPN_USERNAME = os.environ.get('COOP_IPN_USERNAME', '')
+COOP_IPN_PASSWORD = os.environ.get('COOP_IPN_PASSWORD', '')
+SCHOOL_COOP_ACCOUNT_NO = os.environ.get('SCHOOL_COOP_ACCOUNT_NO', '')
+
+# Payment callback base URL (for logging purposes)
+PAYMENT_CALLBACK_BASE_URL = os.environ.get('PAYMENT_CALLBACK_BASE_URL', '')
+
+
+COOP_IPN_USERNAME=wendani_academy
+COOP_IPN_PASSWORD=pwasms@!#2026
