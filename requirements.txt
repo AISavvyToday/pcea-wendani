@@ -10,3 +10,4 @@ whitenoise==6.11.0
 Pillow
 pandas
 openpyxl
+djangorestframework>=3.15.0
