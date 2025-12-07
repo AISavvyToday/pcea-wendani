@@ -48,7 +48,11 @@ class Parent(BaseModel):
         ('sponsor', 'Sponsor'),
         ('other', 'Other'),
     ]
-    relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES, default='parent')
+    relationship = models.CharField(
+        max_length=20,
+        choices=RELATIONSHIP_CHOICES,
+        default="guardian",
+    )
 
     class Meta:
         db_table = 'parents'
@@ -164,9 +168,12 @@ class Student(BaseModel):
     @property
     def primary_parent(self):
         """Get the primary parent/guardian."""
-        sp = self.student_parents.filter(is_primary=True).first()
-        return sp.parent if sp else self.student_parents.first()
+        sp = self.student_parents.filter(is_primary=True).select_related("parent").first()
+        if sp:
+            return sp.parent
 
+        sp_any = self.student_parents.select_related("parent").first()
+        return sp_any.parent if sp_any else None
 
 class StudentParent(models.Model):
     """

@@ -103,10 +103,10 @@ class CoopIPNView(APIView):
             
             # Step 4: Extract admission number from narration
             admission_number = ResolutionService.extract_admission_from_narration({
-                'Narration': validated_data.get('Narration', ''),
-                'CustMemoLine1': validated_data.get('CustMemoLine1', ''),
-                'CustMemoLine2': validated_data.get('CustMemoLine2', ''),
-                'CustMemoLine3': validated_data.get('CustMemoLine3', ''),
+                "Narration": validated_data.get("CustMemo", ""),
+                "CustMemoLine1": validated_data.get("Narration1", ""),
+                "CustMemoLine2": validated_data.get("Narration2", ""),
+                "CustMemoLine3": validated_data.get("Narration3", ""),
             })
             
             if not admission_number:

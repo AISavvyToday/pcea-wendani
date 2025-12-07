@@ -8,22 +8,23 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://your-app.herokuapp.com",
+      "value": "www.pceawendaniacademy.co.ke",
+      // "value": "http://localhost:8000",
       "type": "string"
     },
     {
       "key": "equity_api_key",
-      "value": "your-equity-api-key",
+      "value": "test-equity-api-key-12345",
       "type": "string"
     },
     {
       "key": "coop_username",
-      "value": "your-coop-username",
+      "value": "wendani_academy",
       "type": "string"
     },
     {
       "key": "coop_password",
-      "value": "your-coop-password",
+      "value": "pwasms@!#2026",
       "type": "string"
     },
     {

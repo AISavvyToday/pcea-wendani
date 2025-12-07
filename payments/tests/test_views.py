@@ -17,8 +17,9 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from students.models import Student, Grade
-from fees.models import Invoice
+from students.models import Student
+from academics.models import Grade
+from finance.models import Invoice
 from payments.models import BankTransaction, Payment
 
 

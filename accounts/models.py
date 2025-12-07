@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 from core.models import BaseModel, UserRole
 
+from datetime import timedelta
 
 class UserManager(BaseUserManager):
     """Custom user manager."""
@@ -86,8 +87,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Record failed login attempt, lock after 5 failures (per SRS NFR-SEC-007)."""
         self.failed_login_attempts += 1
         if self.failed_login_attempts >= 5:
-            self.locked_until = timezone.now() + timezone.timedelta(minutes=30)
-        self.save(update_fields=['failed_login_attempts', 'locked_until'])
+            self.locked_until = timezone.now() + timedelta(minutes=30)
+        self.save(update_fields=["failed_login_attempts", "locked_until"])
 
     def reset_failed_logins(self):
         """Reset failed login counter on successful login."""

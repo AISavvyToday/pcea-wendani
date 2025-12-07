@@ -26,8 +26,8 @@ MIGRATION_MODULES = DisableMigrations()
 
 # Test credentials
 EQUITY_API_KEY = 'test-equity-api-key-12345'
-COOP_IPN_USERNAME = 'testuser'
-COOP_IPN_PASSWORD = 'testpass'
+COOP_IPN_USERNAME = 'wendani_academy'
+COOP_IPN_PASSWORD = 'pwasms@!#2026'
 SCHOOL_COOP_ACCOUNT_NO = '01234567890100'
 
 # Disable actual SMS/Email sending
