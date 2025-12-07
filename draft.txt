@@ -1,0 +1,383 @@
+Perfect, that outline is exactly what we should build on. Given what’s already done, we don’t need a brand‑new plan; we need a **refined, concrete roadmap from “now” to a functional system**, module by module.
+
+Here’s how I’d structure it going forward, **strictly building on your current code, theme, and Heroku setup**.
+
+---
+
+### 0. Where we are (locked in)
+
+Already effectively done:
+
+1. **Project skeleton + settings + Heroku config**
+   - Project layout, custom `User`, apps (`students`, `academics`, `finance`, `payments`, `communications`, `reports`, `portal`, `core`).
+   - Staticfiles, Whitenoise, Heroku deployment pipeline.
+
+2. **Theme integration + base layout + dashboard shell**
+   - Purple admin theme integrated.
+   - `base.html`, navbar/sidebar, basic dashboards and section pages in `portal/`.
+
+3. **Payment integration (Equity + Co-op) – backend**
+   - Models: `BankTransaction`, `Payment`, invoice/payment linkage.
+   - DRF serializers, views for Equity and Co‑op.
+   - Services for transaction creation + admission resolution.
+   - We’ll treat this as “implemented; to be fully tested + surfaced in UI later”.
+
+We also have:
+
+- Models for Students, Academics, Finance, etc.
+- `admin.py` already wired so these can be managed in Django admin.
+
+From here we focus on **making the app usable by real users**: auth, student management, academics, finance/invoicing, comms, reports.
+
+---
+
+### 1. Core user model, roles, and auth flows (finish + wire to UI)
+
+Goal: **Every login lands on the correct dashboard and only sees what they should.**
+
+We’ll treat this as the next immediate implementation step.
+
+#### 1.1. Authentication flows
+
+- **Login/logout (email + password)** using custom `User`:
+  - Implement working `login_page`, `logout_view`, `role_redirect` (we’ve already sketched this).
+  - Ensure `LOGIN_URL`, `LOGIN_REDIRECT_URL`, `LOGOUT_REDIRECT_URL` in settings.
+  - Ensure login template uses theme but posts `email` + `password` to the view.
+
+- **Password reset flow (later in this step)**
+  - Use Django’s built‑in password reset views with custom templates styled via the Purple theme.
+  - Configure email backend (for now local console backend; later real SMTP).
+
+#### 1.2. Roles & permissions
+
+- Define clear behavior per `UserRole`:
+  - `SUPER_ADMIN`, `SCHOOL_ADMIN`: full access dashboards + config.
+  - `ACCOUNTANT`: finance, payments, invoicing, reports subset.
+  - `TEACHER`: academics (attendance, marks, class lists) + some reports.
+  - `PARENT`: children’s info, balances, statements, results, notifications.
+  - `STUDENT`: (optional) personal timetable, results, notices.
+
+- Implementation:
+  - `login_required` on all portal views.
+  - Simple role‑based decorators or helper (e.g. `role_required([...])`) for sensitive views.
+  - Context processor to expose `request.user.role` and role flags in templates, so we can conditionally show menu items.
+
+#### 1.3. Navigation and UX consistency
+
+- Build the **real left sidebar** menu based on role:
+  - Admin: full menu (Students, Academics, Finance, Payments, Comms, Reports, Settings).
+  - Bursar: Finance, Payments, limited Reports.
+  - Teacher: Students (class list), Academics, limited Reports.
+  - Parent/Student: minimal portal (profile, balances, statements, results, announcements).
+
+- Reuse theme partials from your HTML files (buttons, dropdowns, tables) to ensure consistent Purple styling.
+
+✅ **Outcome of Step 1:**
+You can create users with roles in Django admin, log in through `/auth/login/`, be redirected by role, and navigate only to allowed sections. Once this is stable, we build features under those sections.
+
+---
+
+### 2. Student Management module
+
+Goal: **Have a working “Students” area where admins/teachers can manage students, guardians, and current enrolment.**
+
+This is the foundation; everything else (academics, finance, comms) hangs off “student”.
+
+#### 2.1. Core stories
+
+- Admin can:
+  - View a paginated/filterable list of students.
+  - Create a new student (with basic bio + admission number + class + house).
+  - Attach parents/guardians and mark which is primary.
+  - View a student profile page (with tabs: profile, academics, finance, communications).
+  - Promote students from one class/year to the next.
+
+- Teacher can:
+  - View their own class(es) list (from `Class`/`StudentClassEnrollment`).
+  - Open a student profile in read‑only mode (or limited edit: e.g. remarks).
+
+#### 2.2. Backend implementation
+
+- **URLs & views** (`students/urls.py`, `students/views.py`):
+  - `students:list` – list, search, filter by class/stream/status.
+  - `students:create` – student registration form.
+  - `students:update/<id>` – edit.
+  - `students:detail/<id>` – profile view.
+  - `students:promote` – simple view/service to promote selected students.
+
+- **Forms**:
+  - `StudentForm` for main student info.
+  - `ParentInlineForm` or separate view for linking parents (or use dedicated `StudentParentForm`).
+
+- **Services** (optional but clean):
+  - `StudentService.create_student_with_parents(...)`.
+  - `StudentService.promote_students(...)`.
+
+#### 2.3. UI using Purple theme
+
+- List views:
+  - Base them on `basic-table.html` from the theme.
+  - Add search bar, filter dropdowns (class, year, status), and actions column.
+
+- Forms:
+  - Use `basic_elements.html` / `buttons.html` for styling.
+  - Possibly use a **multi‑step form** for more complex data (Bio → Contact → Parent/Guardian → Transport/Medical).
+
+- Student profile:
+  - Use a “profile + tabs” layout:
+    - Overview tab: basic info, class, status.
+    - Academics tab (later pulls marks, attendance summary).
+    - Finance tab (later pulls invoice/balance summary).
+    - Communications tab (messages sent to this student/parent).
+
+✅ **Outcome of Step 2:**
+School admin and teachers can manage students from the web UI. Data model becomes “alive” and ready for linking with invoices, attendance, and results.
+
+---
+
+### 3. Academic Management module
+
+Goal: **Timetables, attendance, exams/grades, and simple academic reports.**
+
+We’ll build only what’s needed for PWASMS MVP first.
+
+#### 3.1. Core stories
+
+- Admin/HOD can:
+  - Define subjects, classes, class-subject assignments, and teacher allocations.
+  - Capture academic year and term, and ensure “current term” is correctly set.
+
+- Teacher can:
+  - Take daily attendance for their classes.
+  - Enter assessments/exam scores for students per subject.
+  - View a simple gradebook per class+subject.
+
+- Admin can:
+  - Generate basic term report summaries per class and per student.
+  - Export marks to CSV (later).
+
+#### 3.2. Implementation units
+
+- **Configuration views** (admin role in portal, even though we also have Django admin):
+  - Manage `Subject`, `Class`, `ClassSubjectTeacher` (if you have that relation).
+  - Manage `AcademicYear` and `Term` (ensuring exactly one current).
+
+- **Attendance UI**:
+  - Teacher sees list of their classes.
+  - For a given class + date, display students in a table with present/absent toggles.
+  - Save to `Attendance` model (if it exists) or equivalent.
+
+- **Assessment / exam entry**:
+  - For a class+subject+exam (or continuous assessment), teacher enters marks in a table.
+  - Service for grade calculation if required by your SRS.
+
+- **Reports (basic)**:
+  - Per student: term average, subject scores.
+  - Per class: distribution of grades.
+
+- **Theme integration**:
+  - Use table views with inline editing or modals.
+  - Use elements from `basic-table.html` and `basic_elements.html`.
+
+✅ **Outcome of Step 3:**
+Teachers can actually interact with the system for academics (attendance & marks), and admins can view basic academic performance per student/class.
+
+---
+
+### 4. Finance/Fee Management module (with payments tied in)
+
+Goal: **Turn your finance models + payment integration into a working fee/invoicing and receipts module.**
+
+This is where your payment code becomes visible to users.
+
+#### 4.1. Core stories
+
+- Admin/Bursar can:
+  - Configure fee structures per class/year/term (`FeeStructure`, `FeeItem` etc. per your models).
+  - Bulk generate invoices for all active students for a term.
+  - View invoices and balances per student.
+  - See a statement of account for a student.
+  - See bank transactions (Equity/Co‑op) and how they linked to students/invoices.
+  - See any **unmatched bank transactions** or anomalies.
+
+- Parent can:
+  - See child balances and statements (read‑only).
+  - View breakdown of fees.
+
+#### 4.2. Implementation units
+
+- **Configuration**:
+  - Portal UI for `FeeStructure`:
+    - Per class/year/term.
+    - Use forms reusing theme components.
+
+- **Invoicing service & UI**:
+  - Service: `InvoicingService.generate_invoices_for_term(term)`:
+    - Reads students in current term, `FeeStructure`, discounts.
+    - Creates `Invoice` + `InvoiceItem`s.
+  - UI action in bursar dashboard:
+    - “Generate invoices for Term X” with confirmation and preview.
+
+- **Invoices & statements UI**:
+  - Student finance overview page:
+    - Current balance, prepayment, balance B/F.
+    - Table of invoices & payments (past X terms).
+  - Invoice list view:
+    - Filter by class, term, status (paid, partial, overdue).
+  - Statement view:
+    - A chronological ledger of invoices and payments.
+
+- **Bank transactions & reconciliation**:
+  - Views for `BankTransaction`:
+    - All transactions; filter by date, gateway, status.
+    - Show whether each transaction has a `Payment` / `Invoice` link.
+  - View for **unmatched** / **unreconciled** transactions:
+    - Let bursar manually assign a transaction to a student/invoice or mark as error.
+
+✅ **Outcome of Step 4:**
+Finance/bursar can fully manage fees and see the impact of bank payments without touching the Django admin. Parents can see what they owe.
+
+---
+
+### 5. Communications (SMS/Email)
+
+Goal: **Allow the school to send fee alerts, academic updates, and announcements via SMS/email and track what was sent.**
+
+You already have models/services sketched out for communications.
+
+#### 5.1. Core stories
+
+- Admin/Bursar can:
+  - Send fee reminders to:
+    - All parents with outstanding balances,
+    - A single class,
+    - A single student.
+  - See a history of messages sent.
+
+- Teacher/Admin can:
+  - Send announcements to:
+    - Classes, streams, entire school,
+    - Specific groups (e.g. “Grade 8 Parents”).
+
+- Parent can:
+  - See recent announcements relevant to their children.
+
+#### 5.2. Implementation units
+
+- **Provider integration (phase 1)**:
+  - Start with a stub service or console email backend.
+  - Abstract `SmsProvider` / `EmailProvider` so real providers (Africa’s Talking, etc.) can be plugged in later.
+
+- **Bulk messaging UI**:
+  - Use theme forms + modals:
+    - Choose audience (by class, by fee status, by role, by custom selection).
+    - Enter subject + body.
+    - Confirm and send.
+
+- **History & status**:
+  - List of communications (from `Notification` or equivalent model).
+  - Filter by type (SMS/email), date, status.
+
+✅ **Outcome of Step 5:**
+School can start doing real operational comms driven from system data (balances, classes), even if initial provider is simple.
+
+---
+
+### 6. Reporting & Analytics
+
+Goal: **Provide high‑level dashboards and exported reports for management.**
+
+We already have dashboard shell pages; now we make them data‑driven.
+
+#### 6.1. Core stories
+
+- Management can see:
+  - Total enrolment by class/sex.
+  - Fee collection vs billed for current term.
+  - Overdue balances aggregated.
+  - Attendance summaries.
+  - Exam performance summary by class/subject.
+
+- Export:
+  - CSV/Excel exports for selected views (students, invoices, payments, results).
+
+#### 6.2. Implementation units
+
+- Backend:
+  - Reporting services that aggregate data per SRS requirements.
+  - Simple querysets with annotations and group_by for the first version.
+
+- Frontend:
+  - Use the theme’s Chart.js components (we already fixed static issues) to render:
+    - Line charts (collections over time).
+    - Bar charts (class sizes, performance).
+    - Pie/donut charts (fee payment status breakdown).
+
+- Export:
+  - For key lists (students, invoices, payments), add “Export CSV” or “Export Excel” buttons backed by simple views.
+
+✅ **Outcome of Step 6:**
+The dashboards stop being static placeholders and become useful daily/termly management tools.
+
+---
+
+### 7. Admin config, security hardening, tests, CI/CD
+
+Goal: **Make PWASMS robust, secure, and maintainable in production.**
+
+#### 7.1. Admin & config
+
+- Ensure Django admin is clean:
+  - Logical list displays, filters, search for key models (Student, Invoice, Payment, BankTransaction, etc.).
+  - Read‑only fields where appropriate (e.g. auto timestamps, IDs).
+
+- System settings:
+  - Simple model for school configuration (name, logo, SMS/email sender IDs, term dates).
+  - Admin UI for these settings that feed into portal header, branding, etc.
+
+#### 7.2. Security
+
+- Remove any hard‑coded secrets (we’ve already spotted Co‑op credentials).
+- Confirm:
+  - `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` on production.
+  - Proper `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`.
+- Rate limiting / IP allowlisting if required for sensitive endpoints (like Equity/Co‑op callbacks).
+
+#### 7.3. Tests & CI/CD
+
+- Add unit tests for:
+  - Payment flows (Equity/Co‑op callbacks -> BankTransaction -> Payment -> Invoice updates).
+  - Fee generation and balances.
+  - Admissions / promotions.
+- Set up:
+  - GitHub Actions (or similar) to run tests on push.
+  - Optional: automatic deploy to Heroku on main branch with passing tests.
+
+✅ **Outcome of Step 7:**
+System is not just working but safe, maintainable, and with confidence around changes.
+
+---
+
+### How we’ll proceed, step by step
+
+To mirror what you asked:
+
+1. **Now**: We lock this roadmap.
+2. **Next concrete section to implement** (in the next messages):
+   Step 1 – Core user model, roles, and auth flows (finish wiring login/logout/role routing + role‑based menu and `login_required`/role decorators).
+3. After Step 1 is working locally (and on Heroku), we move to:
+   - **Step 2 – Student Management module**, implementing it slice by slice:
+     - List view,
+     - Create/edit,
+     - Profile view,
+     - Parent linking,
+     - Promotion.
+
+Each time, we’ll:
+
+- Define exactly what we’re building in that slice.
+- Show the URLs, views, forms, and templates to edit/create (using the theme).
+- You implement & run, then bring back any errors or screenshots/logs.
+- Then move to the next slice.
+
+If you’re good with this refined outline, I suggest we start with **Step 1.1/1.2: locking in login + role‑based redirect + making dashboards require login**. Once that’s in, everything else sits nicely on top.

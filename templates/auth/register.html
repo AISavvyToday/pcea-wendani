@@ -9,50 +9,90 @@
     <link rel="stylesheet" href="{% static 'assets/vendors/mdi/css/materialdesignicons.min.css' %}">
     <link rel="stylesheet" href="{% static 'assets/vendors/css/vendor.bundle.base.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}">
+    <link rel="shortcut icon" href="{% static 'assets/images/favicon.png' %}" />
   </head>
   <body>
     <div class="container-scroller">
       <div class="container-fluid page-body-wrapper full-page-wrapper">
         <div class="content-wrapper d-flex align-items-center auth px-0">
           <div class="row w-100 mx-0">
-            <div class="col-lg-4 mx-auto">
+            <div class="col-lg-5 mx-auto">
               <div class="auth-form-light text-left py-5 px-4 px-sm-5">
-                <div class="brand-logo mb-4">
+                <!-- Logo -->
+                <div class="brand-logo mb-3">
                   <img src="{% static 'assets/images/logo.svg' %}" alt="PWASMS logo" />
                 </div>
-                <h4>Create an account</h4>
-                <h6 class="font-weight-light mb-4">Get role-based access to PWASMS.</h6>
-                <form class="pt-3" method="post">
-                  {% csrf_token %}
-                  <div class="form-group">
-                    <input type="text" class="form-control form-control-lg" name="full_name" placeholder="Full name" />
-                  </div>
-                  <div class="form-group">
-                    <input type="email" class="form-control form-control-lg" name="email" placeholder="Email" />
-                  </div>
-                  <div class="form-group">
-                    <input type="password" class="form-control form-control-lg" name="password1" placeholder="Password" />
-                  </div>
-                  <div class="form-group">
-                    <input type="password" class="form-control form-control-lg" name="password2" placeholder="Confirm password" />
-                  </div>
-                  <div class="mb-4">
-                    <div class="form-check">
-                      <label class="form-check-label text-muted">
-                        <input type="checkbox" class="form-check-input" />
-                        I agree to PWASMS policies
-                      </label>
+
+                <h4>Account Registration</h4>
+                <h6 class="fw-light text-muted mb-4">Registration is managed by school administrators</h6>
+
+                <!-- Messages -->
+                {% if messages %}
+                  {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                      <i class="mdi {% if message.tags == 'error' %}mdi-alert-circle{% elif message.tags == 'success' %}mdi-check-circle{% else %}mdi-information{% endif %} me-2"></i>
+                      {{ message }}
+                      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
+                  {% endfor %}
+                {% endif %}
+
+                <!-- Info Card -->
+                <div class="card bg-light border-0 mb-4">
+                  <div class="card-body">
+                    <h6 class="card-title">
+                      <i class="mdi mdi-information-outline text-primary me-2"></i>
+                      How to Get Access
+                    </h6>
+                    <p class="card-text text-muted mb-3">
+                      User accounts are created by school administrators to ensure proper role assignment and data security.
+                    </p>
+                    <hr>
+                    <h6 class="mb-2"><i class="mdi mdi-account-group me-2"></i>For Parents/Guardians:</h6>
+                    <p class="text-muted small mb-3">
+                      Visit the school office with your ID and your child's admission number. An account will be created and credentials sent to your registered phone/email.
+                    </p>
+                    <h6 class="mb-2"><i class="mdi mdi-school me-2"></i>For Staff Members:</h6>
+                    <p class="text-muted small mb-0">
+                      Contact the school administrator or HR department. Your account will be set up with appropriate access permissions.
+                    </p>
                   </div>
-                  <div class="mt-3 d-grid gap-2">
-                    <button class="btn btn-block btn-gradient-primary btn-lg font-weight-medium auth-form-btn" type="submit">
-                      REGISTER
-                    </button>
+                </div>
+
+                <!-- Contact Info -->
+                <div class="card border-primary mb-4">
+                  <div class="card-body">
+                    <h6 class="card-title text-primary">
+                      <i class="mdi mdi-phone me-2"></i>Contact Us
+                    </h6>
+                    <div class="row">
+                      <div class="col-6">
+                        <p class="mb-1"><strong>Phone:</strong></p>
+                        <p class="text-muted small">+254 XXX XXX XXX</p>
+                      </div>
+                      <div class="col-6">
+                        <p class="mb-1"><strong>Email:</strong></p>
+                        <p class="text-muted small">info@wendaniacademy.ac.ke</p>
+                      </div>
+                    </div>
+                    <p class="mb-1"><strong>Office Hours:</strong></p>
+                    <p class="text-muted small mb-0">Monday - Friday: 8:00 AM - 5:00 PM</p>
                   </div>
-                  <div class="text-center mt-4 fw-light">
-                    Already have an account? <a href="{% url 'portal:login' %}" class="text-primary">Sign in</a>
-                  </div>
-                </form>
+                </div>
+
+                <!-- Back to Login -->
+                <div class="mt-3 d-grid gap-2">
+                  <a href="{% url 'portal:login' %}" class="btn btn-gradient-primary btn-lg">
+                    <i class="mdi mdi-arrow-left me-2"></i>Back to Login
+                  </a>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                  <small class="text-muted">
+                    &copy; {% now "Y" %} PCEA Wendani Academy. All rights reserved.
+                  </small>
+                </div>
               </div>
             </div>
           </div>

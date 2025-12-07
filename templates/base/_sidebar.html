@@ -2,91 +2,453 @@
 {% load static %}
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
   <ul class="nav">
+
+    <!-- User Profile Section -->
     <li class="nav-item nav-profile">
       <a href="{% url 'portal:home' %}" class="nav-link">
         <div class="nav-profile-image">
-          <img src="{% static 'assets/images/' %}" alt="avatar" />
+          {% if user.is_authenticated and user.profile_picture %}
+            <img src="{{ user.profile_picture.url }}" alt="avatar" />
+          {% else %}
+            <img src="{% static 'assets/images/faces/face1.jpg' %}" alt="avatar" />
+          {% endif %}
           <span class="login-status online"></span>
         </div>
         <div class="nav-profile-text d-flex flex-column">
-          <span class="font-weight-bold mb-2">PCEA Wendani</span>
-          <span class="text-secondary text-small">Academy</span>
+          {% if user.is_authenticated %}
+            <span class="font-weight-bold mb-2">{{ user.get_short_name|default:user.email|truncatechars:15 }}</span>
+            <span class="text-secondary text-small">{{ user_role_display|default:"User" }}</span>
+          {% else %}
+            <span class="font-weight-bold mb-2">PCEA Wendani</span>
+            <span class="text-secondary text-small">Academy</span>
+          {% endif %}
         </div>
         <i class="mdi mdi-check-decagram text-success nav-profile-badge"></i>
       </a>
     </li>
 
+    <!-- Home - Always visible -->
     <li class="nav-item">
       <a class="nav-link" href="{% url 'portal:home' %}">
         <span class="menu-title">Home</span>
-        <i class="mdi mdi-view-dashboard-outline menu-icon"></i>
+        <i class="mdi mdi-home menu-icon"></i>
       </a>
     </li>
 
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="collapse" href="#dashboards" aria-expanded="true" aria-controls="dashboards">
-        <span class="menu-title">Dashboards</span>
-        <i class="menu-arrow"></i>
-        <i class="mdi mdi-monitor-dashboard menu-icon"></i>
-      </a>
-      <div class="collapse show" id="dashboards">
-        <ul class="nav flex-column sub-menu">
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_admin' %}">Admin</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_bursar' %}">Bursar</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_teacher' %}">Teacher</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:dashboard_parent' %}">Parent</a></li>
-        </ul>
-      </div>
-    </li>
+    {% if user.is_authenticated %}
 
-    <li class="nav-item">
-      <a class="nav-link" href="{% url 'portal:academics_overview' %}">
-        <span class="menu-title">Academics</span>
-        <i class="mdi mdi-school menu-icon"></i>
-      </a>
-    </li>
+      <!-- ============================================================== -->
+      <!-- SUPER ADMIN & SCHOOL ADMIN - Full Access -->
+      <!-- ============================================================== -->
+      {% if is_admin %}
 
-    <li class="nav-item">
-      <a class="nav-link" href="{% url 'portal:finance_overview' %}">
-        <span class="menu-title">Finance</span>
-        <i class="mdi mdi-cash-multiple menu-icon"></i>
-      </a>
-    </li>
+        <!-- Dashboard -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard_admin' %}">
+            <span class="menu-title">Dashboard</span>
+            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          </a>
+        </li>
 
-    <li class="nav-item">
-      <a class="nav-link" href="{% url 'portal:communications_overview' %}">
-        <span class="menu-title">Communications</span>
-        <i class="mdi mdi-message-text menu-icon"></i>
-      </a>
-    </li>
+        <!-- Students Management -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#students-menu" aria-expanded="false" aria-controls="students-menu">
+            <span class="menu-title">Students</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-account-group menu-icon"></i>
+          </a>
+          <div class="collapse" id="students-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">All Students</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Admissions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Guardians</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Promotions</a></li>
+            </ul>
+          </div>
+        </li>
 
-    <li class="nav-item">
-      <a class="nav-link" href="{% url 'portal:resources_overview' %}">
-        <span class="menu-title">Resources</span>
-        <i class="mdi mdi-folder-multiple menu-icon"></i>
-      </a>
-    </li>
+        <!-- Academics -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#academics-menu" aria-expanded="false" aria-controls="academics-menu">
+            <span class="menu-title">Academics</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-school menu-icon"></i>
+          </a>
+          <div class="collapse" id="academics-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Classes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Subjects</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Timetables</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Examinations</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance</a></li>
+            </ul>
+          </div>
+        </li>
 
-    <li class="nav-item">
-      <a class="nav-link" href="{% url 'portal:settings_overview' %}">
-        <span class="menu-title">Settings</span>
-        <i class="mdi mdi-cog-outline menu-icon"></i>
-      </a>
-    </li>
+        <!-- Finance -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#finance-menu" aria-expanded="false" aria-controls="finance-menu">
+            <span class="menu-title">Finance</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-cash-multiple menu-icon"></i>
+          </a>
+          <div class="collapse" id="finance-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Invoices</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Payments</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Bank Transactions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Statements</a></li>
+            </ul>
+          </div>
+        </li>
 
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="collapse" href="#system-pages" aria-expanded="false" aria-controls="system-pages">
-        <span class="menu-title">System Pages</span>
-        <i class="menu-arrow"></i>
-        <i class="mdi mdi-lock menu-icon"></i>
-      </a>
-      <div class="collapse" id="system-pages">
-        <ul class="nav flex-column sub-menu">
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:login' %}">Login</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:register' %}">Register</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Blank Page</a></li>
-        </ul>
-      </div>
-    </li>
+        <!-- Communications -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#comms-menu" aria-expanded="false" aria-controls="comms-menu">
+            <span class="menu-title">Communications</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-message-text menu-icon"></i>
+          </a>
+          <div class="collapse" id="comms-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Send Message</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Announcements</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Message History</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Reports -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#reports-menu" aria-expanded="false" aria-controls="reports-menu">
+            <span class="menu-title">Reports</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-chart-bar menu-icon"></i>
+          </a>
+          <div class="collapse" id="reports-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Enrollment Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Financial Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Academic Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance Report</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Settings -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#settings-menu" aria-expanded="false" aria-controls="settings-menu">
+            <span class="menu-title">Settings</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-cog menu-icon"></i>
+          </a>
+          <div class="collapse" id="settings-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">School Profile</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Academic Years</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Terms</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">User Management</a></li>
+            </ul>
+          </div>
+        </li>
+
+      <!-- ============================================================== -->
+      <!-- ACCOUNTANT / BURSAR - Finance Focused -->
+      <!-- ============================================================== -->
+      {% elif is_accountant %}
+
+        <!-- Dashboard -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard_bursar' %}">
+            <span class="menu-title">Dashboard</span>
+            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- Fee Management -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#fees-menu" aria-expanded="false" aria-controls="fees-menu">
+            <span class="menu-title">Fee Management</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-cash-multiple menu-icon"></i>
+          </a>
+          <div class="collapse" id="fees-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Generate Invoices</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">View Invoices</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Payments -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#payments-menu" aria-expanded="false" aria-controls="payments-menu">
+            <span class="menu-title">Payments</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-bank-transfer menu-icon"></i>
+          </a>
+          <div class="collapse" id="payments-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">All Payments</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Bank Transactions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Reconciliation</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Students (Limited) -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#students-bursar-menu" aria-expanded="false" aria-controls="students-bursar-menu">
+            <span class="menu-title">Students</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-account-group menu-icon"></i>
+          </a>
+          <div class="collapse" id="students-bursar-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Student Balances</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Statements</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Financial Reports -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#fin-reports-menu" aria-expanded="false" aria-controls="fin-reports-menu">
+            <span class="menu-title">Reports</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-chart-bar menu-icon"></i>
+          </a>
+          <div class="collapse" id="fin-reports-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Collections Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Outstanding Balances</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Daily Summary</a></li>
+            </ul>
+          </div>
+        </li>
+
+      <!-- ============================================================== -->
+      <!-- TEACHER - Academics Focused -->
+      <!-- ============================================================== -->
+      {% elif is_teacher %}
+
+        <!-- Dashboard -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard_teacher' %}">
+            <span class="menu-title">Dashboard</span>
+            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- My Classes -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#classes-menu" aria-expanded="false" aria-controls="classes-menu">
+            <span class="menu-title">My Classes</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-google-classroom menu-icon"></i>
+          </a>
+          <div class="collapse" id="classes-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Class List</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Timetable</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Attendance -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#attendance-menu" aria-expanded="false" aria-controls="attendance-menu">
+            <span class="menu-title">Attendance</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-clipboard-check menu-icon"></i>
+          </a>
+          <div class="collapse" id="attendance-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Take Attendance</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance History</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Assessments -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#assessments-menu" aria-expanded="false" aria-controls="assessments-menu">
+            <span class="menu-title">Assessments</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-file-document-edit menu-icon"></i>
+          </a>
+          <div class="collapse" id="assessments-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Enter Marks</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">View Gradebook</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Student Profiles -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">Student Profiles</span>
+            <i class="mdi mdi-account-search menu-icon"></i>
+          </a>
+        </li>
+
+      <!-- ============================================================== -->
+      <!-- PARENT - Child-Focused Portal -->
+      <!-- ============================================================== -->
+      {% elif is_parent %}
+
+        <!-- Dashboard -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard_parent' %}">
+            <span class="menu-title">Dashboard</span>
+            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- My Children -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">My Children</span>
+            <i class="mdi mdi-account-child menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- Academic Progress -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#progress-menu" aria-expanded="false" aria-controls="progress-menu">
+            <span class="menu-title">Academic Progress</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-school menu-icon"></i>
+          </a>
+          <div class="collapse" id="progress-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Report Cards</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Fees & Payments -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#parent-fees-menu" aria-expanded="false" aria-controls="parent-fees-menu">
+            <span class="menu-title">Fees & Payments</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-credit-card menu-icon"></i>
+          </a>
+          <div class="collapse" id="parent-fees-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Balance</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Payment History</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Statement</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Announcements -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">Announcements</span>
+            <i class="mdi mdi-bullhorn menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- Messages -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">Messages</span>
+            <i class="mdi mdi-email menu-icon"></i>
+          </a>
+        </li>
+
+      <!-- ============================================================== -->
+      <!-- STUDENT - Minimal Personal Portal -->
+      <!-- ============================================================== -->
+      {% elif is_student %}
+
+        <!-- Dashboard -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard_parent' %}">
+            <span class="menu-title">Dashboard</span>
+            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- My Profile -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">My Profile</span>
+            <i class="mdi mdi-account menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- My Results -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">My Results</span>
+            <i class="mdi mdi-certificate menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- My Timetable -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">My Timetable</span>
+            <i class="mdi mdi-calendar-clock menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- Announcements -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+            <span class="menu-title">Announcements</span>
+            <i class="mdi mdi-bullhorn menu-icon"></i>
+          </a>
+        </li>
+
+      {% endif %}
+
+      <!-- ============================================================== -->
+      <!-- ACCOUNT SECTION - Always visible for authenticated users -->
+      <!-- ============================================================== -->
+      <li class="nav-item nav-category">Account</li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="#">
+          <span class="menu-title">My Profile</span>
+          <i class="mdi mdi-account-circle menu-icon"></i>
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:logout' %}">
+          <span class="menu-title">Logout</span>
+          <i class="mdi mdi-logout menu-icon text-danger"></i>
+        </a>
+      </li>
+
+    {% else %}
+      <!-- ============================================================== -->
+      <!-- NOT AUTHENTICATED - Show login/register -->
+      <!-- ============================================================== -->
+      <li class="nav-item nav-category">Account</li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:login' %}">
+          <span class="menu-title">Login</span>
+          <i class="mdi mdi-login menu-icon"></i>
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:register' %}">
+          <span class="menu-title">Register</span>
+          <i class="mdi mdi-account-plus menu-icon"></i>
+        </a>
+      </li>
+    {% endif %}
+
   </ul>
 </nav>

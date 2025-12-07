@@ -26,8 +26,6 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "").lower() == "true"
 #     "localhost,127.0.0.1",
 # ).split(",")
 
-# Custom User Model
-AUTH_USER_MODEL = 'accounts.User'
 
 ALLOWED_HOSTS = ['*']
 
@@ -87,6 +85,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                    # Custom context processors
+                'core.context_processors.user_role_context',
             ],
         },
     },
@@ -146,8 +146,23 @@ MEDIA_ROOT = BASE_DIR / "media"
 # ------------------------------------------------------------------------------
 # Auth
 # ------------------------------------------------------------------------------
-AUTH_USER_MODEL = "accounts.User"
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.EmailBackend',  # Custom email-based auth
+    'django.contrib.auth.backends.ModelBackend',  # Fallback
+]
+
+# Login/Logout redirects
+LOGIN_URL = 'portal:login'
+LOGIN_REDIRECT_URL = 'portal:role_redirect'
+LOGOUT_REDIRECT_URL = 'portal:login'
+
+# Session settings
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # ------------------------------------------------------------------------------
 # Default auto field
 # ------------------------------------------------------------------------------
@@ -185,3 +200,21 @@ SCHOOL_COOP_ACCOUNT_NO = os.environ.get('SCHOOL_COOP_ACCOUNT_NO', '')
 # Payment callback base URL (for logging purposes)
 PAYMENT_CALLBACK_BASE_URL = os.environ.get('PAYMENT_CALLBACK_BASE_URL', '')
 
+#=============================================================================
+# EMAIL SETTINGS (Console backend for development)
+# =============================================================================
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# For production, switch to real SMTP:
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+# EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+# EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
+DEFAULT_FROM_EMAIL = 'PWASMS <noreply@wendaniacademy.ac.ke>'
+
+# Password reset token validity (in seconds) - 24 hours
+PASSWORD_RESET_TIMEOUT = 86400

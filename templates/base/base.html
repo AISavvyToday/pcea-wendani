@@ -23,6 +23,22 @@
         {% include 'base/_sidebar.html' %}
         <div class="main-panel">
           <div class="content-wrapper">
+
+            <!-- Flash Messages -->
+            {% if messages %}
+              <div class="row">
+                <div class="col-12">
+                  {% for message in messages %}
+                    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show d-flex align-items-center" role="alert">
+                      <i class="mdi {% if message.tags == 'error' or message.tags == 'danger' %}mdi-alert-circle{% elif message.tags == 'success' %}mdi-check-circle{% elif message.tags == 'warning' %}mdi-alert{% else %}mdi-information{% endif %} me-2" style="font-size: 1.25rem;"></i>
+                      <div>{{ message }}</div>
+                      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
             {% block page_header %}
             <div class="page-header">
               <h3 class="page-title text-uppercase text-muted small mb-2">PWASMS</h3>
