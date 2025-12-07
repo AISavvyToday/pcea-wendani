@@ -49,7 +49,7 @@ def login_view(request):
 
         if user is not None:
             # Check if account is locked
-            if hasattr(user, 'is_locked') and user.is_locked:
+            if hasattr(user, 'is_locked') and user.is_locked():
                 logger.warning(f"Login attempt for locked account: {email}")
                 messages.error(request,
                                'Your account is temporarily locked. Please try again later or contact support.')
