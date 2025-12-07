@@ -96,6 +96,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.locked_until = None
         self.save(update_fields=['failed_login_attempts', 'locked_until'])
 
+    def get_short_name(self):
+        """Return first name."""
+        return self.first_name
+
+    def get_full_name(self):
+        """Return full name."""
+        return f"{self.first_name} {self.last_name}".strip()
+
 
 class AuditLog(models.Model):
     """
