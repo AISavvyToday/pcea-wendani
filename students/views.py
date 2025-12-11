@@ -51,7 +51,7 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['search_form'] = StudentSearchForm(self.request.GET)
         context['total_students'] = Student.objects.count()
-        context['active_students'] = Student.objects.filter(enrollment_status='ACTIVE').count()
+        context['active_students'] = Student.objects.filter(status='active').count()
         return context
 
 
@@ -182,10 +182,10 @@ class StudentPromotionView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         if class_id:
             students = Student.objects.filter(
                 current_class_id=class_id,
-                enrollment_status='ACTIVE'
+                status='active'
             )
         else:
-            students = Student.objects.filter(enrollment_status='ACTIVE')
+            students = Student.objects.filter(status='active')
 
         kwargs['students'] = students
         return kwargs
