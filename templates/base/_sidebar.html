@@ -27,13 +27,7 @@
       </a>
     </li>
 
-<!--    &lt;!&ndash; Home - Always visible &ndash;&gt;-->
-<!--    <li class="nav-item">-->
-<!--      <a class="nav-link" href="{% url 'portal:home' %}">-->
-<!--        <span class="menu-title">Home</span>-->
-<!--        <i class="mdi mdi-home menu-icon"></i>-->
-<!--      </a>-->
-<!--    </li>-->
+
 
     {% if user.is_authenticated %}
 
@@ -59,10 +53,10 @@
           </a>
           <div class="collapse" id="students-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">All Students</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Admissions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:list' %}">All Students</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:create' %}">Register Student</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:promote' %}">Promote Students</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Guardians</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Promotions</a></li>
             </ul>
           </div>
         </li>
@@ -207,6 +201,7 @@
           </a>
           <div class="collapse" id="students-bursar-menu">
             <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:list' %}">All Students</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Student Balances</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Statements</a></li>
             </ul>
@@ -289,7 +284,7 @@
 
         <!-- Student Profiles -->
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
+          <a class="nav-link" href="{% url 'students:list' %}">
             <span class="menu-title">Student Profiles</span>
             <i class="mdi mdi-account-search menu-icon"></i>
           </a>

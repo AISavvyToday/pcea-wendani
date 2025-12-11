@@ -1,0 +1,158 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Promote Students - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">
+      <span class="page-title-icon bg-gradient-primary text-white me-2">
+        <i class="mdi mdi-arrow-up-bold"></i>
+      </span> Promote Students
+    </h3>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'students:list' %}">Students</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Promote</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row">
+    <div class="col-12 grid-margin stretch-card">
+      <div class="card">
+        <div class="card-body">
+          <h4 class="card-title">Select Class to Promote</h4>
+          <p class="card-description">Choose a class to view students eligible for promotion</p>
+
+          <!-- Class Selection Form -->
+          <form method="get" class="forms-sample mb-4">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="form-group">
+                  <label>Select Class</label>
+                  <select name="class_id" class="form-control" onchange="this.form.submit()">
+                    <option value="">-- Select a class --</option>
+                    {% for class in classes %}
+                      <option value="{{ class.id }}" {% if selected_class == class.id|stringformat:"s" %}selected{% endif %}>
+                        {{ class.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          {% if selected_class %}
+          <hr class="my-4">
+
+          <!-- Current Academic Info -->
+          <div class="alert alert-info">
+            <strong>Current Academic Period:</strong>
+            {% if current_year %}
+              {{ current_year.name }}
+            {% else %}
+              <span class="text-danger">No current academic year set!</span>
+            {% endif %}
+            |
+            {% if current_term %}
+              {{ current_term.name }}
+            {% else %}
+              <span class="text-danger">No current term set!</span>
+            {% endif %}
+          </div>
+
+          {% if not current_year or not current_term %}
+          <div class="alert alert-danger">
+            <i class="mdi mdi-alert"></i> Please set the current academic year and term in the system before promoting students.
+          </div>
+          {% else %}
+
+          <!-- Promotion Form -->
+          <form method="post" class="forms-sample">
+            {% csrf_token %}
+
+            <h4 class="card-title mb-3">Select Students to Promote</h4>
+
+            {% if form.student_ids.field.choices %}
+            <div class="form-group">
+              <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleAll(this)">
+                <label class="form-check-label" for="selectAll">
+                  <strong>Select All</strong>
+                </label>
+              </div>
+              <hr>
+              {% for choice in form.student_ids.field.choices %}
+              <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input student-checkbox" name="student_ids" value="{{ choice.0 }}" id="student_{{ choice.0 }}">
+                <label class="form-check-label" for="student_{{ choice.0 }}">
+                  {{ choice.1 }}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.target_class.id_for_label }}">Promote To Class *</label>
+                  {{ form.target_class }}
+                  {% if form.target_class.errors %}
+                    <div class="text-danger mt-1">{{ form.target_class.errors }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            {% if form.errors %}
+            <div class="alert alert-danger">
+              <strong>Please correct the following errors:</strong>
+              <ul class="mb-0">
+                {% for field, errors in form.errors.items %}
+                  {% for error in errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-gradient-primary me-2">
+                <i class="mdi mdi-arrow-up-bold"></i> Promote Selected Students
+              </button>
+              <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
+            </div>
+
+            {% else %}
+            <div class="alert alert-warning">
+              <i class="mdi mdi-alert"></i> No active students found in the selected class.
+            </div>
+            {% endif %}
+
+          </form>
+          {% endif %}
+
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleAll(source) {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+      checkbox.checked = source.checked;
+    });
+  }
+</script>
+
+{% endblock %}

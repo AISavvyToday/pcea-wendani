@@ -1,0 +1,193 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Students - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">
+      <span class="page-title-icon bg-gradient-primary text-white me-2">
+        <i class="mdi mdi-account-multiple"></i>
+      </span> Students Management
+    </h3>
+    <nav aria-label="breadcrumb">
+      <ul class="breadcrumb">
+        <li class="breadcrumb-item active" aria-current="page">
+          <span></span>Overview <i class="mdi mdi-alert-circle-outline icon-sm text-primary align-middle"></i>
+        </li>
+      </ul>
+    </nav>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row">
+    <div class="col-md-4 stretch-card grid-margin">
+      <div class="card bg-gradient-info card-img-holder text-white">
+        <div class="card-body">
+          <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="circle-image" />
+          <h4 class="font-weight-normal mb-3">Total Students <i class="mdi mdi-account-multiple mdi-24px float-end"></i>
+          </h4>
+          <h2 class="mb-5">{{ total_students }}</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 stretch-card grid-margin">
+      <div class="card bg-gradient-success card-img-holder text-white">
+        <div class="card-body">
+          <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="circle-image" />
+          <h4 class="font-weight-normal mb-3">Active Students <i class="mdi mdi-account-check mdi-24px float-end"></i>
+          </h4>
+          <h2 class="mb-5">{{ active_students }}</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 stretch-card grid-margin">
+      <div class="card bg-gradient-primary card-img-holder text-white">
+        <div class="card-body">
+          <h4 class="font-weight-normal mb-3">Actions</h4>
+          <a href="{% url 'students:create' %}" class="btn btn-light btn-fw mt-3">
+            <i class="mdi mdi-plus"></i> Register New Student
+          </a>
+          <a href="{% url 'students:promote' %}" class="btn btn-light btn-fw mt-2">
+            <i class="mdi mdi-arrow-up-bold"></i> Promote Students
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search and Filter -->
+  <div class="row">
+    <div class="col-lg-12 grid-margin stretch-card">
+      <div class="card">
+        <div class="card-body">
+          <h4 class="card-title">Search & Filter</h4>
+          <form method="get" class="forms-sample">
+            <div class="row">
+              <div class="col-md-5">
+                {{ search_form.query }}
+              </div>
+              <div class="col-md-3">
+                {{ search_form.class_filter }}
+              </div>
+              <div class="col-md-2">
+                {{ search_form.status_filter }}
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-gradient-primary btn-fw">
+                  <i class="mdi mdi-magnify"></i> Search
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Students Table -->
+  <div class="row">
+    <div class="col-lg-12 grid-margin stretch-card">
+      <div class="card">
+        <div class="card-body">
+          <h4 class="card-title">Student List</h4>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Admission No.</th>
+                  <th>Name</th>
+                  <th>Class</th>
+                  <th>Gender</th>
+                  <th>Status</th>
+                  <th>Parents</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for student in students %}
+                <tr>
+                  <td>{{ student.admission_number }}</td>
+                  <td>
+                    <a href="{% url 'students:detail' student.pk %}">
+                      {{ student.get_full_name }}
+                    </a>
+                  </td>
+                  <td>{{ student.current_class|default:"Not Assigned" }}</td>
+                  <td>{{ student.get_gender_display }}</td>
+                  <td>
+                    {% if student.enrollment_status == 'ACTIVE' %}
+                      <label class="badge badge-success">Active</label>
+                    {% elif student.enrollment_status == 'GRADUATED' %}
+                      <label class="badge badge-info">Graduated</label>
+                    {% elif student.enrollment_status == 'TRANSFERRED' %}
+                      <label class="badge badge-warning">Transferred</label>
+                    {% else %}
+                      <label class="badge badge-danger">{{ student.get_enrollment_status_display }}</label>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% for parent in student.parents.all|slice:":2" %}
+                      {{ parent.get_full_name }}{% if not forloop.last %}, {% endif %}
+                    {% empty %}
+                      <span class="text-muted">No parents</span>
+                    {% endfor %}
+                  </td>
+                  <td>
+                    <a href="{% url 'students:detail' student.pk %}" class="btn btn-sm btn-gradient-info btn-icon-text">
+                      <i class="mdi mdi-eye"></i> View
+                    </a>
+                    {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
+                    <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-gradient-warning btn-icon-text">
+                      <i class="mdi mdi-pencil"></i> Edit
+                    </a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center text-muted">No students found.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          {% if is_paginated %}
+          <div class="mt-4">
+            <nav aria-label="Page navigation">
+              <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.class_filter %}&class_filter={{ request.GET.class_filter }}{% endif %}{% if request.GET.status_filter %}&status_filter={{ request.GET.status_filter }}{% endif %}">First</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.class_filter %}&class_filter={{ request.GET.class_filter }}{% endif %}{% if request.GET.status_filter %}&status_filter={{ request.GET.status_filter }}{% endif %}">Previous</a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active">
+                  <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.class_filter %}&class_filter={{ request.GET.class_filter }}{% endif %}{% if request.GET.status_filter %}&status_filter={{ request.GET.status_filter }}{% endif %}">Next</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.class_filter %}&class_filter={{ request.GET.class_filter }}{% endif %}{% if request.GET.status_filter %}&status_filter={{ request.GET.status_filter }}{% endif %}">Last</a>
+                </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

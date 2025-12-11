@@ -26,6 +26,7 @@ urlpatterns = [
     path("", include("portal.urls", namespace="portal")),
     # Payment API endpoints
     path('api/payments/', include('payments.urls', namespace='payments-api')),
+    path('students/', include('students.urls')),
 ]
 
 if settings.DEBUG:

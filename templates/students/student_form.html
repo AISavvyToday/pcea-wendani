@@ -1,0 +1,362 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">{{ title }}</h3>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'students:list' %}">Students</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row">
+    <div class="col-12 grid-margin stretch-card">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" class="forms-sample">
+            {% csrf_token %}
+
+            <!-- Display form errors -->
+            {% if form.errors %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              <strong>Please correct the following errors:</strong>
+              <ul class="mb-0">
+                {% for field in form %}
+                  {% for error in field.errors %}
+                    <li>{{ field.label }}: {{ error }}</li>
+                  {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            <!-- Student Basic Info -->
+            <h4 class="card-title">Basic Information</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.admission_number.id_for_label }}">Admission Number *</label>
+                  {{ form.admission_number }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.date_of_admission.id_for_label }}">Date of Admission *</label>
+                  {{ form.date_of_admission }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.first_name.id_for_label }}">First Name *</label>
+                  {{ form.first_name }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
+                  {{ form.middle_name }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.last_name.id_for_label }}">Last Name *</label>
+                  {{ form.last_name }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.date_of_birth.id_for_label }}">Date of Birth *</label>
+                  {{ form.date_of_birth }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.gender.id_for_label }}">Gender *</label>
+                  {{ form.gender }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.birth_certificate_number.id_for_label }}">Birth Certificate No. *</label>
+                  {{ form.birth_certificate_number }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.current_class.id_for_label }}">Current Class *</label>
+                  {{ form.current_class }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.house.id_for_label }}">House</label>
+                  {{ form.house }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.enrollment_status.id_for_label }}">Enrollment Status *</label>
+                  {{ form.enrollment_status }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.nationality.id_for_label }}">Nationality</label>
+                  {{ form.nationality }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.religion.id_for_label }}">Religion</label>
+                  {{ form.religion }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label for="{{ form.nemis_upi.id_for_label }}">NEMIS UPI</label>
+                  {{ form.nemis_upi }}
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Medical & Special Needs -->
+            <h4 class="card-title">Medical & Special Needs</h4>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.medical_conditions.id_for_label }}">Medical Conditions</label>
+                  {{ form.medical_conditions }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.allergies.id_for_label }}">Allergies</label>
+                  {{ form.allergies }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ form.special_needs.id_for_label }}">Special Needs</label>
+                  {{ form.special_needs }}
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Emergency Contact -->
+            <h4 class="card-title">Emergency Contact</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.emergency_contact_name.id_for_label }}">Emergency Contact Name *</label>
+                  {{ form.emergency_contact_name }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.emergency_contact_phone.id_for_label }}">Emergency Contact Phone *</label>
+                  {{ form.emergency_contact_phone }}
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Residential Info -->
+            <h4 class="card-title">Residential Information</h4>
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label for="{{ form.residential_address.id_for_label }}">Residential Address</label>
+                  {{ form.residential_address }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.home_county.id_for_label }}">Home County</label>
+                  {{ form.home_county }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.home_sub_county.id_for_label }}">Home Sub-County</label>
+                  {{ form.home_sub_county }}
+                </div>
+              </div>
+            </div>
+
+            {% if not is_edit %}
+            <hr class="my-4">
+
+            <!-- Parent/Guardian 1 -->
+            <h4 class="card-title">Parent/Guardian 1</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.first_name.id_for_label }}">First Name</label>
+                  {{ parent_form_1.first_name }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.last_name.id_for_label }}">Last Name</label>
+                  {{ parent_form_1.last_name }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.relationship.id_for_label }}">Relationship</label>
+                  {{ parent_form_1.relationship }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.phone_number.id_for_label }}">Phone Number</label>
+                  {{ parent_form_1.phone_number }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.email.id_for_label }}">Email</label>
+                  {{ parent_form_1.email }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.id_number.id_for_label }}">ID/Passport Number</label>
+                  {{ parent_form_1.id_number }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_1.occupation.id_for_label }}">Occupation</label>
+                  {{ parent_form_1.occupation }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-check">
+                  {{ parent_form_1.is_primary }}
+                  <label class="form-check-label" for="{{ parent_form_1.is_primary.id_for_label }}">
+                    Primary Contact
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Parent/Guardian 2 -->
+            <h4 class="card-title">Parent/Guardian 2 (Optional)</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.first_name.id_for_label }}">First Name</label>
+                  {{ parent_form_2.first_name }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.last_name.id_for_label }}">Last Name</label>
+                  {{ parent_form_2.last_name }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.relationship.id_for_label }}">Relationship</label>
+                  {{ parent_form_2.relationship }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.phone_number.id_for_label }}">Phone Number</label>
+                  {{ parent_form_2.phone_number }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.email.id_for_label }}">Email</label>
+                  {{ parent_form_2.email }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.id_number.id_for_label }}">ID/Passport Number</label>
+                  {{ parent_form_2.id_number }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ parent_form_2.occupation.id_for_label }}">Occupation</label>
+                  {{ parent_form_2.occupation }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-check">
+                  {{ parent_form_2.is_primary }}
+                  <label class="form-check-label" for="{{ parent_form_2.is_primary.id_for_label }}">
+                    Primary Contact
+                  </label>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <hr class="my-4">
+
+            <!-- Submit Buttons -->
+            <div class="row">
+              <div class="col-md-12">
+                <button type="submit" class="btn btn-gradient-primary me-2">{{ button_text }}</button>
+                <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
+              </div>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

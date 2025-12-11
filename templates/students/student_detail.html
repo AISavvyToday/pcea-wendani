@@ -1,0 +1,283 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}{{ student.get_full_name }} - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">Student Profile: {{ student.get_full_name }}</h3>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'students:list' %}">Students</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ student.admission_number }}</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <!-- Student Header -->
+          <div class="row mb-4">
+            <div class="col-md-8">
+              <h4 class="mb-2">{{ student.get_full_name }}</h4>
+              <p class="text-muted mb-1">Admission No: <strong>{{ student.admission_number }}</strong></p>
+              <p class="text-muted mb-1">Class: <strong>{{ student.current_class|default:"Not Assigned" }}</strong></p>
+              <p class="text-muted mb-1">Status: 
+                {% if student.enrollment_status == 'ACTIVE' %}
+                  <label class="badge badge-success">Active</label>
+                {% else %}
+                  <label class="badge badge-warning">{{ student.get_enrollment_status_display }}</label>
+                {% endif %}
+              </p>
+            </div>
+            <div class="col-md-4 text-end">
+              {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
+              <a href="{% url 'students:update' student.pk %}" class="btn btn-gradient-warning btn-icon-text">
+                <i class="mdi mdi-pencil"></i> Edit Student
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="?tab=overview" role="tab">
+                <i class="mdi mdi-account"></i> Overview
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'academics' %}active{% endif %}" href="?tab=academics" role="tab">
+                <i class="mdi mdi-book-open"></i> Academics
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'finance' %}active{% endif %}" href="?tab=finance" role="tab">
+                <i class="mdi mdi-cash"></i> Finance
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'communications' %}active{% endif %}" href="?tab=communications" role="tab">
+                <i class="mdi mdi-email"></i> Communications
+              </a>
+            </li>
+          </ul>
+
+          <div class="tab-content mt-4">
+            
+            <!-- Overview Tab -->
+            {% if active_tab == 'overview' %}
+            <div class="tab-pane fade show active">
+              <div class="row">
+                <div class="col-md-6">
+                  <h5 class="mb-3">Personal Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Full Name:</td>
+                      <td><strong>{{ student.get_full_name }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Date of Birth:</td>
+                      <td>{{ student.date_of_birth|date:"d M Y" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Gender:</td>
+                      <td>{{ student.get_gender_display }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Birth Certificate:</td>
+                      <td>{{ student.birth_certificate_number|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">NEMIS UPI:</td>
+                      <td>{{ student.nemis_upi|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Nationality:</td>
+                      <td>{{ student.nationality|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Religion:</td>
+                      <td>{{ student.religion|default:"N/A" }}</td>
+                    </tr>
+                  </table>
+
+                  <h5 class="mb-3 mt-4">Medical Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Medical Conditions:</td>
+                      <td>{{ student.medical_conditions|default:"None" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Allergies:</td>
+                      <td>{{ student.allergies|default:"None" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Special Needs:</td>
+                      <td>{{ student.special_needs|default:"None" }}</td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="col-md-6">
+                  <h5 class="mb-3">Academic Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Admission Number:</td>
+                      <td><strong>{{ student.admission_number }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Date of Admission:</td>
+                      <td>{{ student.date_of_admission|date:"d M Y" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Current Class:</td>
+                      <td>{{ student.current_class|default:"Not Assigned" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">House:</td>
+                      <td>{{ student.get_house_display|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Enrollment Status:</td>
+                      <td>{{ student.get_enrollment_status_display }}</td>
+                    </tr>
+                  </table>
+
+                  <h5 class="mb-3 mt-4">Contact Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Emergency Contact:</td>
+                      <td>{{ student.emergency_contact_name|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Emergency Phone:</td>
+                      <td>{{ student.emergency_contact_phone|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Residential Address:</td>
+                      <td>{{ student.residential_address|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Home County:</td>
+                      <td>{{ student.home_county|default:"N/A" }}</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              <!-- Parents/Guardians -->
+              <h5 class="mb-3">Parents/Guardians</h5>
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Relationship</th>
+                      <th>Phone</th>
+                      <th>Email</th>
+                      <th>ID Number</th>
+                      <th>Primary Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for sp in student_parents %}
+                    <tr>
+                      <td>{{ sp.parent.get_full_name }}</td>
+                      <td>{{ sp.parent.get_relationship_display }}</td>
+                      <td>{{ sp.parent.phone_number }}</td>
+                      <td>{{ sp.parent.email|default:"N/A" }}</td>
+                      <td>{{ sp.parent.id_number|default:"N/A" }}</td>
+                      <td>
+                        {% if sp.is_primary_contact %}
+                          <label class="badge badge-success">Yes</label>
+                        {% else %}
+                          <label class="badge badge-secondary">No</label>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                      <td colspan="6" class="text-center text-muted">No parents/guardians linked.</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <hr class="my-4">
+
+              <!-- Enrollment History -->
+              <h5 class="mb-3">Enrollment History</h5>
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Academic Year</th>
+                      <th>Term</th>
+                      <th>Class</th>
+                      <th>Current</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for enrollment in enrollments %}
+                    <tr>
+                      <td>{{ enrollment.academic_year }}</td>
+                      <td>{{ enrollment.term }}</td>
+                      <td>{{ enrollment.class_enrolled }}</td>
+                      <td>
+                        {% if enrollment.is_current %}
+                          <label class="badge badge-success">Current</label>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                      <td colspan="4" class="text-center text-muted">No enrollment history.</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Academics Tab -->
+            {% if active_tab == 'academics' %}
+            <div class="tab-pane fade show active">
+              <div class="alert alert-info">
+                <i class="mdi mdi-information"></i> Academic records (attendance, marks, reports) will be displayed here once the Academics module is implemented.
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Finance Tab -->
+            {% if active_tab == 'finance' %}
+            <div class="tab-pane fade show active">
+              <div class="alert alert-info">
+                <i class="mdi mdi-information"></i> Finance records (invoices, payments, balances) will be displayed here once the Finance module is fully integrated.
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Communications Tab -->
+            {% if active_tab == 'communications' %}
+            <div class="tab-pane fade show active">
+              <div class="alert alert-info">
+                <i class="mdi mdi-information"></i> Communication history (SMS, emails, notifications) will be displayed here once the Communications module is implemented.
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
