@@ -176,7 +176,7 @@ class AttendanceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
     model = Attendance
     template_name = 'academics/attendance_list.html'
     context_object_name = 'attendance_records'
-    allowed_roles = ['teacher']
+    allowed_roles = ['teacher', 'admin', 'superadmin']
 
     def get_queryset(self):
         # Teachers see attendance for their classes only
