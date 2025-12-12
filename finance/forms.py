@@ -244,7 +244,9 @@ class PaymentRecordForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        # Extract custom arguments before calling super()
         student_id = kwargs.pop('student_id', None)
+        invoice_id = kwargs.pop('invoice_id', None)
         super().__init__(*args, **kwargs)
 
         if student_id:
