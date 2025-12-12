@@ -1,0 +1,181 @@
+<!-- templates/finance/payment_record.html -->
+{% extends 'base/base.html' %}
+{% load static humanize %}
+
+{% block title %}Record Payment{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Record Payment</h3>
+        <a href="{% url 'finance:payment_list' %}" class="btn btn-secondary">
+            <i class="mdi mdi-arrow-left"></i> Back to Payments
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.student.id_for_label }}" class="form-label">Student *</label>
+                            {{ form.student }}
+                            {% if form.student.errors %}
+                                <div class="text-danger">{{ form.student.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Select the student making the payment</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.invoice.id_for_label }}" class="form-label">Invoice</label>
+                            {{ form.invoice }}
+                            {% if form.invoice.errors %}
+                                <div class="text-danger">{{ form.invoice.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Optional: Select specific invoice to apply payment to</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.amount.id_for_label }}" class="form-label">Amount (KES) *</label>
+                            {{ form.amount }}
+                            {% if form.amount.errors %}
+                                <div class="text-danger">{{ form.amount.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payment_method.id_for_label }}" class="form-label">Payment Method *</label>
+                            {{ form.payment_method }}
+                            {% if form.payment_method.errors %}
+                                <div class="text-danger">{{ form.payment_method.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payment_date.id_for_label }}" class="form-label">Payment Date *</label>
+                            {{ form.payment_date }}
+                            {% if form.payment_date.errors %}
+                                <div class="text-danger">{{ form.payment_date.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.transaction_reference.id_for_label }}" class="form-label">Transaction Reference</label>
+                            {{ form.transaction_reference }}
+                            {% if form.transaction_reference.errors %}
+                                <div class="text-danger">{{ form.transaction_reference.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payer_name.id_for_label }}" class="form-label">Payer Name</label>
+                            {{ form.payer_name }}
+                            {% if form.payer_name.errors %}
+                                <div class="text-danger">{{ form.payer_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payer_phone.id_for_label }}" class="form-label">Payer Phone</label>
+                            {{ form.payer_phone }}
+                            {% if form.payer_phone.errors %}
+                                <div class="text-danger">{{ form.payer_phone.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <div class="text-danger">{{ form.notes.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'finance:payment_list' %}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="mdi mdi-content-save"></i> Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-populate payment date with current datetime
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const dateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+    const paymentDateInput = document.getElementById('{{ form.payment_date.id_for_label }}');
+    if (paymentDateInput && !paymentDateInput.value) {
+        paymentDateInput.value = dateTime;
+    }
+
+    // When student changes, update invoice options
+    const studentSelect = document.getElementById('{{ form.student.id_for_label }}');
+    const invoiceSelect = document.getElementById('{{ form.invoice.id_for_label }}');
+
+    if (studentSelect && invoiceSelect) {
+        studentSelect.addEventListener('change', function() {
+            const studentId = this.value;
+            if (studentId) {
+                // Clear current options
+                invoiceSelect.innerHTML = '<option value="">Loading...</option>';
+
+                // Fetch invoices for this student
+                fetch(`/api/student/${studentId}/invoices/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
+                        data.forEach(invoice => {
+                            const option = document.createElement('option');
+                            option.value = invoice.id;
+                            option.textContent = `${invoice.invoice_number} (KES ${parseFloat(invoice.balance).toFixed(2)} balance)`;
+                            invoiceSelect.appendChild(option);
+                        });
+                    })
+                    .catch(() => {
+                        invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
+                    });
+            } else {
+                invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
