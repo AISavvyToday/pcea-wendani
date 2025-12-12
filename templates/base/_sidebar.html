@@ -84,9 +84,8 @@
           </a>
           <div class="collapse" id="comms-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Send Message</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Announcements</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Message History</a></li>
+              <li class="nav-item"><a class="nav-link" href="">Send Message</a></li>
+              <li class="nav-item"><a class="nav-link" href="">Notifications History</a></li>
             </ul>
           </div>
         </li>
@@ -100,7 +99,6 @@
           </a>
           <div class="collapse" id="reports-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Enrollment Report</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'finance:collections_report' %}">Collections Report</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'finance:outstanding_report' %}">Outstanding Balances</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:academic_report' %}">Academic Report</a></li>
@@ -117,10 +115,8 @@
           </a>
           <div class="collapse" id="settings-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">School Profile</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:academic_year_list' %}">Academic Years</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:term_list' %}">Terms</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">User Management</a></li>
+              <li class="nav-item"><a class="nav-link" href="">School Profile</a></li>
+              <li class="nav-item"><a class="nav-link" href="">User Management</a></li>
             </ul>
           </div>
         </li>
@@ -153,14 +149,6 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Grade Books</a></li>
             </ul>
           </div>
-        </li>
-
-        <!-- Help / Contact -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:contact' %}">
-            <span class="menu-title">Help & Contact</span>
-            <i class="mdi mdi-help-circle menu-icon"></i>
-          </a>
         </li>
 
         <!-- Logout -->
