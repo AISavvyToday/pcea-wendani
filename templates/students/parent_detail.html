@@ -1,0 +1,231 @@
+<!-- students/templates/students/parent_detail.html -->
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}{{ parent.full_name }} - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">Parent/Guardian Profile: {{ parent.full_name }}</h3>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'students:parent_list' %}">Parents</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ parent.full_name }}</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <!-- Parent Header -->
+          <div class="row mb-4">
+            <div class="col-md-8">
+              <h4 class="mb-2">{{ parent.full_name }}</h4>
+              <p class="text-muted mb-1">Relationship: <strong>{{ parent.get_relationship_display }}</strong></p>
+              <p class="text-muted mb-1">Phone: <strong>{{ parent.phone_primary }}</strong></p>
+              <p class="text-muted mb-1">Email: <strong>{{ parent.email|default:"N/A" }}</strong></p>
+            </div>
+            <div class="col-md-4 text-end">
+              {% if is_admin %}
+              <a href="{% url 'students:parent_update' parent.pk %}" class="btn btn-gradient-warning btn-icon-text">
+                <i class="mdi mdi-pencil"></i> Edit Parent
+              </a>
+              <a href="{% url 'students:parent_delete' parent.pk %}" class="btn btn-danger btn-icon-text">
+                <i class="mdi mdi-delete"></i> Delete
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="?tab=overview" role="tab">
+                <i class="mdi mdi-account"></i> Overview
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'children' %}active{% endif %}" href="?tab=children" role="tab">
+                <i class="mdi mdi-account-multiple"></i> Children
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if active_tab == 'finance' %}active{% endif %}" href="?tab=finance" role="tab">
+                <i class="mdi mdi-cash"></i> Finance
+              </a>
+            </li>
+          </ul>
+
+          <div class="tab-content mt-4">
+
+            <!-- Overview Tab -->
+            {% if active_tab == 'overview' %}
+            <div class="tab-pane fade show active">
+              <div class="row">
+                <div class="col-md-6">
+                  <h5 class="mb-3">Personal Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Full Name:</td>
+                      <td><strong>{{ parent.full_name }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Gender:</td>
+                      <td>{{ parent.get_gender_display|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">ID Number:</td>
+                      <td>{{ parent.id_number|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Relationship:</td>
+                      <td>{{ parent.get_relationship_display }}</td>
+                    </tr>
+                  </table>
+
+                  <h5 class="mb-3 mt-4">Employment Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Occupation:</td>
+                      <td>{{ parent.occupation|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Employer:</td>
+                      <td>{{ parent.employer|default:"N/A" }}</td>
+                    </tr>
+                  </table>
+                </div>
+
+                <div class="col-md-6">
+                  <h5 class="mb-3">Contact Information</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Primary Phone:</td>
+                      <td><strong>{{ parent.phone_primary }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Secondary Phone:</td>
+                      <td>{{ parent.phone_secondary|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Email:</td>
+                      <td>{{ parent.email|default:"N/A" }}</td>
+                    </tr>
+                  </table>
+
+                  <h5 class="mb-3 mt-4">Address</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Address:</td>
+                      <td>{{ parent.address|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Town:</td>
+                      <td>{{ parent.town|default:"N/A" }}</td>
+                    </tr>
+                  </table>
+
+                  <h5 class="mb-3 mt-4">Portal Access</h5>
+                  <table class="table table-borderless">
+                    <tr>
+                      <td class="text-muted">Has Portal Account:</td>
+                      <td>
+                        {% if parent.user %}
+                          <label class="badge badge-success">Yes</label>
+                        {% else %}
+                          <label class="badge badge-secondary">No</label>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Children Tab -->
+            {% if active_tab == 'children' %}
+            <div class="tab-pane fade show active">
+              <h5 class="mb-3">Children/Wards</h5>
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Admission No.</th>
+                      <th>Name</th>
+                      <th>Class</th>
+                      <th>Relationship</th>
+                      <th>Primary Contact</th>
+                      <th>Can Pickup</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for sp in children %}
+                    <tr>
+                      <td>{{ sp.student.admission_number }}</td>
+                      <td>
+                        <a href="{% url 'students:detail' sp.student.pk %}" class="text-primary">
+                          <strong>{{ sp.student.full_name }}</strong>
+                        </a>
+                      </td>
+                      <td>{{ sp.student.current_class|default:"Not Assigned" }}</td>
+                      <td>{{ sp.get_relationship_display }}</td>
+                      <td>
+                        {% if sp.is_primary %}
+                          <label class="badge badge-success">Yes</label>
+                        {% else %}
+                          <label class="badge badge-secondary">No</label>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if sp.can_pickup %}
+                          <label class="badge badge-success">Yes</label>
+                        {% else %}
+                          <label class="badge badge-danger">No</label>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'students:detail' sp.student.pk %}" class="btn btn-sm btn-gradient-info">
+                          <i class="mdi mdi-eye"></i> View
+                        </a>
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                      <td colspan="7" class="text-center text-muted">No children linked to this parent.</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Finance Tab -->
+            {% if active_tab == 'finance' %}
+            <div class="tab-pane fade show active">
+              <div class="alert alert-info">
+                <i class="mdi mdi-information"></i> Financial records for all children will be displayed here once the Finance module is fully integrated.
+              </div>
+
+              <h5 class="mb-3">Total Outstanding Balance</h5>
+              <div class="card bg-gradient-danger text-white">
+                <div class="card-body">
+                  <h2>KES {{ total_balance|default:"0.00" }}</h2>
+                  <p class="mb-0">Combined balance for all children</p>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

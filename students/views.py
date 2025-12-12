@@ -282,3 +282,169 @@ class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         }
 
         return context
+
+
+# students/views.py - Add these views at the end
+
+class ParentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+    """List all parents/guardians with search"""
+
+    model = Parent
+    template_name = 'students/parent_list.html'
+    context_object_name = 'parents'
+    paginate_by = 20
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+        UserRole.ACCOUNTANT,
+        UserRole.TEACHER
+    ]
+
+    def get_queryset(self):
+        queryset = Parent.objects.prefetch_related('children').all()
+
+        # Search functionality
+        query = self.request.GET.get('query', '')
+        if query:
+            queryset = queryset.filter(
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query) |
+                Q(phone_primary__icontains=query) |
+                Q(id_number__icontains=query) |
+                Q(email__icontains=query)
+            )
+
+        # Filter by relationship
+        relationship = self.request.GET.get('relationship', '')
+        if relationship:
+            queryset = queryset.filter(relationship=relationship)
+
+        return queryset.order_by('last_name', 'first_name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['total_parents'] = Parent.objects.count()
+        context['query'] = self.request.GET.get('query', '')
+        context['relationship_filter'] = self.request.GET.get('relationship', '')
+        context['relationship_choices'] = Parent.RELATIONSHIP_CHOICES
+        return context
+
+
+class ParentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+    """Parent profile with their children"""
+
+    model = Parent
+    template_name = 'students/parent_detail.html'
+    context_object_name = 'parent'
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+        UserRole.ACCOUNTANT,
+        UserRole.TEACHER
+    ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get all children with their relationships
+        context['children'] = StudentParent.objects.filter(
+            parent=self.object
+        ).select_related('student', 'student__current_class')
+
+        # Get total outstanding balance for all children
+        total_balance = 0
+        for sp in context['children']:
+            # This will be implemented when finance module is ready
+            # total_balance += sp.student.get_outstanding_balance()
+            pass
+
+        context['total_balance'] = total_balance
+        context['active_tab'] = self.request.GET.get('tab', 'overview')
+
+        return context
+
+
+class ParentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+    """Create a new parent/guardian"""
+
+    model = Parent
+    form_class = ParentForm
+    template_name = 'students/parent_form.html'
+    success_url = reverse_lazy('students:parent_list')
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Register New Parent/Guardian'
+        context['button_text'] = 'Register Parent'
+        return context
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            f'Parent/Guardian {form.instance.full_name} registered successfully!'
+        )
+        return super().form_valid(form)
+
+
+class ParentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+    """Edit existing parent/guardian"""
+
+    model = Parent
+    form_class = ParentForm
+    template_name = 'students/parent_form.html'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_success_url(self):
+        return reverse_lazy('students:parent_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'Edit Parent: {self.object.full_name}'
+        context['button_text'] = 'Update Parent'
+        context['is_edit'] = True
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Parent/Guardian updated successfully!')
+        return super().form_valid(form)
+
+
+class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+    """Soft delete a parent/guardian"""
+
+    model = Parent
+    template_name = 'students/parent_confirm_delete.html'
+    success_url = reverse_lazy('students:parent_list')
+    context_object_name = 'parent'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        success_url = self.get_success_url()
+
+        # Check if parent has children
+        children_count = self.object.children.count()
+        if children_count > 0:
+            messages.error(
+                request,
+                f'Cannot delete {self.object.full_name}. They have {children_count} child(ren) linked. Please unlink children first.'
+            )
+            return redirect('students:parent_detail', pk=self.object.pk)
+
+        # Delete parent
+        parent_name = self.object.full_name
+        self.object.delete()
+
+        messages.success(
+            request,
+            f'Parent/Guardian {parent_name} has been deleted successfully.'
+        )
+
+        return HttpResponseRedirect(success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Delete Parent/Guardian'
+        context['children'] = self.object.children.all()
+        return context

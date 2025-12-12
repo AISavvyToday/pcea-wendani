@@ -1,0 +1,182 @@
+<!-- students/templates/students/parent_form.html -->
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - PCEA Wendani{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header">
+    <h3 class="page-title">{{ title }}</h3>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'students:parent_list' %}">Parents</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+      </ol>
+    </nav>
+  </div>
+
+  <div class="row">
+    <div class="col-12 grid-margin">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" class="forms-sample">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <h4 class="card-title">Personal Information</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>First Name *</label>
+                  {{ form.first_name }}
+                  {% if form.first_name.errors %}
+                    <small class="text-danger">{{ form.first_name.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Last Name *</label>
+                  {{ form.last_name }}
+                  {% if form.last_name.errors %}
+                    <small class="text-danger">{{ form.last_name.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Gender</label>
+                  {{ form.gender }}
+                  {% if form.gender.errors %}
+                    <small class="text-danger">{{ form.gender.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>ID Number</label>
+                  {{ form.id_number }}
+                  {% if form.id_number.errors %}
+                    <small class="text-danger">{{ form.id_number.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label>Relationship *</label>
+                  {{ form.relationship }}
+                  {% if form.relationship.errors %}
+                    <small class="text-danger">{{ form.relationship.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <h4 class="card-title mt-4">Contact Information</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Primary Phone *</label>
+                  {{ form.phone_primary }}
+                  {% if form.phone_primary.errors %}
+                    <small class="text-danger">{{ form.phone_primary.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Secondary Phone</label>
+                  {{ form.phone_secondary }}
+                  {% if form.phone_secondary.errors %}
+                    <small class="text-danger">{{ form.phone_secondary.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label>Email</label>
+                  {{ form.email }}
+                  {% if form.email.errors %}
+                    <small class="text-danger">{{ form.email.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <h4 class="card-title mt-4">Address</h4>
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label>Address</label>
+                  {{ form.address }}
+                  {% if form.address.errors %}
+                    <small class="text-danger">{{ form.address.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Town</label>
+                  {{ form.town }}
+                  {% if form.town.errors %}
+                    <small class="text-danger">{{ form.town.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <h4 class="card-title mt-4">Employment Information</h4>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Occupation</label>
+                  {{ form.occupation }}
+                  {% if form.occupation.errors %}
+                    <small class="text-danger">{{ form.occupation.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Employer</label>
+                  {{ form.employer }}
+                  {% if form.employer.errors %}
+                    <small class="text-danger">{{ form.employer.errors.0 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-gradient-primary me-2">
+                <i class="mdi mdi-content-save"></i> {{ button_text }}
+              </button>
+              <a href="{% url 'students:parent_list' %}" class="btn btn-light">
+                <i class="mdi mdi-arrow-left"></i> Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
