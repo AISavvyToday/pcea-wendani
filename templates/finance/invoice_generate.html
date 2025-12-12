@@ -1,0 +1,89 @@
+<!-- templates/finance/invoice_generate.html -->
+{% extends 'base/base.html' %}
+{% block title %}Generate Invoices{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Generate Invoices for Term</h3>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="mb-3">
+    <label for="term" class="form-label">Select Term</label>
+    <select id="term" name="term" class="form-select" required>
+      <option value="" disabled selected>Choose a term</option>
+      {% for term in terms %}
+        <option value="{{ term.pk }}">{{ term.academic_year.year }} - {{ term.get_term_display }}</option>
+      {% endfor %}
+    </select>
+    {% if form.errors.term %}
+      <div class="text-danger">{{ form.errors.term }}</div>
+    {% endif %}
+  </div>
+
+  <div class="mb-3">
+    <label for="grade_levels" class="form-label">Select Grade Levels</label>
+    <select id="grade_levels" name="grade_levels" class="form-select" multiple required>
+      {% for level_key, level_name in grade_levels %}
+        <option value="{{ level_key }}">{{ level_name }}</option>
+      {% endfor %}
+    </select>
+    <small class="form-text text-muted">Hold Ctrl (Cmd on Mac) to select multiple.</small>
+    {% if form.errors.grade_levels %}
+      <div class="text-danger">{{ form.errors.grade_levels }}</div>
+    {% endif %}
+  </div>
+
+  <div class="form-check mb-3">
+    <input type="checkbox" class="form-check-input" id="is_boarding" name="is_boarding" value="true">
+    <label class="form-check-label" for="is_boarding">Include Boarding Students Only</label>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Generate Invoices</button>
+  <a href="{% url 'finance:invoice_list' %}" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+{% if generated_invoices %}
+  <hr>
+  <h4>Generated Invoices</h4>
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr>
+        <th>Invoice Number</th>
+        <th>Student</th>
+        <th>Term</th>
+        <th>Total Amount (KES)</th>
+        <th>Status</th>
+        <th>Issue Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for invoice in generated_invoices %}
+      <tr>
+        <td>{{ invoice.invoice_number }}</td>
+        <td>{{ invoice.student.full_name }}</td>
+        <td>{{ invoice.term }}</td>
+        <td>{{ invoice.total_amount|floatformat:2 }}</td>
+        <td>
+          {% if invoice.status == 'paid' %}
+            <span class="badge bg-success">Paid</span>
+          {% elif invoice.status == 'partially_paid' %}
+            <span class="badge bg-warning text-dark">Partially Paid</span>
+          {% elif invoice.status == 'overdue' %}
+            <span class="badge bg-danger">Overdue</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+          {% endif %}
+        </td>
+        <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" class="text-center">No invoices generated yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}
