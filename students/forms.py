@@ -272,47 +272,41 @@ class StudentSearchForm(forms.Form):
     )
 
 
+from django import forms
+from academics.models import Class
+from .models import Student
+
+
 class StudentPromotionForm(forms.Form):
-    """Form for promoting students to the next class."""
-
+    """
+    Form for bulk promoting students to next class.
+    """
     student_ids = forms.MultipleChoiceField(
-        required=True,
         widget=forms.CheckboxSelectMultiple,
-        label="Select Students"
+        label="Select Students to Promote",
+        required=True
     )
-
     target_class = forms.ModelChoiceField(
         queryset=Class.objects.all(),
-        required=True,
-        empty_label="-- Select Target Class --",
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        label="Promote To Class"
+        label="Promote to Class",
+        help_text="Select the class to promote students to",
+        required=True
     )
 
-    def __init__(self, *args, source_class=None, **kwargs):
+    def __init__(self, *args, **kwargs):
+        # Extract custom 'students' argument before calling super().__init__
+        students = kwargs.pop('students', Student.objects.none())
+
         super().__init__(*args, **kwargs)
 
-        if source_class:
-            # Get active students in the source class
-            students = Student.objects.filter(
-                current_class=source_class,
-                status='active'
-            ).order_by('admission_number')
+        # Set choices for student_ids field
+        self.fields['student_ids'].choices = [
+            (str(student.id),
+             f"{student.admission_number} - {student.full_name} ({student.current_class or 'No Class'})")
+            for student in students
+        ]
 
-            self.fields['student_ids'].choices = [
-                (s.id, f"{s.admission_number} - {s.full_name}")
-                for s in students
-            ]
-
-    def clean(self):
-        cleaned_data = super().clean()
-        student_ids = cleaned_data.get('student_ids')
-        target_class = cleaned_data.get('target_class')
-
-        if not student_ids:
-            raise ValidationError('Please select at least one student to promote.')
-
-        if not target_class:
-            raise ValidationError('Please select a target class.')
-
-        return cleaned_data
+    def clean_student_ids(self):
+        """Convert string IDs back to UUIDs"""
+        student_ids = self.cleaned_data.get('student_ids', [])
+        return student_ids
