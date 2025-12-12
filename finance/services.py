@@ -493,7 +493,7 @@ class FeeStructureService:
 
         fee_structure = FeeStructure.objects.filter(
             academic_year=term.academic_year,
-            term=term.term_number,
+            term=term,
             is_boarding=is_boarding,
             is_active=True
         ).filter(
@@ -504,7 +504,7 @@ class FeeStructureService:
         if not fee_structure:
             fee_structure = FeeStructure.objects.filter(
                 academic_year=term.academic_year,
-                term=term.term_number,
+                term=term,
                 is_active=True
             ).filter(
                 grade_levels__contains=[grade_level]
