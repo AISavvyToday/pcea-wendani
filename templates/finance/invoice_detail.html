@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Invoice {{ invoice.invoice_number }}</h3>
+        <div>
+            <a href="{% url 'finance:invoice_print' invoice.pk %}" class="btn btn-secondary" target="_blank">
+                <i class="mdi mdi-printer"></i> Print
+            </a>
+            <a href="{% url 'finance:payment_create' %}?invoice={{ invoice.pk }}" class="btn btn-primary">
+                <i class="mdi mdi-plus"></i> Record Payment
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Student Details</h5>
+                            <p><strong>Name:</strong> {{ invoice.student.full_name }}</p>
+                            <p><strong>Admission #:</strong> {{ invoice.student.admission_number }}</p>
+                            <p><strong>Grade:</strong> {{ invoice.student.grade_level }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Invoice Details</h5>
+                            <p><strong>Invoice #:</strong> {{ invoice.invoice_number }}</p>
+                            <p><strong>Term:</strong> {{ invoice.term }}</p>
+                            <p><strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }}</p>
+                            <p><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y" }}</p>
+                        </div>
+                    </div>
+
+                    <h5>Fee Breakdown</h5>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in invoice_items %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td class="text-right">KES {{ item.amount|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th>Total</th>
+                                <th class="text-right">KES {{ invoice.total_amount|intcomma }}</th>
+                            </tr>
+                            <tr>
+                                <td>Amount Paid</td>
+                                <td class="text-right text-success">KES {{ invoice.amount_paid|intcomma }}</td>
+                            </tr>
+                            <tr class="table-warning">
+                                <th>Balance Due</th>
+                                <th class="text-right">KES {{ invoice.balance|intcomma }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Status</h5>
+                    <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partial' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %} p-2">
+                        {{ invoice.get_status_display }}
+                    </span>
+
+                    <hr>
+                    <h5>Payment History</h5>
+                    {% for payment in payments %}
+                    <div class="mb-2 p-2 border rounded">
+                        <small class="text-muted">{{ payment.payment_date|date:"d M Y" }}</small>
+                        <br>KES {{ payment.amount|intcomma }}
+                        <br><small>{{ payment.get_payment_method_display }}</small>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">No payments recorded</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Invoices{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Invoices</h3>
+        <a href="{% url 'finance:invoice_generate' %}" class="btn btn-primary">
+            <i class="mdi mdi-plus"></i> Generate Invoices
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <input type="text" name="search" class="form-control" placeholder="Search student..."
+                           value="{{ request.GET.search }}">
+                </div>
+                <div class="col-md-2">
+                    <select name="term" class="form-control">
+                        <option value="">All Terms</option>
+                        {% for term in terms %}
+                        <option value="{{ term.pk }}" {% if request.GET.term == term.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ term }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="status" class="form-control">
+                        <option value="">All Status</option>
+                        <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Draft</option>
+                        <option value="sent" {% if request.GET.status == 'sent' %}selected{% endif %}>Sent</option>
+                        <option value="partial" {% if request.GET.status == 'partial' %}selected{% endif %}>Partial</option>
+                        <option value="paid" {% if request.GET.status == 'paid' %}selected{% endif %}>Paid</option>
+                        <option value="overdue" {% if request.GET.status == 'overdue' %}selected{% endif %}>Overdue</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="{% url 'finance:invoice_list' %}" class="btn btn-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Student</th>
+                            <th>Term</th>
+                            <th>Total</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td>
+                                <a href="{% url 'finance:student_statement' invoice.student.pk %}">
+                                    {{ invoice.student.full_name }}
+                                </a>
+                                <br><small class="text-muted">{{ invoice.student.admission_number }}</small>
+                            </td>
+                            <td>{{ invoice.term }}</td>
+                            <td>KES {{ invoice.total_amount|intcomma }}</td>
+                            <td>KES {{ invoice.amount_paid|intcomma }}</td>
+                            <td class="{% if invoice.balance > 0 %}text-danger{% endif %}">
+                                KES {{ invoice.balance|intcomma }}
+                            </td>
+                            <td>
+                                <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partial' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
+                                    {{ invoice.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-info">
+                                    <i class="mdi mdi-eye"></i>
+                                </a>
+                                <a href="{% url 'finance:invoice_print' invoice.pk %}" class="btn btn-sm btn-secondary" target="_blank">
+                                    <i class="mdi mdi-printer"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="text-center">No invoices found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

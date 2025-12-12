@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Fee Structure: {{ fee_structure.name }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">{{ fee_structure.name }}</h3>
+        <div>
+            <a href="{% url 'finance:fee_structure_update' fee_structure.pk %}" class="btn btn-warning">
+                <i class="mdi mdi-pencil"></i> Edit
+            </a>
+            <a href="{% url 'finance:fee_item_create' fee_structure.pk %}" class="btn btn-primary">
+                <i class="mdi mdi-plus"></i> Add Fee Item
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Details</h5>
+                    <p><strong>Academic Year:</strong> {{ fee_structure.academic_year }}</p>
+                    <p><strong>Grade Level:</strong> {{ fee_structure.grade_level|default:"All Grades" }}</p>
+                    <p><strong>Category:</strong> {{ fee_structure.get_student_category_display|default:"All" }}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="badge badge-{% if fee_structure.is_active %}success{% else %}secondary{% endif %}">
+                            {% if fee_structure.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </p>
+                    <hr>
+                    <h4 class="text-primary">Total: KES {{ fee_structure.total_amount|intcomma }}</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Fee Items</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                    <th>Term</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in fee_items %}
+                                <tr>
+                                    <td>{{ item.get_category_display }}</td>
+                                    <td>{{ item.description|default:"-" }}</td>
+                                    <td>KES {{ item.amount|intcomma }}</td>
+                                    <td>{{ item.term|default:"All Terms" }}</td>
+                                    <td>
+                                        <a href="{% url 'finance:fee_item_update' item.pk %}" class="btn btn-sm btn-warning">
+                                            <i class="mdi mdi-pencil"></i>
+                                        </a>
+                                        <a href="{% url 'finance:fee_item_delete' item.pk %}" class="btn btn-sm btn-danger">
+                                            <i class="mdi mdi-delete"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center">No fee items added yet</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

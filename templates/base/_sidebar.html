@@ -3,10 +3,6 @@
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
   <ul class="nav">
 
-
-
-
-
     {% if user.is_authenticated %}
 
       <!-- ============================================================== -->
@@ -66,11 +62,12 @@
           </a>
           <div class="collapse" id="finance-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Structures</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Invoices</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Payments</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Bank Transactions</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Statements</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:dashboard' %}">Dashboard</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:fee_structure_list' %}">Fee Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:discount_list' %}">Discounts</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:payment_list' %}">Payments</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:bank_transaction_list' %}">Bank Transactions</a></li>
             </ul>
           </div>
         </li>
@@ -101,9 +98,9 @@
           <div class="collapse" id="reports-menu">
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Enrollment Report</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Financial Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:collections_report' %}">Collections Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:outstanding_report' %}">Outstanding Balances</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Academic Report</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance Report</a></li>
             </ul>
           </div>
         </li>
@@ -132,7 +129,7 @@
 
         <!-- Dashboard -->
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:dashboard_bursar' %}">
+          <a class="nav-link" href="{% url 'finance:dashboard' %}">
             <span class="menu-title">Dashboard</span>
             <i class="mdi mdi-view-dashboard menu-icon"></i>
           </a>
@@ -147,281 +144,111 @@
           </a>
           <div class="collapse" id="fees-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Structures</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Generate Invoices</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">View Invoices</a></li>
+              <!-- continuation of templates/base/_sidebar.html -->
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:fee_structure_list' %}">Fee Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:discount_list' %}">Discounts</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:payment_list' %}">Payments</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:bank_transaction_list' %}">Bank Transactions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:student_statement' student_pk=0 %}">Student Statement</a></li>
             </ul>
           </div>
         </li>
 
-        <!-- Payments -->
+        <!-- Reports (Accountant) -->
         <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#payments-menu" aria-expanded="false" aria-controls="payments-menu">
-            <span class="menu-title">Payments</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-bank-transfer menu-icon"></i>
-          </a>
-          <div class="collapse" id="payments-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">All Payments</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Bank Transactions</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Reconciliation</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Students (Limited) -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#students-bursar-menu" aria-expanded="false" aria-controls="students-bursar-menu">
-            <span class="menu-title">Students</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-account-group menu-icon"></i>
-          </a>
-          <div class="collapse" id="students-bursar-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'students:list' %}">All Students</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Student Balances</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Statements</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Financial Reports -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#fin-reports-menu" aria-expanded="false" aria-controls="fin-reports-menu">
+          <a class="nav-link" data-bs-toggle="collapse" href="#acc-reports-menu" aria-expanded="false" aria-controls="acc-reports-menu">
             <span class="menu-title">Reports</span>
             <i class="menu-arrow"></i>
-            <i class="mdi mdi-chart-bar menu-icon"></i>
+            <i class="mdi mdi-file-chart menu-icon"></i>
           </a>
-          <div class="collapse" id="fin-reports-menu">
+          <div class="collapse" id="acc-reports-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Collections Report</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Outstanding Balances</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Daily Summary</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:collections_report' %}">Collections Report</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:outstanding_report' %}">Outstanding Balances</a></li>
             </ul>
           </div>
         </li>
 
-      <!-- ============================================================== -->
-      <!-- TEACHER - Academics Focused -->
-      <!-- ============================================================== -->
-      {% elif is_teacher %}
+        <!-- Quick Links -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:dashboard' %}">
+            <span class="menu-title">Quick Dashboard</span>
+            <i class="mdi mdi-speedometer menu-icon"></i>
+          </a>
+        </li>
+
+        <!-- Logout -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:logout' %}">
+            <span class="menu-title">Logout</span>
+            <i class="mdi mdi-logout menu-icon"></i>
+          </a>
+        </li>
+
+      {% else %}
+        <!-- ============================================================== -->
+        <!-- TEACHER / PARENT / OTHER ROLES - Limited Access -->
+        <!-- ============================================================== -->
 
         <!-- Dashboard -->
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:dashboard_teacher' %}">
+          <a class="nav-link" href="{% url 'portal:dashboard' %}">
             <span class="menu-title">Dashboard</span>
             <i class="mdi mdi-view-dashboard menu-icon"></i>
           </a>
         </li>
 
-        <!-- My Classes -->
+        <!-- My Students / My Profile -->
         <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#classes-menu" aria-expanded="false" aria-controls="classes-menu">
-            <span class="menu-title">My Classes</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-google-classroom menu-icon"></i>
+          <a class="nav-link" href="{% url 'students:my_students' %}">
+            <span class="menu-title">My Students</span>
+            <i class="mdi mdi-account-multiple menu-icon"></i>
           </a>
-          <div class="collapse" id="classes-menu">
+        </li>
+
+        <!-- Fees / Statements (parents) -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#parent-finance-menu" aria-expanded="false" aria-controls="parent-finance-menu">
+            <span class="menu-title">Finance</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-currency-usd menu-icon"></i>
+          </a>
+          <div class="collapse" id="parent-finance-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Class List</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Timetable</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:student_statement' student_pk=request.user.profile.student.pk %}">My Child Statement</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
             </ul>
           </div>
         </li>
 
-        <!-- Attendance -->
+        <!-- Help / Contact -->
         <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#attendance-menu" aria-expanded="false" aria-controls="attendance-menu">
-            <span class="menu-title">Attendance</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-clipboard-check menu-icon"></i>
-          </a>
-          <div class="collapse" id="attendance-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Take Attendance</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance History</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Assessments -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#assessments-menu" aria-expanded="false" aria-controls="assessments-menu">
-            <span class="menu-title">Assessments</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-file-document-edit menu-icon"></i>
-          </a>
-          <div class="collapse" id="assessments-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Enter Marks</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">View Gradebook</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Student Profiles -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'students:list' %}">
-            <span class="menu-title">Student Profiles</span>
-            <i class="mdi mdi-account-search menu-icon"></i>
+          <a class="nav-link" href="{% url 'portal:contact' %}">
+            <span class="menu-title">Help & Contact</span>
+            <i class="mdi mdi-help-circle menu-icon"></i>
           </a>
         </li>
 
-      <!-- ============================================================== -->
-      <!-- PARENT - Child-Focused Portal -->
-      <!-- ============================================================== -->
-      {% elif is_parent %}
-
-        <!-- Dashboard -->
+        <!-- Logout -->
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:dashboard_parent' %}">
-            <span class="menu-title">Dashboard</span>
-            <i class="mdi mdi-view-dashboard menu-icon"></i>
+          <a class="nav-link" href="{% url 'portal:logout' %}">
+            <span class="menu-title">Logout</span>
+            <i class="mdi mdi-logout menu-icon"></i>
           </a>
         </li>
 
-        <!-- My Children -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">My Children</span>
-            <i class="mdi mdi-account-child menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- Academic Progress -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#progress-menu" aria-expanded="false" aria-controls="progress-menu">
-            <span class="menu-title">Academic Progress</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-school menu-icon"></i>
-          </a>
-          <div class="collapse" id="progress-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Report Cards</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Attendance</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Fees & Payments -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#parent-fees-menu" aria-expanded="false" aria-controls="parent-fees-menu">
-            <span class="menu-title">Fees & Payments</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-credit-card menu-icon"></i>
-          </a>
-          <div class="collapse" id="parent-fees-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Balance</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Payment History</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Fee Statement</a></li>
-            </ul>
-          </div>
-        </li>
-
-        <!-- Announcements -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">Announcements</span>
-            <i class="mdi mdi-bullhorn menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- Messages -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">Messages</span>
-            <i class="mdi mdi-email menu-icon"></i>
-          </a>
-        </li>
-
-      <!-- ============================================================== -->
-      <!-- STUDENT - Minimal Personal Portal -->
-      <!-- ============================================================== -->
-      {% elif is_student %}
-
-        <!-- Dashboard -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:dashboard_parent' %}">
-            <span class="menu-title">Dashboard</span>
-            <i class="mdi mdi-view-dashboard menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- My Profile -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">My Profile</span>
-            <i class="mdi mdi-account menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- My Results -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">My Results</span>
-            <i class="mdi mdi-certificate menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- My Timetable -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">My Timetable</span>
-            <i class="mdi mdi-calendar-clock menu-icon"></i>
-          </a>
-        </li>
-
-        <!-- Announcements -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'portal:blank_page' %}">
-            <span class="menu-title">Announcements</span>
-            <i class="mdi mdi-bullhorn menu-icon"></i>
-          </a>
-        </li>
-
-      {% endif %}
-
-      <!-- ============================================================== -->
-      <!-- ACCOUNT SECTION - Always visible for authenticated users -->
-      <!-- ============================================================== -->
-      <li class="nav-item nav-category">Account</li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="#">
-          <span class="menu-title">My Profile</span>
-          <i class="mdi mdi-account-circle menu-icon"></i>
-        </a>
-      </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="{% url 'portal:logout' %}">
-          <span class="menu-title">Logout</span>
-          <i class="mdi mdi-logout menu-icon text-danger"></i>
-        </a>
-      </li>
+      {% endif %} {# end role branches (is_admin / is_accountant / else) #}
 
     {% else %}
-      <!-- ============================================================== -->
-      <!-- NOT AUTHENTICATED - Show login/register -->
-      <!-- ============================================================== -->
-      <li class="nav-item nav-category">Account</li>
-
+      <!-- Not authenticated - show login -->
       <li class="nav-item">
         <a class="nav-link" href="{% url 'portal:login' %}">
           <span class="menu-title">Login</span>
           <i class="mdi mdi-login menu-icon"></i>
         </a>
       </li>
-
-      <li class="nav-item">
-        <a class="nav-link" href="{% url 'portal:register' %}">
-          <span class="menu-title">Register</span>
-          <i class="mdi mdi-account-plus menu-icon"></i>
-        </a>
-      </li>
-    {% endif %}
+    {% endif %} {# end if user.is_authenticated #}
 
   </ul>
 </nav>

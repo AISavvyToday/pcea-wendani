@@ -1,0 +1,167 @@
+<!-- templates/finance/dashboard.html -->
+
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Finance Dashboard{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Finance Dashboard</h3>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row">
+        <div class="col-md-3 grid-margin stretch-card">
+            <div class="card card-tale">
+                <div class="card-body">
+                    <p class="mb-4">Total Invoiced</p>
+                    <p class="fs-30 mb-2">KES {{ total_invoiced|intcomma }}</p>
+                    <p>This Term</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 grid-margin stretch-card">
+            <div class="card card-dark-blue">
+                <div class="card-body">
+                    <p class="mb-4">Total Collected</p>
+                    <p class="fs-30 mb-2">KES {{ total_collected|intcomma }}</p>
+                    <p>This Term</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 grid-margin stretch-card">
+            <div class="card card-light-blue">
+                <div class="card-body">
+                    <p class="mb-4">Outstanding</p>
+                    <p class="fs-30 mb-2">KES {{ total_outstanding|intcomma }}</p>
+                    <p>Balance Due</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 grid-margin stretch-card">
+            <div class="card card-light-danger">
+                <div class="card-body">
+                    <p class="mb-4">Collection Rate</p>
+                    <p class="fs-30 mb-2">{{ collection_rate|floatformat:1 }}%</p>
+                    <p>This Term</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Payments -->
+        <div class="col-md-8 grid-margin stretch-card">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="card-title">Recent Payments</h4>
+                        <a href="{% url 'finance:payment_list' %}" class="btn btn-sm btn-primary">View All</a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Student</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in recent_payments %}
+                                <tr>
+                                    <td>{{ payment.payment_date|date:"d M Y" }}</td>
+                                    <td>{{ payment.student.full_name }}</td>
+                                    <td>KES {{ payment.amount|intcomma }}</td>
+                                    <td>{{ payment.get_payment_method_display }}</td>
+                                    <td>
+                                        <span class="badge badge-{% if payment.status == 'completed' %}success{% elif payment.status == 'pending' %}warning{% else %}danger{% endif %}">
+                                            {{ payment.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center">No recent payments</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-4 grid-margin stretch-card">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">Quick Actions</h4>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'finance:payment_create' %}" class="btn btn-primary btn-block mb-2">
+                            <i class="mdi mdi-plus"></i> Record Payment
+                        </a>
+                        <a href="{% url 'finance:invoice_list' %}" class="btn btn-outline-primary btn-block mb-2">
+                            <i class="mdi mdi-file-document"></i> View Invoices
+                        </a>
+                        <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-primary btn-block mb-2">
+                            <i class="mdi mdi-currency-usd"></i> Fee Structures
+                        </a>
+                        <a href="{% url 'finance:report_outstanding' %}" class="btn btn-outline-warning btn-block mb-2">
+                            <i class="mdi mdi-alert"></i> Outstanding Fees
+                        </a>
+                        <a href="{% url 'finance:export' %}?type=payments" class="btn btn-outline-success btn-block">
+                            <i class="mdi mdi-download"></i> Export Data
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Bank Transactions -->
+    {% if pending_transactions %}
+    <div class="row">
+        <div class="col-12 grid-margin stretch-card">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title text-warning">
+                        <i class="mdi mdi-alert-circle"></i> Pending Bank Transactions ({{ pending_transactions|length }})
+                    </h4>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Reference</th>
+                                    <th>Amount</th>
+                                    <th>Bank</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for txn in pending_transactions %}
+                                <tr>
+                                    <td>{{ txn.transaction_date|date:"d M Y H:i" }}</td>
+                                    <td>{{ txn.transaction_reference }}</td>
+                                    <td>KES {{ txn.amount|intcomma }}</td>
+                                    <td>{{ txn.get_bank_display }}</td>
+                                    <td>
+                                        <a href="{% url 'finance:bank_transaction_detail' txn.pk %}" class="btn btn-sm btn-info">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure</h3>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Name *</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<small class="text-danger">{{ form.name.errors.0 }}</small>{% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Academic Year *</label>
+                        {{ form.academic_year }}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Grade Level</label>
+                        {{ form.grade_level }}
+                        <small class="text-muted">Leave blank for all grades</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Student Category</label>
+                        {{ form.student_category }}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    {{ form.description }}
+                </div>
+
+                <div class="form-check mb-3">
+                    {{ form.is_active }}
+                    <label class="form-check-label">Active</label>
+                </div>
+
+                <hr>
+                <h5>Fee Items</h5>
+                <p class="text-muted">Add fee items after creating the structure.</p>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">Save Fee Structure</button>
+                    <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

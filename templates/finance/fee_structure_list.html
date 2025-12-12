@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Fee Structures{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Fee Structures</h3>
+        <a href="{% url 'finance:fee_structure_create' %}" class="btn btn-primary">
+            <i class="mdi mdi-plus"></i> Add Fee Structure
+        </a>
+    </div>
+
+    <!-- Filter -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="academic_year" class="form-control">
+                        <option value="">All Academic Years</option>
+                        {% for year in academic_years %}
+                        <option value="{{ year.pk }}" {% if request.GET.academic_year == year.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ year }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="grade_level" class="form-control">
+                        <option value="">All Grades</option>
+                        {% for grade in grade_levels %}
+                        <option value="{{ grade }}" {% if request.GET.grade_level == grade %}selected{% endif %}>
+                            {{ grade }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Academic Year</th>
+                            <th>Grade Level</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for structure in fee_structures %}
+                        <tr>
+                            <td>{{ structure.name }}</td>
+                            <td>{{ structure.academic_year }}</td>
+                            <td>{{ structure.grade_level|default:"All Grades" }}</td>
+                            <td>KES {{ structure.total_amount|intcomma }}</td>
+                            <td>
+                                <span class="badge badge-{% if structure.is_active %}success{% else %}secondary{% endif %}">
+                                    {% if structure.is_active %}Active{% else %}Inactive{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'finance:fee_structure_detail' structure.pk %}" class="btn btn-sm btn-info">
+                                    <i class="mdi mdi-eye"></i>
+                                </a>
+                                <a href="{% url 'finance:fee_structure_update' structure.pk %}" class="btn btn-sm btn-warning">
+                                    <i class="mdi mdi-pencil"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center">No fee structures found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

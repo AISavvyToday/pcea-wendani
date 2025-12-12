@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Outstanding Fees Report{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Outstanding Fees Report</h3>
+        <a href="{% url 'finance:export' %}?type=outstanding&term={{ selected_term }}" class="btn btn-success">
+            <i class="mdi mdi-download"></i> Export CSV
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="term" class="form-control">
+                        <option value="">All Terms</option>
+                        {% for term in terms %}
+                        <option value="{{ term.pk }}" {% if selected_term == term.pk|stringformat:"s" %}selected{% endif %}>{{ term }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="grade" class="form-control">
+                        <option value="">All Grades</option>
+                        {% for grade in grades %}
+                        <option value="{{ grade }}" {% if request.GET.grade == grade %}selected{% endif %}>{{ grade }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Total Outstanding</h5>
+                    <h3 class="text-danger">KES {{ total_outstanding|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Students with Balance</h5>
+                    <h3>{{ students_with_balance }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Average Balance</h5>
+                    <h3>KES {{ average_balance|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- List -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Admission #</th>
+                            <th>Grade</th>
+                            <th>Total Invoiced</th>
+                            <th>Total Paid</th>
+                            <th>Balance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in outstanding_list %}
+                        <tr>
+                            <td>{{ item.student.full_name }}</td>
+                            <td>{{ item.student.admission_number }}</td>
+                            <td>{{ item.student.grade_level }}</td>
+                            <td>KES {{ item.total_invoiced|intcomma }}</td>
+                            <td>KES {{ item.total_paid|intcomma }}</td>
+                            <td class="text-danger font-weight-bold">KES {{ item.balance|intcomma }}</td>
+                            <td>
+                                <a href="{% url 'finance:student_statement' item.student.pk %}" class="btn btn-sm btn-info">
+                                    Statement
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="text-center">No outstanding balances</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
