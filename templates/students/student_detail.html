@@ -38,6 +38,9 @@
               <a href="{% url 'students:update' student.pk %}" class="btn btn-gradient-warning btn-icon-text">
                 <i class="mdi mdi-pencil"></i> Edit Student
               </a>
+                <a href="{% url 'students:delete' student.pk %}" class="btn btn-danger">
+    <i class="mdi mdi-delete"></i> Delete Student
+</a>
               {% endif %}
             </div>
           </div>

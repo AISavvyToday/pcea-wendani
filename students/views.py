@@ -1,12 +1,16 @@
 # students/views.py
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.http import HttpResponseRedirect
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import ListView, CreateView, UpdateView, DetailView, FormView
 from django.core.paginator import Paginator
 from django.db import transaction
-
+from django.views.generic import DeleteView
+from django.urls import reverse_lazy
+from django.contrib import messages
 from core.mixins import RoleRequiredMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
@@ -226,3 +230,55 @@ class StudentPromotionView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             messages.error(self.request, f'Error promoting students: {str(e)}')
 
         return redirect(self.success_url)
+
+
+class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+    """
+    View for soft-deleting a student record.
+    Only accessible by Super Admin and School Admin.
+    """
+    model = Student
+    template_name = 'students/student_confirm_delete.html'
+    success_url = reverse_lazy('students:list')
+    context_object_name = 'student'
+
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+    ]
+
+    def delete(self, request, *args, **kwargs):
+        """
+        Perform soft delete instead of hard delete.
+        Changes student status to 'inactive' instead of removing from database.
+        """
+        self.object = self.get_object()
+        success_url = self.get_success_url()
+
+        # Soft delete - change status to inactive
+        self.object.status = 'inactive'
+        self.object.status_date = timezone.now()
+        self.object.status_reason = f"Deleted by {request.user.get_full_name()}"
+        self.object.save()
+
+        messages.success(
+            request,
+            f'Student {self.object.full_name} ({self.object.admission_number}) has been deactivated successfully.'
+        )
+
+        return HttpResponseRedirect(success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Delete Student'
+
+        # Get related data to show what will be affected
+        student = self.object
+        context['related_data'] = {
+            'parents': student.parents.count(),
+            'invoices': student.invoices.count(),
+            'payments': student.payments.count(),
+            'attendance_records': student.attendance_records.count(),
+        }
+
+        return context

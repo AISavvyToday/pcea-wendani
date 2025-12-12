@@ -19,16 +19,6 @@ class StudentService:
         Args:
             student_data: dict with student fields
             parents_data: list of dicts, each containing parent info and relationship details
-                         Example: [
-                             {
-                                 'parent': {...parent fields...},
-                                 'relationship': 'father',
-                                 'is_primary': True,
-                                 'is_emergency_contact': True,
-                                 'can_pickup': True,
-                                 'receives_notifications': True
-                             }
-                         ]
 
         Returns:
             Student instance
@@ -183,6 +173,25 @@ class StudentService:
             promoted_count += 1
 
         return promoted_count
+
+    @staticmethod
+    def get_student_profile_data(student):
+        """
+        Get comprehensive profile data for student detail view.
+
+        Args:
+            student: Student instance
+
+        Returns:
+            dict with all profile data including parents
+        """
+        # Get student-parent relationships
+        student_parents = student.student_parents.select_related('parent').all()
+
+        return {
+            'student_parents': student_parents,
+            'enrollments': [],  # Empty for now until Enrollment model is created
+        }
 
     @staticmethod
     def get_student_summary(student):

@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Student - {{ student.full_name }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">
+                        <i class="mdi mdi-alert-circle text-warning"></i>
+                        Confirm Student Deletion
+                    </h4>
+
+                    <div class="alert alert-warning" role="alert">
+                        <i class="mdi mdi-alert"></i>
+                        <strong>Warning!</strong> You are about to deactivate this student record.
+                    </div>
+
+                    <!-- Student Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-3 text-center">
+                            {% if student.photo %}
+                                <img src="{{ student.photo.url }}" alt="{{ student.full_name }}" class="img-fluid rounded" style="max-width: 150px;">
+                            {% else %}
+                                <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 150px; height: 150px; margin: 0 auto;">
+                                    <i class="mdi mdi-account" style="font-size: 80px; color: #ccc;"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-9">
+                            <h5>{{ student.full_name }}</h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td width="200"><strong>Admission Number:</strong></td>
+                                    <td>{{ student.admission_number }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Current Class:</strong></td>
+                                    <td>{{ student.current_class|default:"Not Assigned" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Gender:</strong></td>
+                                    <td>{{ student.get_gender_display }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Date of Birth:</strong></td>
+                                    <td>{{ student.date_of_birth|date:"F d, Y" }} ({{ student.age }} years old)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Current Status:</strong></td>
+                                    <td>
+                                        <span class="badge badge-{{ student.status|yesno:'success,danger,warning' }}">
+                                            {{ student.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Related Data Warning -->
+                    <div class="alert alert-info">
+                        <h6><i class="mdi mdi-information"></i> Related Records</h6>
+                        <p class="mb-0">This student has the following related records:</p>
+                        <ul class="mb-0">
+                            <li><strong>Parents/Guardians:</strong> {{ related_data.parents }}</li>
+                            <li><strong>Invoices:</strong> {{ related_data.invoices }}</li>
+                            <li><strong>Payments:</strong> {{ related_data.payments }}</li>
+                            <li><strong>Attendance Records:</strong> {{ related_data.attendance_records }}</li>
+                        </ul>
+                        <p class="mt-2 mb-0">
+                            <small class="text-muted">
+                                <i class="mdi mdi-information-outline"></i>
+                                Note: This is a soft delete. The student will be marked as inactive but all records will be preserved.
+                            </small>
+                        </p>
+                    </div>
+
+                    <!-- Confirmation Form -->
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-group">
+                            <p class="mb-3">Are you sure you want to deactivate <strong>{{ student.full_name }}</strong>?</p>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'students:detail' student.pk %}" class="btn btn-light">
+                                <i class="mdi mdi-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="mdi mdi-delete"></i> Yes, Deactivate Student
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
