@@ -3,29 +3,7 @@
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
   <ul class="nav">
 
-    <!-- User Profile Section -->
-    <li class="nav-item nav-profile">
-      <a href="" class="nav-link">
-        <div class="nav-profile-image">
-          {% if user.is_authenticated and user.profile_picture %}
-            <img src="{{ user.profile_picture.url }}" alt="avatar" />
-          {% else %}
-            <img src="{% static 'assets/images/faces/default-pp.jpeg' %}" alt="avatar" />
-          {% endif %}
-          <span class="login-status online"></span>
-        </div>
-        <div class="nav-profile-text d-flex flex-column">
-          {% if user.is_authenticated %}
-            <span class="font-weight-bold mb-2">{{ user.get_short_name|default:user.email|truncatechars:15 }}</span>
-            <span class="text-secondary text-small">{{ user_role_display|default:"User" }}</span>
-          {% else %}
-            <span class="font-weight-bold mb-2">PCEA Wendani</span>
-            <span class="text-secondary text-small">Academy</span>
-          {% endif %}
-        </div>
-        <i class="mdi mdi-check-decagram text-success nav-profile-badge"></i>
-      </a>
-    </li>
+
 
 
 
