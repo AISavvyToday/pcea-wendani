@@ -466,6 +466,7 @@ class FinanceReportService:
             'total_collected': total_collected,
             'transaction_count': transaction_count,
             'by_method': by_method_list,
+
             'daily': list(daily),
             'mpesa_total': mpesa_total,
             'bank_total': bank_total
