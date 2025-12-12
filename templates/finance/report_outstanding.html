@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base/base.html' %}
 {% load static humanize %}
 
 {% block title %}Outstanding Fees Report{% endblock %}
@@ -7,7 +7,7 @@
 <div class="content-wrapper">
     <div class="page-header">
         <h3 class="page-title">Outstanding Fees Report</h3>
-        <a href="{% url 'finance:export' %}?type=outstanding&term={{ selected_term }}" class="btn btn-success">
+        <a href="{% url 'finance:finance_export' %}?type=outstanding&term={{ selected_term }}" class="btn btn-success">
             <i class="mdi mdi-download"></i> Export CSV
         </a>
     </div>

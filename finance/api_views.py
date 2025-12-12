@@ -5,7 +5,7 @@ from django.utils.decorators import method_decorator
 import json
 import logging
 
-from .models import Invoice, BankTransaction
+from .models import Invoice
 from .services import PaymentService
 from students.models import Student
 

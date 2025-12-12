@@ -365,7 +365,8 @@ class FinanceReportService:
         collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
 
         recent_payments = payments.select_related('student').order_by('-payment_date')[:10]
-        pending_transactions = BankTransaction.objects.filter(status='pending').order_by('-transaction_date')[:5]
+        pending_transactions = BankTransaction.objects.filter(processing_status='pending').order_by(
+            '-callback_received_at')[:5]
 
         return {
             'total_invoiced': total_invoiced,

@@ -1,6 +1,6 @@
 <!-- templates/finance/dashboard.html -->
 
-{% extends 'base.html' %}
+{% extends 'base/base.html' %}
 {% load static humanize %}
 
 {% block title %}Finance Dashboard{% endblock %}
@@ -100,7 +100,7 @@
                 <div class="card-body">
                     <h4 class="card-title">Quick Actions</h4>
                     <div class="d-grid gap-2">
-                        <a href="{% url 'finance:payment_create' %}" class="btn btn-primary btn-block mb-2">
+                        <a href="{% url 'finance:payment_record' %}" class="btn btn-primary btn-block mb-2">
                             <i class="mdi mdi-plus"></i> Record Payment
                         </a>
                         <a href="{% url 'finance:invoice_list' %}" class="btn btn-outline-primary btn-block mb-2">
@@ -109,10 +109,10 @@
                         <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-primary btn-block mb-2">
                             <i class="mdi mdi-currency-usd"></i> Fee Structures
                         </a>
-                        <a href="{% url 'finance:report_outstanding' %}" class="btn btn-outline-warning btn-block mb-2">
+                        <a href="{% url 'finance:outstanding_report' %}" class="btn btn-outline-warning btn-block mb-2">
                             <i class="mdi mdi-alert"></i> Outstanding Fees
                         </a>
-                        <a href="{% url 'finance:export' %}?type=payments" class="btn btn-outline-success btn-block">
+                        <a href="{% url 'finance:finance_export' %}?type=payments" class="btn btn-outline-success btn-block">
                             <i class="mdi mdi-download"></i> Export Data
                         </a>
                     </div>

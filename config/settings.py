@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     "portal",
 
     "rest_framework",
+
+    'django.contrib.humanize',
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base/base.html' %}
 {% load static humanize %}
 
 {% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
@@ -11,7 +11,7 @@
             <a href="{% url 'finance:invoice_print' invoice.pk %}" class="btn btn-secondary" target="_blank">
                 <i class="mdi mdi-printer"></i> Print
             </a>
-            <a href="{% url 'finance:payment_create' %}?invoice={{ invoice.pk }}" class="btn btn-primary">
+            <a href="{% url 'finance:payment_record' %}?invoice={{ invoice.pk }}" class="btn btn-primary">
                 <i class="mdi mdi-plus"></i> Record Payment
             </a>
         </div>
