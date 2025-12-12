@@ -1,0 +1,30 @@
+{% extends 'base/base.html' %}
+{% block title %}Academic Report{% endblock %}
+
+{% block content %}
+<h3>Academic Report - {{ current_term }}</h3>
+
+{% if error %}
+  <div class="alert alert-warning">{{ error }}</div>
+{% else %}
+  {% for class_data in report_data %}
+    <h4>{{ class_data.class.name }}</h4>
+    <table class="table table-bordered mb-4">
+      <thead>
+        <tr>
+          <th>Subject</th>
+          <th>Average Mark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for subject_data in class_data.subjects %}
+        <tr>
+          <td>{{ subject_data.subject.name }}</td>
+          <td>{{ subject_data.avg_mark|default:"N/A" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+{% endif %}
+{% endblock %}

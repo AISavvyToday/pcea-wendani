@@ -1,0 +1,41 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Class,Add Class" }}{% endblock %}
+
+{% block content %}
+<h3>{{ form.instance.pk|yesno:"Edit Class,Add Class" }}</h3>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-3">
+    {{ form.name.label_tag }} {{ form.name }}
+    {% if form.name.errors %}<div class="text-danger">{{ form.name.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.grade_level.label_tag }} {{ form.grade_level }}
+    {% if form.grade_level.errors %}<div class="text-danger">{{ form.grade_level.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.stream.label_tag }} {{ form.stream }}
+    {% if form.stream.errors %}<div class="text-danger">{{ form.stream.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.capacity.label_tag }} {{ form.capacity }}
+    {% if form.capacity.errors %}<div class="text-danger">{{ form.capacity.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.class_teacher.label_tag }} {{ form.class_teacher }}
+    {% if form.class_teacher.errors %}<div class="text-danger">{{ form.class_teacher.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.room.label_tag }} {{ form.room }}
+    {% if form.room.errors %}<div class="text-danger">{{ form.room.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.academic_year.label_tag }} {{ form.academic_year }}
+    {% if form.academic_year.errors %}<div class="text-danger">{{ form.academic_year.errors }}</div>{% endif %}
+  </div>
+  <button type="submit" class="btn btn-success">Save</button>
+  <a href="{% url 'academics:class_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base/base.html' %}
+{% block title %}Class Subjects{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Class Subjects</h3>
+  <a href="{% url 'academics:class_subject_create' %}" class="btn btn-primary">Add Class Subject</a>
+</div>
+
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>Class</th>
+      <th>Subject</th>
+      <th>Teacher</th>
+      <th>Periods/Week</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cs in class_subjects %}
+    <tr>
+      <td>{{ cs.class_obj.name }}</td>
+      <td>{{ cs.subject.name }}</td>
+      <td>{{ cs.teacher }}</td>
+      <td>{{ cs.periods_per_week }}</td>
+      <td>
+        <a href="{% url 'academics:class_subject_edit' cs.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="text-center">No class subjects found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

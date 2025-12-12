@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/payments/', include('payments.urls', namespace='payments-api')),
     path('students/', include('students.urls')),
     path('finance/', include('finance.urls', namespace='finance')),
+    path('academics/', include('academics.urls', namespace='academics')),
 ]
 
 if settings.DEBUG:

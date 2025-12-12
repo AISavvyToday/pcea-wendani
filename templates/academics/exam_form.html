@@ -1,0 +1,41 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Exam,Add Exam" }}{% endblock %}
+
+{% block content %}
+<h3>{{ form.instance.pk|yesno:"Edit Exam,Add Exam" }}</h3>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-3">
+    {{ form.name.label_tag }} {{ form.name }}
+    {% if form.name.errors %}<div class="text-danger">{{ form.name.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.term.label_tag }} {{ form.term }}
+    {% if form.term.errors %}<div class="text-danger">{{ form.term.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.exam_type.label_tag }} {{ form.exam_type }}
+    {% if form.exam_type.errors %}<div class="text-danger">{{ form.exam_type.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.start_date.label_tag }} {{ form.start_date }}
+    {% if form.start_date.errors %}<div class="text-danger">{{ form.start_date.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.end_date.label_tag }} {{ form.end_date }}
+    {% if form.end_date.errors %}<div class="text-danger">{{ form.end_date.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.weight_percentage.label_tag }} {{ form.weight_percentage }}
+    {% if form.weight_percentage.errors %}<div class="text-danger">{{ form.weight_percentage.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.classes.label_tag }} {{ form.classes }}
+    {% if form.classes.errors %}<div class="text-danger">{{ form.classes.errors }}</div>{% endif %}
+  </div>
+  <button type="submit" class="btn btn-success">Save</button>
+  <a href="{% url 'academics:exam_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

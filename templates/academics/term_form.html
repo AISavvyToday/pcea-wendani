@@ -1,0 +1,39 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Term,Add Term" }}{% endblock %}
+
+{% block content %}
+<h3>{{ form.instance.pk|yesno:"Edit Term,Add Term" }}</h3>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="mb-3">
+    {{ form.academic_year.label_tag }} {{ form.academic_year }}
+    {% if form.academic_year.errors %}<div class="text-danger">{{ form.academic_year.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.term.label_tag }} {{ form.term }}
+    {% if form.term.errors %}<div class="text-danger">{{ form.term.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.start_date.label_tag }} {{ form.start_date }}
+    {% if form.start_date.errors %}<div class="text-danger">{{ form.start_date.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.end_date.label_tag }} {{ form.end_date }}
+    {% if form.end_date.errors %}<div class="text-danger">{{ form.end_date.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.fee_deadline.label_tag }} {{ form.fee_deadline }}
+    {% if form.fee_deadline.errors %}<div class="text-danger">{{ form.fee_deadline.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.late_fee_start_date.label_tag }} {{ form.late_fee_start_date }}
+    {% if form.late_fee_start_date.errors %}<div class="text-danger">{{ form.late_fee_start_date.errors }}</div>{% endif %}
+  </div>
+  <div class="form-check mb-3">
+    {{ form.is_current }} {{ form.is_current.label_tag }}
+  </div>
+  <button type="submit" class="btn btn-success">Save</button>
+  <a href="{% url 'academics:term_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

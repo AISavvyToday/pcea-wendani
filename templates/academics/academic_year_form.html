@@ -1,0 +1,27 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Academic Year,Add Academic Year" }}{% endblock %}
+
+{% block content %}
+<h3>{{ form.instance.pk|yesno:"Edit Academic Year,Add Academic Year" }}</h3>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="mb-3">
+    {{ form.year.label_tag }} {{ form.year }}
+    {% if form.year.errors %}<div class="text-danger">{{ form.year.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.start_date.label_tag }} {{ form.start_date }}
+    {% if form.start_date.errors %}<div class="text-danger">{{ form.start_date.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.end_date.label_tag }} {{ form.end_date }}
+    {% if form.end_date.errors %}<div class="text-danger">{{ form.end_date.errors }}</div>{% endif %}
+  </div>
+  <div class="form-check mb-3">
+    {{ form.is_current }} {{ form.is_current.label_tag }}
+  </div>
+  <button type="submit" class="btn btn-success">Save</button>
+  <a href="{% url 'academics:academic_year_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Class Subject,Add Class Subject" }}{% endblock %}
+
+{% block content %}
+<h3>{{ form.instance.pk|yesno:"Edit Class Subject,Add Class Subject" }}</h3>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="mb-3">
+    {{ form.class_obj.label_tag }} {{ form.class_obj }}
+    {% if form.class_obj.errors %}<div class="text-danger">{{ form.class_obj.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.subject.label_tag }} {{ form.subject }}
+    {% if form.subject.errors %}<div class="text-danger">{{ form.subject.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.teacher.label_tag }} {{ form.teacher }}
+    {% if form.teacher.errors %}<div class="text-danger">{{ form.teacher.errors }}</div>{% endif %}
+  </div>
+  <div class="mb-3">
+    {{ form.periods_per_week.label_tag }} {{ form.periods_per_week }}
+    {% if form.periods_per_week.errors %}<div class="text-danger">{{ form.periods_per_week.errors }}</div>{% endif %}
+  </div>
+  <button type="submit" class="btn btn-success">Save</button>
+  <a href="{% url 'academics:class_subject_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

@@ -40,7 +40,7 @@ class Term(BaseModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
-    
+
     # Fee deadlines
     fee_deadline = models.DateField(null=True, blank=True)
     late_fee_start_date = models.DateField(null=True, blank=True)
@@ -67,7 +67,7 @@ class Department(BaseModel):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)
     head = models.ForeignKey(
-        'Staff', on_delete=models.SET_NULL, 
+        'Staff', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='headed_departments'
     )
     description = models.TextField(blank=True)
@@ -87,32 +87,32 @@ class Staff(BaseModel):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='staff_profile'
     )
-    
+
     # Employment info
     staff_number = models.CharField(max_length=20, unique=True)  # e.g., PWA-T-001
-    
+
     STAFF_TYPES = [
         ('teaching', 'Teaching Staff'),
         ('admin', 'Administrative Staff'),
         ('support', 'Support Staff'),
     ]
     staff_type = models.CharField(max_length=20, choices=STAFF_TYPES)
-    
+
     department = models.ForeignKey(
-        Department, on_delete=models.SET_NULL, 
+        Department, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='staff_members'
     )
-    
+
     # Personal info
     id_number = models.CharField(max_length=20, unique=True)
     tsc_number = models.CharField(max_length=20, blank=True)  # Teachers Service Commission
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female')], blank=True)
-    
+
     # Contact
     phone_number = models.CharField(max_length=15)
     address = models.TextField(blank=True)
-    
+
     # Employment details
     date_joined = models.DateField()
     employment_type = models.CharField(
@@ -120,11 +120,11 @@ class Staff(BaseModel):
         choices=[('permanent', 'Permanent'), ('contract', 'Contract'), ('parttime', 'Part-time')],
         default='permanent'
     )
-    
+
     # Qualifications
     qualifications = models.TextField(blank=True)
     specialization = models.CharField(max_length=100, blank=True)
-    
+
     # Status
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -152,19 +152,19 @@ class Class(BaseModel):
     name = models.CharField(max_length=50)  # e.g., "Grade 1A", "Grade 7 Blue"
     grade_level = models.CharField(max_length=20, choices=GradeLevel.choices)
     stream = models.CharField(max_length=20, blank=True)  # e.g., "A", "B", "Blue", "Red"
-    
+
     # Capacity
     capacity = models.PositiveIntegerField(default=40)
-    
+
     # Class teacher
     class_teacher = models.ForeignKey(
         Staff, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='classes_taught'
     )
-    
+
     # Room
     room = models.CharField(max_length=20, blank=True)
-    
+
     # Academic year (classes are recreated each year)
     academic_year = models.ForeignKey(
         AcademicYear, on_delete=models.CASCADE, related_name='classes'
@@ -195,15 +195,15 @@ class Subject(BaseModel):
     """
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10, unique=True)
-    
+
     # Which grade levels this subject applies to
     grade_levels = models.JSONField(default=list)  # e.g., ['grade_1', 'grade_2', 'grade_3']
-    
+
     department = models.ForeignKey(
         Department, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='subjects'
     )
-    
+
     # Subject type
     SUBJECT_TYPES = [
         ('core', 'Core Subject'),
@@ -211,9 +211,9 @@ class Subject(BaseModel):
         ('activity', 'Co-curricular Activity'),
     ]
     subject_type = models.CharField(max_length=20, choices=SUBJECT_TYPES, default='core')
-    
+
     description = models.TextField(blank=True)
-    
+
     # Grading
     max_marks = models.PositiveIntegerField(default=100)
     pass_marks = models.PositiveIntegerField(default=40)
@@ -252,7 +252,7 @@ class Exam(BaseModel):
     """
     name = models.CharField(max_length=100)  # e.g., "Mid-Term Exam", "End of Term Exam"
     term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='exams')
-    
+
     EXAM_TYPES = [
         ('cat', 'Continuous Assessment Test'),
         ('midterm', 'Mid-Term Exam'),
@@ -261,19 +261,19 @@ class Exam(BaseModel):
         ('assignment', 'Assignment'),
     ]
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPES)
-    
+
     start_date = models.DateField()
     end_date = models.DateField()
-    
+
     # Weighting for final grade calculation
     weight_percentage = models.DecimalField(
         max_digits=5, decimal_places=2, default=100,
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
-    
+
     # Applicable classes
     classes = models.ManyToManyField(Class, related_name='exams')
-    
+
     is_published = models.BooleanField(default=False)  # Results visible to parents
 
     class Meta:
@@ -293,19 +293,19 @@ class Grade(BaseModel):
     )
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='grades')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='grades')
-    
+
     marks = models.DecimalField(
         max_digits=5, decimal_places=2,
         validators=[MinValueValidator(0)]
     )
-    
+
     # Calculated grade
     grade_letter = models.CharField(max_length=2, blank=True)  # A, B+, B, etc.
     points = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
-    
+
     # Teacher remarks
     remarks = models.TextField(blank=True)
-    
+
     # Entry tracking
     entered_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name='grades_entered'
@@ -367,13 +367,13 @@ class Attendance(BaseModel):
     )
     date = models.DateField()
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='attendance_records')
-    
+
     status = models.CharField(max_length=10, choices=AttendanceStatus.choices)
-    
+
     # Time tracking (for late arrivals)
     arrival_time = models.TimeField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
-    
+
     remarks = models.TextField(blank=True)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
 
@@ -396,7 +396,7 @@ class Timetable(BaseModel):
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='timetable_entries')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='timetable_entries')
     teacher = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True, related_name='timetable_entries')
-    
+
     DAY_CHOICES = [
         (0, 'Monday'),
         (1, 'Tuesday'),
@@ -405,12 +405,12 @@ class Timetable(BaseModel):
         (4, 'Friday'),
     ]
     day_of_week = models.PositiveSmallIntegerField(choices=DAY_CHOICES)
-    
+
     start_time = models.TimeField()
     end_time = models.TimeField()
-    
+
     room = models.CharField(max_length=20, blank=True)
-    
+
     term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='timetable_entries')
 
     class Meta:
@@ -431,19 +431,19 @@ class TransportRoute(BaseModel):
     """
     name = models.CharField(max_length=100)  # e.g., "Thika Road Route"
     description = models.TextField(blank=True)
-    
+
     # Driver info
     driver_name = models.CharField(max_length=100, blank=True)
     driver_phone = models.CharField(max_length=15, blank=True)
     vehicle_registration = models.CharField(max_length=20, blank=True)
-    
+
     # Stops
     pickup_points = models.JSONField(default=list)  # List of pickup locations
-    
+
     # Timing
     morning_departure = models.TimeField(null=True, blank=True)
     afternoon_departure = models.TimeField(null=True, blank=True)
-    
+
     # Fee
     term_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 

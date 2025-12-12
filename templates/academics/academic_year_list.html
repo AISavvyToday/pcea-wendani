@@ -1,0 +1,38 @@
+{% extends 'base/base.html' %}
+{% block title %}Academic Years{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Academic Years</h3>
+  <a href="{% url 'academics:academic_year_create' %}" class="btn btn-primary">Add Academic Year</a>
+</div>
+
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>Year</th>
+      <th>Start Date</th>
+      <th>End Date</th>
+      <th>Current</th>
+      <th>Terms</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for year in academic_years %}
+    <tr>
+      <td>{{ year.year }}</td>
+      <td>{{ year.start_date }}</td>
+      <td>{{ year.end_date }}</td>
+      <td>{% if year.is_current %}<span class="badge bg-success">Yes</span>{% else %}No{% endif %}</td>
+      <td>{{ year.terms_count }}</td>
+      <td>
+        <a href="{% url 'academics:academic_year_edit' year.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-center">No academic years found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

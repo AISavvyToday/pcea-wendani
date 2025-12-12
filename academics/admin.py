@@ -12,15 +12,13 @@ from .models import (
 class AcademicYearAdmin(admin.ModelAdmin):
     list_display = ('year', 'start_date', 'end_date', 'is_current', 'terms_count')
     list_filter = ('is_current',)
-    search_fields = ('year',)  # ADD THIS LINE
+    search_fields = ('year',)
     ordering = ('-year',)
 
     def terms_count(self, obj):
         return obj.terms.count()
+
     terms_count.short_description = 'Terms'
-
-
-
 
 
 class TermInline(admin.TabularInline):
@@ -32,7 +30,7 @@ class TermInline(admin.TabularInline):
 class TermAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'start_date', 'end_date', 'fee_deadline', 'is_current')
     list_filter = ('academic_year', 'term', 'is_current')
-    search_fields = ('academic_year__year', 'term')  # ADD THIS LINE
+    search_fields = ('academic_year__year', 'term')
     ordering = ('-academic_year__year', 'term')
 
 
@@ -42,9 +40,10 @@ class DepartmentAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'code')
     autocomplete_fields = ['head']
-    
+
     def staff_count(self, obj):
         return obj.staff_members.count()
+
     staff_count.short_description = 'Staff'
 
 
@@ -55,7 +54,7 @@ class StaffAdmin(admin.ModelAdmin):
     search_fields = ('staff_number', 'user__first_name', 'user__last_name', 'user__email', 'id_number', 'tsc_number')
     autocomplete_fields = ['user', 'department']
     ordering = ('staff_number',)
-    
+
     fieldsets = (
         ('Basic Info', {
             'fields': ('user', 'staff_number', 'staff_type', 'department')
@@ -80,19 +79,21 @@ class ClassSubjectInline(admin.TabularInline):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('name', 'grade_level', 'stream', 'academic_year', 'class_teacher', 'student_count', 'capacity', 'room')
+    list_display = ('name', 'grade_level', 'stream', 'academic_year', 'class_teacher', 'student_count', 'capacity',
+                    'room')
     list_filter = ('academic_year', 'grade_level')
     search_fields = ('name', 'stream', 'room')
     autocomplete_fields = ['class_teacher', 'academic_year']
     ordering = ('academic_year', 'grade_level', 'stream')
     inlines = [ClassSubjectInline]
-    
+
     def student_count(self, obj):
         count = obj.student_count
         capacity = obj.capacity
         if count >= capacity:
             return format_html('<span style="color: red;">{}/{}</span>', count, capacity)
         return f"{count}/{capacity}"
+
     student_count.short_description = 'Students'
 
 
@@ -126,7 +127,7 @@ class ExamAdmin(admin.ModelAdmin):
     search_fields = ('name',)
     filter_horizontal = ('classes',)
     date_hierarchy = 'start_date'
-    
+
     fieldsets = (
         ('Exam Details', {
             'fields': ('name', 'term', 'exam_type', 'weight_percentage')
@@ -150,7 +151,7 @@ class GradeAdmin(admin.ModelAdmin):
     search_fields = ('student__admission_number', 'student__first_name', 'student__last_name')
     autocomplete_fields = ['student', 'exam', 'subject']
     readonly_fields = ('grade_letter', 'points', 'entered_by', 'entered_at', 'modified_by')
-    
+
     def save_model(self, request, obj, form, change):
         if not change:
             obj.entered_by = request.user
@@ -167,7 +168,7 @@ class AttendanceAdmin(admin.ModelAdmin):
     autocomplete_fields = ['student', 'class_obj']
     date_hierarchy = 'date'
     readonly_fields = ('recorded_by',)
-    
+
     def save_model(self, request, obj, form, change):
         if not obj.recorded_by:
             obj.recorded_by = request.user
@@ -187,7 +188,8 @@ class TimetableAdmin(admin.ModelAdmin):
 class TransportRouteAdmin(admin.ModelAdmin):
     list_display = ('name', 'driver_name', 'driver_phone', 'vehicle_registration', 'term_fee', 'students_count')
     search_fields = ('name', 'driver_name', 'vehicle_registration')
-    
+
     def students_count(self, obj):
         return obj.students.count()
+
     students_count.short_description = 'Students'
