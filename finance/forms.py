@@ -172,7 +172,7 @@ class InvoiceGenerateForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields['term'].queryset = Term.objects.filter(
             is_active=True
-        ).select_related('academic_year').order_by('-academic_year__year', '-term_number')
+        ).select_related('academic_year').order_by('-academic_year__year', '-term')
 
 
 class PaymentRecordForm(forms.Form):
