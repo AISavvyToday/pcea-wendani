@@ -13,7 +13,6 @@
         </span>
         Students Management
       </h3>
-      <small class="text-muted">Manage students</small>
     </div>
 
     <div class="text-end">
@@ -96,6 +95,16 @@
                   <label class="filter-label">Stream</label>
                   {{ search_form.stream }}
                 </div>
+
+                <div style="min-width:120px;">
+                  <label class="filter-label">Gender</label>
+                  {{ search_form.gender }}
+                </div>
+
+                <div style="min-width:120px;">
+                  <label class="filter-label">Boarding</label>
+                  {{ search_form.is_boarder }}
+                </div>
               </div>
             </div>
           </div>
@@ -105,7 +114,6 @@
             <div class="d-flex flex-column flex-sm-row align-items-stretch gap-2 justify-content-between">
               <div class="d-flex gap-2 align-items-center">
                 <div>
-                  <label class="filter-label mb-0 d-block">Per page</label>
                   <select name="per_page" id="per_page" class="form-select filter-control">
                     {% with search_perpage=request.GET.per_page|default:"20" %}
                       <option value="10" {% if search_perpage == "10" %}selected{% endif %}>10</option>
@@ -161,7 +169,7 @@
                 <tr>
                   <th style="width:120px">Admission No.</th>
                   <th>Name</th>
-                  <th style="width:160px">Class / Stream</th>
+                  <th style="width:160px">Class</th>
                   <th style="width:90px">Age</th>
                   <th style="width:180px" class="text-end">Actions</th>
                 </tr>
@@ -185,7 +193,9 @@
                           </span>
                         {% endif %}
                       </div>
-
+                      <div>
+                        <a href="{% url 'students:detail' student.pk %}" class="fw-bold text-dark">{{ student.full_name }}</a>
+                      </div>
                     </div>
                   </td>
                   <td>
