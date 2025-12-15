@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}
-    {% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure
+    {% if title %}{{ title }}{% else %}{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -10,104 +10,101 @@
     <div class="page-header d-flex justify-content-between align-items-center">
         <div>
             <h3 class="page-title mb-0">
-                {% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure
+                {% if title %}{{ title }}{% else %}{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure{% endif %}
             </h3>
             <small class="text-muted">
                 {% if form.instance.pk %}
-                    Modify the fee structure and its items.
+                    Update fee structure details and its fee items below.
                 {% else %}
-                    Define a fee structure and add fee items below.
+                    Create a new fee structure and add fee items (at least one item required).
                 {% endif %}
             </small>
         </div>
 
         <div>
-            <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-secondary">
-                Back to Fee Structures
+            <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-secondary btn-sm">
+                &larr; Back to structures
             </a>
         </div>
     </div>
 
     <div class="card mt-3">
         <div class="card-body">
-
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger">
-                    {{ form.non_field_errors }}
-                </div>
-            {% endif %}
-
             <form method="post" novalidate>
                 {% csrf_token %}
 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                        {{ form.name }}
-                        {% if form.name.help_text %}
-                            <small class="text-muted d-block">{{ form.name.help_text }}</small>
-                        {% endif %}
-                        {% if form.name.errors %}
-                            <small class="text-danger">{{ form.name.errors.0 }}</small>
-                        {% endif %}
+                {# Show non-field and form errors #}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for err in form.non_field_errors %}
+                            <div>{{ err }}</div>
+                        {% endfor %}
                     </div>
-
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Academic Year <span class="text-danger">*</span></label>
-                        {{ form.academic_year }}
-                        {% if form.academic_year.errors %}
-                            <small class="text-danger">{{ form.academic_year.errors.0 }}</small>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Term</label>
-                        {{ form.term }}
-                        {% if form.term.errors %}
-                            <small class="text-danger">{{ form.term.errors.0 }}</small>
-                        {% endif %}
-                    </div>
-                </div>
+                {% endif %}
 
                 <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Grade Levels <span class="text-muted">(required)</span></label>
-                        <div class="border rounded p-2">
-                            {{ form.grade_levels }}
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            {{ form.name }}
+                            {% if form.name.help_text %}
+                                <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                            {% endif %}
+                            {% if form.name.errors %}
+                                <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+                            {% endif %}
                         </div>
-                        {% if form.grade_levels.errors %}
-                            <small class="text-danger">{{ form.grade_levels.errors.0 }}</small>
-                        {% endif %}
-                        <small class="text-muted d-block">Select grade levels this fee structure applies to. If you need to cover all grades create a structure for "All Grades".</small>
-                    </div>
 
-                    <div class="col-md-3 mb-3 d-flex align-items-center">
-                        <div class="form-check mt-3">
+                        <div class="mb-3">
+                            <label class="form-label">Academic Year <span class="text-danger">*</span></label>
+                            {{ form.academic_year }}
+                            {% if form.academic_year.errors %}
+                                <div class="text-danger small mt-1">{{ form.academic_year.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Term</label>
+                            {{ form.term }}
+                            {% if form.term.errors %}
+                                <div class="text-danger small mt-1">{{ form.term.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3 form-check">
                             {{ form.is_boarding }}
                             <label class="form-check-label ms-2">Boarding structure</label>
+                            {% if form.is_boarding.errors %}
+                                <div class="text-danger small mt-1">{{ form.is_boarding.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
-                    <div class="col-md-3 mb-3">
-                        <!-- placeholder for future fields or spacing -->
-                    </div>
-                </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Grade Levels <span class="text-danger">*</span></label>
+                            <div class="border rounded p-2" style="max-height:200px; overflow:auto;">
+                                {{ form.grade_levels }}
+                            </div>
+                            {% if form.grade_levels.help_text %}
+                                <small class="form-text text-muted">{{ form.grade_levels.help_text }}</small>
+                            {% endif %}
+                            {% if form.grade_levels.errors %}
+                                <div class="text-danger small mt-1">{{ form.grade_levels.errors.0 }}</div>
+                            {% endif %}
+                        </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Description</label>
-                    {{ form.description }}
-                    {% if form.description.errors %}
-                        <small class="text-danger">{{ form.description.errors.0 }}</small>
-                    {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            {{ form.description }}
+                            {% if form.description.help_text %}
+                                <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                            {% endif %}
+                            {% if form.description.errors %}
+                                <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
 
                 <hr>
@@ -115,233 +112,257 @@
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h5 class="mb-0">Fee Items</h5>
                     <div>
-                        <small class="text-muted me-3">You can add, edit or remove items. Items marked optional can be toggled per-student.</small>
-                        <button type="button" id="add-fee-item" class="btn btn-sm btn-success">Add Item</button>
+                        <button type="button" id="add-item-btn" class="btn btn-sm btn-success">
+                            + Add item
+                        </button>
+                        <button type="button" id="expand-all-btn" class="btn btn-sm btn-outline-secondary ms-1" title="Expand/collapse descriptions">
+                            Toggle Descriptions
+                        </button>
                     </div>
                 </div>
 
-                <div id="fee-items-formset" class="table-responsive">
-                    {{ formset.management_form }}
-                    {% if formset.non_form_errors %}
-                        <div class="alert alert-danger small">
-                            {{ formset.non_form_errors }}
-                        </div>
-                    {% endif %}
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger">
+                        {% for err in formset.non_form_errors %}
+                            <div>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
 
-                    <table class="table table-sm table-bordered align-middle">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered" id="fee-items-table">
                         <thead class="table-light">
                             <tr>
-                                <th style="width:18%;">Category</th>
-                                <th style="width:38%;">Description</th>
-                                <th style="width:18%;">Amount (KES)</th>
-                                <th style="width:8%;">Optional</th>
-                                <th style="width:8%;">Applies to All</th>
-                                <th style="width:10%;">Actions</th>
+                                <th style="width: 18%;">Category <span class="text-danger">*</span></th>
+                                <th style="width: 34%;">Description <span class="text-danger">*</span></th>
+                                <th style="width: 15%;">Amount (KES) <span class="text-danger">*</span></th>
+                                <th style="width: 10%;">Optional</th>
+                                <th style="width: 10%;">Applies to all</th>
+                                <th style="width: 13%;">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="fee-items-body">
-                            {% for f in formset.forms %}
-                                <tr class="fee-item-row {% if forloop.first and not f.instance.pk and formset.total_form_count == 1 %}optional-row{% endif %}">
+                        <tbody>
+                            {{ formset.management_form }}
+                            {% for item_form in formset.forms %}
+                                <tr class="fee-item-row">
                                     <td>
-                                        {{ f.category }}
-                                        {% if f.category.errors %}
-                                            <div class="text-danger small">{{ f.category.errors.0 }}</div>
+                                        {{ item_form.category }}
+                                        {% if item_form.category.errors %}
+                                            <div class="text-danger small">{{ item_form.category.errors.0 }}</div>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {{ f.description }}
-                                        {% if f.description.errors %}
-                                            <div class="text-danger small">{{ f.description.errors.0 }}</div>
+                                        {{ item_form.description }}
+                                        {% if item_form.description.errors %}
+                                            <div class="text-danger small">{{ item_form.description.errors.0 }}</div>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        {{ f.amount }}
-                                        {% if f.amount.errors %}
-                                            <div class="text-danger small">{{ f.amount.errors.0 }}</div>
+                                    <td class="align-middle">
+                                        {{ item_form.amount }}
+                                        {% if item_form.amount.errors %}
+                                            <div class="text-danger small">{{ item_form.amount.errors.0 }}</div>
                                         {% endif %}
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-center align-middle">
                                         <div class="form-check">
-                                            {{ f.is_optional }}
+                                            {{ item_form.is_optional }}
                                         </div>
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-center align-middle">
                                         <div class="form-check">
-                                            {{ f.applies_to_all }}
+                                            {{ item_form.applies_to_all }}
                                         </div>
                                     </td>
-                                    <td class="text-center">
-                                        <!-- If formset has DELETE, render it (for existing forms) -->
-                                        {% if f.DELETE %}
-                                            <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
-                                            {{ f.DELETE }}
+                                    <td class="text-center align-middle">
+                                        {% if formset.can_delete %}
+                                            {% if item_form.instance.pk %}
+                                                {# For existing items we keep delete checkbox so Django can soft-delete via formset #}
+                                                <div class="form-check">
+                                                    {{ item_form.DELETE }}
+                                                    <label class="form-check-label ms-1 small text-danger">Delete</label>
+                                                </div>
+                                            {% else %}
+                                                {# For new (client-added) rows provide a remove button that will remove the row from DOM and adjust TOTAL_FORMS #}
+                                                <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
+                                            {% endif %}
                                         {% else %}
-                                            <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
+                                            <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
                                         {% endif %}
-                                        {{ f.id }} {# hidden id field if present #}
+
+                                        {# Preserve per-form hidden fields (id, etc.) #}
+                                        {% for hidden in item_form.hidden_fields %}
+                                            {{ hidden }}
+                                        {% endfor %}
                                     </td>
                                 </tr>
+                            {% empty %}
+                                <tr><td colspan="6" class="text-center text-muted py-3">No fee items defined yet. Use "Add item" to create one.</td></tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="2" class="text-end"><strong>Total</strong></td>
+                                <td class="text-start"><strong id="items-total">KES 0.00</strong></td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
 
-                {# Hidden empty form template for JS cloning #}
+                {# Empty form template for JS-cloning (Django formset empty_form uses __prefix__) #}
                 <div id="empty-form-template" class="d-none">
                     <table>
                         <tr class="fee-item-row">
                             <td>
-                                {{ formset.empty_form.category|safe }}
+                                {{ formset.empty_form.category }}
                             </td>
                             <td>
-                                {{ formset.empty_form.description|safe }}
+                                {{ formset.empty_form.description }}
                             </td>
-                            <td>
-                                {{ formset.empty_form.amount|safe }}
+                            <td class="align-middle">
+                                {{ formset.empty_form.amount }}
                             </td>
-                            <td class="text-center">
+                            <td class="text-center align-middle">
                                 <div class="form-check">
-                                    {{ formset.empty_form.is_optional|safe }}
+                                    {{ formset.empty_form.is_optional }}
                                 </div>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center align-middle">
                                 <div class="form-check">
-                                    {{ formset.empty_form.applies_to_all|safe }}
+                                    {{ formset.empty_form.applies_to_all }}
                                 </div>
                             </td>
-                            <td class="text-center">
-                                <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
-                                {{ formset.empty_form.id|safe }}
+                            <td class="text-center align-middle">
+                                <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
+                                {% for hidden in formset.empty_form.hidden_fields %}
+                                    {{ hidden }}
+                                {% endfor %}
                             </td>
                         </tr>
                     </table>
                 </div>
 
-                <div class="mt-4 d-flex gap-2">
+                <div class="mt-3 d-flex gap-2">
                     <button type="submit" class="btn btn-primary">
-                        {% if is_edit %}{{ button_text|default:"Update Fee Structure" }}{% else %}{{ button_text|default:"Create Fee Structure" }}{% endif %}
+                        {% if button_text %}{{ button_text }}{% else %}{% if form.instance.pk %}Update{% else %}Create{% endif %} Fee Structure{% endif %}
                     </button>
                     <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">Cancel</a>
+
+                    {% if form.instance.pk %}
+                        <a href="{% url 'finance:fee_structure_detail' form.instance.pk %}" class="btn btn-outline-info ms-auto">View structure</a>
+                    {% endif %}
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-{# Minimal JS to add/remove formset rows. This expects Django's formset prefix to be available. #}
+{# Simple JS to handle adding/removing formset rows and summing amounts #}
 <script>
-(function(){
-    // Use the server-provided prefix for the formset if available
-    const prefix = "{{ formset.prefix }}";  // e.g., "feeitem_set" or similar
-    const container = document.getElementById('fee-items-formset');
-    const body = document.getElementById('fee-items-body');
-    const addBtn = document.getElementById('add-fee-item');
-    const emptyTplContainer = document.getElementById('empty-form-template');
+document.addEventListener('DOMContentLoaded', function () {
+    const addBtn = document.getElementById('add-item-btn');
+    const tableBody = document.querySelector('#fee-items-table tbody');
+    const totalEl = document.getElementById('items-total');
+    const emptyTemplateContainer = document.getElementById('empty-form-template');
+    const expandBtn = document.getElementById('expand-all-btn');
 
-    function totalFormsInput() {
-        return container.querySelector('input[name="' + prefix + '-TOTAL_FORMS"]');
-    }
-    function maxFormsInput() {
-        return container.querySelector('input[name="' + prefix + '-MAX_NUM_FORMS"]');
-    }
-    function initialFormsInput() {
-        return container.querySelector('input[name="' + prefix + '-INITIAL_FORMS"]');
+    function parseMoney(val) {
+        if (!val) return 0;
+        val = String(val).replace(/,/g, '').trim();
+        const f = parseFloat(val);
+        return isNaN(f) ? 0 : f;
     }
 
-    function getTotalForms() {
-        const input = totalFormsInput();
-        return input ? parseInt(input.value, 10) : 0;
-    }
-    function setTotalForms(v) {
-        const input = totalFormsInput();
-        if (input) input.value = v;
-    }
-
-    function reIndexRow(row, newIndex) {
-        // Replace __prefix__ occurrences
-        const html = row.innerHTML;
-        const updated = html.replace(/__prefix__/g, newIndex);
-        row.innerHTML = updated;
-
-        // Update name and id attributes in child inputs/selects/textareas
-        const inputs = row.querySelectorAll('input, select, textarea, label');
-        inputs.forEach(function(el){
-            if (el.hasAttribute('name')) {
-                el.name = el.name.replace(/-\d+-/, '-' + newIndex + '-');
-            }
-            if (el.id) {
-                el.id = el.id.replace(/-\d+-/, '-' + newIndex + '-');
-            }
-            if (el.getAttribute('for')) {
-                el.setAttribute('for', el.getAttribute('for').replace(/-\d+-/, '-' + newIndex + '-'));
+    function updateTotal() {
+        let total = 0;
+        // find amount inputs in visible rows
+        tableBody.querySelectorAll('tr.fee-item-row').forEach(row => {
+            const input = row.querySelector('input[type="number"], input[type="text"][name$="amount"]');
+            if (input) {
+                total += parseMoney(input.value);
             }
         });
+        totalEl.textContent = 'KES ' + total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 
-    function reindexAll() {
-        const rows = body.querySelectorAll('.fee-item-row');
-        let i = 0;
-        rows.forEach(function(row){
-            reIndexRow(row, i);
-            i++;
-        });
-        setTotalForms(i);
+    function updateTotalForms(delta) {
+        const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        if (!totalForms) return;
+        totalForms.value = parseInt(totalForms.value || '0') + delta;
     }
 
-    function makeRowFromTemplate(index) {
-        const templateHtml = emptyTplContainer.innerHTML;
-        const replaced = templateHtml.replace(/__prefix__/g, index);
-        // Create element wrapper to extract row
-        const wrapper = document.createElement('tbody');
-        wrapper.innerHTML = replaced;
-        const newRow = wrapper.querySelector('.fee-item-row');
-        return newRow;
-    }
+    // Add new row using empty_form template (with __prefix__ replacement)
+    addBtn && addBtn.addEventListener('click', function () {
+        const emptyHtmlWrap = emptyTemplateContainer.innerHTML.trim();
+        if (!emptyHtmlWrap) return;
 
-    // Add handler for remove buttons (delegated)
-    body.addEventListener('click', function(e){
-        if (e.target && e.target.classList.contains('remove-row')) {
-            const row = e.target.closest('.fee-item-row');
+        // Get current TOTAL_FORMS to know index
+        const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        const index = totalFormsInput ? parseInt(totalFormsInput.value) : tableBody.querySelectorAll('tr.fee-item-row').length;
+        const regex = new RegExp('__prefix__', 'g');
+        // Create a container to parse the HTML and extract the <tr>
+        const container = document.createElement('div');
+        container.innerHTML = emptyHtmlWrap.replace(regex, index);
+        const newRow = container.querySelector('tr.fee-item-row');
+        if (!newRow) return;
+
+        // Append and increment TOTAL_FORMS
+        tableBody.appendChild(newRow);
+        updateTotalForms(1);
+        attachRowEvents(newRow);
+        updateTotal();
+    });
+
+    // Attach remove handler to rows (event delegation)
+    tableBody.addEventListener('click', function (e) {
+        if (e.target && e.target.matches('.remove-item-btn')) {
+            const row = e.target.closest('tr.fee-item-row');
             if (!row) return;
 
-            // If there is a DELETE input (existing form), mark it and hide row.
-            const deleteInput = row.querySelector('input[name$="-DELETE"]');
-            if (deleteInput) {
-                // Mark for deletion and hide visually
-                deleteInput.checked = true;
+            // If this row has a DELETE checkbox (existing form from DB), check it and hide the row.
+            const deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = true;
                 row.style.display = 'none';
             } else {
-                // New form: remove DOM and reindex remaining
+                // Otherwise remove row from DOM and decrement TOTAL_FORMS
                 row.remove();
-                reindexAll();
+                updateTotalForms(-1);
             }
+            updateTotal();
         }
     });
 
-    if (addBtn) {
-        addBtn.addEventListener('click', function(){
-            const total = getTotalForms();
-            const maxInput = maxFormsInput();
-            if (maxInput && total >= parseInt(maxInput.value, 10)) {
-                alert('Maximum number of fee items reached.');
-                return;
-            }
-
-            const newRow = makeRowFromTemplate(total);
-            if (newRow) {
-                body.appendChild(newRow);
-                setTotalForms(total + 1);
-                // Optionally focus first input in new row
-                const firstInput = newRow.querySelector('input, select, textarea');
-                if (firstInput) firstInput.focus();
-            }
-        });
+    // Attach input events to update total when amounts change
+    function attachRowEvents(row) {
+        const amtInput = row.querySelector('input[name$="-amount"]');
+        if (amtInput) {
+            amtInput.addEventListener('input', updateTotal);
+        }
     }
 
-    // On page load ensure remove buttons for existing rows are visible/linked
-    document.addEventListener('DOMContentLoaded', function(){
-        // nothing extra required at present
+    // Attach to initial rows
+    tableBody.querySelectorAll('tr.fee-item-row').forEach(attachRowEvents);
+
+    // Expand / collapse description inputs (toggle rows' description input size)
+    expandBtn && expandBtn.addEventListener('click', function () {
+        tableBody.querySelectorAll('tr.fee-item-row').forEach(row => {
+            const desc = row.querySelector('input[name$="-description"], textarea[name$="-description"]');
+            if (desc) {
+                desc.classList.toggle('expanded-desc');
+            }
+        });
     });
-})();
+
+    // Initial total calculation
+    updateTotal();
+});
 </script>
+
+<style>
+/* Minor styling for description toggle */
+.expanded-desc {
+    min-width: 100%;
+}
+</style>
 {% endblock %}
