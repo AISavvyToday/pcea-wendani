@@ -1,4 +1,3 @@
-<!--students/student_form.html-->
 {% extends "base/base.html" %}
 {% load static %}
 
@@ -8,20 +7,17 @@
   <form method="POST" enctype="multipart/form-data">
     {% csrf_token %}
 
-    <!-- ===================== CARD ===================== -->
     <div class="card">
       <div class="card-body">
 
-        <!-- ===================== HEADER ===================== -->
+        <!-- ================= HEADER ================= -->
         <div class="d-flex justify-content-between align-items-center mb-4">
-          <h4 class="mb-0 fw-bold">Create Student</h4>
-          <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">
-            ← Back
-          </a>
+          <h4 class="fw-bold mb-0">Create Student</h4>
+          <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">← Back</a>
         </div>
 
-        <!-- ===================== TABS ===================== -->
-        <ul class="nav nav-pills mb-4" id="studentTabs" role="tablist">
+        <!-- ================= TABS ================= -->
+        <ul class="nav nav-pills mb-4">
           <li class="nav-item">
             <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#student-info">
               Student Info
@@ -29,7 +25,7 @@
           </li>
           <li class="nav-item">
             <button class="nav-link" data-bs-toggle="pill" data-bs-target="#academic-info">
-              Academic Info
+              Academic & Medical
             </button>
           </li>
           <li class="nav-item">
@@ -39,133 +35,239 @@
           </li>
         </ul>
 
-        <!-- ===================== TAB CONTENT ===================== -->
         <div class="tab-content">
 
-          <!-- ========================================================= -->
+          <!-- ================================================= -->
           <!-- STUDENT INFO -->
-          <!-- ========================================================= -->
+          <!-- ================================================= -->
           <div class="tab-pane fade show active" id="student-info">
 
-            <div class="row">
+            <div class="row mb-4">
               <div class="col-md-3 text-center">
                 <img id="photoPreview"
                      src="{% static 'assets/images/faces/default-pp.jpeg' %}"
                      class="avatar-preview mb-2">
 
-                <div>
-                  {{ form.photo }}
-                  <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
-                    Change Photo
-                  </label>
-                </div>
+                {{ form.photo }}
+                <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
+                  Change Photo
+                </label>
               </div>
 
               <div class="col-md-9">
                 <div class="row">
                   <div class="col-md-4 form-group">
-                    <label>First Name</label>
-                    {{ form.first_name }}
-                  </div>
-                  <div class="col-md-4 form-group">
-                    <label>Last Name</label>
-                    {{ form.last_name }}
-                  </div>
-                  <div class="col-md-4 form-group">
-                    <label>Gender</label>
-                    {{ form.gender }}
-                  </div>
-                </div>
-
-                <div class="row">
-                  <div class="col-md-4 form-group">
-                    <label>Date of Birth</label>
-                    {{ form.date_of_birth }}
-                  </div>
-                  <div class="col-md-4 form-group">
                     <label>Admission Number</label>
                     {{ form.admission_number }}
+                  </div>
+                  <div class="col-md-4 form-group">
+                    <label>Admission Date</label>
+                    {{ form.admission_date }}
                   </div>
                   <div class="col-md-4 form-group">
                     <label>Status</label>
                     {{ form.status }}
                   </div>
                 </div>
+
+                <div class="row">
+                  <div class="col-md-4 form-group">
+                    <label>First Name</label>
+                    {{ form.first_name }}
+                  </div>
+                  <div class="col-md-4 form-group">
+                    <label>Middle Name</label>
+                    {{ form.middle_name }}
+                  </div>
+                  <div class="col-md-4 form-group">
+                    <label>Last Name</label>
+                    {{ form.last_name }}
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-4 form-group">
+                    <label>Gender</label>
+                    {{ form.gender }}
+                  </div>
+                  <div class="col-md-4 form-group">
+                    <label>Date of Birth</label>
+                    {{ form.date_of_birth }}
+                  </div>
+                  <div class="col-md-4 form-group">
+                    <label>Birth Certificate No.</label>
+                    {{ form.birth_certificate_number }}
+                  </div>
+                </div>
               </div>
             </div>
 
           </div>
 
-          <!-- ========================================================= -->
-          <!-- ACADEMIC INFO -->
-          <!-- ========================================================= -->
+          <!-- ================================================= -->
+          <!-- ACADEMIC + MEDICAL -->
+          <!-- ================================================= -->
           <div class="tab-pane fade" id="academic-info">
 
+            <h6 class="fw-semibold mb-3">Academic Details</h6>
+
             <div class="row">
-              <div class="col-md-4 form-group">
-                <label>Class</label>
-                {{ form.student_class }}
+              <div class="col-md-6 form-group">
+                <label>Current Class</label>
+                {{ form.current_class }}
               </div>
-              <div class="col-md-4 form-group">
-                <label>Stream</label>
-                {{ form.stream }}
-              </div>
-              <div class="col-md-4 form-group">
-                <label>Enrollment Date</label>
-                {{ form.enrollment_date }}
+              <div class="col-md-6 form-group">
+                <label>Previous School</label>
+                {{ form.previous_school }}
               </div>
             </div>
 
             <div class="row">
-              <div class="col-md-12 form-group">
-                <label>Remarks</label>
-                {{ form.remarks }}
+              <div class="col-md-6 form-group">
+                <label>Previous Class</label>
+                {{ form.previous_class }}
               </div>
+              <div class="col-md-6 form-group">
+                <label>Status Date</label>
+                {{ form.status_date }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Status Reason</label>
+              {{ form.status_reason }}
+            </div>
+
+            <hr class="my-4">
+
+            <h6 class="fw-semibold mb-3">Medical & Emergency</h6>
+
+            <div class="row">
+              <div class="col-md-4 form-group">
+                <label>Blood Group</label>
+                {{ form.blood_group }}
+              </div>
+              <div class="col-md-4 form-group">
+                <label>Emergency Contact Name</label>
+                {{ form.emergency_contact_name }}
+              </div>
+              <div class="col-md-4 form-group">
+                <label>Emergency Contact Phone</label>
+                {{ form.emergency_contact_phone }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Medical Conditions</label>
+              {{ form.medical_conditions }}
+            </div>
+
+            <div class="form-check mb-2">
+              {{ form.has_special_needs }}
+              <label class="form-check-label">Has Special Needs</label>
+            </div>
+
+            <div class="form-group">
+              {{ form.special_needs_details }}
+            </div>
+
+            <hr class="my-4">
+
+            <h6 class="fw-semibold mb-3">Transport & Boarding</h6>
+
+            <div class="form-check mb-2">
+              {{ form.uses_school_transport }}
+              <label class="form-check-label">Uses School Transport</label>
+            </div>
+
+            <div class="form-group">
+              {{ form.transport_route }}
+            </div>
+
+            <div class="form-check mb-2">
+              {{ form.is_boarder }}
+              <label class="form-check-label">Is Boarder</label>
+            </div>
+
+            <div class="form-group">
+              {{ form.dormitory }}
             </div>
 
           </div>
 
-          <!-- ========================================================= -->
+          <!-- ================================================= -->
           <!-- PARENTS / GUARDIANS -->
-          <!-- ========================================================= -->
+          <!-- ================================================= -->
           <div class="tab-pane fade" id="parent-info">
 
             {{ parent_formset.management_form }}
 
             {% for parent_form in parent_formset %}
-            <div class="parent-form-card">
+            <div class="parent-form-card mb-4">
 
-              <div class="card-title">
-                <span>Parent / Guardian {{ forloop.counter }}</span>
-                {% if parent_form.instance.pk %}
-                  {{ parent_form.DELETE }} Remove
-                {% endif %}
-              </div>
+              <h6 class="fw-semibold mb-3">
+                Parent / Guardian {{ forloop.counter }}
+              </h6>
 
               <div class="row">
                 <div class="col-md-4 form-group">
-                  <label>Full Name</label>
-                  {{ parent_form.full_name }}
+                  <label>First Name</label>
+                  {{ parent_form.first_name }}
+                </div>
+                <div class="col-md-4 form-group">
+                  <label>Last Name</label>
+                  {{ parent_form.last_name }}
                 </div>
                 <div class="col-md-4 form-group">
                   <label>Relationship</label>
                   {{ parent_form.relationship }}
                 </div>
+              </div>
+
+              <div class="row">
                 <div class="col-md-4 form-group">
-                  <label>Phone</label>
-                  {{ parent_form.phone }}
+                  <label>Gender</label>
+                  {{ parent_form.gender }}
+                </div>
+                <div class="col-md-4 form-group">
+                  <label>ID Number</label>
+                  {{ parent_form.id_number }}
+                </div>
+                <div class="col-md-4 form-group">
+                  <label>Primary Phone</label>
+                  {{ parent_form.phone_primary }}
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-4 form-group">
+                  <label>Secondary Phone</label>
+                  {{ parent_form.phone_secondary }}
+                </div>
+                <div class="col-md-4 form-group">
+                  <label>Email</label>
+                  {{ parent_form.email }}
+                </div>
+                <div class="col-md-4 form-group">
+                  <label>Town</label>
+                  {{ parent_form.town }}
                 </div>
               </div>
 
               <div class="row">
                 <div class="col-md-6 form-group">
-                  <label>Email</label>
-                  {{ parent_form.email }}
+                  <label>Occupation</label>
+                  {{ parent_form.occupation }}
                 </div>
                 <div class="col-md-6 form-group">
-                  <label>Address</label>
-                  {{ parent_form.address }}
+                  <label>Employer</label>
+                  {{ parent_form.employer }}
                 </div>
+              </div>
+
+              <div class="form-group">
+                <label>Address</label>
+                {{ parent_form.address }}
               </div>
 
             </div>
@@ -175,31 +277,31 @@
 
         </div>
 
-        <!-- ===================== FOOTER ===================== -->
-        <div class="form-footer d-flex justify-content-end gap-2">
+        <!-- ================= FOOTER ================= -->
+        <div class="d-flex justify-content-end gap-2 mt-4">
           <a href="{% url 'students:list' %}" class="btn btn-outline-secondary">
             Cancel
           </a>
-          <button type="submit" class="btn btn-gradient-primary">
+          <button type="submit" class="btn btn-primary">
             Save Student
           </button>
         </div>
 
       </div>
     </div>
+
   </form>
 </div>
 
-<!-- ===================== PHOTO PREVIEW SCRIPT ===================== -->
+<!-- PHOTO PREVIEW -->
 <script>
-  const photoInput = document.getElementById("{{ form.photo.id_for_label }}");
+  const input = document.getElementById("{{ form.photo.id_for_label }}");
   const preview = document.getElementById("photoPreview");
 
-  if (photoInput) {
-    photoInput.addEventListener("change", function () {
-      const file = this.files[0];
-      if (file) {
-        preview.src = URL.createObjectURL(file);
+  if (input) {
+    input.addEventListener("change", () => {
+      if (input.files[0]) {
+        preview.src = URL.createObjectURL(input.files[0]);
       }
     });
   }
