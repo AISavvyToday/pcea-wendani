@@ -87,7 +87,12 @@
                     <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary">Reset</a>
 
                     <div class="ms-auto text-muted small align-self-center">
-                        Showing {{ payments|length }} of {{ page_obj.paginator.count if is_paginated else payments|length }}
+                        Showing {{ payments|length }} of
+                        {% if is_paginated %}
+                            {{ page_obj.paginator.count }}
+                        {% else %}
+                            {{ payments|length }}
+                        {% endif %}
                     </div>
                 </div>
             </form>
