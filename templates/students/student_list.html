@@ -13,7 +13,7 @@
         </span>
         Students Management
       </h3>
-      <small class="text-muted">Manage students — search, filter and paginate</small>
+      <small class="text-muted">Manage students</small>
     </div>
 
     <div class="text-end">
@@ -23,84 +23,124 @@
     </div>
   </div>
 
-  <!-- Search & Filters -->
-  <div class="row mb-3">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-body">
-          <form id="filterForm" method="get" class="row gx-2 gy-2 align-items-end">
-            {# The bound search_form is used for values; safer than direct request.GET lookups #}
+  <!-- Search & Filters (REPLACE existing section with this) -->
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body student-filters">
+        <style>
+          /* Standardize sizes and spacing */
+          .student-filters .filter-control,
+          .student-filters .form-control,
+          .student-filters .form-select {
+            min-height: 44px;
+            height: 44px;
+            padding-top: .45rem;
+            padding-bottom: .45rem;
+          }
+          .student-filters .filter-label {
+            font-size: .85rem;
+            font-weight: 600;
+            margin-bottom: .25rem;
+            display: inline-block;
+          }
+          .student-filters .filter-btn {
+            min-height: 44px;
+          }
+          .student-filters .small-stats {
+            font-size: .85rem;
+            color: #6c757d;
+          }
+          /* Collapse margins for small screens to minimize vertical space */
+          @media (max-width: 575.98px) {
+            .student-filters .filter-label {
+              display: block;
+              margin-bottom: .25rem;
+            }
+          }
+        </style>
 
-            <div class="col-md-4">
-              <label class="form-label">Search</label>
+        <form id="filterForm" method="get" class="row gx-2 gy-2 align-items-end">
+          <!-- Search (prominent) -->
+          <div class="col-12 col-md-6">
+            <label for="q_input" class="filter-label">Search</label>
+            <div class="input-group">
+              <span class="input-group-text bg-white border-end-0">
+                <i class="mdi mdi-magnify text-muted"></i>
+              </span>
               <input
                 id="q_input"
                 type="search"
                 name="query"
                 value="{{ search_form.search.value|default:'' }}"
-                placeholder="Search by name or admission number..."
-                class="form-control"
+                placeholder="Search by name, admission number or phone..."
+                class="form-control filter-control border-start-0"
                 autocomplete="off"
+                aria-label="Search students"
               />
-              {# Hidden field so bound form remains consistent when server renders inputs from search_form #}
+              <!-- keep hidden 'search' for the bound form -->
               <input type="hidden" name="search" id="hidden_search" value="{{ search_form.search.value|default:'' }}">
             </div>
+          </div>
 
-            <div class="col-md-2">
-              <label class="form-label">Class</label>
-              {{ search_form.current_class }}
+          <!-- Inline filters (collapse on xs) -->
+          <div class="col-12 col-md-6">
+            <div class="d-flex flex-column flex-md-row gap-2 align-items-end justify-content-end">
+              <div class="d-flex gap-2 w-100">
+                <div class="flex-fill">
+                  <label class="filter-label">Class</label>
+                  {{ search_form.current_class }}
+                </div>
+
+                <div style="min-width:140px;">
+                  <label class="filter-label">Stream</label>
+                  {{ search_form.stream }}
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div class="col-md-2">
-              <label class="form-label">Stream</label>
-              {{ search_form.stream }}
-            </div>
+          <!-- Controls row: per_page, actions, stats -->
+          <div class="col-12">
+            <div class="d-flex flex-column flex-sm-row align-items-stretch gap-2 justify-content-between">
+              <div class="d-flex gap-2 align-items-center">
+                <div>
+                  <label class="filter-label mb-0 d-block">Per page</label>
+                  <select name="per_page" id="per_page" class="form-select filter-control">
+                    {% with search_perpage=request.GET.per_page|default:"20" %}
+                      <option value="10" {% if search_perpage == "10" %}selected{% endif %}>10</option>
+                      <option value="20" {% if search_perpage == "20" %}selected{% endif %}>20</option>
+                      <option value="50" {% if search_perpage == "50" %}selected{% endif %}>50</option>
+                      <option value="100" {% if search_perpage == "100" %}selected{% endif %}>100</option>
+                    {% endwith %}
+                  </select>
+                </div>
 
-            <div class="col-md-1">
-              <label class="form-label">Gender</label>
-              {{ search_form.gender }}
-            </div>
+                <div class="d-flex gap-2 align-items-center">
+                  <button type="submit" class="btn btn-gradient-primary filter-btn btn-sm">
+                    <i class="mdi mdi-magnify"></i> Search
+                  </button>
 
-            <div class="col-md-1">
-              <label class="form-label">Boarding</label>
-              {{ search_form.is_boarder }}
-            </div>
+                  <button type="button" id="btnClear" class="btn btn-outline-secondary filter-btn btn-sm">
+                    <i class="mdi mdi-filter-remove"></i> Clear
+                  </button>
+                </div>
+              </div>
 
-            <div class="col-md-1">
-              <label class="form-label">Per page</label>
-              <select name="per_page" id="per_page" class="form-select">
-                {% with search_perpage=request.GET.per_page|default:"20" %}
-                  <option value="10" {% if search_perpage == "10" %}selected{% endif %}>10</option>
-                  <option value="20" {% if search_perpage == "20" %}selected{% endif %}>20</option>
-                  <option value="50" {% if search_perpage == "50" %}selected{% endif %}>50</option>
-                  <option value="100" {% if search_perpage == "100" %}selected{% endif %}>100</option>
-                {% endwith %}
-              </select>
-            </div>
-
-            <div class="col-md-1 text-end">
-              <button type="submit" class="btn btn-gradient-primary w-100" id="btnSearch">
-                <i class="mdi mdi-magnify"></i> Search
-              </button>
-            </div>
-
-            <div class="col-md-12 mt-2">
-              <button type="button" id="btnClear" class="btn btn-outline-secondary btn-sm">
-                <i class="mdi mdi-filter-remove"></i> Clear filters
-              </button>
-              <span class="ms-3 text-muted small">
+              <div class="ms-auto small-stats text-end mt-2 mt-sm-0">
                 Showing
                 <strong>{% if is_paginated %}{{ page_obj.start_index }}{% else %}{{ students|length }}{% endif %}</strong>
                 -
                 <strong>{% if is_paginated %}{{ page_obj.end_index }}{% else %}{{ students|length }}{% endif %}</strong>
                 of <strong>{% if is_paginated %}{{ page_obj.paginator.count }}{% else %}{{ students|length }}{% endif %}</strong> students
-              </span>
+              </div>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   </div>
+</div>
 
   <!-- Students Table -->
   <div class="row">
@@ -124,7 +164,6 @@
                   <th style="width:160px">Class / Stream</th>
                   <th style="width:90px">Age</th>
                   <th style="width:110px">Gender</th>
-                  <th style="width:150px">Parents</th>
                   <th style="width:180px" class="text-end">Actions</th>
                 </tr>
               </thead>
@@ -172,20 +211,7 @@
                       <span class="badge bg-secondary text-white">{{ student.get_gender_display }}</span>
                     {% endif %}
                   </td>
-                  <td>
-                    {% with parents=student.student_parents.all %}
-                      {% if parents %}
-                        {% for sp in parents|slice:":2" %}
-                          <div title="{{ sp.parent.phone_primary }}">{{ sp.parent.full_name }}{% if sp.is_primary %} <small class="text-muted">(Primary)</small>{% endif %}</div>
-                        {% endfor %}
-                        {% if parents|length > 2 %}
-                          <div class="small text-muted">+{{ parents|length|add:-2 }} more</div>
-                        {% endif %}
-                      {% else %}
-                        <span class="text-muted">No parents</span>
-                      {% endif %}
-                    {% endwith %}
-                  </td>
+
                   <td class="text-end">
                     <a href="{% url 'students:detail' student.pk %}" class="btn btn-sm btn-outline-info me-1">
                       <i class="mdi mdi-eye"></i> View
