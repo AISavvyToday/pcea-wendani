@@ -133,7 +133,7 @@
 
                 <div class="row">
                   <div class="col-md-12 text-center mb-4">
-                    <img id="photo-preview" src="{% if form.photo.value %}{{ form.photo.value.url }}{% else %}{% static 'images/default_avatar.png' %}{% endif %}" alt="Student Photo" class="avatar-preview">
+                    <img id="photo-preview" src="{% if form.photo.value %}{{ form.photo.value.url }}{% else %}{% static 'images/faces/default-pp.jpeg' %}{% endif %}" alt="Student Photo" class="avatar-preview">
                     <div class="form-group">
                       <label for="{{ form.photo.id_for_label }}" class="btn btn-outline-primary btn-sm mt-2">Upload Photo</label>
                       {{ form.photo }}
