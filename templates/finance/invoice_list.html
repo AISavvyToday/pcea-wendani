@@ -71,28 +71,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Status</label>
-                    <select name="status" class="form-control">
-                        <option value="">All Statuses</option>
-                        {% for code, label in statuses %}
-                            <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
 
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Grade</label>
-                    <select name="grade" class="form-control">
-                        <option value="">All Grades</option>
-                        {# If you have a list of grade choices available in context, replace `grade_choices` accordingly #}
-                        {% if grade_choices %}
-                            {% for code,label in grade_choices %}
-                                <option value="{{ code }}" {% if request.GET.grade == code %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        {% endif %}
-                    </select>
-                </div>
 
                 <div class="col-md-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100">Filter</button>
