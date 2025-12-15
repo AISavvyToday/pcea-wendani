@@ -24,13 +24,7 @@
         </div>
     </div>
 
-    {% with
-        total_invoiced=stats.total_invoiced|default:total_invoiced|default:0
-        total_collected=stats.total_collected|default:total_collected|default:0
-        total_outstanding=stats.total_outstanding|default:total_outstanding|default:0
-        collection_rate=stats.collection_rate|default:collection_rate|default:0
-        pending_transactions=stats.pending_transactions|default:pending_transactions|default:unmatched_transactions
-    %}
+    {# Use stats.* directly and fall back where needed; keep markup simple to avoid template parse issues #}
     <!-- Summary Cards -->
     <div class="row g-3 mb-3">
         <div class="col-sm-6 col-md-3">
@@ -39,7 +33,7 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <p class="text-muted mb-1 small">Total Invoiced</p>
-                            <h4 class="mb-0 text-primary">KES {{ total_invoiced|floatformat:0|intcomma }}</h4>
+                            <h4 class="mb-0 text-primary">KES {{ stats.total_invoiced|default:0|floatformat:0|intcomma }}</h4>
                         </div>
                         <div class="text-end">
                             <i class="mdi mdi-file-document-outline mdi-24px text-primary" aria-hidden="true"></i>
@@ -56,7 +50,7 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <p class="text-muted mb-1 small">Total Collected</p>
-                            <h4 class="mb-0 text-success">KES {{ total_collected|floatformat:0|intcomma }}</h4>
+                            <h4 class="mb-0 text-success">KES {{ stats.total_collected|default:0|floatformat:0|intcomma }}</h4>
                         </div>
                         <div class="text-end">
                             <i class="mdi mdi-cash-multiple mdi-24px text-success" aria-hidden="true"></i>
@@ -73,7 +67,7 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <p class="text-muted mb-1 small">Outstanding</p>
-                            <h4 class="mb-0 text-warning">KES {{ total_outstanding|floatformat:0|intcomma }}</h4>
+                            <h4 class="mb-0 text-warning">KES {{ stats.total_outstanding|default:0|floatformat:0|intcomma }}</h4>
                         </div>
                         <div class="text-end">
                             <i class="mdi mdi-alert-circle-outline mdi-24px text-warning" aria-hidden="true"></i>
@@ -90,15 +84,15 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <p class="text-muted mb-1 small">Collection Rate</p>
-                            <h4 class="mb-0 text-info">{{ collection_rate|floatformat:1 }}%</h4>
+                            <h4 class="mb-0 text-info">{{ stats.collection_rate|default:0|floatformat:1 }}%</h4>
                         </div>
                         <div class="text-end">
                             <i class="mdi mdi-chart-areaspline mdi-24px text-info" aria-hidden="true"></i>
                         </div>
                     </div>
 
-                    <div class="progress mt-3" style="height:8px" role="progressbar" aria-valuenow="{{ collection_rate|floatformat:0 }}" aria-valuemin="0" aria-valuemax="100">
-                        <div class="progress-bar bg-info" style="width: {{ collection_rate|floatformat:0 }}%;"></div>
+                    <div class="progress mt-3" style="height:8px" role="progressbar" aria-valuenow="{{ stats.collection_rate|default:0|floatformat:0 }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-info" style="width: {{ stats.collection_rate|default:0|floatformat:0 }}%;"></div>
                     </div>
                     <small class="text-muted d-block mt-1">Collections vs invoiced</small>
                 </div>
@@ -141,9 +135,13 @@
                                 <tr>
                                     <td class="align-middle">{{ payment.payment_date|date:"d M Y H:i" }}</td>
                                     <td class="align-middle">
+                                        {% if payment.student %}
                                         <a href="{% url 'students:student_detail' payment.student.pk %}" class="text-decoration-none">
                                             {{ payment.student.full_name }} <small class="text-muted">({{ payment.student.admission_number }})</small>
                                         </a>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
                                     </td>
                                     <td class="align-middle text-end">KES {{ payment.amount|floatformat:0|intcomma }}</td>
                                     <td class="align-middle">{{ payment.get_payment_method_display }}</td>
@@ -235,15 +233,16 @@
         </div>
     </div>
 
-    <!-- Pending Bank Transactions -->
-    {% if pending_transactions %}
+    {# Pending Bank Transactions: prefer stats.pending_transactions, fallback to unmatched_transactions set in view #}
+    {% with pending_list=stats.pending_transactions|default:unmatched_transactions|default:None %}
+    {% if pending_list %}
     <div class="row g-3 mb-3">
         <div class="col-12">
             <div class="card shadow-sm border-warning">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
-                            <h5 class="mb-0 text-warning"><i class="mdi mdi-bank-transfer"></i> Pending Bank Transactions ({{ pending_transactions|length }})</h5>
+                            <h5 class="mb-0 text-warning"><i class="mdi mdi-bank-transfer"></i> Pending Bank Transactions ({{ pending_list|length }})</h5>
                             <small class="text-muted">Transactions awaiting automatic matching or manual reconciliation</small>
                         </div>
 
@@ -266,7 +265,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for txn in pending_transactions %}
+                                {% for txn in pending_list %}
                                 <tr>
                                     <td>{{ txn.bank_timestamp|default:txn.callback_received_at|date:"d M Y H:i" }}</td>
                                     <td>
@@ -301,6 +300,7 @@
         </div>
     </div>
     {% endif %}
+    {% endwith %}
 
     <div class="row">
         <div class="col-12">
@@ -309,7 +309,6 @@
             </small>
         </div>
     </div>
-    {% endwith %}
 </div>
 
 {# Client-side enhancements: basic search/filter + optional Chart rendering if Chart is loaded in base template #}
@@ -361,9 +360,9 @@
             }
 
             const ctx = document.getElementById('collectionsChart').getContext('2d');
-            const totalInvoiced = parseFloat("{{ total_invoiced|default:0|floatformat:2 }}".replace(',', '')) || 0;
-            const totalCollected = parseFloat("{{ total_collected|default:0|floatformat:2 }}".replace(',', '')) || 0;
-            const totalOutstanding = parseFloat("{{ total_outstanding|default:0|floatformat:2 }}".replace(',', '')) || 0;
+            const totalInvoiced = parseFloat("{{ stats.total_invoiced|default:0|floatformat:2 }}".replace(',', '')) || 0;
+            const totalCollected = parseFloat("{{ stats.total_collected|default:0|floatformat:2 }}".replace(',', '')) || 0;
+            const totalOutstanding = parseFloat("{{ stats.total_outstanding|default:0|floatformat:2 }}".replace(',', '')) || 0;
 
             new Chart(ctx, {
                 type: 'doughnut',
