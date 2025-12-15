@@ -24,7 +24,6 @@
         </div>
     </div>
 
-    {# Resolve stats gracefully: allow either top-level keys or a stats dict provided by the view #}
     {% with
         total_invoiced=stats.total_invoiced|default:total_invoiced|default:0
         total_collected=stats.total_collected|default:total_collected|default:0
@@ -98,7 +97,6 @@
                         </div>
                     </div>
 
-                    {# Visual progress bar for collection rate (accessible) #}
                     <div class="progress mt-3" style="height:8px" role="progressbar" aria-valuenow="{{ collection_rate|floatformat:0 }}" aria-valuemin="0" aria-valuemax="100">
                         <div class="progress-bar bg-info" style="width: {{ collection_rate|floatformat:0 }}%;"></div>
                     </div>
@@ -210,7 +208,14 @@
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <strong class="d-block">{{ inv.student.full_name }}</strong>
-                                <small class="text-muted">{{ inv.student.admission_number }} • {{ inv.term.name if inv.term else '' }}</small>
+                                <small class="text-muted">
+                                    {{ inv.student.admission_number }} •
+                                    {% if inv.term %}
+                                        {{ inv.term.name }}
+                                    {% else %}
+                                        &mdash;
+                                    {% endif %}
+                                </small>
                             </div>
                             <div class="text-end">
                                 <div class="fw-bold text-warning">KES {{ inv.balance|floatformat:0|intcomma }}</div>
@@ -261,7 +266,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {# pending_transactions might be a QuerySet or list of BankTransaction objects #}
                                 {% for txn in pending_transactions %}
                                 <tr>
                                     <td>{{ txn.bank_timestamp|default:txn.callback_received_at|date:"d M Y H:i" }}</td>
@@ -271,7 +275,6 @@
                                     </td>
                                     <td class="text-end">KES {{ txn.amount|floatformat:0|intcomma }}</td>
                                     <td>
-                                        {# Display gateway in human readable form #}
                                         {% if txn.gateway %}
                                             {% if txn.gateway == 'equity' %}Equity Bank
                                             {% elif txn.gateway == 'coop' %}Co-op Bank
@@ -299,7 +302,6 @@
     </div>
     {% endif %}
 
-    <!-- Accessibility & small helpers -->
     <div class="row">
         <div class="col-12">
             <small class="text-muted">
@@ -352,10 +354,10 @@
                     <canvas id="collectionsChart" height="80" aria-label="Collections chart" role="img"></canvas>
                 </div>
             `;
-            // Insert after summary cards (top of content)
-            const content = document.querySelector('.content-wrapper > .row');
-            if (content && content.parentNode) {
-                content.parentNode.insertBefore(container, content.nextSibling);
+            // Insert after first summary row
+            const firstRow = document.querySelector('.content-wrapper > .row');
+            if (firstRow && firstRow.parentNode) {
+                firstRow.parentNode.insertBefore(container, firstRow.nextSibling);
             }
 
             const ctx = document.getElementById('collectionsChart').getContext('2d');
