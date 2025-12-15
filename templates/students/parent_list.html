@@ -40,19 +40,7 @@
             >
           </div>
 
-          <div class="col-md-3">
-            <label class="form-label">Relationship</label>
-            <select class="form-control" name="relationship">
-              <option value="">All Relationships</option>
-              {% for value, label in relationship_choices %}
-                <option value="{{ value }}" {% if relationship_filter == value %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-md-4 d-flex gap-2">
+         <div class="col-md-4 d-flex gap-2">
             <button type="submit" class="btn btn-gradient-primary w-100">
               <i class="mdi mdi-magnify"></i> Search
             </button>
@@ -86,8 +74,6 @@
               <th>Phone</th>
               <th>Email</th>
               <th>ID No.</th>
-              <th>Children</th>
-              <th>Portal</th>
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -111,23 +97,9 @@
               <td>{{ parent.email|default:"—" }}</td>
               <td>{{ parent.id_number|default:"—" }}</td>
 
-              <td>
-                <span class="badge bg-success">
-                  {{ parent.children.count }}
-                </span>
-              </td>
 
-              <td>
-                {% if parent.user %}
-                  <span class="badge bg-success">
-                    <i class="mdi mdi-check"></i> Enabled
-                  </span>
-                {% else %}
-                  <span class="badge bg-secondary">
-                    <i class="mdi mdi-close"></i> Disabled
-                  </span>
-                {% endif %}
-              </td>
+
+
 
               <td class="text-end">
                 <a href="{% url 'students:parent_detail' parent.pk %}"
