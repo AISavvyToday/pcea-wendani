@@ -68,15 +68,7 @@
             {% endif %}
           </div>
 
-          <div class="col-md-3">
-            <div class="form-check mt-2">
-              {{ form.overwrite_existing }}
-              <label class="form-check-label ms-1">Overwrite existing invoices</label>
-            </div>
-            {% if form.overwrite_existing.errors %}
-              <div class="text-danger small mt-1">{{ form.overwrite_existing.errors.0 }}</div>
-            {% endif %}
-          </div>
+
 
           <div class="col-12">
             <div class="d-flex gap-2">
