@@ -1,63 +1,347 @@
 {% extends 'base/base.html' %}
 {% load static %}
 
-{% block title %}{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure{% endblock %}
+{% block title %}
+    {% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure
+{% endblock %}
 
 {% block content %}
 <div class="content-wrapper">
-    <div class="page-header">
-        <h3 class="page-title">{% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure</h3>
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="page-title mb-0">
+                {% if form.instance.pk %}Edit{% else %}Create{% endif %} Fee Structure
+            </h3>
+            <small class="text-muted">
+                {% if form.instance.pk %}
+                    Modify the fee structure and its items.
+                {% else %}
+                    Define a fee structure and add fee items below.
+                {% endif %}
+            </small>
+        </div>
+
+        <div>
+            <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-secondary">
+                Back to Fee Structures
+            </a>
+        </div>
     </div>
 
-    <div class="card">
+    <div class="card mt-3">
         <div class="card-body">
-            <form method="post">
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <form method="post" novalidate>
                 {% csrf_token %}
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Name *</label>
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
                         {{ form.name }}
-                        {% if form.name.errors %}<small class="text-danger">{{ form.name.errors.0 }}</small>{% endif %}
+                        {% if form.name.help_text %}
+                            <small class="text-muted d-block">{{ form.name.help_text }}</small>
+                        {% endif %}
+                        {% if form.name.errors %}
+                            <small class="text-danger">{{ form.name.errors.0 }}</small>
+                        {% endif %}
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Academic Year *</label>
+
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Academic Year <span class="text-danger">*</span></label>
                         {{ form.academic_year }}
+                        {% if form.academic_year.errors %}
+                            <small class="text-danger">{{ form.academic_year.errors.0 }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Term</label>
+                        {{ form.term }}
+                        {% if form.term.errors %}
+                            <small class="text-danger">{{ form.term.errors.0 }}</small>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Grade Level</label>
-                        {{ form.grade_level }}
-                        <small class="text-muted">Leave blank for all grades</small>
+                        <label class="form-label">Grade Levels <span class="text-muted">(required)</span></label>
+                        <div class="border rounded p-2">
+                            {{ form.grade_levels }}
+                        </div>
+                        {% if form.grade_levels.errors %}
+                            <small class="text-danger">{{ form.grade_levels.errors.0 }}</small>
+                        {% endif %}
+                        <small class="text-muted d-block">Select grade levels this fee structure applies to. If you need to cover all grades create a structure for "All Grades".</small>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Student Category</label>
-                        {{ form.student_category }}
+
+                    <div class="col-md-3 mb-3 d-flex align-items-center">
+                        <div class="form-check mt-3">
+                            {{ form.is_boarding }}
+                            <label class="form-check-label ms-2">Boarding structure</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <!-- placeholder for future fields or spacing -->
                     </div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Description</label>
                     {{ form.description }}
-                </div>
-
-                <div class="form-check mb-3">
-                    {{ form.is_active }}
-                    <label class="form-check-label">Active</label>
+                    {% if form.description.errors %}
+                        <small class="text-danger">{{ form.description.errors.0 }}</small>
+                    {% endif %}
                 </div>
 
                 <hr>
-                <h5>Fee Items</h5>
-                <p class="text-muted">Add fee items after creating the structure.</p>
 
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">Save Fee Structure</button>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Fee Items</h5>
+                    <div>
+                        <small class="text-muted me-3">You can add, edit or remove items. Items marked optional can be toggled per-student.</small>
+                        <button type="button" id="add-fee-item" class="btn btn-sm btn-success">Add Item</button>
+                    </div>
+                </div>
+
+                <div id="fee-items-formset" class="table-responsive">
+                    {{ formset.management_form }}
+                    {% if formset.non_form_errors %}
+                        <div class="alert alert-danger small">
+                            {{ formset.non_form_errors }}
+                        </div>
+                    {% endif %}
+
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:18%;">Category</th>
+                                <th style="width:38%;">Description</th>
+                                <th style="width:18%;">Amount (KES)</th>
+                                <th style="width:8%;">Optional</th>
+                                <th style="width:8%;">Applies to All</th>
+                                <th style="width:10%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fee-items-body">
+                            {% for f in formset.forms %}
+                                <tr class="fee-item-row {% if forloop.first and not f.instance.pk and formset.total_form_count == 1 %}optional-row{% endif %}">
+                                    <td>
+                                        {{ f.category }}
+                                        {% if f.category.errors %}
+                                            <div class="text-danger small">{{ f.category.errors.0 }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ f.description }}
+                                        {% if f.description.errors %}
+                                            <div class="text-danger small">{{ f.description.errors.0 }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ f.amount }}
+                                        {% if f.amount.errors %}
+                                            <div class="text-danger small">{{ f.amount.errors.0 }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check">
+                                            {{ f.is_optional }}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check">
+                                            {{ f.applies_to_all }}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <!-- If formset has DELETE, render it (for existing forms) -->
+                                        {% if f.DELETE %}
+                                            <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
+                                            {{ f.DELETE }}
+                                        {% else %}
+                                            <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
+                                        {% endif %}
+                                        {{ f.id }} {# hidden id field if present #}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {# Hidden empty form template for JS cloning #}
+                <div id="empty-form-template" class="d-none">
+                    <table>
+                        <tr class="fee-item-row">
+                            <td>
+                                {{ formset.empty_form.category|safe }}
+                            </td>
+                            <td>
+                                {{ formset.empty_form.description|safe }}
+                            </td>
+                            <td>
+                                {{ formset.empty_form.amount|safe }}
+                            </td>
+                            <td class="text-center">
+                                <div class="form-check">
+                                    {{ formset.empty_form.is_optional|safe }}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <div class="form-check">
+                                    {{ formset.empty_form.applies_to_all|safe }}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
+                                {{ formset.empty_form.id|safe }}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        {% if is_edit %}{{ button_text|default:"Update Fee Structure" }}{% else %}{{ button_text|default:"Create Fee Structure" }}{% endif %}
+                    </button>
                     <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+{# Minimal JS to add/remove formset rows. This expects Django's formset prefix to be available. #}
+<script>
+(function(){
+    // Use the server-provided prefix for the formset if available
+    const prefix = "{{ formset.prefix }}";  // e.g., "feeitem_set" or similar
+    const container = document.getElementById('fee-items-formset');
+    const body = document.getElementById('fee-items-body');
+    const addBtn = document.getElementById('add-fee-item');
+    const emptyTplContainer = document.getElementById('empty-form-template');
+
+    function totalFormsInput() {
+        return container.querySelector('input[name="' + prefix + '-TOTAL_FORMS"]');
+    }
+    function maxFormsInput() {
+        return container.querySelector('input[name="' + prefix + '-MAX_NUM_FORMS"]');
+    }
+    function initialFormsInput() {
+        return container.querySelector('input[name="' + prefix + '-INITIAL_FORMS"]');
+    }
+
+    function getTotalForms() {
+        const input = totalFormsInput();
+        return input ? parseInt(input.value, 10) : 0;
+    }
+    function setTotalForms(v) {
+        const input = totalFormsInput();
+        if (input) input.value = v;
+    }
+
+    function reIndexRow(row, newIndex) {
+        // Replace __prefix__ occurrences
+        const html = row.innerHTML;
+        const updated = html.replace(/__prefix__/g, newIndex);
+        row.innerHTML = updated;
+
+        // Update name and id attributes in child inputs/selects/textareas
+        const inputs = row.querySelectorAll('input, select, textarea, label');
+        inputs.forEach(function(el){
+            if (el.hasAttribute('name')) {
+                el.name = el.name.replace(/-\d+-/, '-' + newIndex + '-');
+            }
+            if (el.id) {
+                el.id = el.id.replace(/-\d+-/, '-' + newIndex + '-');
+            }
+            if (el.getAttribute('for')) {
+                el.setAttribute('for', el.getAttribute('for').replace(/-\d+-/, '-' + newIndex + '-'));
+            }
+        });
+    }
+
+    function reindexAll() {
+        const rows = body.querySelectorAll('.fee-item-row');
+        let i = 0;
+        rows.forEach(function(row){
+            reIndexRow(row, i);
+            i++;
+        });
+        setTotalForms(i);
+    }
+
+    function makeRowFromTemplate(index) {
+        const templateHtml = emptyTplContainer.innerHTML;
+        const replaced = templateHtml.replace(/__prefix__/g, index);
+        // Create element wrapper to extract row
+        const wrapper = document.createElement('tbody');
+        wrapper.innerHTML = replaced;
+        const newRow = wrapper.querySelector('.fee-item-row');
+        return newRow;
+    }
+
+    // Add handler for remove buttons (delegated)
+    body.addEventListener('click', function(e){
+        if (e.target && e.target.classList.contains('remove-row')) {
+            const row = e.target.closest('.fee-item-row');
+            if (!row) return;
+
+            // If there is a DELETE input (existing form), mark it and hide row.
+            const deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                // Mark for deletion and hide visually
+                deleteInput.checked = true;
+                row.style.display = 'none';
+            } else {
+                // New form: remove DOM and reindex remaining
+                row.remove();
+                reindexAll();
+            }
+        }
+    });
+
+    if (addBtn) {
+        addBtn.addEventListener('click', function(){
+            const total = getTotalForms();
+            const maxInput = maxFormsInput();
+            if (maxInput && total >= parseInt(maxInput.value, 10)) {
+                alert('Maximum number of fee items reached.');
+                return;
+            }
+
+            const newRow = makeRowFromTemplate(total);
+            if (newRow) {
+                body.appendChild(newRow);
+                setTotalForms(total + 1);
+                // Optionally focus first input in new row
+                const firstInput = newRow.querySelector('input, select, textarea');
+                if (firstInput) firstInput.focus();
+            }
+        });
+    }
+
+    // On page load ensure remove buttons for existing rows are visible/linked
+    document.addEventListener('DOMContentLoaded', function(){
+        // nothing extra required at present
+    });
+})();
+</script>
 {% endblock %}
