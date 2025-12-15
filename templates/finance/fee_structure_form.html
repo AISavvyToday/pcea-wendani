@@ -109,7 +109,7 @@
                                 + Add item
                             </button>
                             <button type="button" id="expand-all-btn" class="btn btn-sm btn-outline-secondary ms-1" title="Expand/collapse descriptions">
-                                Toggle Description
+                                Toggle Descriptions
                             </button>
                         </div>
                     </div>
@@ -136,72 +136,81 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {# management form is required #}
+                            {# management form is required for formset processing #}
                             {{ formset.management_form }}
 
-                            {# Render the formset forms:
-                               - Make the first form visible
-                               - Keep existing additional forms in DOM but hidden (d-none) so their data persists
-                               - New forms created by client-side will be appended via empty_form cloning
-                            #}
-                            {% for item_form in formset.forms %}
-                                <tr class="fee-item-row {% if not forloop.first %}d-none existing-hidden-row{% endif %}" data-form-index="{{ forloop.counter0 }}">
-                                    <td>
-                                        {{ item_form.category }}
-                                        {% if item_form.category.errors %}
-                                            <div class="text-danger small">{{ item_form.category.errors.0 }}</div>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {{ item_form.description }}
-                                        {% if item_form.description.errors %}
-                                            <div class="text-danger small">{{ item_form.description.errors.0 }}</div>
-                                        {% endif %}
-                                    </td>
-                                    <td class="align-middle">
-                                        {{ item_form.amount }}
-                                        {% if item_form.amount.errors %}
-                                            <div class="text-danger small">{{ item_form.amount.errors.0 }}</div>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center align-middle">
-                                        <div class="form-check">
-                                            {{ item_form.is_optional }}
-                                        </div>
-                                    </td>
-                                    <td class="text-center align-middle">
-                                        <div class="form-check">
-                                            {{ item_form.applies_to_all }}
-                                        </div>
-                                    </td>
-                                    <td class="text-center align-middle">
-                                        {% if formset.can_delete %}
-                                            {% if item_form.instance.pk %}
-                                                {# For existing DB-backed forms: show a Delete checkbox (kept hidden until shown) #}
-                                                <div class="form-check">
-                                                    {{ item_form.DELETE }}
-                                                    <label class="form-check-label ms-1 small text-danger">Delete</label>
-                                                </div>
+                            {# Render formset.forms but show only the first form visibly.
+                               Additional existing forms are kept in DOM but hidden so server receives them.
+                               New rows added by JS will be appended and visible. #}
+                            {% if formset.forms %}
+                                {% for item_form in formset.forms %}
+                                    <tr class="fee-item-row" {% if forloop.counter0 > 0 %}style="display:none;" data-hidden="true"{% endif %}>
+                                        <td>
+                                            {{ item_form.category }}
+                                            {% if item_form.category.errors %}
+                                                <div class="text-danger small">{{ item_form.category.errors.0 }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ item_form.description }}
+                                            {% if item_form.description.errors %}
+                                                <div class="text-danger small">{{ item_form.description.errors.0 }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="align-middle">
+                                            {{ item_form.amount }}
+                                            {% if item_form.amount.errors %}
+                                                <div class="text-danger small">{{ item_form.amount.errors.0 }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center align-middle">
+                                            <div class="form-check">
+                                                {{ item_form.is_optional }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center align-middle">
+                                            <div class="form-check">
+                                                {{ item_form.applies_to_all }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center align-middle">
+                                            {% if formset.can_delete %}
+                                                {% if item_form.instance.pk %}
+                                                    <div class="form-check">
+                                                        {{ item_form.DELETE }}
+                                                        <label class="form-check-label ms-1 small text-danger">Delete</label>
+                                                    </div>
+                                                {% else %}
+                                                    <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
+                                                {% endif %}
                                             {% else %}
-                                                {# For initially-rendered extra forms (shouldn't usually happen), allow remove #}
                                                 <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
                                             {% endif %}
-                                        {% else %}
-                                            <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
-                                        {% endif %}
 
-                                        {# Preserve per-form hidden fields (id, etc.) #}
-                                        {% for hidden in item_form.hidden_fields %}
+                                            {# Preserve per-form hidden fields (id, etc.) #}
+                                            {% for hidden in item_form.hidden_fields %}
+                                                {{ hidden }}
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                {# No forms; show a single empty visible row (management_form already rendered) #}
+                                <tr class="fee-item-row">
+                                    <td>{{ formset.empty_form.category }}</td>
+                                    <td>{{ formset.empty_form.description }}</td>
+                                    <td class="align-middle">{{ formset.empty_form.amount }}</td>
+                                    <td class="text-center align-middle"><div class="form-check">{{ formset.empty_form.is_optional }}</div></td>
+                                    <td class="text-center align-middle"><div class="form-check">{{ formset.empty_form.applies_to_all }}</div></td>
+                                    <td class="text-center align-middle">
+                                        <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
+                                        {% for hidden in formset.empty_form.hidden_fields %}
                                             {{ hidden }}
                                         {% endfor %}
                                     </td>
                                 </tr>
-                            {% empty %}
-                                {# If there are absolutely no forms (should not be the case with a proper inline formset), show a placeholder row #}
-                                <tr class="fee-item-row">
-                                    <td colspan="6" class="text-center text-muted py-3">No fee items available. Click "Add item" to create one.</td>
-                                </tr>
-                            {% endfor %}
+                                {# Ensure TOTAL_FORMS will increment when JS clones empty_form #}
+                            {% endif %}
                         </tbody>
                         <tfoot>
                             <tr>
@@ -216,7 +225,7 @@
                 {# Empty form template for JS-cloning (Django formset empty_form uses __prefix__) #}
                 <div id="empty-form-template" class="d-none">
                     <table>
-                        <tr class="fee-item-row new-row-template">
+                        <tr class="fee-item-row">
                             <td>
                                 {{ formset.empty_form.category }}
                             </td>
@@ -261,9 +270,7 @@
     </div>
 </div>
 
-{# JS: show only one row by default; Add button first reveals any hidden existing rows, otherwise clones empty_form.
-   Remove button hides existing rows (checking DELETE checkbox) or removes newly-cloned rows and updates TOTAL_FORMS.
-#}
+{# Simple JS to handle adding/removing formset rows and summing amounts #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const addBtn = document.getElementById('add-item-btn');
@@ -281,11 +288,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateTotal() {
         let total = 0;
+        // find amount inputs in visible rows only
         tableBody.querySelectorAll('tr.fee-item-row').forEach(row => {
-            // Skip rows hidden for deletion
+            // skip rows that are hidden via style display:none
             if (row.style.display === 'none') return;
-            const input = row.querySelector('input[name$="-amount"], input[type="number"]');
-            if (input) total += parseMoney(input.value);
+            const input = row.querySelector('input[name$="-amount"]');
+            if (input) {
+                total += parseMoney(input.value);
+            }
         });
         totalEl.textContent = 'KES ' + total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
@@ -296,56 +306,42 @@ document.addEventListener('DOMContentLoaded', function () {
         totalForms.value = parseInt(totalForms.value || '0') + delta;
     }
 
-    // Reveal the next hidden existing form if present, else clone empty_form
+    // Add new row using empty_form template (with __prefix__ replacement)
     addBtn && addBtn.addEventListener('click', function () {
-        // Try to show next hidden existing row first
-        const hiddenExisting = tableBody.querySelector('tr.existing-hidden-row');
-        if (hiddenExisting) {
-            hiddenExisting.classList.remove('d-none', 'existing-hidden-row');
-            // If it contains a DELETE checkbox that was previously checked (unlikely at load), uncheck it
-            const deleteCheckbox = hiddenExisting.querySelector('input[type="checkbox"][name$="-DELETE"]');
-            if (deleteCheckbox) {
-                deleteCheckbox.checked = false;
-            }
-            // Make visible and attach events
-            attachRowEvents(hiddenExisting);
-            updateTotal();
-            return;
-        }
-
-        // No hidden existing forms, clone empty_form template
         const emptyHtmlWrap = emptyTemplateContainer.innerHTML.trim();
         if (!emptyHtmlWrap) return;
 
-        // Get current TOTAL_FORMS to get the new index
+        // Get current TOTAL_FORMS to know index
         const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
         const index = totalFormsInput ? parseInt(totalFormsInput.value) : tableBody.querySelectorAll('tr.fee-item-row').length;
         const regex = new RegExp('__prefix__', 'g');
 
         const container = document.createElement('div');
+        // replace __prefix__ with the new index
         container.innerHTML = emptyHtmlWrap.replace(regex, index);
         const newRow = container.querySelector('tr.fee-item-row');
         if (!newRow) return;
 
+        // Append and increment TOTAL_FORMS
         tableBody.appendChild(newRow);
-        attachRowEvents(newRow);
         updateTotalForms(1);
+        attachRowEvents(newRow);
         updateTotal();
     });
 
-    // Remove/hide handler (event delegation)
+    // Attach remove handler to rows (event delegation)
     tableBody.addEventListener('click', function (e) {
         if (e.target && e.target.matches('.remove-item-btn')) {
             const row = e.target.closest('tr.fee-item-row');
             if (!row) return;
 
-            // If this row has a DELETE checkbox (existing DB-backed form), check it and hide the row
+            // If this row has a DELETE checkbox (existing form from DB), check it and hide the row.
             const deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
             if (deleteCheckbox) {
                 deleteCheckbox.checked = true;
                 row.style.display = 'none';
             } else {
-                // Newly added row: remove from DOM and decrement TOTAL_FORMS
+                // Otherwise remove row from DOM and decrement TOTAL_FORMS
                 row.remove();
                 updateTotalForms(-1);
             }
@@ -353,25 +349,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // Attach input events to update total when amounts change
     function attachRowEvents(row) {
-        const amtInput = row.querySelector('input[name$="-amount"], input[type="number"]');
+        const amtInput = row.querySelector('input[name$="-amount"]');
         if (amtInput) {
             amtInput.addEventListener('input', updateTotal);
         }
     }
 
-    // Attach events to visible form rows (first visible plus any non-hidden ones)
-    tableBody.querySelectorAll('tr.fee-item-row').forEach(row => {
-        if (!row.classList.contains('d-none') && row.style.display !== 'none') {
-            attachRowEvents(row);
-        }
-    });
+    // Attach to initial rows (visible or hidden)
+    tableBody.querySelectorAll('tr.fee-item-row').forEach(attachRowEvents);
 
-    // Toggle description width/sizing
+    // Expand / collapse description inputs (toggle rows' description input size) (affects only visible rows)
     expandBtn && expandBtn.addEventListener('click', function () {
         tableBody.querySelectorAll('tr.fee-item-row').forEach(row => {
+            if (row.style.display === 'none') return;
             const desc = row.querySelector('input[name$="-description"], textarea[name$="-description"]');
-            if (desc) desc.classList.toggle('expanded-desc');
+            if (desc) {
+                desc.classList.toggle('expanded-desc');
+            }
         });
     });
 
@@ -386,9 +382,9 @@ document.addEventListener('DOMContentLoaded', function () {
     min-width: 100%;
 }
 
-/* Ensure hidden existing rows are not visible but still in DOM */
-.existing-hidden-row {
-    display: none !important;
+/* Ensure hidden rows are not visible but still present in DOM */
+tr.fee-item-row[data-hidden="true"] {
+    display: none;
 }
 </style>
 {% endblock %}
