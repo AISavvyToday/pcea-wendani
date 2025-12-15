@@ -163,7 +163,6 @@
                   <th>Name</th>
                   <th style="width:160px">Class / Stream</th>
                   <th style="width:90px">Age</th>
-                  <th style="width:110px">Gender</th>
                   <th style="width:180px" class="text-end">Actions</th>
                 </tr>
               </thead>
@@ -186,10 +185,7 @@
                           </span>
                         {% endif %}
                       </div>
-                      <div>
-                        <a href="{% url 'students:detail' student.pk %}" class="fw-bold text-dark">{{ student.full_name }}</a>
-                        <div class="small text-muted">{{ student.admission_date|date:"Y-m-d" }}</div>
-                      </div>
+
                     </div>
                   </td>
                   <td>
@@ -202,15 +198,7 @@
                     </div>
                   </td>
                   <td>{{ student.age }}</td>
-                  <td>
-                    {% if student.gender == "M" %}
-                      <span class="badge bg-info text-dark">Male</span>
-                    {% elif student.gender == "F" %}
-                      <span class="badge bg-pink text-white">Female</span>
-                    {% else %}
-                      <span class="badge bg-secondary text-white">{{ student.get_gender_display }}</span>
-                    {% endif %}
-                  </td>
+
 
                   <td class="text-end">
                     <a href="{% url 'students:detail' student.pk %}" class="btn btn-sm btn-outline-info me-1">
