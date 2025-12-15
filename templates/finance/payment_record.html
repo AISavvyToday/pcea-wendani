@@ -6,186 +6,123 @@
 
 {% block content %}
 <div class="content-wrapper">
-    <div class="page-header d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h3 class="page-title mb-0">Record Payment</h3>
-            <small class="text-muted d-block">Create a payment receipt and apply it to a student or invoice.</small>
-        </div>
-
-        <div>
-            <a href="{% url 'finance:payment_list' %}" class="btn btn-secondary btn-sm">
-                <i class="mdi mdi-arrow-left"></i> Back to Payments
-            </a>
-        </div>
+    <div class="page-header">
+        <h3 class="page-title">Record Payment</h3>
+        <a href="{% url 'finance:payment_list' %}" class="btn btn-secondary">
+            <i class="mdi mdi-arrow-left"></i> Back to Payments
+        </a>
     </div>
 
-    {% if messages %}
-      <div class="mb-3">
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
+    <div class="card">
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
 
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <form method="post" id="payment-form" novalidate>
-                        {% csrf_token %}
-
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger mb-3">
-                                {% for err in form.non_field_errors %}
-                                    <div>{{ err }}</div>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <div class="row gx-3">
-                            <div class="col-md-6">
-                                <label for="{{ form.student.id_for_label }}" class="form-label">Student <span class="text-danger">*</span></label>
-                                {{ form.student }}
-                                {% if form.student.help_text %}
-                                    <small class="form-text text-muted">{{ form.student.help_text }}</small>
-                                {% endif %}
-                                {% if form.student.errors %}
-                                    <div class="text-danger small mt-1">{{ form.student.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.invoice.id_for_label }}" class="form-label">Invoice (optional)</label>
-                                <select id="{{ form.invoice.id_for_label }}" name="{{ form.invoice.html_name }}" class="form-select">
-                                    <option value="">{{ form.invoice.empty_label|default:"-- Select Invoice --" }}</option>
-                                    {# If the view provided invoice choices prepopulated they will appear; JS will replace when student changes #}
-                                    {% for val, text in form.invoice.field.choices %}
-                                        <option value="{{ val }}" {% if form.invoice.value == val %}selected{% endif %}>{{ text }}</option>
-                                    {% endfor %}
-                                </select>
-                                {% if form.invoice.help_text %}
-                                    <small class="form-text text-muted">{{ form.invoice.help_text }}</small>
-                                {% endif %}
-                                {% if form.invoice.errors %}
-                                    <div class="text-danger small mt-1">{{ form.invoice.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.amount.id_for_label }}" class="form-label">Amount (KES) <span class="text-danger">*</span></label>
-                                {{ form.amount }}
-                                {% if form.amount.help_text %}
-                                    <small class="form-text text-muted">{{ form.amount.help_text }}</small>
-                                {% endif %}
-                                {% if form.amount.errors %}
-                                    <div class="text-danger small mt-1">{{ form.amount.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.payment_method.id_for_label }}" class="form-label">Payment Method <span class="text-danger">*</span></label>
-                                {{ form.payment_method }}
-                                {% if form.payment_method.errors %}
-                                    <div class="text-danger small mt-1">{{ form.payment_method.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.payment_date.id_for_label }}" class="form-label">Payment Date <span class="text-danger">*</span></label>
-                                {{ form.payment_date }}
-                                {% if form.payment_date.help_text %}
-                                    <small class="form-text text-muted">{{ form.payment_date.help_text }}</small>
-                                {% endif %}
-                                {% if form.payment_date.errors %}
-                                    <div class="text-danger small mt-1">{{ form.payment_date.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.transaction_reference.id_for_label }}" class="form-label">Transaction Reference</label>
-                                {{ form.transaction_reference }}
-                                {% if form.transaction_reference.errors %}
-                                    <div class="text-danger small mt-1">{{ form.transaction_reference.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.payer_name.id_for_label }}" class="form-label">Payer Name</label>
-                                {{ form.payer_name }}
-                                {% if form.payer_name.errors %}
-                                    <div class="text-danger small mt-1">{{ form.payer_name.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="{{ form.payer_phone.id_for_label }}" class="form-label">Payer Phone</label>
-                                {{ form.payer_phone }}
-                                {% if form.payer_phone.errors %}
-                                    <div class="text-danger small mt-1">{{ form.payer_phone.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="col-12">
-                                <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
-                                {{ form.notes }}
-                                {% if form.notes.errors %}
-                                    <div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>
-                                {% endif %}
-                            </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.student.id_for_label }}" class="form-label">Student *</label>
+                            {{ form.student }}
+                            {% if form.student.errors %}
+                                <div class="text-danger">{{ form.student.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Select the student making the payment</div>
                         </div>
+                    </div>
 
-                        <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary">Cancel</a>
-
-                            <div>
-                                <button type="submit" id="save-payment-btn" class="btn btn-primary">
-                                    <span id="save-text"><i class="mdi mdi-content-save"></i> Record Payment</span>
-                                    <span id="save-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right column: Quick preview / help -->
-        <div class="col-lg-4">
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h6 class="mb-2">Quick preview</h6>
-                    <div class="small text-muted mb-2">Selected student / invoice summary</div>
-
-                    <div id="preview" class="border rounded p-2">
-                        <div class="mb-2">
-                            <strong id="preview-student">Student: —</strong>
-                            <div class="small text-muted" id="preview-adm">Admission #: —</div>
-                        </div>
-
-                        <div class="mb-2">
-                            <strong id="preview-invoice">Invoice: —</strong>
-                            <div class="small text-muted" id="preview-balance">Balance: —</div>
-                        </div>
-
-                        <div class="mb-2">
-                            <strong>Amount to record</strong>
-                            <div id="preview-amount" class="h5">KES 0.00</div>
-                        </div>
-
-                        <div class="mb-2 text-muted small">
-                            Tip: If you want to apply payment towards a specific invoice choose it above. If left blank payment will be unallocated.
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.invoice.id_for_label }}" class="form-label">Invoice</label>
+                            {{ form.invoice }}
+                            {% if form.invoice.errors %}
+                                <div class="text-danger">{{ form.invoice.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Optional: Select specific invoice to apply payment to</div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Optional receipts / history link -->
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="mb-2">Need to search receipts?</h6>
-                    <a href="{% url 'finance:payment_list' %}" class="btn btn-sm btn-outline-primary">View Payments</a>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.amount.id_for_label }}" class="form-label">Amount (KES) *</label>
+                            {{ form.amount }}
+                            {% if form.amount.errors %}
+                                <div class="text-danger">{{ form.amount.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payment_method.id_for_label }}" class="form-label">Payment Method *</label>
+                            {{ form.payment_method }}
+                            {% if form.payment_method.errors %}
+                                <div class="text-danger">{{ form.payment_method.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payment_date.id_for_label }}" class="form-label">Payment Date *</label>
+                            {{ form.payment_date }}
+                            {% if form.payment_date.errors %}
+                                <div class="text-danger">{{ form.payment_date.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.transaction_reference.id_for_label }}" class="form-label">Transaction Reference</label>
+                            {{ form.transaction_reference }}
+                            {% if form.transaction_reference.errors %}
+                                <div class="text-danger">{{ form.transaction_reference.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payer_name.id_for_label }}" class="form-label">Payer Name</label>
+                            {{ form.payer_name }}
+                            {% if form.payer_name.errors %}
+                                <div class="text-danger">{{ form.payer_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.payer_phone.id_for_label }}" class="form-label">Payer Phone</label>
+                            {{ form.payer_phone }}
+                            {% if form.payer_phone.errors %}
+                                <div class="text-danger">{{ form.payer_phone.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <div class="text-danger">{{ form.notes.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'finance:payment_list' %}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="mdi mdi-content-save"></i> Record Payment
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -194,162 +131,51 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Elements
-    const paymentDateId = '{{ form.payment_date.id_for_label }}';
-    const paymentDateInput = document.getElementById(paymentDateId);
+    // Auto-populate payment date with current datetime
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const dateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+    const paymentDateInput = document.getElementById('{{ form.payment_date.id_for_label }}');
+    if (paymentDateInput && !paymentDateInput.value) {
+        paymentDateInput.value = dateTime;
+    }
+
+    // When student changes, update invoice options
     const studentSelect = document.getElementById('{{ form.student.id_for_label }}');
     const invoiceSelect = document.getElementById('{{ form.invoice.id_for_label }}');
-    const amountInput = document.getElementById('{{ form.amount.id_for_label }}');
-    const saveBtn = document.getElementById('save-payment-btn');
-    const saveSpinner = document.getElementById('save-spinner');
-    const saveText = document.getElementById('save-text');
 
-    // Preview elements
-    const prevStudent = document.getElementById('preview-student');
-    const prevAdm = document.getElementById('preview-adm');
-    const prevInvoice = document.getElementById('preview-invoice');
-    const prevBalance = document.getElementById('preview-balance');
-    const prevAmount = document.getElementById('preview-amount');
-
-    // set default payment_date if empty (ISO datetime-local format expected)
-    if (paymentDateInput && !paymentDateInput.value) {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const dt = `${year}-${month}-${day}T${hours}:${minutes}`;
-        paymentDateInput.value = dt;
-    }
-
-    // format amount number for preview
-    function formatKES(val) {
-        if (!val && val !== 0) return 'KES 0.00';
-        const num = parseFloat(String(val).replace(/,/g, ''));
-        if (isNaN(num)) return 'KES 0.00';
-        return 'KES ' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    }
-
-    // update amount preview on input
-    if (amountInput) {
-        amountInput.addEventListener('input', function() {
-            prevAmount.textContent = formatKES(this.value);
-        });
-        // initialize preview
-        prevAmount.textContent = formatKES(amountInput.value || 0);
-    }
-
-    // When student changes -> fetch invoices and student info
-    if (studentSelect) {
+    if (studentSelect && invoiceSelect) {
         studentSelect.addEventListener('change', function() {
             const studentId = this.value;
+            if (studentId) {
+                // Clear current options
+                invoiceSelect.innerHTML = '<option value="">Loading...</option>';
 
-            // reset preview
-            prevStudent.textContent = 'Student: —';
-            prevAdm.textContent = 'Admission #: —';
-            prevInvoice.textContent = 'Invoice: —';
-            prevBalance.textContent = 'Balance: —';
-
-            if (!studentId) {
-                // clear invoice options
-                if (invoiceSelect) {
-                    invoiceSelect.innerHTML = '<option value="">{{ " -- Select Invoice -- " }}</option>';
-                }
-                return;
-            }
-
-            // show loading state in invoice select
-            if (invoiceSelect) {
-                invoiceSelect.innerHTML = '<option value="">Loading invoices...</option>';
-            }
-
-            // Fetch student details and open invoices from API endpoint
-            fetch(`/api/student/${studentId}/summary/`)
-                .then(r => {
-                    if (!r.ok) throw new Error('Student fetch failed');
-                    return r.json();
-                })
-                .then(data => {
-                    // data expected to have: student { full_name, admission_number }, invoices: [{id, invoice_number, balance}]
-                    if (data.student) {
-                        prevStudent.textContent = `Student: ${data.student.full_name || '—'}`;
-                        prevAdm.textContent = `Admission #: ${data.student.admission_number || '—'}`;
-                    }
-
-                    // populate invoice select
-                    if (invoiceSelect) {
-                        invoiceSelect.innerHTML = '<option value="">{{ " -- Select Invoice -- " }}</option>';
-                        (data.invoices || []).forEach(inv => {
-                            const opt = document.createElement('option');
-                            opt.value = inv.id;
-                            const bal = parseFloat(inv.balance || 0).toFixed(2);
-                            opt.textContent = `${inv.invoice_number} — KES ${Number(bal).toLocaleString()}`;
-                            opt.dataset.balance = inv.balance || 0;
-                            invoiceSelect.appendChild(opt);
+                // Fetch invoices for this student
+                fetch(`/api/student/${studentId}/invoices/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
+                        data.forEach(invoice => {
+                            const option = document.createElement('option');
+                            option.value = invoice.id;
+                            option.textContent = `${invoice.invoice_number} (KES ${parseFloat(invoice.balance).toFixed(2)} balance)`;
+                            invoiceSelect.appendChild(option);
                         });
-                    }
-                })
-                .catch(() => {
-                    // on error, reset invoice select gracefully
-                    if (invoiceSelect) {
-                        invoiceSelect.innerHTML = '<option value="">{{ " -- Select Invoice -- " }}</option>';
-                    }
-                });
-        });
-    }
-
-    // When invoice changes -> update preview balance & invoice label
-    if (invoiceSelect) {
-        invoiceSelect.addEventListener('change', function() {
-            const selected = this.options[this.selectedIndex];
-            if (selected && selected.value) {
-                const invText = selected.textContent || '—';
-                const bal = selected.dataset.balance !== undefined ? parseFloat(selected.dataset.balance) : null;
-                prevInvoice.textContent = `Invoice: ${invText}`;
-                prevBalance.textContent = `Balance: ${bal !== null ? ('KES ' + Number(bal).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")) : '—'}`;
+                    })
+                    .catch(() => {
+                        invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
+                    });
             } else {
-                prevInvoice.textContent = 'Invoice: —';
-                prevBalance.textContent = 'Balance: —';
+                invoiceSelect.innerHTML = '<option value="">-- Select Invoice --</option>';
             }
         });
     }
-
-    // prevent double submit and show spinner
-    const paymentForm = document.getElementById('payment-form');
-    if (paymentForm && saveBtn) {
-        paymentForm.addEventListener('submit', function(e) {
-            // Basic client-side validation: amount must be > 0
-            if (amountInput) {
-                const val = parseFloat(String(amountInput.value).replace(/,/g, ''));
-                if (isNaN(val) || val <= 0) {
-                    e.preventDefault();
-                    alert('Please enter a valid amount greater than 0.');
-                    amountInput.focus();
-                    return false;
-                }
-            }
-
-            // Disable button to avoid double submit
-            saveBtn.disabled = true;
-            saveSpinner.classList.remove('d-none');
-            if (saveText) saveText.textContent = 'Recording...';
-        });
-    }
-
-    // keyboard shortcut: "/" to focus student select
-    document.addEventListener('keydown', function(e) {
-        if (e.key === '/' && document.activeElement.tagName.toLowerCase() !== 'input' && document.activeElement.tagName.toLowerCase() !== 'textarea') {
-            e.preventDefault();
-            if (studentSelect) studentSelect.focus();
-        }
-    });
 });
 </script>
-
-<style>
-/* small adjustments for preview panel */
-#preview { background: #fafafa; }
-#preview .h5 { margin: .25rem 0; }
-</style>
 {% endblock %}
