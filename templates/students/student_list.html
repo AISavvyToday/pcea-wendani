@@ -13,7 +13,7 @@
         </span>
         Students Management
       </h3>
-      <small class="text-muted">Manage students, search, filter and paginate</small>
+      <small class="text-muted">Manage students — search, filter and paginate</small>
     </div>
 
     <div class="text-end">
@@ -29,27 +29,25 @@
       <div class="card">
         <div class="card-body">
           <form id="filterForm" method="get" class="row gx-2 gy-2 align-items-end">
-            {# Visible search input uses name "query" because views expect "query".
-               We also keep a hidden "search" input (used by the bound SearchForm) so that
-               rendering of form fields that rely on the bound form still works. JS will
-               keep them in sync on submit. #}
+            {# The bound search_form is used for values; safer than direct request.GET lookups #}
+
             <div class="col-md-4">
               <label class="form-label">Search</label>
               <input
                 id="q_input"
                 type="search"
                 name="query"
-                value="{{ request.GET.query|default:request.GET.search|default:'' }}"
-                placeholder="Search by name or admission no..."
+                value="{{ search_form.search.value|default:'' }}"
+                placeholder="Search by name or admission number..."
                 class="form-control"
                 autocomplete="off"
               />
-              <input type="hidden" name="search" id="hidden_search" value="{{ request.GET.search|default:request.GET.query|default:'' }}">
+              {# Hidden field so bound form remains consistent when server renders inputs from search_form #}
+              <input type="hidden" name="search" id="hidden_search" value="{{ search_form.search.value|default:'' }}">
             </div>
 
             <div class="col-md-2">
               <label class="form-label">Class</label>
-              {# reuse form select — displays available classes via the bound StudentSearchForm #}
               {{ search_form.current_class }}
             </div>
 
@@ -71,11 +69,11 @@
             <div class="col-md-1">
               <label class="form-label">Per page</label>
               <select name="per_page" id="per_page" class="form-select">
-                {% with request.GET.per_page|default:"20" as perpage %}
-                  <option value="10" {% if perpage == "10" %}selected{% endif %}>10</option>
-                  <option value="20" {% if perpage == "20" %}selected{% endif %}>20</option>
-                  <option value="50" {% if perpage == "50" %}selected{% endif %}>50</option>
-                  <option value="100" {% if perpage == "100" %}selected{% endif %}>100</option>
+                {% with search_perpage=request.GET.per_page|default:"20" %}
+                  <option value="10" {% if search_perpage == "10" %}selected{% endif %}>10</option>
+                  <option value="20" {% if search_perpage == "20" %}selected{% endif %}>20</option>
+                  <option value="50" {% if search_perpage == "50" %}selected{% endif %}>50</option>
+                  <option value="100" {% if search_perpage == "100" %}selected{% endif %}>100</option>
                 {% endwith %}
               </select>
             </div>
@@ -91,9 +89,11 @@
                 <i class="mdi mdi-filter-remove"></i> Clear filters
               </button>
               <span class="ms-3 text-muted small">
-                Showing <strong>{{ page_obj.start_index|default:1 }}</strong> -
-                <strong>{{ page_obj.end_index|default:students|length }}</strong>
-                of <strong>{{ page_obj.paginator.count|default:students|length }}</strong> students
+                Showing
+                <strong>{% if is_paginated %}{{ page_obj.start_index }}{% else %}{{ students|length }}{% endif %}</strong>
+                -
+                <strong>{% if is_paginated %}{{ page_obj.end_index }}{% else %}{{ students|length }}{% endif %}</strong>
+                of <strong>{% if is_paginated %}{{ page_obj.paginator.count }}{% else %}{{ students|length }}{% endif %}</strong> students
               </span>
             </div>
           </form>
@@ -209,7 +209,7 @@
             </table>
           </div>
 
-          {# Pagination controls - these call JS to submit form with page value so filters persist #}
+          {# Pagination controls #}
           {% if is_paginated %}
           <div class="d-flex justify-content-between align-items-center mt-3">
             <div>
@@ -232,7 +232,6 @@
                   <li class="page-item disabled"><span class="page-link">Previous</span></li>
                 {% endif %}
 
-                {# show a few page buttons centered around current page #}
                 {% for p in page_obj.paginator.page_range %}
                   {% if p >= page_obj.number|add:-2 and p <= page_obj.number|add:2 %}
                     <li class="page-item {% if p == page_obj.number %}active{% endif %}">
@@ -269,7 +268,6 @@
   </div>
 </div>
 
-{# JS: keeps hidden search in sync, handles pagination, per_page change, clear filters #}
 {% block scripts %}
 <script>
   (function () {
@@ -280,23 +278,19 @@
     const clearBtn = document.getElementById('btnClear');
     const paginationButtons = document.querySelectorAll('.pagination-btn');
 
-    // Copy visible query into hidden search (so bound form fields still receive value)
     function syncSearchFields() {
       hiddenSearch.value = qInput.value || '';
     }
 
-    // On form submit, set page to 1 (so user sees first page of filtered results)
     form.addEventListener('submit', function (e) {
       syncSearchFields();
-      // remove existing page param (will be added by server)
-      const pageInput = form.querySelector('input[name="page"]');
+      // ensure page resets to 1 on new searches
+      let pageInput = form.querySelector('input[name="page"]');
       if (pageInput) pageInput.value = '1';
     });
 
-    // Handle per_page change: submit form and reset to page 1
     perPage.addEventListener('change', function () {
       syncSearchFields();
-      // set page param to 1
       let pageInput = form.querySelector('input[name="page"]');
       if (!pageInput) {
         pageInput = document.createElement('input');
@@ -308,7 +302,6 @@
       form.submit();
     });
 
-    // Pagination buttons: set hidden page value and submit form so filters remain
     paginationButtons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         const page = btn.getAttribute('data-page');
@@ -326,23 +319,16 @@
       });
     });
 
-    // Clear filters
     clearBtn.addEventListener('click', function () {
-      // clear inputs
       qInput.value = '';
       hiddenSearch.value = '';
-      // Reset selects (current_class may be a select rendered by form field)
       const selects = form.querySelectorAll('select');
-      selects.forEach(function (s) {
-        s.selectedIndex = 0;
-      });
-      // Reset page/per_page
+      selects.forEach(function (s) { s.selectedIndex = 0; });
       let pageInput = form.querySelector('input[name="page"]');
       if (pageInput) pageInput.value = '1';
       form.submit();
     });
 
-    // Support pressing Enter on search input
     qInput.addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
         e.preventDefault();

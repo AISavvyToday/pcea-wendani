@@ -57,6 +57,16 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
         return queryset
 
+    def get_paginate_by(self, queryset):
+        per_page = self.request.GET.get('per_page')
+        try:
+            per_page = int(per_page)
+            if per_page <= 0:
+                raise ValueError()
+        except Exception:
+            per_page = self.paginate_by
+        return per_page
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['search_form'] = StudentSearchForm(self.request.GET)
