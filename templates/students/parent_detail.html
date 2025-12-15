@@ -1,4 +1,3 @@
-<!-- students/templates/students/parent_detail.html -->
 {% extends 'base/base.html' %}
 {% load static %}
 
@@ -23,6 +22,7 @@
       <a href="{% url 'students:parent_list' %}" class="btn btn-outline-secondary btn-sm">
         <i class="mdi mdi-arrow-left"></i> Back
       </a>
+
       {% if is_admin %}
       <a href="{% url 'students:parent_update' parent.pk %}" class="btn btn-warning btn-sm">
         <i class="mdi mdi-pencil"></i> Edit
@@ -68,48 +68,45 @@
       </div>
     </div>
 
-    <div class="col-md-3">
-      <div class="card text-center">
-        <div class="card-body">
-          <i class="mdi mdi-lock mdi-36px {% if parent.user %}text-success{% else %}text-secondary{% endif %}"></i>
-          <p class="text-muted mb-1">Portal Access</p>
-          {% if parent.user %}
-            <span class="badge bg-success">Enabled</span>
-          {% else %}
-            <span class="badge bg-secondary">Not Enabled</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- ================= TABS ================= -->
   <div class="card">
     <div class="card-body">
 
-      <ul class="nav nav-pills mb-4">
+      <!-- TAB NAV -->
+      <ul class="nav nav-pills mb-4" role="tablist">
         <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="?tab=overview">
+          <button class="nav-link active"
+                  data-bs-toggle="pill"
+                  data-bs-target="#overview"
+                  type="button">
             <i class="mdi mdi-account"></i> Overview
-          </a>
+          </button>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'children' %}active{% endif %}" href="?tab=children">
+          <button class="nav-link"
+                  data-bs-toggle="pill"
+                  data-bs-target="#children"
+                  type="button">
             <i class="mdi mdi-account-multiple"></i> Children
-          </a>
+          </button>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'finance' %}active{% endif %}" href="?tab=finance">
+          <button class="nav-link"
+                  data-bs-toggle="pill"
+                  data-bs-target="#finance"
+                  type="button">
             <i class="mdi mdi-cash"></i> Finance
-          </a>
+          </button>
         </li>
       </ul>
 
+      <!-- TAB CONTENT -->
       <div class="tab-content">
 
         <!-- ================= OVERVIEW ================= -->
-        {% if active_tab == 'overview' %}
-        <div class="tab-pane fade show active">
+        <div class="tab-pane fade show active" id="overview">
 
           <div class="row">
             <div class="col-md-6">
@@ -145,11 +142,9 @@
           </div>
 
         </div>
-        {% endif %}
 
         <!-- ================= CHILDREN ================= -->
-        {% if active_tab == 'children' %}
-        <div class="tab-pane fade show active">
+        <div class="tab-pane fade" id="children">
 
           <h6 class="fw-bold mb-3">Linked Children</h6>
 
@@ -201,11 +196,9 @@
           </div>
 
         </div>
-        {% endif %}
 
         <!-- ================= FINANCE ================= -->
-        {% if active_tab == 'finance' %}
-        <div class="tab-pane fade show active">
+        <div class="tab-pane fade" id="finance">
 
           <div class="alert alert-info">
             <i class="mdi mdi-information-outline"></i>
@@ -220,10 +213,8 @@
           </div>
 
         </div>
-        {% endif %}
 
       </div>
-
     </div>
   </div>
 
