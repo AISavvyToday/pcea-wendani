@@ -45,7 +45,6 @@
                                     <th>Description</th>
                                     <th>Amount</th>
                                     <th>Term</th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -55,14 +54,7 @@
                                     <td>{{ item.description|default:"-" }}</td>
                                     <td>KES {{ item.amount|intcomma }}</td>
                                     <td>{{ item.term|default:"All Terms" }}</td>
-                                    <td>
-                                        <a href="" class="btn btn-sm btn-warning">
-                                            <i class="mdi mdi-pencil"></i>
-                                        </a>
-                                        <a href="" class="btn btn-sm btn-danger">
-                                            <i class="mdi mdi-delete"></i>
-                                        </a>
-                                    </td>
+
                                 </tr>
                                 {% empty %}
                                 <tr><td colspan="5" class="text-center">No fee items added yet</td></tr>
