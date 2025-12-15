@@ -1,8 +1,9 @@
 # academics/models.py
+from decimal import Decimal
 
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from core.models import BaseModel, GradeLevel, TermChoices, AttendanceStatus
+from core.models import BaseModel, GradeLevel, TermChoices, AttendanceStatus, StreamChoices
 from accounts.models import User
 
 
@@ -151,7 +152,7 @@ class Class(BaseModel):
     """
     name = models.CharField(max_length=50)  # e.g., "Grade 1A", "Grade 7 Blue"
     grade_level = models.CharField(max_length=20, choices=GradeLevel.choices)
-    stream = models.CharField(max_length=20, blank=True)  # e.g., "A", "B", "Blue", "Red"
+    stream = models.CharField(max_length=10, choices=StreamChoices.choices, default=StreamChoices.EAST)
 
     # Capacity
     capacity = models.PositiveIntegerField(default=40)
@@ -424,7 +425,6 @@ class Timetable(BaseModel):
     def __str__(self):
         return f"{self.class_obj.name} - {self.get_day_of_week_display()} - {self.subject.name}"
 
-
 class TransportRoute(BaseModel):
     """
     School transport routes.
@@ -444,8 +444,15 @@ class TransportRoute(BaseModel):
     morning_departure = models.TimeField(null=True, blank=True)
     afternoon_departure = models.TimeField(null=True, blank=True)
 
-    # Fee
-    term_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Fee - MODIFIED FIELDS
+    full_trip_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        help_text="Cost for a full trip (both ways) for the term."
+    )
+    half_trip_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        help_text="Cost for a half trip (one way) for the term."
+    )
 
     class Meta:
         db_table = 'transport_routes'

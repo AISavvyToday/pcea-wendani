@@ -198,3 +198,21 @@ class ResolutionService:
             description = f"Outstanding fees ({unpaid_count} invoices)"
         
         return float(total_balance), description
+
+    @staticmethod
+    def extract_phone_from_narration(narration_fields: dict) -> Optional[str]:
+        """
+        Extracts a phone number from various narration fields.
+        Looks for common Kenyan mobile number patterns.
+        """
+        full_narration = " ".join(narration_fields.values()).upper()
+
+        # Regex for common Kenyan mobile numbers (07..., +2547..., 2547...)
+        # This pattern is quite broad and might need refinement based on actual data
+        phone_pattern = re.compile(r'(?:(?:\+254|254|0)?(7\d{8}))')
+
+        match = phone_pattern.search(full_narration)
+        if match:
+            # Return the 10-digit number starting with 7
+            return f"254{match.group(1)}"
+        return None

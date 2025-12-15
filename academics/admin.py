@@ -186,7 +186,7 @@ class TimetableAdmin(admin.ModelAdmin):
 
 @admin.register(TransportRoute)
 class TransportRouteAdmin(admin.ModelAdmin):
-    list_display = ('name', 'driver_name', 'driver_phone', 'vehicle_registration', 'term_fee', 'students_count')
+    list_display = ('name', 'driver_name', 'driver_phone', 'vehicle_registration', 'students_count')
     search_fields = ('name', 'driver_name', 'vehicle_registration')
 
     def students_count(self, obj):

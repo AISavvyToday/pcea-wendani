@@ -147,12 +147,21 @@ class CoopIPNView(APIView):
                 validated_data.get('CustMemoLine1', ''),
                 validated_data.get('CustMemoLine2', ''),
             ]))[:100]
+
+            # Extract payer phone from narration (NEW)
+            payer_phone = ResolutionService.extract_phone_from_narration({
+                "CustMemo": validated_data.get("CustMemo", ""),
+                "Narration1": validated_data.get("Narration1", ""),
+                "Narration2": validated_data.get("Narration2", ""),
+                "Narration3": validated_data.get("Narration3", ""),
+            })
             
             payment = PaymentService.create_payment_from_bank_transaction(
                 bank_tx=bank_tx,
                 student=student,
                 invoice=invoice,
                 payer_name=payer_name,
+                payer_phone=payer_phone,
             )
             
             # Step 7: Update Invoice

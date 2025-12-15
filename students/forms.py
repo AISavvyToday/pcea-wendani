@@ -1,6 +1,8 @@
 # students/forms.py
 from django import forms
 from django.core.exceptions import ValidationError
+
+from core.models import StreamChoices
 from .models import Student, Parent, StudentParent
 from academics.models import Class
 
@@ -250,6 +252,12 @@ class StudentSearchForm(forms.Form):
         queryset=Class.objects.all(),
         required=False,
         empty_label="All Classes",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    stream = forms.ChoiceField(
+        choices=[('', 'All Streams')] + list(StreamChoices.choices),
+        required=False,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
 

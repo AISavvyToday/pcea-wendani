@@ -118,4 +118,10 @@ class FeeCategory(models.TextChoices):
     EXAMINATION = 'examination', 'Examination'
     ACTIVITY = 'activity', 'Activity/Extra-curricular'
     DEVELOPMENT = 'development', 'Development Levy'
+    ADMISSION = 'admission', 'Admission Fee'
     OTHER = 'other', 'Other'
+
+class StreamChoices(models.TextChoices):
+    EAST = 'EAST', 'East'
+    WEST = 'WEST', 'West'
+    SOUTH = 'SOUTH', 'South'

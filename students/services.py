@@ -108,7 +108,8 @@ class StudentService:
         return student
 
     @staticmethod
-    def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None):
+    def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None,
+                        stream=None):  # ADD 'stream=None'
         """
         Search and filter students based on various criteria.
 
@@ -118,6 +119,7 @@ class StudentService:
             status: Filter by student status
             gender: Filter by gender
             is_boarder: Filter by boarding status ('yes', 'no', or None)
+            stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH') # ADD THIS ARG DESCRIPTION
 
         Returns:
             QuerySet of Student objects
@@ -145,6 +147,9 @@ class StudentService:
             students = students.filter(is_boarder=True)
         elif is_boarder == 'no':
             students = students.filter(is_boarder=False)
+
+        if stream:  # ADD THIS BLOCK
+            students = students.filter(current_class__stream=stream)
 
         return students.order_by('admission_number')
 
