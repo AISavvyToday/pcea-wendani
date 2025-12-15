@@ -1,3 +1,4 @@
+{# templates/finance/fee_structure_list.html #}
 {% extends 'base/base.html' %}
 {% load static humanize %}
 
@@ -5,86 +6,224 @@
 
 {% block content %}
 <div class="content-wrapper">
-    <div class="page-header">
-        <h3 class="page-title">Fee Structures</h3>
-        <a href="{% url 'finance:fee_structure_create' %}" class="btn btn-primary">
-            <i class="mdi mdi-plus"></i> Add Fee Structure
-        </a>
+    <div class="page-header d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h3 class="page-title mb-0">Fee Structures</h3>
+            <small class="text-muted">Manage fee definitions per academic year, term and grade</small>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <form method="get" class="d-flex" role="search" aria-label="Search fee structures">
+                <input type="search" name="query" value="{{ request.GET.query|default:'' }}" class="form-control form-control-sm" placeholder="Search by name..." />
+                <button type="submit" class="btn btn-sm btn-outline-secondary ms-2">Search</button>
+            </form>
+
+            <a href="{% url 'finance:fee_structure_create' %}" class="btn btn-primary btn-sm" title="Add a new fee structure">
+                <i class="mdi mdi-plus"></i> Add Fee Structure
+            </a>
+        </div>
     </div>
 
-    <!-- Filter -->
+    <!-- Filters -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-md-3">
-                    <select name="academic_year" class="form-control">
+            <form method="get" class="row g-2 align-items-end" aria-label="Filter fee structures">
+                <div class="col-12 col-md-3">
+                    <label for="filter-year" class="form-label small text-muted">Academic Year</label>
+                    <select id="filter-year" name="year" class="form-select form-select-sm">
                         <option value="">All Academic Years</option>
-                        {% for year in academic_years %}
-                        <option value="{{ year.pk }}" {% if request.GET.academic_year == year.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ year }}
-                        </option>
-                        {% endfor %}
+                        {% if academic_years %}
+                            {% for year in academic_years %}
+                                <option value="{{ year.pk }}" {% if selected_year|stringformat:"s" == year.pk|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <select name="grade_level" class="form-control">
+
+                <div class="col-12 col-md-3">
+                    <label for="filter-term" class="form-label small text-muted">Term</label>
+                    <select id="filter-term" name="term" class="form-select form-select-sm">
+                        <option value="">All Terms</option>
+                        {# If the view provided a list of terms, use it; otherwise keep blank #}
+                        {% if selected_term %}
+                            <option value="{{ selected_term }}" selected>{{ selected_term }}</option>
+                        {% endif %}
+                        {% if terms %}
+                            {% for t in terms %}
+                                <option value="{{ t.pk }}" {% if selected_term|stringformat:"s" == t.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ t.academic_year.year }} - {{ t.name }}
+                                </option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label for="filter-grade" class="form-label small text-muted">Grade</label>
+                    <select id="filter-grade" name="grade" class="form-select form-select-sm">
                         <option value="">All Grades</option>
-                        {% for grade in grade_levels %}
-                        <option value="{{ grade }}" {% if request.GET.grade_level == grade %}selected{% endif %}>
-                            {{ grade }}
-                        </option>
-                        {% endfor %}
+                        {% if grade_levels %}
+                            {% for grade in grade_levels %}
+                                <option value="{{ grade }}" {% if request.GET.grade == grade %}selected{% endif %}>{{ grade|capfirst }}</option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary">Filter</button>
+
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                    <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Fee structures table -->
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
                         <tr>
-                            <th>Name</th>
-                            <th>Academic Year</th>
-                            <th>Grade Level</th>
-                            <th>Total Amount</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Academic Year</th>
+                            <th scope="col">Term</th>
+                            <th scope="col">Grade Levels</th>
+                            <th scope="col">Boarding</th>
+                            <th scope="col" class="text-end">Total Amount</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for structure in fee_structures %}
                         <tr>
-                            <td>{{ structure.name }}</td>
-                            <td>{{ structure.academic_year }}</td>
-                            <td>{{ structure.grade_level|default:"All Grades" }}</td>
-                            <td>KES {{ structure.total_amount|intcomma }}</td>
-                            <td>
-                                <span class="badge badge-{% if structure.is_active %}success{% else %}secondary{% endif %}">
-                                    {% if structure.is_active %}Active{% else %}Inactive{% endif %}
-                                </span>
+                            <td class="align-middle">
+                                <a href="{% url 'finance:fee_structure_detail' structure.pk %}" class="text-decoration-none fw-semibold">
+                                    {{ structure.name }}
+                                </a>
+                                {% if structure.description %}
+                                    <div class="small text-muted mt-1">{{ structure.description|truncatechars:80 }}</div>
+                                {% endif %}
                             </td>
-                            <td>
-                                <a href="{% url 'finance:fee_structure_detail' structure.pk %}" class="btn btn-sm btn-info">
-                                    <i class="mdi mdi-eye"></i>
-                                </a>
-                                <a href="{% url 'finance:fee_structure_update' structure.pk %}" class="btn btn-sm btn-warning">
-                                    <i class="mdi mdi-pencil"></i>
-                                </a>
+
+                            <td class="align-middle">{{ structure.academic_year }}</td>
+
+                            <td class="align-middle">{{ structure.get_term_display|default:structure.term }}</td>
+
+                            <td class="align-middle">
+                                {% if structure.grade_levels %}
+                                    {% for g in structure.grade_levels %}
+                                        <span class="badge bg-light text-dark small me-1">{{ g|capfirst }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">All Grades</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="align-middle">
+                                {% if structure.is_boarding %}
+                                    <span class="badge bg-info small">Boarding</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark small">Day</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="align-middle text-end fw-bold">KES {{ structure.total_amount|default:0|floatformat:0|intcomma }}</td>
+
+                            <td class="align-middle">
+                                {% if structure.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="align-middle text-center">
+                                <div class="btn-group" role="group" aria-label="Actions for {{ structure.name }}">
+                                    <a href="{% url 'finance:fee_structure_detail' structure.pk %}" class="btn btn-sm btn-outline-primary" title="View">
+                                        <i class="mdi mdi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'finance:fee_structure_update' structure.pk %}" class="btn btn-sm btn-outline-warning" title="Edit">
+                                        <i class="mdi mdi-pencil"></i>
+                                    </a>
+
+                                    {# Delete button - uses POST to prevent accidental deletes; requires fee_structure_delete url #}
+                                    <form action="{% url 'finance:fee_structure_delete' structure.pk %}" method="post" class="d-inline-block ms-1" onsubmit="return confirm('Delete fee structure &quot;{{ structure.name }}&quot;? This cannot be undone.');" aria-label="Delete {{ structure.name }}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="mdi mdi-delete"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="6" class="text-center">No fee structures found</td></tr>
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">No fee structures found.</td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            {# Pagination controls #}
+            {% if is_paginated %}
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="small text-muted">
+                    Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+                </div>
+                <nav aria-label="Fee structures pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if request.GET.query %}query={{ request.GET.query }}&amp;{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&amp;{% endif %}{% if request.GET.term %}term={{ request.GET.term }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                                &laquo;
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                        {% endif %}
+
+                        {# show a small window of pages #}
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
+                                {% if num == page_obj.number %}
+                                    <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link" href="?{% if request.GET.query %}query={{ request.GET.query }}&amp;{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&amp;{% endif %}{% if request.GET.term %}term={{ request.GET.term }}&amp;{% endif %}page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% elif num == 1 or num == page_obj.paginator.num_pages %}
+                                {# show first and last page if outside window #}
+                                <li class="page-item"><a class="page-link" href="?{% if request.GET.query %}query={{ request.GET.query }}&amp;{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&amp;{% endif %}{% if request.GET.term %}term={{ request.GET.term }}&amp;{% endif %}page={{ num }}">{{ num }}</a></li>
+                            {% elif forloop.first or forloop.last %}
+                                {# nothing #}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if request.GET.query %}query={{ request.GET.query }}&amp;{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&amp;{% endif %}{% if request.GET.term %}term={{ request.GET.term }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next">
+                                &raquo;
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<script>
+/* Small helper: preserve filters when user uses delete confirmation (no JS required for delete, just confirm) */
+/* Extra UX: focus search input on load */
+document.addEventListener('DOMContentLoaded', function(){
+    const search = document.querySelector('input[name="query"]');
+    if (search) { search.focus(); }
+});
+</script>
 {% endblock %}
