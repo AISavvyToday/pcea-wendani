@@ -139,9 +139,7 @@
                             {# management form is required for formset processing #}
                             {{ formset.management_form }}
 
-                            {# Render formset.forms but show only the first form visibly.
-                               Additional existing forms are kept in DOM but hidden so server receives them.
-                               New rows added by JS will be appended and visible. #}
+
                             {% if formset.forms %}
                                 {% for item_form in formset.forms %}
                                     <tr class="fee-item-row" {% if forloop.counter0 > 0 %}style="display:none;" data-hidden="true"{% endif %}>
