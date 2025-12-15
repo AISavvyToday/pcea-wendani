@@ -1,351 +1,438 @@
+<!--students/student_form.html-->
 {% extends 'base/base.html' %}
 {% load static %}
 
 {% block title %}{{ title }} - PCEA Wendani{% endblock %}
 
 {% block content %}
+<style>
+  /* Inline page-level styles (move to CSS file in production) */
+  .form-section {
+    display: none;
+    animation: fadeIn .18s ease-in;
+  }
+
+  .form-section.active {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .nav-pills .nav-link.active,
+  .nav-pills .nav-link.active:hover,
+  .nav-pills .nav-link.active:focus {
+    background-color: #0d6efd;
+    color: #fff;
+  }
+
+  .nav-pills .nav-link {
+    color: #0d6efd;
+    border-radius: .35rem;
+  }
+
+  .parent-form-card {
+    border: 1px solid #e0e0e0;
+    border-radius: .5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background-color: #fdfdfd;
+  }
+
+  .parent-form-card .card-title {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .parent-form-card .card-title .btn-close {
+    padding: .5rem;
+    margin: -.5rem -.5rem -.5rem auto;
+  }
+
+  .avatar-preview {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #ddd;
+    margin-bottom: 1rem;
+  }
+</style>
+
 <div class="content-wrapper">
-  <div class="page-header">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
     <h3 class="page-title">{{ title }}</h3>
+    <a href="{% url 'students:list' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="mdi mdi-arrow-left"></i> Back to list
+    </a>
   </div>
 
   <div class="row">
     <div class="col-12 grid-margin stretch-card">
       <div class="card">
         <div class="card-body">
-          <form method="post" class="forms-sample">
+          <form method="post" class="forms-sample" enctype="multipart/form-data" id="student-form">
             {% csrf_token %}
 
-            <!-- Display form errors -->
-            {% if form.errors %}
+            <!-- Global Form Errors -->
+            {% if form.non_field_errors %}
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-              <strong>Please correct the following errors:</strong>
+              <h5 class="alert-heading">Please correct the following errors:</h5>
               <ul class="mb-0">
-                {% for field in form %}
-                  {% for error in field.errors %}
-                    <li>{{ field.label }}: {{ error }}</li>
-                  {% endfor %}
-                {% endfor %}
                 {% for error in form.non_field_errors %}
-                  <li>{{ error }}</li>
+                <li>{{ error }}</li>
                 {% endfor %}
               </ul>
               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
 
-            <!-- Student Basic Info -->
-            <h4 class="card-title">Basic Information</h4>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.admission_number.id_for_label }}">Admission Number *</label>
-                  {{ form.admission_number }}
+            <!-- Tab Navigation -->
+            <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="pills-basic-tab" data-bs-toggle="pill"
+                  data-bs-target="#pills-basic" type="button" role="tab" aria-controls="pills-basic"
+                  aria-selected="true">Basic Information</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pills-medical-tab" data-bs-toggle="pill" data-bs-target="#pills-medical"
+                  type="button" role="tab" aria-controls="pills-medical" aria-selected="false">Medical & Special
+                  Needs</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pills-residential-tab" data-bs-toggle="pill"
+                  data-bs-target="#pills-residential" type="button" role="tab" aria-controls="pills-residential"
+                  aria-selected="false">Residential Info</button>
+              </li>
+              {% if not is_edit %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pills-parents-tab" data-bs-toggle="pill" data-bs-target="#pills-parents"
+                  type="button" role="tab" aria-controls="pills-parents" aria-selected="false">Parents/Guardians</button>
+              </li>
+              {% endif %}
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="pills-tabContent">
+              <!-- Basic Information Tab -->
+              <div class="tab-pane fade show active form-section" id="pills-basic" role="tabpanel"
+                aria-labelledby="pills-basic-tab">
+                <h4 class="card-title mb-4">Basic Information</h4>
+
+                <div class="row">
+                  <div class="col-md-12 text-center mb-4">
+                    <img id="photo-preview" src="{% if form.photo.value %}{{ form.photo.value.url }}{% else %}{% static 'images/default_avatar.png' %}{% endif %}" alt="Student Photo" class="avatar-preview">
+                    <div class="form-group">
+                      <label for="{{ form.photo.id_for_label }}" class="btn btn-outline-primary btn-sm mt-2">Upload Photo</label>
+                      {{ form.photo }}
+                      {% if form.photo.errors %}
+                        <div class="text-danger small">{{ form.photo.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.admission_number.id_for_label }}">Admission Number <span
+                          class="text-danger">*</span></label>
+                      {{ form.admission_number }}
+                      {% if form.admission_number.errors %}
+                      <div class="text-danger small">{{ form.admission_number.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.date_of_admission.id_for_label }}">Date of Admission <span
+                          class="text-danger">*</span></label>
+                      {{ form.date_of_admission }}
+                      {% if form.date_of_admission.errors %}
+                      <div class="text-danger small">{{ form.date_of_admission.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.first_name.id_for_label }}">First Name <span
+                          class="text-danger">*</span></label>
+                      {{ form.first_name }}
+                      {% if form.first_name.errors %}
+                      <div class="text-danger small">{{ form.first_name.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
+                      {{ form.middle_name }}
+                      {% if form.middle_name.errors %}
+                      <div class="text-danger small">{{ form.middle_name.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.last_name.id_for_label }}">Last Name <span
+                          class="text-danger">*</span></label>
+                      {{ form.last_name }}
+                      {% if form.last_name.errors %}
+                      <div class="text-danger small">{{ form.last_name.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.date_of_birth.id_for_label }}">Date of Birth <span
+                          class="text-danger">*</span></label>
+                      {{ form.date_of_birth }}
+                      {% if form.date_of_birth.errors %}
+                      <div class="text-danger small">{{ form.date_of_birth.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.gender.id_for_label }}">Gender <span class="text-danger">*</span></label>
+                      {{ form.gender }}
+                      {% if form.gender.errors %}
+                      <div class="text-danger small">{{ form.gender.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.birth_certificate_number.id_for_label }}">Birth Certificate No. <span
+                          class="text-danger">*</span></label>
+                      {{ form.birth_certificate_number }}
+                      {% if form.birth_certificate_number.errors %}
+                      <div class="text-danger small">{{ form.birth_certificate_number.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.current_class.id_for_label }}">Current Class <span
+                          class="text-danger">*</span></label>
+                      {{ form.current_class }}
+                      {% if form.current_class.errors %}
+                      <div class="text-danger small">{{ form.current_class.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.house.id_for_label }}">House</label>
+                      {{ form.house }}
+                      {% if form.house.errors %}
+                      <div class="text-danger small">{{ form.house.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.enrollment_status.id_for_label }}">Enrollment Status <span
+                          class="text-danger">*</span></label>
+                      {{ form.enrollment_status }}
+                      {% if form.enrollment_status.errors %}
+                      <div class="text-danger small">{{ form.enrollment_status.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.nationality.id_for_label }}">Nationality</label>
+                      {{ form.nationality }}
+                      {% if form.nationality.errors %}
+                      <div class="text-danger small">{{ form.nationality.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.religion.id_for_label }}">Religion</label>
+                      {{ form.religion }}
+                      {% if form.religion.errors %}
+                      <div class="text-danger small">{{ form.religion.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-12">
+                    <div class="form-group">
+                      <label for="{{ form.nemis_upi.id_for_label }}">NEMIS UPI</label>
+                      {{ form.nemis_upi }}
+                      {% if form.nemis_upi.errors %}
+                      <div class="text-danger small">{{ form.nemis_upi.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mt-4">
+                  <div class="col-md-12 text-end">
+                    <button type="button" class="btn btn-primary next-tab" data-next-tab="pills-medical-tab">Next: Medical & Special Needs <i class="mdi mdi-arrow-right"></i></button>
+                  </div>
                 </div>
               </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.date_of_admission.id_for_label }}">Date of Admission *</label>
-                  {{ form.date_of_admission }}
+
+              <!-- Medical & Special Needs Tab -->
+              <div class="tab-pane fade form-section" id="pills-medical" role="tabpanel"
+                aria-labelledby="pills-medical-tab">
+                <h4 class="card-title mb-4">Medical & Special Needs</h4>
+                <div class="row">
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.medical_conditions.id_for_label }}">Medical Conditions</label>
+                      {{ form.medical_conditions }}
+                      {% if form.medical_conditions.errors %}
+                      <div class="text-danger small">{{ form.medical_conditions.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.allergies.id_for_label }}">Allergies</label>
+                      {{ form.allergies }}
+                      {% if form.allergies.errors %}
+                      <div class="text-danger small">{{ form.allergies.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.special_needs.id_for_label }}">Special Needs</label>
+                      {{ form.special_needs }}
+                      {% if form.special_needs.errors %}
+                      <div class="text-danger small">{{ form.special_needs.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mt-4">
+                  <div class="col-md-6">
+                    <button type="button" class="btn btn-secondary prev-tab" data-prev-tab="pills-basic-tab"><i class="mdi mdi-arrow-left"></i> Previous: Basic Information</button>
+                  </div>
+                  <div class="col-md-6 text-end">
+                    <button type="button" class="btn btn-primary next-tab" data-next-tab="pills-residential-tab">Next: Residential Information <i class="mdi mdi-arrow-right"></i></button>
+                  </div>
                 </div>
               </div>
+
+              <!-- Residential Information Tab -->
+              <div class="tab-pane fade form-section" id="pills-residential" role="tabpanel"
+                aria-labelledby="pills-residential-tab">
+                <h4 class="card-title mb-4">Residential Information</h4>
+                <div class="row">
+                  <div class="col-md-12">
+                    <div class="form-group">
+                      <label for="{{ form.residential_address.id_for_label }}">Residential Address</label>
+                      {{ form.residential_address }}
+                      {% if form.residential_address.errors %}
+                      <div class="text-danger small">{{ form.residential_address.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.home_county.id_for_label }}">Home County</label>
+                      {{ form.home_county }}
+                      {% if form.home_county.errors %}
+                      <div class="text-danger small">{{ form.home_county.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.home_sub_county.id_for_label }}">Home Sub-County</label>
+                      {{ form.home_sub_county }}
+                      {% if form.home_sub_county.errors %}
+                      <div class="text-danger small">{{ form.home_sub_county.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mt-4">
+                  <div class="col-md-6">
+                    <button type="button" class="btn btn-secondary prev-tab" data-prev-tab="pills-medical-tab"><i class="mdi mdi-arrow-left"></i> Previous: Medical & Special Needs</button>
+                  </div>
+                  {% if not is_edit %}
+                  <div class="col-md-6 text-end">
+                    <button type="button" class="btn btn-primary next-tab" data-next-tab="pills-parents-tab">Next: Parents/Guardians <i class="mdi mdi-arrow-right"></i></button>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Parents/Guardians Tab (only for creation) -->
+              {% if not is_edit %}
+              <div class="tab-pane fade form-section" id="pills-parents" role="tabpanel"
+                aria-labelledby="pills-parents-tab">
+                <h4 class="card-title mb-4">Parents/Guardians</h4>
+
+                <div id="parent-forms-container">
+                  <!-- Parent forms will be added here by JavaScript -->
+                  {% for parent_form in parent_forms %}
+                    {% include 'students/includes/parent_form_snippet.html' with parent_form=parent_form form_index=forloop.counter0 %}
+                  {% endfor %}
+                </div>
+
+                <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="add-parent-form">
+                  <i class="mdi mdi-plus"></i> Add Another Parent/Guardian
+                </button>
+
+                <div class="row mt-4">
+                  <div class="col-md-6">
+                    <button type="button" class="btn btn-secondary prev-tab" data-prev-tab="pills-residential-tab"><i class="mdi mdi-arrow-left"></i> Previous: Residential Information</button>
+                  </div>
+                  <div class="col-md-6 text-end">
+                    <button type="submit" class="btn btn-gradient-primary me-2">{{ button_text }}</button>
+                    <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
             </div>
 
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.first_name.id_for_label }}">First Name *</label>
-                  {{ form.first_name }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
-                  {{ form.middle_name }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.last_name.id_for_label }}">Last Name *</label>
-                  {{ form.last_name }}
-                </div>
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.date_of_birth.id_for_label }}">Date of Birth *</label>
-                  {{ form.date_of_birth }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.gender.id_for_label }}">Gender *</label>
-                  {{ form.gender }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.birth_certificate_number.id_for_label }}">Birth Certificate No. *</label>
-                  {{ form.birth_certificate_number }}
-                </div>
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.current_class.id_for_label }}">Current Class *</label>
-                  {{ form.current_class }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.house.id_for_label }}">House</label>
-                  {{ form.house }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.enrollment_status.id_for_label }}">Enrollment Status *</label>
-                  {{ form.enrollment_status }}
-                </div>
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.nationality.id_for_label }}">Nationality</label>
-                  {{ form.nationality }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.religion.id_for_label }}">Religion</label>
-                  {{ form.religion }}
-                </div>
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="col-md-12">
-                <div class="form-group">
-                  <label for="{{ form.nemis_upi.id_for_label }}">NEMIS UPI</label>
-                  {{ form.nemis_upi }}
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <!-- Medical & Special Needs -->
-            <h4 class="card-title">Medical & Special Needs</h4>
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.medical_conditions.id_for_label }}">Medical Conditions</label>
-                  {{ form.medical_conditions }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.allergies.id_for_label }}">Allergies</label>
-                  {{ form.allergies }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ form.special_needs.id_for_label }}">Special Needs</label>
-                  {{ form.special_needs }}
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <!-- Emergency Contact -->
-            <h4 class="card-title">Emergency Contact</h4>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.emergency_contact_name.id_for_label }}">Emergency Contact Name *</label>
-                  {{ form.emergency_contact_name }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.emergency_contact_phone.id_for_label }}">Emergency Contact Phone *</label>
-                  {{ form.emergency_contact_phone }}
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <!-- Residential Info -->
-            <h4 class="card-title">Residential Information</h4>
-            <div class="row">
-              <div class="col-md-12">
-                <div class="form-group">
-                  <label for="{{ form.residential_address.id_for_label }}">Residential Address</label>
-                  {{ form.residential_address }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.home_county.id_for_label }}">Home County</label>
-                  {{ form.home_county }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ form.home_sub_county.id_for_label }}">Home Sub-County</label>
-                  {{ form.home_sub_county }}
-                </div>
-              </div>
-            </div>
-
-            {% if not is_edit %}
-            <hr class="my-4">
-
-            <!-- Parent/Guardian 1 -->
-            <h4 class="card-title">Parent/Guardian 1</h4>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.first_name.id_for_label }}">First Name</label>
-                  {{ parent_form_1.first_name }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.last_name.id_for_label }}">Last Name</label>
-                  {{ parent_form_1.last_name }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.relationship.id_for_label }}">Relationship</label>
-                  {{ parent_form_1.relationship }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.phone_number.id_for_label }}">Phone Number</label>
-                  {{ parent_form_1.phone_number }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.email.id_for_label }}">Email</label>
-                  {{ parent_form_1.email }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.id_number.id_for_label }}">ID/Passport Number</label>
-                  {{ parent_form_1.id_number }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_1.occupation.id_for_label }}">Occupation</label>
-                  {{ parent_form_1.occupation }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-12">
-                <div class="form-check">
-                  {{ parent_form_1.is_primary }}
-                  <label class="form-check-label" for="{{ parent_form_1.is_primary.id_for_label }}">
-                    Primary Contact
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <!-- Parent/Guardian 2 -->
-            <h4 class="card-title">Parent/Guardian 2 (Optional)</h4>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.first_name.id_for_label }}">First Name</label>
-                  {{ parent_form_2.first_name }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.last_name.id_for_label }}">Last Name</label>
-                  {{ parent_form_2.last_name }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.relationship.id_for_label }}">Relationship</label>
-                  {{ parent_form_2.relationship }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.phone_number.id_for_label }}">Phone Number</label>
-                  {{ parent_form_2.phone_number }}
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.email.id_for_label }}">Email</label>
-                  {{ parent_form_2.email }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.id_number.id_for_label }}">ID/Passport Number</label>
-                  {{ parent_form_2.id_number }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label for="{{ parent_form_2.occupation.id_for_label }}">Occupation</label>
-                  {{ parent_form_2.occupation }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-12">
-                <div class="form-check">
-                  {{ parent_form_2.is_primary }}
-                  <label class="form-check-label" for="{{ parent_form_2.is_primary.id_for_label }}">
-                    Primary Contact
-                  </label>
-                </div>
-              </div>
-            </div>
-            {% endif %}
-
-            <hr class="my-4">
-
-            <!-- Submit Buttons -->
-            <div class="row">
-              <div class="col-md-12">
+            {% if is_edit %}
+            <div class="row mt-4">
+              <div class="col-md-12 text-end">
                 <button type="submit" class="btn btn-gradient-primary me-2">{{ button_text }}</button>
                 <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
               </div>
             </div>
+            {% endif %}
 
           </form>
         </div>
@@ -353,4 +440,169 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Initialize Bootstrap tabs
+    var triggerTabList = [].slice.call(document.querySelectorAll('#pills-tab button'))
+    triggerTabList.forEach(function (triggerEl) {
+      var tabTrigger = new bootstrap.Tab(triggerEl)
+
+      triggerEl.addEventListener('click', function (event) {
+        event.preventDefault()
+        tabTrigger.show()
+      })
+    })
+
+    // Handle next/previous tab buttons
+    document.querySelectorAll('.next-tab').forEach(button => {
+      button.addEventListener('click', function() {
+        const nextTabId = this.dataset.nextTab;
+        const nextTab = document.getElementById(nextTabId);
+        if (nextTab) {
+          bootstrap.Tab.getInstance(nextTab).show();
+          nextTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    document.querySelectorAll('.prev-tab').forEach(button => {
+      button.addEventListener('click', function() {
+        const prevTabId = this.dataset.prevTab;
+        const prevTab = document.getElementById(prevTabId);
+        if (prevTab) {
+          bootstrap.Tab.getInstance(prevTab).show();
+          prevTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // Photo preview
+    const photoInput = document.getElementById('{{ form.photo.id_for_label }}');
+    const photoPreview = document.getElementById('photo-preview');
+    if (photoInput && photoPreview) {
+      photoInput.addEventListener('change', function(event) {
+        if (event.target.files && event.target.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            photoPreview.src = e.target.result;
+          };
+          reader.readAsDataURL(event.target.files[0]);
+        }
+      });
+    }
+
+    // Dynamic Parent Forms (only for creation)
+    const addParentFormBtn = document.getElementById('add-parent-form');
+    const parentFormsContainer = document.getElementById('parent-forms-container');
+    let parentFormCount = {{ parent_forms|length|default:0 }}; // Start with existing forms
+
+    if (addParentFormBtn) {
+      addParentFormBtn.addEventListener('click', function() {
+        parentFormCount++;
+        const newFormHtml = `
+          <div class="parent-form-card" id="parent-form-${parentFormCount}">
+            <h5 class="card-title">
+              Parent/Guardian ${parentFormCount + 1}
+              <button type="button" class="btn-close remove-parent-form" aria-label="Close" data-form-index="${parentFormCount}"></button>
+            </h5>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>First Name</label>
+                  <input type="text" name="parent-${parentFormCount}-first_name" class="form-control">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Last Name</label>
+                  <input type="text" name="parent-${parentFormCount}-last_name" class="form-control">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label>Relationship</label>
+                  <select name="parent-${parentFormCount}-relationship" class="form-control">
+                    <option value="">---------</option>
+                    <option value="FATHER">Father</option>
+                    <option value="MOTHER">Mother</option>
+                    <option value="GUARDIAN">Guardian</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label>Phone Number</label>
+                  <input type="text" name="parent-${parentFormCount}-phone_number" class="form-control">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" name="parent-${parentFormCount}-email" class="form-control">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>ID/Passport Number</label>
+                  <input type="text" name="parent-${parentFormCount}-id_number" class="form-control">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>Occupation</label>
+                  <input type="text" name="parent-${parentFormCount}-occupation" class="form-control">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-12">
+                <div class="form-check">
+                  <input type="checkbox" name="parent-${parentFormCount}-is_primary" class="form-check-input" id="id_parent-${parentFormCount}-is_primary">
+                  <label class="form-check-label" for="id_parent-${parentFormCount}-is_primary">
+                    Primary Contact
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        parentFormsContainer.insertAdjacentHTML('beforeend', newFormHtml);
+        addRemoveParentFormListeners();
+      });
+    }
+
+    function addRemoveParentFormListeners() {
+      document.querySelectorAll('.remove-parent-form').forEach(button => {
+        button.onclick = function() {
+          const formIndex = this.dataset.formIndex;
+          document.getElementById(`parent-form-${formIndex}`).remove();
+          // Re-index remaining forms if necessary (optional, but good for clean data)
+          // This would involve iterating through remaining forms and updating their names/ids
+        };
+      });
+    }
+    addRemoveParentFormListeners(); // Attach listeners to initial forms
+
+    // Apply Bootstrap classes to form fields
+    document.querySelectorAll('#student-form .form-group input, #student-form .form-group select, #student-form .form-group textarea').forEach(function(element) {
+      if (!element.classList.contains('form-check-input')) { // Exclude checkboxes
+        element.classList.add('form-control');
+      }
+    });
+
+    // Initialize date pickers (assuming you have a date picker library like jQuery UI or Bootstrap Datepicker)
+    // If using a specific library, you'll need to include its JS/CSS and initialize it here.
+    // Example for a generic date input:
+    document.querySelectorAll('input[type="date"]').forEach(function(element) {
+      // You might want to use a library for a better date picker UI
+      // For now, just ensuring it's a date input
+    });
+  });
+</script>
 {% endblock %}
