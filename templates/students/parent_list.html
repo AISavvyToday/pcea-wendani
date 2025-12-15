@@ -1,175 +1,197 @@
-<!-- students/templates/students/parent_list.html -->
 {% extends 'base/base.html' %}
 {% load static %}
 
-{% block title %}Parents/Guardians - PCEA Wendani{% endblock %}
+{% block title %}Parents & Guardians{% endblock %}
 
 {% block content %}
 <div class="content-wrapper">
-  <div class="page-header">
-    <h3 class="page-title">
-      <span class="page-title-icon bg-gradient-primary text-white me-2">
-        <i class="mdi mdi-account-multiple"></i>
-      </span>
-      Parents/Guardians Management
-    </h3>
-    <nav aria-label="breadcrumb">
-      <ul class="breadcrumb">
-        <li class="breadcrumb-item active" aria-current="page">
-          <span></span>Overview <i class="mdi mdi-alert-circle-outline icon-sm text-primary align-middle"></i>
-        </li>
-      </ul>
-    </nav>
+
+  <!-- ================= PAGE HEADER ================= -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="fw-bold mb-0">
+        <i class="mdi mdi-account-multiple text-primary me-2"></i>
+        Parents / Guardians
+      </h4>
+      <small class="text-muted">Manage parent and guardian records</small>
+    </div>
+
+    {% if is_admin %}
+    <a href="{% url 'students:parent_create' %}" class="btn btn-gradient-success">
+      <i class="mdi mdi-plus"></i> Add Parent
+    </a>
+    {% endif %}
   </div>
 
+  <!-- ================= SEARCH & FILTER ================= -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get">
+        <div class="row g-3 align-items-end">
 
+          <div class="col-md-5">
+            <label class="form-label">Search</label>
+            <input
+              type="text"
+              class="form-control"
+              name="query"
+              placeholder="Name, phone, ID, email..."
+              value="{{ query }}"
+            >
+          </div>
 
-  <!-- Search and Filter -->
-  <div class="row">
-    <div class="col-12 grid-margin">
-      <div class="card">
-        <div class="card-body">
-          <form method="get" class="forms-sample">
-            <div class="row">
-              <div class="col-md-5">
-                <div class="form-group">
-                  <input type="text" class="form-control" name="query" placeholder="Search by name, phone, ID, email..." value="{{ query }}">
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="form-group">
-                  <select class="form-control" name="relationship">
-                    <option value="">All Relationships</option>
-                    {% for value, label in relationship_choices %}
-                      <option value="{{ value }}" {% if relationship_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <button type="submit" class="btn btn-gradient-primary me-2">
-                  <i class="mdi mdi-magnify"></i> Search
-                </button>
-                <a href="{% url 'students:parent_list' %}" class="btn btn-light">
-                  <i class="mdi mdi-refresh"></i> Clear
+          <div class="col-md-3">
+            <label class="form-label">Relationship</label>
+            <select class="form-control" name="relationship">
+              <option value="">All Relationships</option>
+              {% for value, label in relationship_choices %}
+                <option value="{{ value }}" {% if relationship_filter == value %}selected{% endif %}>
+                  {{ label }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-gradient-primary w-100">
+              <i class="mdi mdi-magnify"></i> Search
+            </button>
+            <a href="{% url 'students:parent_list' %}" class="btn btn-light w-100">
+              <i class="mdi mdi-refresh"></i> Reset
+            </a>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= PARENTS TABLE ================= -->
+  <div class="card">
+    <div class="card-body">
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-semibold mb-0">Parents / Guardians List</h5>
+        <span class="badge bg-light text-dark">
+          Total: {{ parents.paginator.count|default:parents|length }}
+        </span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Relationship</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>ID No.</th>
+              <th>Children</th>
+              <th>Portal</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            {% for parent in parents %}
+            <tr>
+              <td>
+                <a href="{% url 'students:parent_detail' parent.pk %}" class="fw-semibold text-primary">
+                  {{ parent.full_name }}
                 </a>
+              </td>
+
+              <td>
+                <span class="badge bg-info">
+                  {{ parent.get_relationship_display }}
+                </span>
+              </td>
+
+              <td>{{ parent.phone_primary }}</td>
+              <td>{{ parent.email|default:"—" }}</td>
+              <td>{{ parent.id_number|default:"—" }}</td>
+
+              <td>
+                <span class="badge bg-success">
+                  {{ parent.children.count }}
+                </span>
+              </td>
+
+              <td>
+                {% if parent.user %}
+                  <span class="badge bg-success">
+                    <i class="mdi mdi-check"></i> Enabled
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary">
+                    <i class="mdi mdi-close"></i> Disabled
+                  </span>
+                {% endif %}
+              </td>
+
+              <td class="text-end">
+                <a href="{% url 'students:parent_detail' parent.pk %}"
+                   class="btn btn-sm btn-outline-primary">
+                  <i class="mdi mdi-eye"></i>
+                </a>
+
                 {% if is_admin %}
-                <a href="{% url 'students:parent_create' %}" class="btn btn-gradient-success float-end">
-                  <i class="mdi mdi-plus"></i> Add Parent
+                <a href="{% url 'students:parent_update' parent.pk %}"
+                   class="btn btn-sm btn-outline-warning">
+                  <i class="mdi mdi-pencil"></i>
                 </a>
                 {% endif %}
-              </div>
-            </div>
-          </form>
-        </div>
+              </td>
+            </tr>
+
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-5 text-muted">
+                <i class="mdi mdi-account-off mdi-48px mb-2"></i>
+                <p class="mb-0">No parents or guardians found</p>
+              </td>
+            </tr>
+            {% endfor %}
+
+          </tbody>
+        </table>
       </div>
-    </div>
-  </div>
 
-  <!-- Parents Table -->
-  <div class="row">
-    <div class="col-12 grid-margin">
-      <div class="card">
-        <div class="card-body">
-          <h4 class="card-title">Parents/Guardians List</h4>
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Relationship</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>ID Number</th>
-                  <th>Children</th>
-                  <th>Portal Access</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for parent in parents %}
-                <tr>
-                  <td>
-                    <a href="{% url 'students:parent_detail' parent.pk %}" class="text-primary">
-                      <strong>{{ parent.full_name }}</strong>
-                    </a>
-                  </td>
-                  <td>
-                    <label class="badge badge-info">{{ parent.get_relationship_display }}</label>
-                  </td>
-                  <td>{{ parent.phone_primary }}</td>
-                  <td>{{ parent.email|default:"N/A" }}</td>
-                  <td>{{ parent.id_number|default:"N/A" }}</td>
-                  <td>
-                    <span class="badge badge-success">{{ parent.children.count }}</span>
-                  </td>
-                  <td>
-                    {% if parent.user %}
-                      <label class="badge badge-success">
-                        <i class="mdi mdi-check"></i> Yes
-                      </label>
-                    {% else %}
-                      <label class="badge badge-secondary">
-                        <i class="mdi mdi-close"></i> No
-                      </label>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <a href="{% url 'students:parent_detail' parent.pk %}" class="btn btn-sm btn-gradient-info btn-icon-text">
-                      <i class="mdi mdi-eye"></i> View
-                    </a>
-                    {% if is_admin %}
-                    <a href="{% url 'students:parent_update' parent.pk %}" class="btn btn-sm btn-gradient-warning btn-icon-text">
-                      <i class="mdi mdi-pencil"></i> Edit
-                    </a>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="8" class="text-center text-muted py-4">
-                    <i class="mdi mdi-account-off mdi-48px"></i>
-                    <p class="mt-2">No parents/guardians found.</p>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+      <!-- ================= PAGINATION ================= -->
+      {% if is_paginated %}
+      <nav class="mt-4">
+        <ul class="pagination justify-content-center">
 
-          <!-- Pagination -->
-          {% if is_paginated %}
-          <div class="mt-4">
-            <nav aria-label="Page navigation">
-              <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                <li class="page-item">
-                  <a class="page-link" href="?page=1{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">First</a>
-                </li>
-                <li class="page-item">
-                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">Previous</a>
-                </li>
-                {% endif %}
-
-                <li class="page-item active">
-                  <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-                </li>
-
-                {% if page_obj.has_next %}
-                <li class="page-item">
-                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">Next</a>
-                </li>
-                <li class="page-item">
-                  <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">Last</a>
-                </li>
-                {% endif %}
-              </ul>
-            </nav>
-          </div>
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link"
+               href="?page={{ page_obj.previous_page_number }}{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">
+              Previous
+            </a>
+          </li>
           {% endif %}
-        </div>
-      </div>
+
+          <li class="page-item active">
+            <span class="page-link">
+              Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+          </li>
+
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link"
+               href="?page={{ page_obj.next_page_number }}{% if query %}&query={{ query }}{% endif %}{% if relationship_filter %}&relationship={{ relationship_filter }}{% endif %}">
+              Next
+            </a>
+          </li>
+          {% endif %}
+
+        </ul>
+      </nav>
+      {% endif %}
+
     </div>
   </div>
+
 </div>
 {% endblock %}
