@@ -1,225 +1,301 @@
+{# templates/students/student_detail.html #}
 {% extends 'base/base.html' %}
 {% load static %}
 
-{% block title %}{{ student.get_full_name }} - PCEA Wendani{% endblock %}
+{% block title %}{% if student.get_full_name %}{{ student.get_full_name }}{% else %}{{ student.full_name }}{% endif %} - PCEA Wendani{% endblock %}
 
 {% block content %}
+<style>
+  /* Local styles for student detail page (move to global CSS in production) */
+  .profile-avatar {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 3px solid #f1f5f9;
+  }
+  .detail-label {
+    color: #6c757d;
+    font-weight: 600;
+    font-size: .92rem;
+  }
+  .detail-value {
+    font-size: .95rem;
+  }
+  .card-section-title {
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin-bottom: .6rem;
+  }
+  .tab-btn {
+    min-width: 140px;
+  }
+  .meta-pill {
+    font-size: .85rem;
+    padding: .25rem .5rem;
+    border-radius: .5rem;
+  }
+  @media (max-width: 575.98px) {
+    .profile-avatar { width: 90px; height: 90px; }
+    .tab-btn { min-width: 100px; font-size: .85rem; }
+  }
+</style>
+
 <div class="content-wrapper">
-  <div class="page-header">
-    <h3 class="page-title">Student Profile: {{ student.get_full_name }}</h3>
-    <nav aria-label="breadcrumb">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{% url 'students:list' %}">Students</a></li>
-        <li class="breadcrumb-item active" aria-current="page">{{ student.admission_number }}</li>
-      </ol>
-    </nav>
+  <div class="page-header d-flex flex-column flex-md-row align-items-start justify-content-between gap-3 mb-3">
+    <div>
+      <h3 class="page-title mb-1">
+        Student Profile:
+        <small class="text-muted">
+          {% if student.get_full_name %}{{ student.get_full_name }}{% else %}{{ student.full_name }}{% endif %}
+        </small>
+      </h3>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'students:list' %}">Students</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ student.admission_number }}</li>
+        </ol>
+      </nav>
+    </div>
+
+    <div class="d-flex gap-2">
+      <a href="{% url 'students:list' %}" class="btn btn-outline-secondary">
+        <i class="mdi mdi-arrow-left"></i> Back to list
+      </a>
+
+      {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
+      <a href="{% url 'students:update' student.pk %}" class="btn btn-gradient-warning">
+        <i class="mdi mdi-pencil"></i> Edit
+      </a>
+
+      <a href="{% url 'students:delete' student.pk %}" class="btn btn-danger">
+        <i class="mdi mdi-delete"></i> Delete
+      </a>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
+  <div class="row g-3">
+    <!-- Left: Profile card -->
+    <div class="col-lg-4">
+      <div class="card h-100">
         <div class="card-body">
-          <!-- Student Header -->
-          <div class="row mb-4">
-            <div class="col-md-8">
-              <h4 class="mb-2">{{ student.get_full_name }}</h4>
-              <p class="text-muted mb-1">Admission No: <strong>{{ student.admission_number }}</strong></p>
-              <p class="text-muted mb-1">Class: <strong>{{ student.current_class|default:"Not Assigned" }}</strong></p>
-              <p class="text-muted mb-1">Status: 
-                {% if student.enrollment_status == 'ACTIVE' %}
-                  <label class="badge badge-success">Active</label>
+          <div class="d-flex align-items-center gap-3">
+            {% if student.photo %}
+              <img src="{{ student.photo.url }}" alt="Photo of {{ student.full_name }}" class="profile-avatar">
+            {% else %}
+              <div class="profile-avatar d-flex align-items-center justify-content-center bg-secondary text-white fw-bold">
+                {% if student.first_name and student.last_name %}
+                  {{ student.first_name|slice:":1" }}{{ student.last_name|slice:":1" }}
                 {% else %}
-                  <label class="badge badge-warning">{{ student.get_enrollment_status_display }}</label>
+                  {{ student.admission_number|slice:":2" }}
                 {% endif %}
-              </p>
+              </div>
+            {% endif %}
+
+            <div>
+              <h4 class="mb-1">
+                {% if student.get_full_name %}{{ student.get_full_name }}{% else %}{{ student.full_name }}{% endif %}
+              </h4>
+              <div class="text-muted small">Admission No: <strong>{{ student.admission_number }}</strong></div>
+
+              <div class="mt-2 d-flex gap-2 flex-wrap">
+                <div class="meta-pill bg-light text-dark">
+                  {% if student.current_class %}{{ student.current_class }}{% else %}No class{% endif %}
+                </div>
+                <div class="meta-pill bg-light text-dark">
+                  {% if student.is_boarder %}Boarder{% else %}Day{% endif %}
+                </div>
+                <div class="meta-pill bg-light text-dark">
+                  {{ student.get_status_display }}
+                </div>
+              </div>
             </div>
-            <div class="col-md-4 text-end">
-              {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
-              <a href="{% url 'students:update' student.pk %}" class="btn btn-gradient-warning btn-icon-text">
-                <i class="mdi mdi-pencil"></i> Edit Student
-              </a>
-                <a href="{% url 'students:delete' student.pk %}" class="btn btn-danger">
-    <i class="mdi mdi-delete"></i> Delete Student
-</a>
+          </div>
+
+          <hr>
+
+          <div class="mb-2">
+            <div class="detail-label">Age</div>
+            <div class="detail-value">{{ student.age }}</div>
+          </div>
+
+          <div class="mb-2">
+            <div class="detail-label">Gender</div>
+            <div class="detail-value">{{ student.get_gender_display }}</div>
+          </div>
+
+          <div class="mb-2">
+            <div class="detail-label">Date of Birth</div>
+            <div class="detail-value">{{ student.date_of_birth|date:"d M Y" }}</div>
+          </div>
+
+          <div class="mb-2">
+            <div class="detail-label">Admission Date</div>
+            <div class="detail-value">{{ student.admission_date|date:"d M Y" }}</div>
+          </div>
+
+          <div class="d-grid gap-2 mt-3">
+            <a href="#" class="btn btn-outline-primary btn-sm" id="btnPrintProfile">
+              <i class="mdi mdi-printer"></i> Print Profile
+            </a>
+            <a href="#" class="btn btn-outline-secondary btn-sm" id="btnDownloadPdf">
+              <i class="mdi mdi-file-pdf"></i> Download PDF
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick contact card -->
+      <div class="card mt-3">
+        <div class="card-body">
+          <h6 class="card-section-title">Contacts</h6>
+
+          <div class="mb-2">
+            <div class="detail-label">Emergency Contact</div>
+            <div class="detail-value">{{ student.emergency_contact_name|default:"N/A" }}</div>
+          </div>
+
+          <div class="mb-2">
+            <div class="detail-label">Emergency Phone</div>
+            <div class="detail-value">{{ student.emergency_contact_phone|default:"N/A" }}</div>
+          </div>
+
+          <div class="mb-2">
+            <div class="detail-label">Transport</div>
+            <div class="detail-value">
+              {% if student.uses_school_transport and student.transport_route %}
+                {{ student.transport_route }}
+              {% elif student.uses_school_transport %}
+                Yes (route not set)
+              {% else %}
+                No
               {% endif %}
             </div>
           </div>
 
-          <!-- Tabs -->
-          <ul class="nav nav-tabs" role="tablist">
-            <li class="nav-item">
-              <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="?tab=overview" role="tab">
-                <i class="mdi mdi-account"></i> Overview
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if active_tab == 'academics' %}active{% endif %}" href="?tab=academics" role="tab">
-                <i class="mdi mdi-book-open"></i> Academics
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if active_tab == 'finance' %}active{% endif %}" href="?tab=finance" role="tab">
-                <i class="mdi mdi-cash"></i> Finance
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if active_tab == 'communications' %}active{% endif %}" href="?tab=communications" role="tab">
-                <i class="mdi mdi-email"></i> Communications
-              </a>
-            </li>
-          </ul>
+          <div class="mb-2">
+            <div class="detail-label">Dormitory</div>
+            <div class="detail-value">
+              {% if student.is_boarder %}
+                {{ student.dormitory|default:"Assigned (details not provided)" }}
+              {% else %}
+                N/A
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-          <div class="tab-content mt-4">
-            
-            <!-- Overview Tab -->
-            {% if active_tab == 'overview' %}
-            <div class="tab-pane fade show active">
+    <!-- Right: Tabs + content -->
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-body">
+          <!-- Tabs (client-side) -->
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-outline-primary tab-btn" data-tab="overview" aria-controls="tab-overview">
+              <i class="mdi mdi-account"></i> Overview
+            </button>
+            <button type="button" class="btn btn-outline-primary tab-btn" data-tab="academics" aria-controls="tab-academics">
+              <i class="mdi mdi-book-open"></i> Academics
+            </button>
+            <button type="button" class="btn btn-outline-primary tab-btn" data-tab="finance" aria-controls="tab-finance">
+              <i class="mdi mdi-cash"></i> Finance
+            </button>
+            <button type="button" class="btn btn-outline-primary tab-btn" data-tab="communications" aria-controls="tab-communications">
+              <i class="mdi mdi-email"></i> Communications
+            </button>
+          </div>
+
+          <div id="tab-content-wrapper" class="mt-2">
+            <!-- Overview -->
+            <section id="tab-overview" class="tab-pane">
               <div class="row">
                 <div class="col-md-6">
-                  <h5 class="mb-3">Personal Information</h5>
-                  <table class="table table-borderless">
-                    <tr>
-                      <td class="text-muted">Full Name:</td>
-                      <td><strong>{{ student.get_full_name }}</strong></td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Date of Birth:</td>
-                      <td>{{ student.date_of_birth|date:"d M Y" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Gender:</td>
-                      <td>{{ student.get_gender_display }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Birth Certificate:</td>
-                      <td>{{ student.birth_certificate_number|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">NEMIS UPI:</td>
-                      <td>{{ student.nemis_upi|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Nationality:</td>
-                      <td>{{ student.nationality|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Religion:</td>
-                      <td>{{ student.religion|default:"N/A" }}</td>
-                    </tr>
-                  </table>
+                  <h6 class="card-section-title">Personal Information</h6>
+                  <dl class="row">
+                    <dt class="col-5 detail-label">Full name</dt>
+                    <dd class="col-7 detail-value">{% if student.get_full_name %}{{ student.get_full_name }}{% else %}{{ student.full_name }}{% endif %}</dd>
 
-                  <h5 class="mb-3 mt-4">Medical Information</h5>
-                  <table class="table table-borderless">
-                    <tr>
-                      <td class="text-muted">Medical Conditions:</td>
-                      <td>{{ student.medical_conditions|default:"None" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Allergies:</td>
-                      <td>{{ student.allergies|default:"None" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Special Needs:</td>
-                      <td>{{ student.special_needs|default:"None" }}</td>
-                    </tr>
-                  </table>
+                    <dt class="col-5 detail-label">Birth certificate</dt>
+                    <dd class="col-7 detail-value">{{ student.birth_certificate_number|default:"N/A" }}</dd>
+
+                    <dt class="col-5 detail-label">Previous school</dt>
+                    <dd class="col-7 detail-value">{{ student.previous_school|default:"N/A" }}</dd>
+
+                    <dt class="col-5 detail-label">Previous class</dt>
+                    <dd class="col-7 detail-value">{{ student.previous_class|default:"N/A" }}</dd>
+
+                    <dt class="col-5 detail-label">Medical conditions</dt>
+                    <dd class="col-7 detail-value">{{ student.medical_conditions|default:"None" }}</dd>
+
+                    <dt class="col-5 detail-label">Special needs</dt>
+                    <dd class="col-7 detail-value">{% if student.has_special_needs %}{{ student.special_needs_details|default:"Details not provided" }}{% else %}None{% endif %}</dd>
+                  </dl>
                 </div>
 
                 <div class="col-md-6">
-                  <h5 class="mb-3">Academic Information</h5>
-                  <table class="table table-borderless">
-                    <tr>
-                      <td class="text-muted">Admission Number:</td>
-                      <td><strong>{{ student.admission_number }}</strong></td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Date of Admission:</td>
-                      <td>{{ student.date_of_admission|date:"d M Y" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Current Class:</td>
-                      <td>{{ student.current_class|default:"Not Assigned" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">House:</td>
-                      <td>{{ student.get_house_display|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Enrollment Status:</td>
-                      <td>{{ student.get_enrollment_status_display }}</td>
-                    </tr>
-                  </table>
+                  <h6 class="card-section-title">Academic & Enrollment</h6>
+                  <dl class="row">
+                    <dt class="col-5 detail-label">Admission No</dt>
+                    <dd class="col-7 detail-value">{{ student.admission_number }}</dd>
 
-                  <h5 class="mb-3 mt-4">Contact Information</h5>
-                  <table class="table table-borderless">
-                    <tr>
-                      <td class="text-muted">Emergency Contact:</td>
-                      <td>{{ student.emergency_contact_name|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Emergency Phone:</td>
-                      <td>{{ student.emergency_contact_phone|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Residential Address:</td>
-                      <td>{{ student.residential_address|default:"N/A" }}</td>
-                    </tr>
-                    <tr>
-                      <td class="text-muted">Home County:</td>
-                      <td>{{ student.home_county|default:"N/A" }}</td>
-                    </tr>
-                  </table>
+                    <dt class="col-5 detail-label">Admission date</dt>
+                    <dd class="col-7 detail-value">{{ student.admission_date|date:"d M Y" }}</dd>
+
+                    <dt class="col-5 detail-label">Current class</dt>
+                    <dd class="col-7 detail-value">{{ student.current_class|default:"Not assigned" }}</dd>
+
+                    <dt class="col-5 detail-label">Status</dt>
+                    <dd class="col-7 detail-value">{{ student.get_status_display }}</dd>
+
+                    <dt class="col-5 detail-label">Transport</dt>
+                    <dd class="col-7 detail-value">{% if student.uses_school_transport %}Yes{% else %}No{% endif %}</dd>
+                  </dl>
                 </div>
               </div>
 
-              <hr class="my-4">
+              <hr>
 
-              <!-- Parents/Guardians -->
-              <h5 class="mb-3">Parents/Guardians</h5>
+              <h6 class="card-section-title">Parents / Guardians</h6>
               <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead>
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
                     <tr>
                       <th>Name</th>
                       <th>Relationship</th>
                       <th>Phone</th>
                       <th>Email</th>
-                      <th>ID Number</th>
-                      <th>Primary Contact</th>
+                      <th>Primary</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for sp in student_parents %}
                     <tr>
-                      <td>{{ sp.parent.get_full_name }}</td>
-                      <td>{{ sp.parent.get_relationship_display }}</td>
-                      <td>{{ sp.parent.phone_number }}</td>
+                      <td>{{ sp.parent.full_name }}</td>
+                      <td>{{ sp.relationship|capfirst }}</td>
+                      <td>{{ sp.parent.phone_primary|default:sp.parent.phone_secondary|default:"N/A" }}</td>
                       <td>{{ sp.parent.email|default:"N/A" }}</td>
-                      <td>{{ sp.parent.id_number|default:"N/A" }}</td>
                       <td>
-                        {% if sp.is_primary_contact %}
-                          <label class="badge badge-success">Yes</label>
-                        {% else %}
-                          <label class="badge badge-secondary">No</label>
-                        {% endif %}
+                        {% if sp.is_primary %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}
                       </td>
                     </tr>
                     {% empty %}
                     <tr>
-                      <td colspan="6" class="text-center text-muted">No parents/guardians linked.</td>
+                      <td colspan="5" class="text-center text-muted">No parents/guardians linked.</td>
                     </tr>
                     {% endfor %}
                   </tbody>
                 </table>
               </div>
 
-              <hr class="my-4">
+              <hr>
 
-              <!-- Enrollment History -->
-              <h5 class="mb-3">Enrollment History</h5>
+              <h6 class="card-section-title">Enrollment History</h6>
               <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead>
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
                     <tr>
                       <th>Academic Year</th>
                       <th>Term</th>
@@ -233,54 +309,128 @@
                       <td>{{ enrollment.academic_year }}</td>
                       <td>{{ enrollment.term }}</td>
                       <td>{{ enrollment.class_enrolled }}</td>
-                      <td>
-                        {% if enrollment.is_current %}
-                          <label class="badge badge-success">Current</label>
-                        {% endif %}
-                      </td>
+                      <td>{% if enrollment.is_current %}<span class="badge bg-success">Current</span>{% endif %}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                      <td colspan="4" class="text-center text-muted">No enrollment history.</td>
+                      <td colspan="4" class="text-center text-muted">No enrollment history recorded.</td>
                     </tr>
                     {% endfor %}
                   </tbody>
                 </table>
               </div>
-            </div>
-            {% endif %}
+            </section>
 
-            <!-- Academics Tab -->
-            {% if active_tab == 'academics' %}
-            <div class="tab-pane fade show active">
-              <div class="alert alert-info">
-                <i class="mdi mdi-information"></i> Academic records (attendance, marks, reports) will be displayed here once the Academics module is implemented.
+            <!-- Academics -->
+            <section id="tab-academics" class="tab-pane visually-hidden">
+              <div class="alert alert-info mb-0">
+                <i class="mdi mdi-information-outline"></i>
+                Academic records (attendance, marks, reports) will appear here when the Academics module is enabled.
               </div>
-            </div>
-            {% endif %}
+            </section>
 
-            <!-- Finance Tab -->
-            {% if active_tab == 'finance' %}
-            <div class="tab-pane fade show active">
-              <div class="alert alert-info">
-                <i class="mdi mdi-information"></i> Finance records (invoices, payments, balances) will be displayed here once the Finance module is fully integrated.
+            <!-- Finance -->
+            <section id="tab-finance" class="tab-pane visually-hidden">
+              <div class="alert alert-info mb-0">
+                <i class="mdi mdi-information-outline"></i>
+                Finance records (invoices, payments, balances) will appear here once the Finance module is integrated.
               </div>
-            </div>
-            {% endif %}
+            </section>
 
-            <!-- Communications Tab -->
-            {% if active_tab == 'communications' %}
-            <div class="tab-pane fade show active">
-              <div class="alert alert-info">
-                <i class="mdi mdi-information"></i> Communication history (SMS, emails, notifications) will be displayed here once the Communications module is implemented.
+            <!-- Communications -->
+            <section id="tab-communications" class="tab-pane visually-hidden">
+              <div class="alert alert-info mb-0">
+                <i class="mdi mdi-information-outline"></i>
+                Communication history (SMS, emails) will appear here when the Communications module is available.
               </div>
-            </div>
-            {% endif %}
-
+            </section>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    // Tab system (client-side): show panes without reloading
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+
+    // Helper: set active tab visual
+    function setActiveTab(tabName, pushState = true) {
+      // Buttons
+      tabButtons.forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+          btn.classList.remove('btn-outline-primary');
+          btn.classList.add('btn-primary');
+          btn.setAttribute('aria-selected', 'true');
+        } else {
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-outline-primary');
+          btn.setAttribute('aria-selected', 'false');
+        }
+      });
+
+      // Panes
+      panes.forEach(p => {
+        if (p.id === 'tab-' + tabName) {
+          p.classList.remove('visually-hidden');
+          p.classList.add('show', 'active');
+        } else {
+          p.classList.add('visually-hidden');
+          p.classList.remove('show', 'active');
+        }
+      });
+
+      // Update URL query param 'tab' without reloading
+      if (pushState && window.history && window.history.replaceState) {
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        window.history.replaceState({}, '', url);
+      }
+    }
+
+    // Read initial tab from URL or server-rendered context
+    const urlParams = new URLSearchParams(window.location.search);
+    let initialTab = urlParams.get('tab') || '{{ active_tab|default:"overview" }}';
+    // sanitize
+    const valid = ['overview', 'academics', 'finance', 'communications'];
+    if (!valid.includes(initialTab)) initialTab = 'overview';
+    setActiveTab(initialTab, false);
+
+    // Attach handlers
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', function () {
+        setActiveTab(this.dataset.tab);
+        // scroll into view smoothly
+        document.getElementById('tab-content-wrapper').scrollIntoView({behavior: 'smooth', block: 'start'});
+      });
+    });
+
+    // Print profile action (simple)
+    const btnPrint = document.getElementById('btnPrintProfile');
+    if (btnPrint) {
+      btnPrint.addEventListener('click', function (e) {
+        e.preventDefault();
+        // open a simple print dialog for the profile card + content
+        window.print();
+      });
+    }
+
+    // Download PDF placeholder (server endpoint recommended)
+    const btnPdf = document.getElementById('btnDownloadPdf');
+    if (btnPdf) {
+      btnPdf.addEventListener('click', function (e) {
+        e.preventDefault();
+        // If you have a server route that generates PDF, redirect there.
+        // Example: window.location.href = '{% url "students:detail_pdf" student.pk %}';
+        alert('Download PDF functionality not configured. Add a server-side PDF endpoint (recommended).');
+      });
+    }
+  })();
+</script>
 {% endblock %}
