@@ -21,26 +21,7 @@
         </div>
     </div>
 
-    <!-- Summary -->
-    <div class="row mb-3 gx-2">
-        <div class="col-sm-6">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted">Total collected (shown)</small>
-                    <div class="h5 mb-0">KES {{ total_amount|default:0|floatformat:2|intcomma }}</div>
-                    <small class="text-muted d-block mt-1">{{ payment_count|default:0 }} payments</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted">Filter note</small>
-                    <div class="small text-muted">Use date range, method or search to narrow results.</div>
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Filters -->
     <div class="card mb-4">
@@ -52,25 +33,7 @@
                            value="{{ request.GET.query|default:'' }}">
                 </div>
 
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Method</label>
-                    <select name="method" class="form-control">
-                        <option value="">All Methods</option>
-                        {% for code,label in payment_methods %}
-                            <option value="{{ code }}" {% if request.GET.method == code %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
 
-                <div class="col-md-2">
-                    <label class="form-label small mb-1">Status</label>
-                    <select name="status" class="form-control">
-                        <option value="">All Statuses</option>
-                        {% for code,label in statuses %}
-                            <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
 
                 <div class="col-md-2">
                     <label class="form-label small mb-1">From</label>
@@ -84,8 +47,6 @@
 
                 <div class="col-12 d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary">Reset</a>
-
                     <div class="ms-auto text-muted small align-self-center">
                         Showing {{ payments|length }} of
                         {% if is_paginated %}
