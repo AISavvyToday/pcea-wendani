@@ -1,89 +1,225 @@
-<!-- templates/finance/invoice_generate.html -->
 {% extends 'base/base.html' %}
-{% block title %}Generate Invoices{% endblock %}
+{% load static humanize %}
+
+{% block title %}
+  {% if title %}{{ title }}{% else %}Generate Invoices{% endif %}
+{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Generate Invoices for Term</h3>
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">{% if title %}{{ title }}{% else %}Generate Invoices{% endif %}</h3>
+      <small class="text-muted d-block">Generate invoices in bulk for a selected term and grade levels.</small>
+    </div>
+
+    <div>
+      <a href="{% url 'finance:invoice_list' %}" class="btn btn-outline-secondary btn-sm">&larr; Back to invoices</a>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="post" id="invoice-generate-form" novalidate>
+        {% csrf_token %}
+
+        {# Show non-field errors #}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3">
+            {% for err in form.non_field_errors %}
+              <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="row gx-3 gy-3">
+          <div class="col-md-6">
+            <label class="form-label">Term <span class="text-danger">*</span></label>
+            {{ form.term }}
+            {% if form.term.help_text %}
+              <small class="form-text text-muted">{{ form.term.help_text }}</small>
+            {% endif %}
+            {% if form.term.errors %}
+              <div class="text-danger small mt-1">{{ form.term.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Grade Levels</label>
+            {# InvoiceGenerateForm.grade_levels is a MultipleChoiceField (checkboxes). Render cleanly. #}
+            <div class="border rounded p-2" style="max-height:200px; overflow:auto;">
+              {{ form.grade_levels }}
+            </div>
+            {% if form.grade_levels.help_text %}
+              <small class="form-text text-muted">{{ form.grade_levels.help_text }}</small>
+            {% endif %}
+            {% if form.grade_levels.errors %}
+              <div class="text-danger small mt-1">{{ form.grade_levels.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-3">
+            <div class="form-check mt-2">
+              {{ form.include_balance_bf }}
+              <label class="form-check-label ms-1">Include balance brought forward</label>
+            </div>
+            {% if form.include_balance_bf.errors %}
+              <div class="text-danger small mt-1">{{ form.include_balance_bf.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-3">
+            <div class="form-check mt-2">
+              {{ form.overwrite_existing }}
+              <label class="form-check-label ms-1">Overwrite existing invoices</label>
+            </div>
+            {% if form.overwrite_existing.errors %}
+              <div class="text-danger small mt-1">{{ form.overwrite_existing.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex gap-2">
+              <button type="submit" id="generate-btn" class="btn btn-primary">
+                <span id="generate-btn-text">Generate Invoices</span>
+                <span id="generate-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+              </button>
+
+              <a href="{% url 'finance:invoice_list' %}" class="btn btn-secondary">Cancel</a>
+
+              {# Optional: show a quick help note #}
+              <div class="ms-auto text-muted small align-self-center">Results shown below after generation.</div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# Feedback messages from server (messages framework) #}
+  {% if messages %}
+    <div class="mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# Show generation summary / results if available #}
+  {% if generated_invoices or generation_summary %}
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Generation results</h5>
+
+        {% if generation_summary %}
+          <div class="row mb-3 gx-2">
+            <div class="col-sm-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Created</small>
+                <div class="h5 mb-0">{{ generation_summary.generated|default:0 }}</div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Skipped</small>
+                <div class="h5 mb-0">{{ generation_summary.skipped|default:0 }}</div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Errors</small>
+                <div class="h5 mb-0 text-danger">{{ generation_summary.errors|default:0 }}</div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Invoice #</th>
+                <th>Student</th>
+                <th>Term</th>
+                <th class="text-end">Total (KES)</th>
+                <th>Status</th>
+                <th>Issue Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if generated_invoices %}
+                {% for invoice in generated_invoices %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'finance:invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a>
+                    </td>
+                    <td>
+                      {% if invoice.student %}
+                        <a href="{% url 'finance:student_statement' invoice.student.pk %}">{{ invoice.student.full_name|default:"—" }}</a>
+                        <div class="small text-muted">{{ invoice.student.admission_number|default:"—" }}</div>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ invoice.term|default:"—" }}</td>
+                    <td class="text-end">KES {{ invoice.total_amount|floatformat:2|intcomma }}</td>
+                    <td>
+                      {% if invoice.status == 'paid' %}
+                        <span class="badge bg-success">{{ invoice.get_status_display }}</span>
+                      {% elif invoice.status == 'partially_paid' or invoice.status == 'partial' %}
+                        <span class="badge bg-warning text-dark">{{ invoice.get_status_display }}</span>
+                      {% elif invoice.status == 'overdue' %}
+                        <span class="badge bg-danger">{{ invoice.get_status_display }}</span>
+                      {% else %}
+                        <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
+                    <td class="text-nowrap">
+                      <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" title="View">
+                        <i class="mdi mdi-eye"></i>
+                      </a>
+                      <a href="{% url 'finance:invoice_print' invoice.pk %}?download=1" class="btn btn-sm btn-outline-secondary" title="Download PDF">
+                        <i class="mdi mdi-file-pdf-box"></i>
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">No invoices generated yet.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 </div>
 
-<form method="post" novalidate>
-  {% csrf_token %}
-  <div class="mb-3">
-    <label for="term" class="form-label">Select Term</label>
-    <select id="term" name="term" class="form-select" required>
-      <option value="" disabled selected>Choose a term</option>
-      {% for term in terms %}
-        <option value="{{ term.pk }}">{{ term.academic_year.year }} - {{ term.get_term_display }}</option>
-      {% endfor %}
-    </select>
-    {% if form.errors.term %}
-      <div class="text-danger">{{ form.errors.term }}</div>
-    {% endif %}
-  </div>
+{# Client-side: prevent double submits and show spinner #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('invoice-generate-form');
+  const generateBtn = document.getElementById('generate-btn');
+  const spinner = document.getElementById('generate-spinner');
+  const btnText = document.getElementById('generate-btn-text');
 
-  <div class="mb-3">
-    <label for="grade_levels" class="form-label">Select Grade Levels</label>
-    <select id="grade_levels" name="grade_levels" class="form-select" multiple required>
-      {% for level_key, level_name in grade_levels %}
-        <option value="{{ level_key }}">{{ level_name }}</option>
-      {% endfor %}
-    </select>
-    <small class="form-text text-muted">Hold Ctrl (Cmd on Mac) to select multiple.</small>
-    {% if form.errors.grade_levels %}
-      <div class="text-danger">{{ form.errors.grade_levels }}</div>
-    {% endif %}
-  </div>
+  if (form && generateBtn) {
+    form.addEventListener('submit', function (e) {
+      // prevent double submit: disable button and show spinner
+      generateBtn.disabled = true;
+      spinner.classList.remove('d-none');
+      if (btnText) btnText.textContent = 'Generating...';
+    });
+  }
+});
+</script>
 
-  <div class="form-check mb-3">
-    <input type="checkbox" class="form-check-input" id="is_boarding" name="is_boarding" value="true">
-    <label class="form-check-label" for="is_boarding">Include Boarding Students Only</label>
-  </div>
-
-  <button type="submit" class="btn btn-primary">Generate Invoices</button>
-  <a href="{% url 'finance:invoice_list' %}" class="btn btn-secondary ms-2">Cancel</a>
-</form>
-
-{% if generated_invoices %}
-  <hr>
-  <h4>Generated Invoices</h4>
-  <table class="table table-striped table-hover">
-    <thead>
-      <tr>
-        <th>Invoice Number</th>
-        <th>Student</th>
-        <th>Term</th>
-        <th>Total Amount (KES)</th>
-        <th>Status</th>
-        <th>Issue Date</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for invoice in generated_invoices %}
-      <tr>
-        <td>{{ invoice.invoice_number }}</td>
-        <td>{{ invoice.student.full_name }}</td>
-        <td>{{ invoice.term }}</td>
-        <td>{{ invoice.total_amount|floatformat:2 }}</td>
-        <td>
-          {% if invoice.status == 'paid' %}
-            <span class="badge bg-success">Paid</span>
-          {% elif invoice.status == 'partially_paid' %}
-            <span class="badge bg-warning text-dark">Partially Paid</span>
-          {% elif invoice.status == 'overdue' %}
-            <span class="badge bg-danger">Overdue</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
-          {% endif %}
-        </td>
-        <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="6" class="text-center">No invoices generated yet.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-{% endif %}
+<style>
+/* Small visual tweaks */
+.table td, .table th { vertical-align: middle; }
+</style>
 {% endblock %}
