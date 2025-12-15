@@ -478,7 +478,7 @@
     });
 
     // Photo preview
-    const photoInput = document.getElementById('{{ form.photo.id_for_label }}');
+    const photoInput = document.getElementById('id_photo'); // Corrected ID
     const photoPreview = document.getElementById('photo-preview');
     if (photoInput && photoPreview) {
       photoInput.addEventListener('change', function(event) {
