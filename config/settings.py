@@ -197,7 +197,7 @@ EQUITY_API_KEY = os.environ.get('EQUITY_API_KEY', '')
 # Co-operative Bank
 COOP_IPN_USERNAME = os.environ.get('COOP_IPN_USERNAME', 'wendani_academy')
 COOP_IPN_PASSWORD = os.environ.get('COOP_IPN_PASSWORD', 'pwasms@!#2026')
-SCHOOL_COOP_ACCOUNT_NO = os.environ.get('SCHOOL_COOP_ACCOUNT_NO', 'git ')
+SCHOOL_COOP_ACCOUNT_NO = os.environ.get('SCHOOL_COOP_ACCOUNT_NO', '0123456789')
 
 # Payment callback base URL (for logging purposes)
 PAYMENT_CALLBACK_BASE_URL = os.environ.get('PAYMENT_CALLBACK_BASE_URL', '')
