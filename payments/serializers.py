@@ -4,22 +4,97 @@
 # - Validates incoming payloads from Equity and Co-op
 # - Formats responses according to bank specifications
 #
-# PRODUCTION NOTE (CO-OP):
-# The attached Co-op CBS Event Specification uses fields like:
+# CO-OP NOTE:
+# The Co-op CBS Event Spec uses fields like:
 #   Amount, TransactionDate, PaymentRef, Narration, CustMemoLine1/2/3, BookedBalance, ClearedBalance
-# Your current implementation/tests use:
+# Your internal tests/services use:
 #   TxnAmount, TxnDate, MessageReference, CustMemo, Narration1/2/3, Balance, DrCr
 #
-# This file makes CoopIPNRequestSerializer accept BOTH formats safely by
-# normalizing the official CBS keys -> your internal keys before validation.
+# This serializer supports BOTH formats by mapping spec keys -> internal keys.
+# Also includes a FlexibleDateField to accept "YYYY-MM-DD+03:00" values.
 # ============================================================
 
-from decimal import Decimal
+from rest_framework import serializers
+from decimal import Decimal  # kept (harmless even if not used directly)
 import re
 from datetime import date
 
-from rest_framework import serializers
 from django.utils.dateparse import parse_date, parse_datetime
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def _parse_flexible_date(value) -> date:
+    """
+    Accept common date inputs and return a python date:
+    - "YYYY-MM-DD"
+    - "YYYY-MM-DD+03:00" / "YYYY-MM-DD-03:00"   (as seen in Co-op CBS spec sample)
+    - full ISO datetimes (converted to date)
+    """
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+
+    s = str(value).strip()
+    if s == "":
+        return None
+
+    # 1) plain date
+    d = parse_date(s)
+    if d:
+        return d
+
+    # 2) "YYYY-MM-DD+03:00"
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2})$", s)
+    if m:
+        d = parse_date(m.group(1))
+        if d:
+            return d
+
+    # 3) datetime -> date
+    dt = parse_datetime(s)
+    if dt:
+        return dt.date()
+
+    raise serializers.ValidationError(f"Invalid date format: {value}")
+
+
+class FlexibleDateField(serializers.Field):
+    """
+    A date field that accepts:
+    - YYYY-MM-DD
+    - YYYY-MM-DD+03:00
+    - ISO datetime strings
+    Returns a python date.
+    """
+
+    def to_internal_value(self, data):
+        if data is None:
+            if getattr(self, "allow_null", False):
+                return None
+            raise serializers.ValidationError("This field may not be null.")
+
+        parsed = _parse_flexible_date(data)
+        if parsed is None:
+            # Handles "" (empty string)
+            if getattr(self, "allow_null", False):
+                return None
+            raise serializers.ValidationError("Date has wrong format. Use YYYY-MM-DD.")
+        return parsed
+
+    def to_representation(self, value):
+        if value is None:
+            return None
+        if isinstance(value, date):
+            return value.isoformat()
+        # Fallback
+        try:
+            return str(value)
+        except Exception:
+            return None
 
 
 # ============================================================
@@ -104,60 +179,23 @@ class EquityNotificationResponseSerializer(serializers.Serializer):
 # CO-OP BANK SERIALIZERS
 # ============================================================
 
-def _parse_flexible_date(value) -> date:
-    """
-    Accept common date inputs from Co-op payloads and map to a python date:
-    - "YYYY-MM-DD"
-    - "YYYY-MM-DD+03:00" / "YYYY-MM-DD-03:00"   (as seen in CBS spec sample)
-    - full ISO datetimes (will be converted to date)
-    """
-    if value is None:
-        return None
-    if isinstance(value, date):
-        return value
-
-    s = str(value).strip()
-
-    # 1) plain date
-    d = parse_date(s)
-    if d:
-        return d
-
-    # 2) handle "YYYY-MM-DD+03:00"
-    m = re.match(r"^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2})$", s)
-    if m:
-        d = parse_date(m.group(1))
-        if d:
-            return d
-
-    # 3) datetime -> date
-    dt = parse_datetime(s)
-    if dt:
-        return dt.date()
-
-    raise serializers.ValidationError(f"Invalid date format: {value}")
-
-
 class CoopIPNRequestSerializer(serializers.Serializer):
     """
     Validates incoming Co-op IPN (Instant Payment Notification).
 
-    This serializer accepts BOTH:
-      A) Your current/internal format:
+    Accepts BOTH:
+      A) Internal/test format:
          MessageReference, TransactionId, AcctNo, TxnAmount, TxnDate, CustMemo, Narration1/2/3, EventType, ...
 
-      B) The official Co-op CBS Event Spec format:
+      B) Official CBS Event Spec format:
          AcctNo, Amount, TransactionDate, TransactionId, PaymentRef, Narration, CustMemoLine1/2/3, EventType,
          BookedBalance, ClearedBalance, PostingDate, ValueDate, Currency, ExchangeRate, ...
-
-    We normalize spec keys -> internal keys in to_internal_value() before validation.
     """
 
-    # --- Internal/canonical fields your services expect ---
     MessageReference = serializers.CharField(
         max_length=100,
         required=True,
-        help_text="Unique message reference from Co-op (mapped from PaymentRef if provided)"
+        help_text="Unique message reference (mapped from PaymentRef if provided)"
     )
     TransactionId = serializers.CharField(
         max_length=100,
@@ -176,7 +214,9 @@ class CoopIPNRequestSerializer(serializers.Serializer):
         required=True,
         help_text="Transaction amount (mapped from Amount if provided)"
     )
-    TxnDate = serializers.DateField(
+
+    # IMPORTANT: use FlexibleDateField (not DateField), so "YYYY-MM-DD+03:00" works
+    TxnDate = FlexibleDateField(
         required=True,
         help_text="Transaction date (mapped from TransactionDate if provided)"
     )
@@ -188,7 +228,7 @@ class CoopIPNRequestSerializer(serializers.Serializer):
         help_text="Currency code"
     )
 
-    # DrCr is not part of the CBS spec sample; make optional for compatibility
+    # Optional (CBS spec sample relies on EventType instead)
     DrCr = serializers.CharField(
         max_length=1,
         required=False,
@@ -232,26 +272,25 @@ class CoopIPNRequestSerializer(serializers.Serializer):
         help_text="CREDIT or DEBIT"
     )
 
-    # Your current format has Balance; spec has BookedBalance & ClearedBalance.
-    # We'll map ClearedBalance/BookedBalance -> Balance if Balance missing.
     Balance = serializers.DecimalField(
         max_digits=15,
         decimal_places=2,
         required=False,
         allow_null=True,
-        help_text="Account balance after transaction (mapped from ClearedBalance/BookedBalance if provided)"
+        help_text="Account balance (mapped from ClearedBalance/BookedBalance if provided)"
     )
 
-    ValueDate = serializers.DateField(
+    ValueDate = FlexibleDateField(
         required=False,
         allow_null=True,
         help_text="Value date"
     )
-    PostingDate = serializers.DateField(
+    PostingDate = FlexibleDateField(
         required=False,
         allow_null=True,
         help_text="Posting date"
     )
+
     BranchCode = serializers.CharField(
         max_length=10,
         required=False,
@@ -262,8 +301,8 @@ class CoopIPNRequestSerializer(serializers.Serializer):
 
     def to_internal_value(self, data):
         """
-        Normalize official CBS spec keys -> internal keys used by services.
-        This runs before field validation.
+        Normalize official CBS spec keys -> internal keys used by your services.
+        Runs BEFORE validation.
         """
         data = dict(data)
 
@@ -275,7 +314,7 @@ class CoopIPNRequestSerializer(serializers.Serializer):
         if "TxnDate" not in data and "TransactionDate" in data:
             data["TxnDate"] = data.get("TransactionDate")
 
-        # PaymentRef -> MessageReference (closest internal equivalent)
+        # PaymentRef -> MessageReference
         if "MessageReference" not in data and "PaymentRef" in data:
             data["MessageReference"] = data.get("PaymentRef")
 
@@ -287,7 +326,7 @@ class CoopIPNRequestSerializer(serializers.Serializer):
         if "Narration3" not in data and "CustMemoLine3" in data:
             data["Narration3"] = data.get("CustMemoLine3", "")
 
-        # Narration -> CustMemo so your ResolutionService sees it as "Narration" input
+        # Narration -> CustMemo
         if "CustMemo" not in data and "Narration" in data:
             data["CustMemo"] = data.get("Narration", "")
 
@@ -300,17 +339,6 @@ class CoopIPNRequestSerializer(serializers.Serializer):
 
         return super().to_internal_value(data)
 
-    # --- Flexible date parsing (spec sample includes YYYY-MM-DD+03:00) ---
-    def validate_TxnDate(self, value):
-        return _parse_flexible_date(value)
-
-    def validate_PostingDate(self, value):
-        return _parse_flexible_date(value) if value is not None else None
-
-    def validate_ValueDate(self, value):
-        return _parse_flexible_date(value) if value is not None else None
-
-    # --- Field validators ---
     def validate_DrCr(self, value):
         """Validate DrCr is either D or C (if provided)"""
         if value is None:
