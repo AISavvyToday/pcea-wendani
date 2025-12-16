@@ -180,24 +180,21 @@ def dashboard_admin(request):
         'stat_cards': [
             {
                 'title': 'Total Students',
-                'value': '1,247',
+                'value': '626',
                 'icon': 'mdi-account-group',
                 'bg': 'bg-gradient-primary',
-                'meta': '+12 this term',
             },
             {
                 'title': 'Staff Members',
-                'value': '86',
+                'value': '1',
                 'icon': 'mdi-account-tie',
                 'bg': 'bg-gradient-success',
-                'meta': '4 on leave',
             },
             {
                 'title': 'Fee Collection',
-                'value': 'KES 4.2M',
+                'value': 'KES 0',
                 'icon': 'mdi-cash',
                 'bg': 'bg-gradient-warning',
-                'meta': '78% of target',
             },
         ],
     }
