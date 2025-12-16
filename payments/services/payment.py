@@ -67,7 +67,7 @@ class PaymentService:
                 status=PaymentStatus.COMPLETED,
                 payment_date=bank_tx.bank_timestamp or timezone.now(),
                 payer_name=payer_name or bank_tx.payer_name or '',
-                payer_phone=payer_phone,
+                payer_phone=(payer_phone or ""),
                 transaction_reference=bank_tx.transaction_id,
                 notes=f"Auto-created from {bank_tx.gateway.upper()} transaction {bank_tx.transaction_id}",
                 is_reconciled=True,  # Bank payments are auto-reconciled
