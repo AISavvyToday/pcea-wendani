@@ -146,6 +146,7 @@ class EquityNotificationRequestSerializer(serializers.Serializer):
     )
     transactionDate = serializers.DateTimeField(
         required=True,
+        input_formats=['%Y-%m-%d %H:%M:%S', 'iso-8601'],
         help_text="Transaction date and time"
     )
     customerName = serializers.CharField(
