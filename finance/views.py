@@ -746,7 +746,7 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
     model = BankTransaction
     template_name = 'finance/bank_transaction_list.html'
-    context_object_name = 'transactions'
+    context_object_name = 'bank_transactions'
     paginate_by = 25
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
