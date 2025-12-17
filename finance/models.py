@@ -198,8 +198,7 @@ class Invoice(BaseModel):
         # Auto-generate invoice number if not set
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
-        # Calculate balance
-        self.balance = self.total_amount + self.balance_bf - self.prepayment - self.amount_paid
+        self.balance = self.total_amount - self.prepayment - self.amount_paid
         super().save(*args, **kwargs)
 
     def generate_invoice_number(self):
@@ -219,14 +218,15 @@ class Invoice(BaseModel):
         return f'INV-{year}-{new_num:05d}'
 
     def update_payment_status(self):
-        """Update status based on payments."""
         if self.balance <= 0:
             self.status = InvoiceStatus.PAID
         elif self.amount_paid > 0:
             self.status = InvoiceStatus.PARTIALLY_PAID
-        elif self.due_date and self.due_date < __import__('datetime').date.today():
+        elif self.due_date and self.due_date < __import__("datetime").date.today():
             self.status = InvoiceStatus.OVERDUE
-        self.save(update_fields=['status', 'updated_at'])
+
+        # Save normally so balance/status stay consistent
+        self.save()
 
 
 class InvoiceItem(BaseModel):

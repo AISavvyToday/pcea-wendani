@@ -1,147 +1,260 @@
 # File: payments/services/invoice.py
 # ============================================================
-# RATIONALE: Handle invoice updates when payments are received
-# - Updates amount_paid and balance
-# - Updates invoice status
-# - Optionally allocates payment to specific fee items
+# RATIONALE: Invoice & allocation logic
+# - Allocate any completed Payment across a student's invoices (oldest first)
+# - Allocate within an invoice by fee category priority (invoice items)
+# - Recalculate invoice.amount_paid/balance/status from PaymentAllocation
+# - Leaves any remainder as unapplied credit (student account +ve)
+#   (credit is implicit: payment.amount - sum(payment.allocations))
 # ============================================================
 
 import logging
 from decimal import Decimal
+from datetime import date as date_cls
+
 from django.db import transaction as db_transaction
 from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
-from payments.models import Payment, PaymentAllocation
+from core.models import InvoiceStatus, PaymentStatus
 from finance.models import Invoice, InvoiceItem
-from core.models import InvoiceStatus
+from payments.models import Payment, PaymentAllocation
 
 logger = logging.getLogger(__name__)
 
 
 class InvoiceService:
-    """Service for managing invoice updates from payments."""
-    
+    """Service for managing invoice updates from payments (oldest-invoice-first)."""
+
+    PRIORITY_ORDER = [
+        "tuition",
+        "examination",
+        "meals",
+        "boarding",
+        "transport",
+        "books",
+        "uniform",
+        "activity",
+        "development",
+        "other",
+    ]
+
     @staticmethod
-    @db_transaction.atomic
-    def apply_payment_to_invoice(payment: Payment, invoice: Invoice) -> Invoice:
-        """
-        Apply a payment to an invoice, updating amounts and status.
-        
-        Args:
-            payment: The Payment record
-            invoice: The Invoice to update
-        
-        Returns:
-            Updated Invoice instance
-        """
-        if not invoice:
-            logger.warning(f"No invoice provided for payment {payment.payment_reference}")
-            return None
-        
-        # Calculate total payments for this invoice
-        total_paid = Payment.objects.filter(
-            invoice=invoice,
-            status=PaymentStatus.COMPLETED,
-            is_active=True
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        
-        # Update invoice
-        invoice.amount_paid = total_paid
-        invoice.balance = invoice.total_amount + invoice.balance_bf - invoice.prepayment - invoice.amount_paid
-        
-        # Update status based on balance
-        if invoice.balance <= 0:
-            invoice.status = InvoiceStatus.PAID
-            # If overpaid, the negative balance becomes prepayment for next term
-            if invoice.balance < 0:
-                logger.info(f"Invoice {invoice.invoice_number} overpaid by {abs(invoice.balance)}")
-        elif invoice.amount_paid > 0:
-            invoice.status = InvoiceStatus.PARTIALLY_PAID
-        
-        invoice.save()
-        
-        logger.info(
-            f"Updated invoice {invoice.invoice_number}: "
-            f"paid={invoice.amount_paid}, balance={invoice.balance}, status={invoice.status}"
-        )
-        
-        return invoice
-    
+    def _priority_key(category: str) -> int:
+        try:
+            return InvoiceService.PRIORITY_ORDER.index(category)
+        except ValueError:
+            return 999
+
     @staticmethod
-    @db_transaction.atomic
-    def allocate_payment_to_items(payment: Payment, invoice: Invoice) -> list:
-        """
-        Allocate payment amount to invoice items by priority.
-        
-        Priority order (based on FeeCategory):
-        1. Tuition
-        2. Examination
-        3. Meals
-        4. Transport
-        5. Other categories
-        
-        Args:
-            payment: The Payment record
-            invoice: The Invoice containing items
-        
-        Returns:
-            List of PaymentAllocation records created
-        """
-        if not invoice:
-            return []
-        
-        # Define priority order for fee categories
-        PRIORITY_ORDER = [
-            'tuition',
-            'examination',
-            'meals',
-            'boarding',
-            'transport',
-            'books',
-            'uniform',
-            'activity',
-            'development',
-            'other',
-        ]
-        
-        # Get invoice items ordered by priority
-        items = list(invoice.items.filter(is_active=True).order_by('category'))
-        items.sort(key=lambda x: PRIORITY_ORDER.index(x.category) if x.category in PRIORITY_ORDER else 999)
-        
-        allocations = []
-        remaining_amount = payment.amount
-        
-        for item in items:
-            if remaining_amount <= 0:
-                break
-            
-            # Calculate how much is already allocated to this item
-            already_allocated = PaymentAllocation.objects.filter(
-                invoice_item=item,
+    def _sum_allocations_for_invoice(invoice: Invoice) -> Decimal:
+        total = (
+            PaymentAllocation.objects.filter(
+                is_active=True,
+                invoice_item__invoice=invoice,
+                payment__is_active=True,
                 payment__status=PaymentStatus.COMPLETED,
-                payment__is_active=True
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            
-            # Calculate remaining balance for this item
-            item_balance = item.net_amount - already_allocated
-            
-            if item_balance > 0:
-                # Allocate up to the item balance
-                allocation_amount = min(remaining_amount, item_balance)
-                
-                allocation = PaymentAllocation.objects.create(
-                    payment=payment,
+            ).aggregate(total=Sum("amount"))["total"]
+            or Decimal("0")
+        )
+        return total
+
+    @staticmethod
+    def _recalculate_invoice_fields(invoice: Invoice) -> Invoice:
+        """
+        Recalculate invoice.amount_paid, invoice.balance, invoice.status from allocations.
+        """
+        invoice.amount_paid = InvoiceService._sum_allocations_for_invoice(invoice)
+        invoice.balance = invoice.total_amount + invoice.balance_bf - invoice.prepayment - invoice.amount_paid
+
+        today = date_cls.today()
+
+        # Keep DRAFT untouched unless you want to auto-promote it
+        if invoice.status != InvoiceStatus.DRAFT:
+            if invoice.balance <= 0:
+                invoice.status = InvoiceStatus.PAID
+            elif invoice.amount_paid > 0:
+                invoice.status = InvoiceStatus.PARTIALLY_PAID
+            elif invoice.due_date and invoice.due_date < today:
+                invoice.status = InvoiceStatus.OVERDUE
+
+        # IMPORTANT: update_fields must include balance/amount_paid/status
+        invoice.save(update_fields=["amount_paid", "balance", "status", "updated_at"])
+        return invoice
+
+    @staticmethod
+    def _allocate_amount_to_invoice_items(payment: Payment, invoice: Invoice, amount_to_apply: Decimal) -> Decimal:
+        """
+        Allocate up to amount_to_apply into this invoice's items (by priority).
+        Returns how much was actually allocated.
+        """
+        if amount_to_apply <= 0:
+            return Decimal("0")
+
+        items = list(invoice.items.filter(is_active=True))
+        # Sort by your priority order, then stable by id
+        items.sort(key=lambda it: (InvoiceService._priority_key(it.category), it.id))
+
+        allocated_total = Decimal("0")
+        remaining = amount_to_apply
+
+        for item in items:
+            if remaining <= 0:
+                break
+
+            already_allocated = (
+                PaymentAllocation.objects.filter(
+                    is_active=True,
                     invoice_item=item,
-                    amount=allocation_amount
-                )
-                allocations.append(allocation)
-                remaining_amount -= allocation_amount
-                
-                logger.debug(f"Allocated {allocation_amount} to {item.description}")
-        
-        logger.info(f"Created {len(allocations)} payment allocations for payment {payment.payment_reference}")
-        return allocations
+                    payment__is_active=True,
+                    payment__status=PaymentStatus.COMPLETED,
+                ).aggregate(total=Sum("amount"))["total"]
+                or Decimal("0")
+            )
 
+            item_due = (item.net_amount or Decimal("0")) - already_allocated
+            if item_due <= 0:
+                continue
 
-# Import PaymentStatus for the queries
-from core.models import PaymentStatus
+            allocation_amount = remaining if remaining < item_due else item_due
+
+            PaymentAllocation.objects.create(
+                payment=payment,
+                invoice_item=item,
+                amount=allocation_amount,
+            )
+
+            allocated_total += allocation_amount
+            remaining -= allocation_amount
+
+        return allocated_total
+
+    @staticmethod
+    def get_student_unapplied_credit(student) -> Decimal:
+        """
+        Student credit (+ve) = completed payments - allocations applied.
+        This is persisted implicitly (no extra model).
+        """
+        total_payments = (
+            Payment.objects.filter(student=student, is_active=True, status=PaymentStatus.COMPLETED)
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0")
+        )
+
+        total_allocated = (
+            PaymentAllocation.objects.filter(
+                is_active=True,
+                payment__student=student,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED,
+            ).aggregate(total=Sum("amount"))["total"]
+            or Decimal("0")
+        )
+
+        credit = total_payments - total_allocated
+        if credit < 0:
+            # Shouldn't happen, but guard
+            credit = Decimal("0")
+        return credit
+
+    @staticmethod
+    def get_student_net_account_balance(student) -> Decimal:
+        """
+        +ve means student is in credit
+        -ve means student owes money
+
+        net_balance = credit - total_outstanding
+        """
+        total_outstanding = (
+            Invoice.objects.filter(student=student, is_active=True)
+            .exclude(status=InvoiceStatus.CANCELLED)
+            .aggregate(total=Sum("balance"))["total"]
+            or Decimal("0")
+        )
+
+        credit = InvoiceService.get_student_unapplied_credit(student)
+        return credit - total_outstanding
+
+    @staticmethod
+    @db_transaction.atomic
+    def apply_payment_to_student_arrears(payment: Payment) -> Decimal:
+        """
+        Core requirement:
+        - Clear oldest invoices first
+        - If payment exceeds all invoices, remainder becomes unapplied credit
+
+        Returns remaining unapplied credit for THIS payment:
+            payment.amount - sum(payment.allocations.amount)
+        """
+        if not payment or not payment.is_active:
+            return Decimal("0")
+
+        if payment.status != PaymentStatus.COMPLETED:
+            logger.info(f"Payment {payment.payment_reference} not COMPLETED; skipping allocation.")
+            return Decimal("0")
+
+        # Idempotency: if already allocated, just recalc affected invoices and return remaining
+        existing_allocations = payment.allocations.filter(is_active=True)
+        if existing_allocations.exists():
+            invoice_ids = (
+                existing_allocations.values_list("invoice_item__invoice_id", flat=True).distinct()
+            )
+            for inv in Invoice.objects.select_for_update().filter(id__in=list(invoice_ids)):
+                InvoiceService._recalculate_invoice_fields(inv)
+
+            allocated = existing_allocations.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+            return payment.amount - allocated
+
+        student = payment.student
+        remaining = payment.amount
+
+        # Oldest first: issue_date ascending.
+        # If issue_date can be NULL, Coalesce pushes NULLs to far-future so they come last.
+        invoices = (
+            Invoice.objects.select_for_update()
+            .filter(student=student, is_active=True)
+            .exclude(status=InvoiceStatus.CANCELLED)
+            .order_by(Coalesce("issue_date", date_cls(9999, 12, 31)).asc(), "created_at")
+        )
+
+        for invoice in invoices:
+            # Keep invoice current
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+            # Only pay invoices that actually have outstanding balance
+            if invoice.balance <= 0:
+                continue
+
+            if remaining <= 0:
+                break
+
+            amount_for_this_invoice = remaining if remaining < invoice.balance else invoice.balance
+
+            allocated = InvoiceService._allocate_amount_to_invoice_items(
+                payment=payment,
+                invoice=invoice,
+                amount_to_apply=amount_for_this_invoice,
+            )
+
+            # Recalc invoice after allocations
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+            remaining -= allocated
+
+        # Remaining is unapplied credit for this payment (if any)
+        allocated_total = (
+            payment.allocations.filter(is_active=True).aggregate(total=Sum("amount"))["total"]
+            or Decimal("0")
+        )
+        leftover = payment.amount - allocated_total
+
+        if leftover > 0:
+            note = f" | Unapplied credit: KES {leftover}"
+            if note.strip() not in (payment.notes or ""):
+                payment.notes = (payment.notes or "") + note
+                payment.save(update_fields=["notes", "updated_at"])
+
+        logger.info(
+            f"Payment {payment.payment_reference} allocated. Applied={allocated_total}, Unapplied={leftover}"
+        )
+        return leftover

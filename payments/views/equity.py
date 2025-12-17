@@ -207,7 +207,7 @@ class EquityNotificationView(APIView):
             payment = PaymentService.create_payment_from_bank_transaction(
                 bank_tx=bank_tx,
                 student=student,
-                invoice=invoice,
+                invoice=None,
                 payer_name=validated_data.get("customerName", ""),
                 payer_phone=validated_data.get("phoneNumber", ""),
             )

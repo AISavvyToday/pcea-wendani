@@ -1,13 +1,18 @@
 """
 finance/views.py
 Finance module views for fee management, invoicing, and payments.
+
+Standalone invoices policy:
+- Do NOT manually adjust invoice balances in views.
+- All payments (manual + bank match) are allocated oldest-invoice-first via payments.services.payment.PaymentService
+- Invoice detail shows payments via allocations (and also legacy Payment.invoice links if present).
 """
 
 import logging
 from decimal import Decimal
 from datetime import date
 
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView,
@@ -36,6 +41,7 @@ from .services import (
 from students.models import Student
 from academics.models import Term
 from payments.models import Payment, BankTransaction
+from payments.services.payment import PaymentService as PaymentsPaymentService
 from core.models import InvoiceStatus, PaymentMethod, PaymentStatus
 
 logger = logging.getLogger(__name__)
@@ -131,9 +137,7 @@ class FeeStructureDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # assume related name 'items' on FeeStructure -> FeeItem
         context['fee_items'] = self.object.items.filter(is_active=True).order_by('category')
-        # convenience total attribute if present on model
         context['total_amount'] = getattr(self.object, 'total_amount', None)
         return context
 
@@ -227,7 +231,6 @@ class FeeStructureDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
 
-        # Check if fee structure is in use
         invoice_count = Invoice.objects.filter(
             items__fee_item__fee_structure=self.object
         ).distinct().count()
@@ -239,7 +242,6 @@ class FeeStructureDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
             )
             return redirect('finance:fee_structure_detail', pk=self.object.pk)
 
-        # Soft delete
         self.object.is_active = False
         self.object.save()
 
@@ -339,7 +341,6 @@ class StudentDiscountListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             is_active=True
         ).select_related('student', 'discount', 'approved_by')
 
-        # Filter by approval status
         status = self.request.GET.get('status')
         if status == 'pending':
             queryset = queryset.filter(is_approved=False)
@@ -373,7 +374,6 @@ class StudentDiscountCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateVie
         return context
 
     def form_valid(self, form):
-        # Auto-approve if discount doesn't require approval
         if not form.instance.discount.requires_approval:
             form.instance.is_approved = True
             form.instance.approved_by = self.request.user
@@ -424,7 +424,6 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             is_active=True
         ).select_related('student', 'term', 'term__academic_year')
 
-        # Search
         query = self.request.GET.get('query', '')
         if query:
             queryset = queryset.filter(
@@ -434,17 +433,14 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
                 Q(student__last_name__icontains=query)
             )
 
-        # Filter by term
         term = self.request.GET.get('term')
         if term:
             queryset = queryset.filter(term_id=term)
 
-        # Filter by status
         status = self.request.GET.get('status')
         if status:
             queryset = queryset.filter(status=status)
 
-        # Filter by grade
         grade = self.request.GET.get('grade')
         if grade:
             queryset = queryset.filter(student__grade_level=grade)
@@ -460,7 +456,6 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context['selected_status'] = self.request.GET.get('status', '')
         context['selected_grade'] = self.request.GET.get('grade', '')
 
-        # Summary stats
         invoices = self.get_queryset()
         context['total_billed'] = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
         context['total_outstanding'] = invoices.aggregate(total=Sum('balance'))['total'] or 0
@@ -480,10 +475,17 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['items'] = self.object.items.filter(is_active=True).order_by('category')
+
+        # IMPORTANT:
+        # Payments are no longer reliably tied to invoice via Payment.invoice
+        # because one payment can clear multiple invoices (allocations).
         context['payments'] = Payment.objects.filter(
-            invoice=self.object,
-            is_active=True
-        ).order_by('-payment_date')
+            is_active=True,
+            status=PaymentStatus.COMPLETED
+        ).filter(
+            Q(invoice=self.object) | Q(allocations__invoice_item__invoice=self.object)
+        ).distinct().order_by('-payment_date')
+
         return context
 
 
@@ -503,16 +505,13 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
     def form_valid(self, form):
         term = form.cleaned_data['term']
         grade_levels = form.cleaned_data.get('grade_levels', [])
-        include_balance_bf = form.cleaned_data.get('include_balance_bf', True)
         overwrite = form.cleaned_data.get('overwrite_existing', False)
 
-        # InvoiceService.bulk_generate_invoices may return either a dict or tuple depending on implementation.
         try:
             results = InvoiceService.bulk_generate_invoices(
                 term=term,
                 grade_levels=grade_levels if grade_levels else None,
                 generated_by=self.request.user,
-                include_balance_bf=include_balance_bf,
                 overwrite=overwrite
             )
         except Exception as e:
@@ -520,20 +519,17 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             messages.error(self.request, f"Invoice generation failed: {str(e)}")
             return super().form_invalid(form)
 
-        # Support multiple return types for robustness
         generated = skipped = errors = 0
         if isinstance(results, dict):
             generated = results.get('generated', results.get('created', 0))
             skipped = results.get('skipped', 0)
             errors = results.get('errors', 0)
         elif isinstance(results, (list, tuple)) and len(results) == 2:
-            # older service returned (created_count, errors_list)
             created_count, error_list = results
             generated = created_count
             errors = len(error_list) if isinstance(error_list, (list, tuple)) else (1 if error_list else 0)
             skipped = 0
         else:
-            # fallback
             try:
                 generated = int(results)
             except Exception:
@@ -605,7 +601,6 @@ class PaymentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             is_active=True
         ).select_related('student', 'invoice')
 
-        # Search
         query = self.request.GET.get('query', '')
         if query:
             queryset = queryset.filter(
@@ -617,17 +612,14 @@ class PaymentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
                 Q(student__last_name__icontains=query)
             )
 
-        # Filter by method
         method = self.request.GET.get('method')
         if method:
             queryset = queryset.filter(payment_method=method)
 
-        # Filter by status
         status = self.request.GET.get('status')
         if status:
             queryset = queryset.filter(status=status)
 
-        # Date range
         start_date = self.request.GET.get('start_date')
         end_date = self.request.GET.get('end_date')
         if start_date:
@@ -647,7 +639,6 @@ class PaymentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context['start_date'] = self.request.GET.get('start_date', '')
         context['end_date'] = self.request.GET.get('end_date', '')
 
-        # Summary
         payments = self.get_queryset().filter(status=PaymentStatus.COMPLETED)
         context['total_amount'] = payments.aggregate(total=Sum('amount'))['total'] or 0
         context['payment_count'] = payments.count()
@@ -665,13 +656,23 @@ class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        if getattr(self.object, 'bank_transaction', None):
-            context['bank_transaction'] = self.object.bank_transaction
+
+        # Helpful in UI: show allocations (if template uses it)
+        context['allocations'] = self.object.allocations.select_related(
+            'invoice_item', 'invoice_item__invoice'
+        ).all()
+
+        # If there are bank transactions linked
+        context['bank_transactions'] = self.object.bank_transactions.all()
+
         return context
 
 
 class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
-    """Manually record a payment."""
+    """Manually record a payment.
+
+    NOTE: PaymentRecordForm is a forms.Form, not a ModelForm, so do NOT call form.save().
+    """
 
     template_name = 'finance/payment_record.html'
     form_class = PaymentRecordForm
@@ -679,7 +680,6 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        # Pre-select student/invoice if provided
         kwargs['student_id'] = self.request.GET.get('student')
         kwargs['invoice_id'] = self.request.GET.get('invoice')
         return kwargs
@@ -690,21 +690,34 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return context
 
     def form_valid(self, form):
-        with db_transaction.atomic():
-            payment = form.save(commit=False)
-            payment.recorded_by = self.request.user
-            payment.status = PaymentStatus.COMPLETED
-            payment.save()
+        cd = form.cleaned_data
 
-            # Update invoice balance if linked
-            if payment.invoice:
-                payment.invoice.amount_paid = (payment.invoice.amount_paid or Decimal('0.00')) + payment.amount
-                payment.invoice.balance = payment.invoice.total_amount - payment.invoice.amount_paid
-                if payment.invoice.balance <= 0:
-                    payment.invoice.status = InvoiceStatus.PAID
-                else:
-                    payment.invoice.status = InvoiceStatus.PARTIAL
-                payment.invoice.save()
+        student = cd['student']
+        amount = cd['amount']
+        payment_method = cd['payment_method']
+        payment_date = cd.get('payment_date') or timezone.now()
+
+        selected_invoice = cd.get('invoice')  # optional; policy is still oldest-first
+        notes = cd.get('notes') or ''
+        transaction_reference = cd.get('transaction_reference') or ''
+        payer_name = cd.get('payer_name') or ''
+        payer_phone = cd.get('payer_phone') or ''
+
+        if selected_invoice:
+            extra = f"Selected invoice: {selected_invoice.invoice_number} (allocation policy: oldest-first)"
+            notes = (notes + (" | " if notes else "") + extra)
+
+        payment = PaymentsPaymentService.create_manual_payment(
+            student=student,
+            amount=amount,
+            payment_method=payment_method,
+            received_by=self.request.user,
+            payment_date=payment_date,
+            payer_name=payer_name,
+            payer_phone=payer_phone,
+            notes=notes,
+            transaction_reference=transaction_reference,
+        )
 
         messages.success(self.request, f'Payment of KES {payment.amount:,.2f} recorded successfully.')
         return redirect('finance:payment_detail', pk=payment.pk)
@@ -758,7 +771,7 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
 
 class BankTransactionMatchView(LoginRequiredMixin, RoleRequiredMixin, FormView):
-    """Match a bank transaction to a student/invoice."""
+    """Match a bank transaction to a student (invoice selection is optional, but allocation is oldest-first)."""
 
     template_name = 'finance/bank_transaction_match.html'
     form_class = BankTransactionMatchForm
@@ -772,36 +785,32 @@ class BankTransactionMatchView(LoginRequiredMixin, RoleRequiredMixin, FormView):
     def form_valid(self, form):
         transaction = get_object_or_404(BankTransaction, pk=self.kwargs['pk'])
         student = form.cleaned_data['student']
-        invoice = form.cleaned_data.get('invoice')
+        selected_invoice = form.cleaned_data.get('invoice')  # optional; do not force allocation to it
+        notes = form.cleaned_data.get('notes') or ''
 
-        with db_transaction.atomic():
-            # Create payment from transaction
-            payment = Payment.objects.create(
-                student=student,
-                invoice=invoice,
-                amount=transaction.amount,
-                payment_method=PaymentMethod.MPESA,
-                payment_date=transaction.callback_received_at or timezone.now(),
-                transaction_reference=getattr(transaction, 'mpesa_receipt_number', None) or getattr(transaction, 'transaction_reference', None),
-                status=PaymentStatus.COMPLETED,
-                bank_transaction=transaction,
-                recorded_by=self.request.user
-            )
+        if transaction.payment_id:
+            messages.error(self.request, "This transaction is already matched to a payment.")
+            return redirect('finance:bank_transaction_list')
 
-            # Update transaction
-            transaction.processing_status = 'completed'
-            transaction.payment = payment
-            transaction.save()
+        # Add operator note (optional)
+        if selected_invoice:
+            extra = f"Selected invoice: {selected_invoice.invoice_number} (allocation policy: oldest-first)"
+            notes = (notes + (" | " if notes else "") + extra)
 
-            # Update invoice if provided
-            if invoice:
-                invoice.amount_paid = (invoice.amount_paid or Decimal('0.00')) + payment.amount
-                invoice.balance = invoice.total_amount - invoice.amount_paid
-                if invoice.balance <= 0:
-                    invoice.status = InvoiceStatus.PAID
-                else:
-                    invoice.status = InvoiceStatus.PARTIAL
-                invoice.save()
+        if notes:
+            transaction.processing_notes = (transaction.processing_notes or "")
+            transaction.processing_notes = (transaction.processing_notes + (" | " if transaction.processing_notes else "") + notes)
+            transaction.save(update_fields=["processing_notes", "updated_at"])
+
+        # Create payment from this BankTransaction and allocate oldest-first
+        payment = PaymentsPaymentService.create_payment_from_bank_transaction(
+            bank_tx=transaction,
+            student=student,
+            invoice=None,
+            payer_name=transaction.payer_name or "",
+            payer_phone=transaction.payer_account or "",
+            reconciled_by=self.request.user,
+        )
 
         messages.success(self.request, f'Transaction matched to {student.full_name} successfully.')
         return redirect('finance:bank_transaction_list')
@@ -908,12 +917,10 @@ class OutstandingBalancesReportView(LoginRequiredMixin, RoleRequiredMixin, ListV
             status=InvoiceStatus.CANCELLED
         ).select_related('student', 'term')
 
-        # Filter by term
         term = self.request.GET.get('term')
         if term:
             queryset = queryset.filter(term_id=term)
 
-        # Filter by grade
         grade = self.request.GET.get('grade')
         if grade:
             queryset = queryset.filter(student__grade_level=grade)

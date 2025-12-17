@@ -159,7 +159,7 @@ class CoopIPNView(APIView):
             payment = PaymentService.create_payment_from_bank_transaction(
                 bank_tx=bank_tx,
                 student=student,
-                invoice=invoice,
+                invoice=None,
                 payer_name=payer_name,
                 payer_phone=payer_phone,
             )

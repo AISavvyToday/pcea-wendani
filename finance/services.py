@@ -26,7 +26,7 @@ class InvoiceService:
 
     @staticmethod
     @transaction.atomic
-    def generate_invoice(student, term, fee_structure=None, include_balance_bf=True, generated_by=None):
+    def generate_invoice(student, term, fee_structure=None, generated_by=None):
         """Generate invoice for a student for a term."""
 
         # Check if invoice already exists
@@ -50,20 +50,7 @@ class InvoiceService:
         if not fee_structure:
             raise ValueError(f"No fee structure found for student {student.admission_number}")
 
-        # Calculate balance brought forward
-        balance_bf = Decimal('0.00')
-        if include_balance_bf:
-            previous_invoices = Invoice.objects.filter(
-                student=student,
-                is_active=True,
-                term__academic_year=term.academic_year
-            ).exclude(
-                term=term
-            ).exclude(status='cancelled')
 
-            balance_bf = previous_invoices.aggregate(
-                total=Sum('balance')
-            )['total'] or Decimal('0.00')
 
         # Create invoice
         invoice = Invoice.objects.create(
@@ -73,7 +60,8 @@ class InvoiceService:
             issue_date=timezone.now().date(),
             due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
                 days=30),
-            balance_bf=balance_bf,
+            balance_bf=Decimal("0.00"),
+            prepayment=Decimal("0.00"),
             generated_by=generated_by,
             status='draft'
         )
@@ -115,8 +103,16 @@ class InvoiceService:
         # Update invoice totals
         invoice.subtotal = subtotal
         invoice.discount_amount = min(discount_amount, subtotal)
-        invoice.total_amount = subtotal - invoice.discount_amount + balance_bf
-        invoice.balance = invoice.total_amount
+        invoice.subtotal = subtotal
+        invoice.discount_amount = min(discount_amount, subtotal)
+
+        # Standalone: only this term's fees
+        invoice.total_amount = invoice.subtotal - invoice.discount_amount
+
+        # Let model save() compute balance
+        invoice.amount_paid = invoice.amount_paid or Decimal("0.00")
+        invoice.prepayment = Decimal("0.00")
+        invoice.balance_bf = Decimal("0.00")
         invoice.status = 'sent'
         invoice.save()
 
@@ -124,7 +120,7 @@ class InvoiceService:
 
     @staticmethod
     @transaction.atomic
-    def bulk_generate_invoices(term, grade_levels=None, include_balance_bf=True, generated_by=None):
+    def bulk_generate_invoices(term, grade_levels=None, generated_by=None):
         """Generate invoices for multiple students."""
 
         students = Student.objects.filter(is_active=True, status='active')
@@ -140,7 +136,6 @@ class InvoiceService:
                 _, created = InvoiceService.generate_invoice(
                     student=student,
                     term=term,
-                    include_balance_bf=include_balance_bf,
                     generated_by=generated_by
                 )
                 if created:

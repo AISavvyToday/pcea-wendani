@@ -154,12 +154,6 @@ class InvoiceGenerateForm(forms.Form):
         help_text="Leave empty to generate for all grades"
     )
 
-    include_balance_bf = forms.BooleanField(
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        help_text="Include balance brought forward from previous term"
-    )
 
     overwrite_existing = forms.BooleanField(
         required=False,
