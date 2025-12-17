@@ -459,7 +459,6 @@ Errors: {stats['errors']}
                     payer_phone="",
                     notes="Imported prepayment/credit from opening balances sheet (T3 2025).",
                     transaction_reference=tx_ref,
-                    invoice=invoice if charges > 0 else None,
                 )
                 stats["payments_created"] += 1
 
