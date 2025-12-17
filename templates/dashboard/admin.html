@@ -11,7 +11,10 @@
     </span>
     Administrator Dashboard
   </h3>
-  <p class="text-muted mb-0">Realtime oversight across school operations</p>
+  <p class="text-muted mb-0">
+    Realtime oversight across school operations
+    {% if current_term %} · {{ current_term }}{% endif %}
+  </p>
 </div>
 {% endblock %}
 
@@ -19,21 +22,22 @@
 <div class="row">
   {% for card in stat_cards %}
   <div class="col-md-4 stretch-card grid-margin">
-    <div class="card {{ card.bg }} card-img-holder text-white">
-      <div class="card-body">
-        <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="chart" />
-        <h4 class="font-weight-normal mb-3">
-          {{ card.title }}
-          <i class="mdi {{ card.icon }} mdi-24px float-end"></i>
-        </h4>
-        <h2 class="mb-4">{{ card.value }}</h2>
+    <a href="{{ card.url|default:'#' }}" class="text-white text-decoration-none d-block">
+      <div class="card {{ card.bg }} card-img-holder text-white">
+        <div class="card-body">
+          <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="chart" />
+          <h4 class="font-weight-normal mb-3">
+            {{ card.title }}
+            <i class="mdi {{ card.icon }} mdi-24px float-end"></i>
+          </h4>
+          <h2 class="mb-2">{{ card.value }}</h2>
+          {% if card.helper %}
+            <p class="mb-0 small text-white-50">{{ card.helper }}</p>
+          {% endif %}
+        </div>
       </div>
-    </div>
+    </a>
   </div>
   {% endfor %}
 </div>
-
-
-
-
 {% endblock %}
