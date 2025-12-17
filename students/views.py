@@ -180,31 +180,57 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         profile_data = StudentService.get_student_profile_data(student)
         context.update(profile_data)
 
-        # Additional Finance / Academic / Records for full display
-        # Invoices & payments (lightweight queries; adjust prefetch if many rows)
-        context['invoices'] = student.invoices.select_related('term').order_by('-issue_date')[:25]
-        context['payments'] = student.payments.order_by('-payment_date')[:25]
+        # ----------------------------
+        # FINANCE DATA
+        # ----------------------------
+        invoices = student.invoices.select_related('term').order_by('-issue_date')[:25]
+        payments = student.payments.order_by('-payment_date')[:25]
 
-        # quick aggregates
-        context['total_paid'] = sum((p.amount for p in student.payments.all()), 0)
-        context['outstanding_balance'] = sum((inv.balance for inv in student.invoices.all()), 0)
+        context['invoices'] = invoices
+        context['payments'] = payments
 
-        # Documents, discipline, medical, grades, attendance
+        # Total paid
+        context['total_paid'] = sum(
+            (p.amount for p in student.payments.all()),
+            0
+        )
+
+        # Outstanding balance
+        context['outstanding_balance'] = sum(
+            (inv.balance for inv in student.invoices.all()),
+            0
+        )
+
+        # ✅ CREDIT / PREPAYMENT (unallocated payments)
+        credit_balance = 0
+        for p in student.payments.all():
+            if hasattr(p, 'unapplied_amount') and p.unapplied_amount:
+                credit_balance += p.unapplied_amount
+
+        context['credit_balance'] = credit_balance
+
+        # ----------------------------
+        # DOCUMENTS & RECORDS
+        # ----------------------------
         context['documents'] = student.documents.order_by('-created_at')[:50]
         context['discipline_records'] = student.discipline_records.order_by('-incident_date')[:50]
         context['medical_records'] = student.medical_records.order_by('-record_date')[:50]
-        context['grades'] = student.grades.select_related('exam', 'subject').order_by('-entered_at')[:100]
-        context['attendance_recent'] = student.attendance_records.select_related('class_obj').order_by('-date')[:50]
+        context['grades'] = student.grades.select_related(
+            'exam', 'subject'
+        ).order_by('-entered_at')[:100]
+        context['attendance_recent'] = student.attendance_records.select_related(
+            'class_obj'
+        ).order_by('-date')[:50]
 
-        # Enrollment history returned by service (placeholder if not available)
-        enrollments = profile_data.get('enrollments', [])
-        context['enrollments'] = enrollments
+        # Enrollment history returned by service
+        context['enrollments'] = profile_data.get('enrollments', [])
 
-        # parents already provided by profile_data as 'student_parents'
+        # Parents (already prepared by service)
         context['student_parents'] = profile_data.get('student_parents', [])
 
-        # Determine active tab (server-side fallback)
+        # Active tab (server-side fallback)
         context['active_tab'] = self.request.GET.get('tab', 'overview')
+
         return context
 
 

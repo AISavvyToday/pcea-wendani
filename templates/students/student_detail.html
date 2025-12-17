@@ -255,72 +255,125 @@
           </div>
 
           <!-- Finance -->
-          <div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
-            <h5 class="mb-3">Finance</h5>
+<div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
+  <h5 class="mb-3">Finance</h5>
 
-            <div class="row mb-3">
-              <div class="col-sm-4">
-                <div class="small-muted">Total Invoices</div>
-                <div class="info-val">{{ invoices|length }}</div>
-              </div>
-              <div class="col-sm-4">
-                <div class="small-muted">Total Paid</div>
-                <div class="info-val">KES {{ total_paid|default:"0.00" }}</div>
-              </div>
-              <div class="col-sm-4">
-                <div class="small-muted">Balance</div>
-                <div class="info-val text-danger">KES {{ outstanding_balance|default:"0.00" }}</div>
-              </div>
-            </div>
+  <!-- SUMMARY -->
+  <div class="row mb-3">
+    <div class="col-sm-3">
+      <div class="small-muted">Total Invoices</div>
+      <div class="info-val">{{ invoices|length }}</div>
+    </div>
 
-            <h6 class="mb-2">Recent Invoices</h6>
-            {% if invoices %}
-              <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                  <thead>
-                    <tr><th>Invoice</th><th>Term</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Issued</th></tr>
-                  </thead>
-                  <tbody>
-                    {% for inv in invoices|slice:":8" %}
-                    <tr>
-                      <td><a href="{% url 'finance:invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a></td>
-                      <td>{{ inv.term }}</td>
-                      <td>KES {{ inv.total_amount }}</td>
-                      <td>KES {{ inv.amount_paid }}</td>
-                      <td>KES {{ inv.balance }}</td>
-                      <td>{{ inv.get_status_display }}</td>
-                      <td class="small-muted">{{ inv.issue_date|date:"d M Y" }}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            {% else %}
-              <div class="alert alert-light">No invoices yet.</div>
-            {% endif %}
+    <div class="col-sm-3">
+      <div class="small-muted">Total Paid</div>
+      <div class="info-val text-success">
+        KES {{ total_paid|default:"0.00" }}
+      </div>
+    </div>
 
-            <h6 class="mt-3 mb-2">Recent Payments</h6>
-            {% if payments %}
-            <div class="table-responsive">
-              <table class="table table-sm table-hover">
-                <thead><tr><th>Ref</th><th>Amount</th><th>Method</th><th>Date</th><th>Receipt</th></tr></thead>
-                <tbody>
-                  {% for p in payments|slice:":8" %}
-                  <tr>
-                    <td>{{ p.payment_reference }}</td>
-                    <td>KES {{ p.amount }}</td>
-                    <td>{{ p.get_payment_method_display }}</td>
-                    <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
-                    <td>{% if p.receipt_number %}{{ p.receipt_number }}{% else %}-{% endif %}</td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-            {% else %}
-              <div class="alert alert-light">No payments found.</div>
-            {% endif %}
-          </div>
+    <div class="col-sm-3">
+      <div class="small-muted">Outstanding Balance</div>
+      <div class="info-val text-danger">
+        KES {{ outstanding_balance|default:"0.00" }}
+      </div>
+    </div>
+
+    <div class="col-sm-3">
+      <div class="small-muted">Credit / Prepayment</div>
+      <div class="info-val text-primary">
+        KES {{ credit_balance|default:"0.00" }}
+      </div>
+    </div>
+  </div>
+
+  {% if credit_balance > 0 %}
+    <div class="alert alert-info py-2">
+      <i class="mdi mdi-information-outline"></i>
+      This student has <strong>KES {{ credit_balance }}</strong> as advance payment.
+      It will be automatically applied to future invoices.
+    </div>
+  {% endif %}
+
+  <!-- INVOICES -->
+  <h6 class="mb-2">Recent Invoices</h6>
+  {% if invoices %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Term</th>
+            <th>Total</th>
+            <th>Paid</th>
+            <th>Balance</th>
+            <th>Status</th>
+            <th>Issued</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices|slice:":8" %}
+          <tr>
+            <td>
+              <a href="{% url 'finance:invoice_detail' inv.pk %}">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>{{ inv.term }}</td>
+            <td>KES {{ inv.total_amount }}</td>
+            <td>KES {{ inv.amount_paid }}</td>
+            <td class="{% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+              KES {{ inv.balance }}
+            </td>
+            <td>{{ inv.get_status_display }}</td>
+            <td class="small-muted">{{ inv.issue_date|date:"d M Y" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-light">No invoices yet.</div>
+  {% endif %}
+
+  <!-- PAYMENTS -->
+  <h6 class="mt-3 mb-2">Recent Payments</h6>
+  {% if payments %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>Ref</th>
+            <th>Amount</th>
+            <th>Applied</th>
+            <th>Credit</th>
+            <th>Method</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments|slice:":8" %}
+          <tr>
+            <td>{{ p.payment_reference }}</td>
+            <td>KES {{ p.amount }}</td>
+            <td>
+              KES {{ p.amount|floatformat:2|add:"-"|add:p.unapplied_amount }}
+            </td>
+            <td class="text-primary">
+              KES {{ p.unapplied_amount|default:"0.00" }}
+            </td>
+            <td>{{ p.get_payment_method_display }}</td>
+            <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-light">No payments found.</div>
+  {% endif %}
+</div>
+
 
           <!-- Parents -->
           <div id="panel-parents" class="panel {% if active_tab == 'parents' %}active{% endif %}">
