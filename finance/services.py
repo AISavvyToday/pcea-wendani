@@ -218,126 +218,6 @@ class InvoiceService:
         }
 
 
-class PaymentService:
-    """Service for payment operations."""
-
-    @staticmethod
-    @transaction.atomic
-    def record_payment(student, amount, payment_method, payment_date=None,
-                       invoice=None, transaction_reference=None, bank=None,
-                       payer_name=None, payer_phone=None, recorded_by=None, notes=None):
-        """Record a payment and allocate to invoices."""
-
-        payment = Payment.objects.create(
-            student=student,
-            amount=amount,
-            payment_method=payment_method,
-            payment_date=payment_date or timezone.now(),
-            transaction_reference=transaction_reference,
-            bank=bank,
-            payer_name=payer_name,
-            payer_phone=payer_phone,
-            recorded_by=recorded_by,
-            notes=notes,
-            status='completed'
-        )
-
-        # Generate receipt number
-        payment.receipt_number = f"RCP{payment.created_at.strftime('%Y%m')}{payment.pk:05d}"
-        payment.save()
-
-        # Allocate payment to invoices
-        PaymentService.allocate_payment(payment, invoice)
-
-        return payment
-
-    @staticmethod
-    @transaction.atomic
-    def allocate_payment(payment, specific_invoice=None):
-        """Allocate payment to outstanding invoices."""
-
-        remaining = payment.amount
-
-        if specific_invoice and specific_invoice.balance > 0:
-            alloc_amount = min(remaining, specific_invoice.balance)
-            PaymentAllocation.objects.create(
-                payment=payment,
-                invoice=specific_invoice,
-                amount=alloc_amount
-            )
-            specific_invoice.amount_paid += alloc_amount
-            specific_invoice.balance -= alloc_amount
-            specific_invoice.update_status()
-            specific_invoice.save()
-            remaining -= alloc_amount
-
-        if remaining > 0:
-            invoices = Invoice.objects.filter(
-                student=payment.student,
-                is_active=True,
-                balance__gt=0
-            ).exclude(status='cancelled').order_by('issue_date')
-
-            if specific_invoice:
-                invoices = invoices.exclude(pk=specific_invoice.pk)
-
-            for invoice in invoices:
-                if remaining <= 0:
-                    break
-                alloc_amount = min(remaining, invoice.balance)
-                PaymentAllocation.objects.create(
-                    payment=payment,
-                    invoice=invoice,
-                    amount=alloc_amount
-                )
-                invoice.amount_paid += alloc_amount
-                invoice.balance -= alloc_amount
-                invoice.update_status()
-                invoice.save()
-                remaining -= alloc_amount
-
-        return remaining
-
-    @staticmethod
-    def process_bank_callback(transaction_data, bank):
-        """Process bank payment callback."""
-
-        bank_txn = BankTransaction.objects.create(
-            bank=bank,
-            transaction_reference=transaction_data.get('reference'),
-            amount=Decimal(str(transaction_data.get('amount', 0))),
-            transaction_date=timezone.now(),
-            account_reference=transaction_data.get('account_reference'),
-            sender_name=transaction_data.get('sender_name'),
-            sender_phone=transaction_data.get('sender_phone'),
-            raw_data=transaction_data,
-            status='pending'
-        )
-
-        account_ref = transaction_data.get('account_reference', '')
-        student = Student.objects.filter(
-            Q(admission_number__iexact=account_ref) |
-            Q(admission_number__iexact=account_ref.replace(' ', ''))
-        ).first()
-
-        if student:
-            payment = PaymentService.record_payment(
-                student=student,
-                amount=bank_txn.amount,
-                payment_method='bank' if bank != 'mpesa' else 'mpesa',
-                transaction_reference=bank_txn.transaction_reference,
-                bank=bank,
-                payer_name=bank_txn.sender_name,
-                payer_phone=bank_txn.sender_phone
-            )
-            bank_txn.payment = payment
-            bank_txn.status = 'matched'
-            bank_txn.save()
-            return payment, bank_txn
-
-        bank_txn.status = 'unmatched'
-        bank_txn.save()
-        return None, bank_txn
 
 
 class FinanceReportService:
@@ -556,3 +436,126 @@ class DiscountService:
             return total_applicable * (value / 100)
         else:
             return min(value, total_applicable)
+
+
+# class PaymentService:
+#     """Service for payment operations."""
+#
+#     @staticmethod
+#     @transaction.atomic
+#     def record_payment(student, amount, payment_method, payment_date=None,
+#                        invoice=None, transaction_reference=None, bank=None,
+#                        payer_name=None, payer_phone=None, recorded_by=None, notes=None):
+#         """Record a payment and allocate to invoices."""
+#
+#         payment = Payment.objects.create(
+#             student=student,
+#             amount=amount,
+#             payment_method=payment_method,
+#             payment_date=payment_date or timezone.now(),
+#             transaction_reference=transaction_reference,
+#             bank=bank,
+#             payer_name=payer_name,
+#             payer_phone=payer_phone,
+#             recorded_by=recorded_by,
+#             notes=notes,
+#             status='completed'
+#         )
+#
+#         # Generate receipt number
+#         payment.receipt_number = f"RCP{payment.created_at.strftime('%Y%m')}{payment.pk:05d}"
+#         payment.save()
+#
+#         # Allocate payment to invoices
+#         PaymentService.allocate_payment(payment, invoice)
+#
+#         return payment
+#
+#     @staticmethod
+#     @transaction.atomic
+#     def allocate_payment(payment, specific_invoice=None):
+#         """Allocate payment to outstanding invoices."""
+#
+#         remaining = payment.amount
+#
+#         if specific_invoice and specific_invoice.balance > 0:
+#             alloc_amount = min(remaining, specific_invoice.balance)
+#             PaymentAllocation.objects.create(
+#                 payment=payment,
+#                 invoice=specific_invoice,
+#                 amount=alloc_amount
+#             )
+#             specific_invoice.amount_paid += alloc_amount
+#             specific_invoice.balance -= alloc_amount
+#             specific_invoice.update_status()
+#             specific_invoice.save()
+#             remaining -= alloc_amount
+#
+#         if remaining > 0:
+#             invoices = Invoice.objects.filter(
+#                 student=payment.student,
+#                 is_active=True,
+#                 balance__gt=0
+#             ).exclude(status='cancelled').order_by('issue_date')
+#
+#             if specific_invoice:
+#                 invoices = invoices.exclude(pk=specific_invoice.pk)
+#
+#             for invoice in invoices:
+#                 if remaining <= 0:
+#                     break
+#                 alloc_amount = min(remaining, invoice.balance)
+#                 PaymentAllocation.objects.create(
+#                     payment=payment,
+#                     invoice=invoice,
+#                     amount=alloc_amount
+#                 )
+#                 invoice.amount_paid += alloc_amount
+#                 invoice.balance -= alloc_amount
+#                 invoice.update_status()
+#                 invoice.save()
+#                 remaining -= alloc_amount
+#
+#         return remaining
+#
+#     @staticmethod
+#     def process_bank_callback(transaction_data, bank):
+#         """Process bank payment callback."""
+#
+#         bank_txn = BankTransaction.objects.create(
+#             bank=bank,
+#             transaction_reference=transaction_data.get('reference'),
+#             amount=Decimal(str(transaction_data.get('amount', 0))),
+#             transaction_date=timezone.now(),
+#             account_reference=transaction_data.get('account_reference'),
+#             sender_name=transaction_data.get('sender_name'),
+#             sender_phone=transaction_data.get('sender_phone'),
+#             raw_data=transaction_data,
+#             status='pending'
+#         )
+#
+#         account_ref = transaction_data.get('account_reference', '')
+#         student = Student.objects.filter(
+#             Q(admission_number__iexact=account_ref) |
+#             Q(admission_number__iexact=account_ref.replace(' ', ''))
+#         ).first()
+#
+#         if student:
+#             payment = PaymentService.record_payment(
+#                 student=student,
+#                 amount=bank_txn.amount,
+#                 payment_method='bank' if bank != 'mpesa' else 'mpesa',
+#                 transaction_reference=bank_txn.transaction_reference,
+#                 bank=bank,
+#                 payer_name=bank_txn.sender_name,
+#                 payer_phone=bank_txn.sender_phone
+#             )
+#             bank_txn.payment = payment
+#             bank_txn.status = 'matched'
+#             bank_txn.save()
+#             return payment, bank_txn
+#
+#         bank_txn.status = 'unmatched'
+#         bank_txn.save()
+#         return None, bank_txn
+

@@ -60,6 +60,12 @@ class Payment(BaseModel):
     )
     reconciled_at = models.DateTimeField(null=True, blank=True)
 
+    unallocated_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
     class Meta:
         db_table = 'payments'
         ordering = ['-payment_date']
