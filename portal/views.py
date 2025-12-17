@@ -18,9 +18,9 @@ from django.urls import reverse, NoReverseMatch
 from django.utils import timezone
 
 from core.models import UserRole, InvoiceStatus, PaymentStatus
-from accounts.decorators import role_required, admin_required, finance_required, teacher_required
+from accounts.decorators import role_required
 
-# Finance / Academics / Students / Payments
+# Academics / Students / Finance / Payments
 from academics.models import Term
 from students.models import Student
 from finance.models import Invoice
@@ -40,34 +40,27 @@ def _model_has_field(model, field_name: str) -> bool:
         return False
 
 
-def _safe_reverse(*names, default="#", kwargs=None):
+def _safe_reverse(name, default="#", kwargs=None):
     kwargs = kwargs or {}
-    for name in names:
-        try:
-            return reverse(name, kwargs=kwargs)
-        except NoReverseMatch:
-            continue
-    return default
+    try:
+        return reverse(name, kwargs=kwargs)
+    except NoReverseMatch:
+        return default
 
 
 def _fmt_kes(amount) -> str:
-    """
-    Format amounts consistently for dashboards.
-    """
     if amount is None:
         amount = 0
     try:
         amount = Decimal(str(amount))
     except Exception:
         amount = Decimal("0")
-    # No decimals on dashboard cards (cleaner)
     return f"KES {amount:,.0f}"
 
 
 def _get_current_term():
     term = Term.objects.filter(is_current=True).select_related("academic_year").first()
     if not term:
-        # fallback: latest term (best effort)
         qs = Term.objects.all().select_related("academic_year")
         if _model_has_field(Term, "is_active"):
             qs = qs.filter(is_active=True)
@@ -83,16 +76,11 @@ def _get_active_students_qs():
 
 
 def _get_staff_count():
-    """
-    Counts all active non-parent/non-student system users as "staff".
-    Adjust roles list if you want parents/students to be included/excluded differently.
-    """
     User = get_user_model()
     qs = User.objects.all()
     if _model_has_field(User, "is_active"):
         qs = qs.filter(is_active=True)
 
-    # role field exists in your project (used in login + role_redirect)
     staff_roles = [
         UserRole.SUPER_ADMIN,
         UserRole.SCHOOL_ADMIN,
@@ -102,13 +90,15 @@ def _get_staff_count():
     try:
         return qs.filter(role__in=staff_roles).count()
     except Exception:
-        # If role field/enum differs, fail gracefully
         return qs.count()
 
 
 def _invoice_base_qs():
-    qs = Invoice.objects.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
-    return qs.select_related("student", "term", "term__academic_year")
+    return (
+        Invoice.objects.filter(is_active=True)
+        .exclude(status=InvoiceStatus.CANCELLED)
+        .select_related("student", "term", "term__academic_year")
+    )
 
 
 def _finance_kpis(term=None):
@@ -121,27 +111,20 @@ def _finance_kpis(term=None):
     academic_year = getattr(term, "academic_year", None) if term else None
 
     base = _invoice_base_qs()
-
-    term_qs = base.none()
-    year_qs = base.none()
-
-    if term:
-        term_qs = base.filter(term=term)
-
-    if academic_year:
-        year_qs = base.filter(term__academic_year=academic_year)
+    term_qs = base.filter(term=term) if term else base.none()
+    year_qs = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
     def agg(qs):
         billed = qs.aggregate(x=Sum("total_amount"))["x"] or 0
         collected = qs.aggregate(x=Sum("amount_paid"))["x"] or 0
         outstanding = qs.aggregate(x=Sum("balance"))["x"] or 0
-        invoices = qs.count()
+        invoice_count = qs.count()
         students_outstanding = qs.filter(balance__gt=0).values("student_id").distinct().count()
         return {
             "billed": billed,
             "collected": collected,
             "outstanding": outstanding,
-            "invoice_count": invoices,
+            "invoice_count": invoice_count,
             "students_outstanding": students_outstanding,
         }
 
@@ -182,13 +165,7 @@ def _finance_kpis(term=None):
 @never_cache
 @require_http_methods(["GET", "POST"])
 def login_view(request):
-    """
-    Handle user login with email and password.
-    Redirects authenticated users to their role-based dashboard.
-    """
-    # Redirect if already logged in
     if request.user.is_authenticated:
-        logger.debug(f"Already authenticated user '{request.user.email}' accessing login page")
         return redirect("portal:role_redirect")
 
     if request.method == "POST":
@@ -196,54 +173,40 @@ def login_view(request):
         password = request.POST.get("password", "")
         remember_me = request.POST.get("remember_me")
 
-        logger.info(f"Login attempt for email: {email}")
-
         if not email or not password:
             messages.error(request, "Please enter both email and password.")
             return render(request, "auth/login.html")
 
-        # Authenticate user
         user = authenticate(request, username=email, password=password)
 
         if user is not None:
-            # Check if account is locked
             if hasattr(user, "is_locked") and user.is_locked():
-                logger.warning(f"Login attempt for locked account: {email}")
                 messages.error(
                     request,
                     "Your account is temporarily locked. Please try again later or contact support.",
                 )
                 return render(request, "auth/login.html")
 
-            # Check if account is active
             if not user.is_active:
-                logger.warning(f"Login attempt for inactive account: {email}")
                 messages.error(request, "Your account is inactive. Please contact the administrator.")
                 return render(request, "auth/login.html")
 
-            # Log the user in
             login(request, user)
 
-            # Reset failed login attempts on successful login
             if hasattr(user, "reset_failed_login"):
                 user.reset_failed_login()
 
-            # Set session expiry based on "remember me"
             if not remember_me:
-                request.session.set_expiry(0)  # Expire on browser close
+                request.session.set_expiry(0)
 
-            logger.info(f"User '{email}' logged in successfully with role '{user.role}'")
             messages.success(request, f"Welcome back, {user.get_short_name()}!")
 
-            # Redirect to intended page or role-based dashboard
             next_url = request.GET.get("next") or request.POST.get("next")
             if next_url:
                 return redirect(next_url)
             return redirect("portal:role_redirect")
 
-        else:
-            logger.warning(f"Failed login attempt for email: {email}")
-            messages.error(request, "Invalid email or password. Please try again.")
+        messages.error(request, "Invalid email or password. Please try again.")
 
     return render(request, "auth/login.html")
 
@@ -251,12 +214,7 @@ def login_view(request):
 @login_required
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
-    """
-    Log out the current user and redirect to login page.
-    """
-    user_email = request.user.email
     logout(request)
-    logger.info(f"User '{user_email}' logged out")
     messages.info(request, "You have been logged out successfully.")
     return redirect("portal:login")
 
@@ -264,16 +222,10 @@ def logout_view(request):
 @never_cache
 @require_http_methods(["GET", "POST"])
 def register_view(request):
-    """
-    User registration view.
-    For now, registration is disabled - users are created by admins.
-    """
-    # Redirect if already logged in
     if request.user.is_authenticated:
         return redirect("portal:role_redirect")
 
     if request.method == "POST":
-        # Registration is currently admin-only
         messages.info(
             request,
             "Registration is currently handled by school administrators. Please contact the school office.",
@@ -285,15 +237,9 @@ def register_view(request):
 
 @login_required
 def role_redirect(request):
-    """
-    Redirect authenticated users to their role-appropriate dashboard.
-    """
     user = request.user
     role = user.role
 
-    logger.debug(f"Role redirect for user '{user.email}' with role '{role}'")
-
-    # Map roles to dashboard URLs
     dashboard_map = {
         UserRole.SUPER_ADMIN: "portal:dashboard_admin",
         UserRole.SCHOOL_ADMIN: "portal:dashboard_admin",
@@ -303,10 +249,7 @@ def role_redirect(request):
         UserRole.STUDENT: "portal:dashboard_parent",
     }
 
-    redirect_url = dashboard_map.get(role, "portal:home")
-    logger.info(f"Redirecting user '{user.email}' to '{redirect_url}'")
-
-    return redirect(redirect_url)
+    return redirect(dashboard_map.get(role, "portal:home"))
 
 
 # =============================================================================
@@ -315,20 +258,13 @@ def role_redirect(request):
 
 @login_required
 def home(request):
-    """
-    Main home/landing page after login.
-    Shows role-appropriate quick stats and actions.
-    """
     user = request.user
-
-    # Build context based on role
     context = {
         "quick_stats": _get_quick_stats(user),
         "quick_actions": _get_quick_actions(user),
         "notices": _get_notices(user),
         "summaries": _get_summaries(user),
     }
-
     return render(request, "portal/home.html", context)
 
 
@@ -349,15 +285,26 @@ def dashboard_admin(request):
     total_students = _get_active_students_qs().count()
     staff_count = _get_staff_count()
 
-    fee_url = _safe_reverse("finance:invoice_list", "portal:finance_overview")
-    students_url = _safe_reverse("students:student_list", "portal:academics_overview", "portal:blank_page")
-    staff_url = _safe_reverse("portal:settings_overview", "portal:blank_page")
+    # Finance URLs (REAL from your finance/urls.py)
+    finance_dashboard_url = _safe_reverse("finance:dashboard", default=_safe_reverse("portal:finance_overview"))
+    invoices_url = _safe_reverse("finance:invoice_list", default=finance_dashboard_url)
+    payments_url = _safe_reverse("finance:payment_list", default=finance_dashboard_url)
+    bank_url = _safe_reverse("finance:bank_transaction_list", default=finance_dashboard_url)
+    outstanding_url = _safe_reverse("finance:outstanding_report", default=invoices_url)
 
-    # collection rate
+    # Add term filter to some links
+    term_qs = f"?term={term.pk}" if term else ""
+    invoices_term_url = f"{invoices_url}{term_qs}"
+    outstanding_term_url = f"{outstanding_url}{term_qs}"
+
     billed = Decimal(str(term_stats["billed"] or 0))
     collected = Decimal(str(term_stats["collected"] or 0))
     outstanding = Decimal(str(term_stats["outstanding"] or 0))
     rate = (collected / billed * 100) if billed > 0 else Decimal("0")
+
+    year_billed = Decimal(str(year_stats["billed"] or 0))
+    year_collected = Decimal(str(year_stats["collected"] or 0))
+    year_rate = (year_collected / year_billed * 100) if year_billed > 0 else Decimal("0")
 
     context = {
         "current_term": term,
@@ -368,7 +315,7 @@ def dashboard_admin(request):
                 "value": f"{total_students:,}",
                 "icon": "mdi-account-group",
                 "bg": "bg-gradient-primary",
-                "url": students_url,
+                "url": _safe_reverse("portal:academics_overview"),
                 "helper": "Active/enrolled students",
             },
             {
@@ -376,16 +323,40 @@ def dashboard_admin(request):
                 "value": f"{staff_count:,}",
                 "icon": "mdi-account-tie",
                 "bg": "bg-gradient-success",
-                "url": staff_url,
+                "url": _safe_reverse("portal:settings_overview"),
                 "helper": "Admins · Teachers · Bursar",
             },
             {
-                "title": "Fee Collection (This Term)",
+                "title": "Billed (This Term)",
+                "value": _fmt_kes(billed),
+                "icon": "mdi-file-document",
+                "bg": "bg-gradient-info",
+                "url": invoices_term_url,
+                "helper": f"Year: {_fmt_kes(year_billed)}",
+            },
+            {
+                "title": "Collected (This Term)",
                 "value": _fmt_kes(collected),
                 "icon": "mdi-cash",
+                "bg": "bg-gradient-success",
+                "url": payments_url,
+                "helper": f"Term rate: {rate:.1f}% · Year rate: {year_rate:.1f}%",
+            },
+            {
+                "title": "Outstanding (This Term)",
+                "value": _fmt_kes(outstanding),
+                "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
-                "url": fee_url,
-                "helper": f"Billed {_fmt_kes(billed)} · Outstanding {_fmt_kes(outstanding)} · {rate:.1f}%",
+                "url": outstanding_term_url,
+                "helper": f"{term_stats['students_outstanding']} student(s) owing",
+            },
+            {
+                "title": "Unmatched Bank Txns",
+                "value": f"{kpis['unmatched_bank_transactions']:,}",
+                "icon": "mdi-bank",
+                "bg": "bg-gradient-danger",
+                "url": bank_url,
+                "helper": "Need reconciliation",
             },
         ],
     }
@@ -411,10 +382,15 @@ def dashboard_bursar(request):
 
     collection_rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
-    invoices_url = _safe_reverse("finance:invoice_list", "portal:finance_overview")
-    payments_url = _safe_reverse("finance:payment_list", "portal:finance_overview")
-    bank_url = _safe_reverse("finance:bank_transaction_list", "portal:finance_overview")
-    reports_url = _safe_reverse("finance:reports", "portal:finance_overview")
+    invoices_url = _safe_reverse("finance:invoice_list", default=_safe_reverse("finance:dashboard"))
+    payments_url = _safe_reverse("finance:payment_list", default=_safe_reverse("finance:dashboard"))
+    bank_url = _safe_reverse("finance:bank_transaction_list", default=_safe_reverse("finance:dashboard"))
+    record_payment_url = _safe_reverse("finance:payment_record", default=payments_url)
+    outstanding_url = _safe_reverse("finance:outstanding_report", default=invoices_url)
+
+    term_qs = f"?term={term.pk}" if term else ""
+    invoices_term_url = f"{invoices_url}{term_qs}"
+    outstanding_term_url = f"{outstanding_url}{term_qs}"
 
     # Top outstanding balances (current term)
     top_invoices = _invoice_base_qs()
@@ -435,7 +411,6 @@ def dashboard_bursar(request):
         student = inv.student
         pr_label, pr_class = _priority(inv.balance)
 
-        # best-effort class/guardian fields (won't crash if missing)
         student_class = (
             getattr(student, "classroom", None)
             or getattr(student, "current_class", None)
@@ -463,7 +438,7 @@ def dashboard_bursar(request):
             }
         )
 
-    # Recent payments (all, latest)
+    # Recent payments (latest)
     pay_qs = Payment.objects.filter(status=PaymentStatus.COMPLETED)
     if _model_has_field(Payment, "is_active"):
         pay_qs = pay_qs.filter(is_active=True)
@@ -477,7 +452,7 @@ def dashboard_bursar(request):
                 "value": _fmt_kes(billed),
                 "accent": "primary",
                 "helper": "Current term",
-                "url": invoices_url,
+                "url": invoices_term_url,
             },
             {
                 "label": "Collected",
@@ -491,7 +466,7 @@ def dashboard_bursar(request):
                 "value": _fmt_kes(outstanding),
                 "accent": "warning",
                 "helper": f"{students_outstanding} student(s)",
-                "url": invoices_url,
+                "url": outstanding_term_url,
             },
             {
                 "label": "Unmatched Bank Txns",
@@ -499,6 +474,13 @@ def dashboard_bursar(request):
                 "accent": "danger",
                 "helper": "Need reconciliation",
                 "url": bank_url,
+            },
+            {
+                "label": "Record Payment",
+                "value": "",
+                "accent": "info",
+                "helper": "Manual payment entry",
+                "url": record_payment_url,
             },
         ],
         "balances": balances,
@@ -517,10 +499,7 @@ def dashboard_bursar(request):
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.TEACHER])
 def dashboard_teacher(request):
-    """
-    Teacher dashboard focused on classes and academics.
-    (Still sample data for now)
-    """
+    # sample
     context = {
         "teaching_cards": [
             {"label": "My Classes", "value": "4", "icon": "mdi-google-classroom", "trend": "Active", "trend_class": "success"},
@@ -534,17 +513,13 @@ def dashboard_teacher(request):
             {"time": "11:00 - 11:40", "class_name": "Grade 6A", "room": "Room 5", "topic": "Mathematics"},
         ],
     }
-
     return render(request, "dashboard/teacher.html", context)
 
 
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.PARENT, UserRole.STUDENT])
 def dashboard_parent(request):
-    """
-    Parent/Student dashboard showing children's information.
-    (Still sample data for now)
-    """
+    # sample
     context = {
         "children": [
             {
@@ -567,7 +542,6 @@ def dashboard_parent(request):
             },
         ],
     }
-
     return render(request, "dashboard/parent.html", context)
 
 
@@ -578,16 +552,13 @@ def dashboard_parent(request):
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.TEACHER])
 def academics_overview(request):
-    """
-    Academics section overview. (sample)
-    """
+    # sample
     widgets = [
         {"icon": "mdi-calendar-clock", "label": "Timetables", "description": "Manage class schedules"},
         {"icon": "mdi-clipboard-check", "label": "Attendance", "description": "Daily attendance tracking"},
         {"icon": "mdi-file-document-edit", "label": "Examinations", "description": "Exams and assessments"},
         {"icon": "mdi-certificate", "label": "Report Cards", "description": "Generate student reports"},
     ]
-
     return render(request, "sections/academics.html", {"academic_widgets": widgets})
 
 
@@ -609,31 +580,31 @@ def finance_overview(request):
     invoiced_students = invoices_qs.values("student_id").distinct().count()
     pending_invoices = max(0, students_count - invoiced_students)
 
-    # Unmatched bank transactions
     bank_qs = BankTransaction.objects.all()
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
     unmatched_bank = bank_qs.filter(payment__isnull=True).count()
 
-    # Overdue/Outstanding accounts
     outstanding_invoices_qs = invoices_qs.filter(balance__gt=0)
     outstanding_students = outstanding_invoices_qs.values("student_id").distinct().count()
 
-    # If Invoice has due_date, calculate actual overdue count; else keep it as "Outstanding"
     overdue_count = 0
     overdue_label = "Overdue Accounts"
     overdue_subtitle = "Past due date"
     if _model_has_field(Invoice, "due_date"):
-        overdue_count = outstanding_invoices_qs.filter(due_date__lt=timezone.localdate()).values("student_id").distinct().count()
+        overdue_count = (
+            outstanding_invoices_qs.filter(due_date__lt=timezone.localdate())
+            .values("student_id").distinct().count()
+        )
     else:
         overdue_count = outstanding_students
         overdue_label = "Outstanding Accounts"
         overdue_subtitle = "Balance > 0"
 
-    # Percent helper (avoid divide-by-zero)
     def pct(x):
         return int((x / students_count * 100)) if students_count else 0
 
+    term_qs = f"?term={term.pk}" if term else ""
     queues = [
         {
             "title": "Pending Invoices",
@@ -641,7 +612,7 @@ def finance_overview(request):
             "count": pending_invoices,
             "percent": pct(pending_invoices),
             "badge_class": "warning",
-            "url": _safe_reverse("finance:invoice_generate", "finance:invoice_list", "portal:blank_page"),
+            "url": f"{_safe_reverse('finance:invoice_generate', default=_safe_reverse('finance:dashboard'))}",
         },
         {
             "title": "Unmatched Payments",
@@ -649,7 +620,7 @@ def finance_overview(request):
             "count": unmatched_bank,
             "percent": 0,
             "badge_class": "danger",
-            "url": _safe_reverse("finance:bank_transaction_list", "portal:blank_page"),
+            "url": f"{_safe_reverse('finance:bank_transaction_list', default=_safe_reverse('finance:dashboard'))}",
         },
         {
             "title": overdue_label,
@@ -657,7 +628,7 @@ def finance_overview(request):
             "count": overdue_count,
             "percent": pct(overdue_count),
             "badge_class": "info",
-            "url": _safe_reverse("finance:outstanding_report", "finance:invoice_list", "portal:blank_page"),
+            "url": f"{_safe_reverse('finance:outstanding_report', default=_safe_reverse('finance:invoice_list'))}{term_qs}",
         },
     ]
 
@@ -667,9 +638,7 @@ def finance_overview(request):
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
 def communications_overview(request):
-    """
-    Communications section overview. (sample)
-    """
+    # sample
     broadcasts = [
         {"title": "Term 3 Fee Reminder", "summary": "Sent to all parents with outstanding balances", "timestamp": "2 hours ago"},
         {"title": "Sports Day Announcement", "summary": "Event details for Dec 8th", "timestamp": "1 day ago"},
@@ -687,51 +656,38 @@ def communications_overview(request):
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.TEACHER])
 def resources_overview(request):
-    """
-    Learning resources section. (sample)
-    """
+    # sample
     resources = [
         {"title": "CBC Curriculum Guide", "type": "PDF Document", "icon": "mdi-file-pdf-box", "description": "Official CBC implementation guide"},
         {"title": "Assessment Templates", "type": "Excel Templates", "icon": "mdi-file-excel", "description": "Standardized assessment forms"},
         {"title": "Teaching Resources", "type": "Resource Pack", "icon": "mdi-folder-multiple", "description": "Subject-specific materials"},
     ]
-
     return render(request, "sections/resources.html", {"resources": resources})
 
 
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
 def settings_overview(request):
-    """
-    System settings section. (sample)
-    """
+    # sample
     links = [
         {"title": "School Profile", "description": "Update school information", "url": "#"},
         {"title": "Academic Years", "description": "Manage academic years and terms", "url": "#"},
         {"title": "User Management", "description": "Manage staff and user accounts", "url": "#"},
         {"title": "System Configuration", "description": "General system settings", "url": "#"},
     ]
-
     return render(request, "sections/settings.html", {"settings_links": links})
 
 
 @login_required
 def blank_page(request):
-    """
-    Blank placeholder page for features under development.
-    """
     return render(request, "pages/blank.html")
 
 
 # =============================================================================
-# HELPER FUNCTIONS (HOME quick stats/actions) - finance roles now real
+# HOME HELPERS (keep sample except accountant quick stats)
 # =============================================================================
 
 def _get_quick_stats(user):
-    """
-    Get role-appropriate quick stats for home page.
-    Finance (Accountant) uses real DB.
-    """
     role = user.role
 
     if role == UserRole.ACCOUNTANT:
@@ -753,7 +709,7 @@ def _get_quick_stats(user):
              "delta": "Needs reconciliation"},
         ]
 
-    # keep sample for other roles for now
+    # sample for others (as you requested)
     if role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
         return [
             {"label": "Total Students", "value": "1,247", "icon": "mdi-account-group", "color": "primary", "delta": "+12 this term"},
@@ -768,7 +724,7 @@ def _get_quick_stats(user):
             {"label": "Pending Marks", "value": "2", "icon": "mdi-file-edit", "color": "warning", "delta": "Assessments due"},
             {"label": "Attendance", "value": "96%", "icon": "mdi-clipboard-check", "color": "info", "delta": "My classes avg"},
         ]
-    else:  # Parent/Student
+    else:
         return [
             {"label": "Children", "value": "2", "icon": "mdi-account-child", "color": "primary", "delta": "Enrolled"},
             {"label": "Fee Balance", "value": "KES 15K", "icon": "mdi-cash", "color": "warning", "delta": "Due Dec 15"},
@@ -778,24 +734,24 @@ def _get_quick_stats(user):
 
 
 def _get_quick_actions(user):
-    """
-    Get role-appropriate quick actions for home page.
-    """
     role = user.role
 
+    if role == UserRole.ACCOUNTANT:
+        # real finance actions
+        return [
+            {"label": "Record Payment", "icon": "mdi-cash-plus", "url_name": "finance:payment_record", "helper": "Manual payment entry"},
+            {"label": "Generate Invoices", "icon": "mdi-file-document-edit", "url_name": "finance:invoice_generate", "helper": "Bulk invoice generation"},
+            {"label": "Bank Reconciliation", "icon": "mdi-bank-transfer", "url_name": "finance:bank_transaction_list", "helper": "Match transactions"},
+            {"label": "Collections Report", "icon": "mdi-chart-bar", "url_name": "finance:collections_report", "helper": "Collections summary"},
+        ]
+
+    # keep sample for other roles for now
     if role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
         return [
             {"label": "Add Student", "icon": "mdi-account-plus", "url_name": "portal:blank_page", "helper": "Register new student"},
-            {"label": "Generate Invoices", "icon": "mdi-file-document-edit", "url_name": "portal:blank_page", "helper": "Bulk invoice generation"},
+            {"label": "Generate Invoices", "icon": "mdi-file-document-edit", "url_name": "finance:invoice_generate", "helper": "Bulk invoice generation"},
             {"label": "Send Announcement", "icon": "mdi-bullhorn", "url_name": "portal:blank_page", "helper": "Broadcast to parents"},
-            {"label": "View Reports", "icon": "mdi-chart-bar", "url_name": "portal:blank_page", "helper": "Analytics dashboard"},
-        ]
-    elif role == UserRole.ACCOUNTANT:
-        return [
-            {"label": "Record Payment", "icon": "mdi-cash-plus", "url_name": "portal:blank_page", "helper": "Manual payment entry"},
-            {"label": "Generate Invoices", "icon": "mdi-file-document-edit", "url_name": "portal:blank_page", "helper": "Bulk invoice generation"},
-            {"label": "Bank Reconciliation", "icon": "mdi-bank-transfer", "url_name": "portal:blank_page", "helper": "Match transactions"},
-            {"label": "Fee Statement", "icon": "mdi-file-chart", "url_name": "portal:blank_page", "helper": "Generate statements"},
+            {"label": "View Reports", "icon": "mdi-chart-bar", "url_name": "finance:collections_report", "helper": "Finance analytics"},
         ]
     elif role == UserRole.TEACHER:
         return [
@@ -804,7 +760,7 @@ def _get_quick_actions(user):
             {"label": "View Timetable", "icon": "mdi-calendar-clock", "url_name": "portal:blank_page", "helper": "My schedule"},
             {"label": "Class List", "icon": "mdi-account-group", "url_name": "portal:blank_page", "helper": "Student roster"},
         ]
-    else:  # Parent/Student
+    else:
         return [
             {"label": "View Results", "icon": "mdi-certificate", "url_name": "portal:blank_page", "helper": "Academic performance"},
             {"label": "Fee Statement", "icon": "mdi-file-chart", "url_name": "portal:blank_page", "helper": "Payment history"},
@@ -814,9 +770,6 @@ def _get_quick_actions(user):
 
 
 def _get_notices(user):
-    """
-    Get recent notices for home page. (sample)
-    """
     return [
         {"title": "End of Term Exams", "timeframe": "Dec 10-14", "badge": "warning"},
         {"title": "Sports Day", "timeframe": "Dec 8", "badge": "info"},
@@ -825,11 +778,7 @@ def _get_notices(user):
 
 
 def _get_summaries(user):
-    """
-    Get summary cards for home page. (sample, except can enhance later)
-    """
     role = user.role
-
     if role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
         return [
             {"title": "Enrollment", "description": "Current term", "value": "1,247", "trend": "+2.4%", "trend_class": "success"},
@@ -837,7 +786,6 @@ def _get_summaries(user):
             {"title": "Attendance", "description": "Term average", "value": "94%", "trend": "-1%", "trend_class": "warning"},
         ]
     elif role == UserRole.ACCOUNTANT:
-        # keep sample for now (optional)
         return [
             {"title": "Monthly Target", "description": "December", "value": "KES 3.2M", "trend": "65% achieved", "trend_class": "warning"},
             {"title": "Overdue Amount", "description": "Past 30 days", "value": "KES 890K", "trend": "45 accounts", "trend_class": "danger"},

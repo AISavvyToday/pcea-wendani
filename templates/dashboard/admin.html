@@ -14,6 +14,7 @@
   <p class="text-muted mb-0">
     Realtime oversight across school operations
     {% if current_term %} · {{ current_term }}{% endif %}
+    {% if current_academic_year %} · {{ current_academic_year }}{% endif %}
   </p>
 </div>
 {% endblock %}
