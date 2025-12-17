@@ -66,6 +66,14 @@ class Payment(BaseModel):
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+
+    @property
+    def unapplied_amount(self):
+        """
+        Alias for unallocated_amount.
+        Used for template and reporting compatibility.
+        """
+        return self.unallocated_amount
     class Meta:
         db_table = 'payments'
         ordering = ['-payment_date']
@@ -80,10 +88,15 @@ class Payment(BaseModel):
         return f"{self.payment_reference} - {self.student.admission_number} - KES {self.amount}"
 
     def save(self, *args, **kwargs):
+        if self.unallocated_amount < 0:
+            self.unallocated_amount = Decimal("0.00")
+
         if not self.payment_reference:
             self.payment_reference = self.generate_payment_reference()
+
         if not self.receipt_number and self.status == PaymentStatus.COMPLETED:
             self.receipt_number = self.generate_receipt_number()
+
         super().save(*args, **kwargs)
 
     def generate_payment_reference(self):
