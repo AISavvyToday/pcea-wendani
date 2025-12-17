@@ -1,11 +1,15 @@
+# finance/views.py
 """
-finance/views.py
 Finance module views for fee management, invoicing, and payments.
 
 Standalone invoices policy:
 - Do NOT manually adjust invoice balances in views.
 - All payments (manual + bank match) are allocated oldest-invoice-first via payments.services.payment.PaymentService
 - Invoice detail shows payments via allocations (and also legacy Payment.invoice links if present).
+
+Invoice generation policy (NO OVERWRITE):
+- Bulk invoice generation should NOT overwrite existing invoices.
+- If an invoice already exists for a student+term, it is skipped (service returns created count only).
 """
 
 import logging
@@ -490,7 +494,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
 
 class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
-    """Bulk generate invoices."""
+    """Bulk generate invoices (NO OVERWRITE)."""
 
     template_name = 'finance/invoice_generate.html'
     form_class = InvoiceGenerateForm
@@ -505,14 +509,13 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
     def form_valid(self, form):
         term = form.cleaned_data['term']
         grade_levels = form.cleaned_data.get('grade_levels', [])
-        overwrite = form.cleaned_data.get('overwrite_existing', False)
 
         try:
+            # NOTE: overwrite removed by policy
             results = InvoiceService.bulk_generate_invoices(
                 term=term,
                 grade_levels=grade_levels if grade_levels else None,
                 generated_by=self.request.user,
-                overwrite=overwrite
             )
         except Exception as e:
             logger.exception("Invoice bulk generation failed")
@@ -799,7 +802,11 @@ class BankTransactionMatchView(LoginRequiredMixin, RoleRequiredMixin, FormView):
 
         if notes:
             transaction.processing_notes = (transaction.processing_notes or "")
-            transaction.processing_notes = (transaction.processing_notes + (" | " if transaction.processing_notes else "") + notes)
+            transaction.processing_notes = (
+                transaction.processing_notes
+                + (" | " if transaction.processing_notes else "")
+                + notes
+            )
             transaction.save(update_fields=["processing_notes", "updated_at"])
 
         # Create payment from this BankTransaction and allocate oldest-first

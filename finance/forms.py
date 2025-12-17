@@ -139,7 +139,7 @@ class StudentDiscountForm(forms.ModelForm):
 
 
 class InvoiceGenerateForm(forms.Form):
-    """Form for bulk invoice generation."""
+    """Form for bulk invoice generation (NO OVERWRITE)."""
 
     term = forms.ModelChoiceField(
         queryset=Term.objects.none(),
@@ -152,14 +152,6 @@ class InvoiceGenerateForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
         required=False,
         help_text="Leave empty to generate for all grades"
-    )
-
-
-    overwrite_existing = forms.BooleanField(
-        required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        help_text="Overwrite existing invoices (use with caution)"
     )
 
     def __init__(self, *args, **kwargs):
