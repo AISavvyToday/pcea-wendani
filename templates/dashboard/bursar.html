@@ -3,6 +3,7 @@
 {% load static %}
 
 {% block title %}Bursar Dashboard · PWASMS{% endblock %}
+
 {% block page_header %}
 <div class="page-header">
   <h3 class="page-title">
@@ -11,7 +12,10 @@
     </span>
     Bursar Dashboard
   </h3>
-  <p class="text-muted">Cashflow visibility & receivables</p>
+  <p class="text-muted mb-0">
+    Cashflow visibility & receivables
+    {% if current_term %} · {{ current_term }}{% endif %}
+  </p>
 </div>
 {% endblock %}
 
@@ -19,13 +23,19 @@
 <div class="row">
   {% for widget in finance_widgets %}
   <div class="col-md-3 grid-margin stretch-card">
-    <div class="card text-center">
-      <div class="card-body">
-        <h4 class="card-title mb-2">{{ widget.label }}</h4>
-        <h2 class="text-{{ widget.accent }} mb-0">{{ widget.value }}</h2>
-        <small class="text-muted d-block mt-2">{{ widget.helper }}</small>
+    <a href="{{ widget.url|default:'#' }}" class="text-decoration-none d-block">
+      <div class="card text-center h-100">
+        <div class="card-body">
+          <h4 class="card-title mb-2">{{ widget.label }}</h4>
+          <h2 class="text-{{ widget.accent }} mb-0">{{ widget.value|default:"—" }}</h2>
+          <small class="text-muted d-block mt-2">{{ widget.helper }}</small>
+        </div>
       </div>
-    </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12">
+    <div class="alert alert-info mb-0">No finance widgets available.</div>
   </div>
   {% endfor %}
 </div>
@@ -34,8 +44,12 @@
   <div class="col-lg-8 grid-margin stretch-card">
     <div class="card">
       <div class="card-body">
-        <h4 class="card-title">Outstanding Balances</h4>
-        <div class="table-responsive">
+        <div class="d-flex align-items-center justify-content-between">
+          <h4 class="card-title mb-0">Outstanding Balances</h4>
+          <small class="text-muted">Click a learner to open invoice</small>
+        </div>
+
+        <div class="table-responsive mt-3">
           <table class="table table-hover">
             <thead>
               <tr>
@@ -44,24 +58,47 @@
                 <th>Guardian</th>
                 <th>Balance</th>
                 <th>Priority</th>
+                <th class="text-end">Action</th>
               </tr>
             </thead>
             <tbody>
               {% for balance in balances %}
               <tr>
-                <td>{{ balance.student }}</td>
+                <td>
+                  <a href="{{ balance.invoice_url|default:'#' }}" class="text-decoration-none">
+                    {{ balance.student }}
+                  </a>
+                  {% if balance.invoice_number %}
+                    <small class="d-block text-muted">{{ balance.invoice_number }}</small>
+                  {% endif %}
+                </td>
                 <td>{{ balance.class }}</td>
                 <td>{{ balance.guardian }}</td>
                 <td>{{ balance.amount }}</td>
-                <td><span class="badge badge-outline-{{ balance.priority_class }}">{{ balance.priority }}</span></td>
+                <td>
+                  <span class="badge badge-outline-{{ balance.priority_class }}">
+                    {{ balance.priority }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <a href="{{ balance.invoice_url|default:'#' }}" class="btn btn-sm btn-outline-primary">
+                    View
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-muted">No outstanding balances found.</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+
       </div>
     </div>
   </div>
+
   <div class="col-lg-4 grid-margin stretch-card">
     <div class="card">
       <div class="card-body">
@@ -72,6 +109,8 @@
             <strong>{{ event.title }}</strong>
             <small class="d-block text-muted">{{ event.date }}</small>
           </li>
+          {% empty %}
+          <li class="text-muted">No upcoming events.</li>
           {% endfor %}
         </ul>
       </div>

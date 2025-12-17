@@ -11,7 +11,7 @@
     </span>
     Parent Dashboard
   </h3>
-  <p class="text-muted">Child performance snapshot</p>
+  <p class="text-muted mb-0">Child performance snapshot</p>
 </div>
 {% endblock %}
 
@@ -28,12 +28,23 @@
           </div>
           <span class="badge badge-outline-{{ child.badge_class }}">{{ child.status }}</span>
         </div>
+
         <p class="mb-1"><strong>Attendance:</strong> {{ child.attendance }}</p>
         <p class="mb-1"><strong>Average Grade:</strong> {{ child.average }}</p>
         <p class="mb-3"><strong>Next Event:</strong> {{ child.next_event }}</p>
-        <a href="#" class="btn btn-sm btn-gradient-primary">View full report</a>
+
+        <a href="{{ child.report_url|default:'#' }}" class="btn btn-sm btn-gradient-primary">
+          View full report
+        </a>
+        <a href="{{ child.statement_url|default:'#' }}" class="btn btn-sm btn-outline-primary ms-2">
+          Fee statement
+        </a>
       </div>
     </div>
+  </div>
+  {% empty %}
+  <div class="col-12">
+    <div class="alert alert-info mb-0">No learners linked to this account yet.</div>
   </div>
   {% endfor %}
 </div>
