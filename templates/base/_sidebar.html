@@ -35,6 +35,23 @@
           </div>
         </li>
 
+      <!-- Finance -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#finance-menu" aria-expanded="false" aria-controls="finance-menu">
+            <span class="menu-title">Finance</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-cash-multiple menu-icon"></i>
+          </a>
+          <div class="collapse" id="finance-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:fee_structure_list' %}">Fee Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:payment_list' %}">Payments</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'finance:bank_transaction_list' %}">Bank Transactions</a></li>
+            </ul>
+          </div>
+        </li>
+
         <!-- Academics -->
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="collapse" href="#academics-menu" aria-expanded="false" aria-controls="academics-menu">
@@ -56,22 +73,7 @@
           </div>
         </li>
 
-        <!-- Finance -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#finance-menu" aria-expanded="false" aria-controls="finance-menu">
-            <span class="menu-title">Finance</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-cash-multiple menu-icon"></i>
-          </a>
-          <div class="collapse" id="finance-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'finance:fee_structure_list' %}">Fee Structures</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'finance:payment_list' %}">Payments</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'finance:bank_transaction_list' %}">Bank Transactions</a></li>
-            </ul>
-          </div>
-        </li>
+
 
         <!-- Communications -->
         <li class="nav-item">

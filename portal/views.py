@@ -1,30 +1,41 @@
 # portal/views.py
 """
 Portal views for dashboards, sections, and authentication.
+
 Finance dashboards now show REAL metrics from DB (invoices, payments, bank txns).
+
+Definitions (as requested):
+- billed (current term)     = SUM(Invoice.total_amount) for invoices in current term
+- collected (current term)  = SUM(PaymentAllocation.amount) for allocations to current term invoices
+                              + SUM(Payment.amount) for completed payments linked to current term invoices
+                                that have NO allocations
+- outstanding (current term)= billed - collected
+
+Unmatched bank transactions:
+- count of BankTransaction records NOT matched to a student admission number
+  (in your schema this means NOT linked to any Payment => payment IS NULL),
+  excluding failed/duplicate.
 """
 
 import logging
 from decimal import Decimal
 
-from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.cache import never_cache
 from django.db.models import Sum
-from django.urls import reverse, NoReverseMatch
+from django.shortcuts import redirect, render
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods
 
-from core.models import UserRole, InvoiceStatus, PaymentStatus
 from accounts.decorators import role_required
-
-# Academics / Students / Finance / Payments
 from academics.models import Term
-from students.models import Student
+from core.models import InvoiceStatus, PaymentStatus, UserRole
 from finance.models import Invoice
-from payments.models import Payment, BankTransaction
+from payments.models import BankTransaction, Payment, PaymentAllocation
+from students.models import Student
 
 logger = logging.getLogger(__name__)
 
@@ -101,25 +112,84 @@ def _invoice_base_qs():
     )
 
 
+def _completed_payments_base_qs():
+    qs = Payment.objects.filter(status=PaymentStatus.COMPLETED)
+    if _model_has_field(Payment, "is_active"):
+        qs = qs.filter(is_active=True)
+    return qs
+
+
+def _completed_allocations_base_qs():
+    """
+    Allocations represent the most accurate way to count collections against invoices,
+    especially when a payment is split across multiple invoice items.
+    """
+    qs = PaymentAllocation.objects.select_related(
+        "payment", "invoice_item", "invoice_item__invoice"
+    ).filter(payment__status=PaymentStatus.COMPLETED)
+
+    if _model_has_field(PaymentAllocation, "is_active"):
+        qs = qs.filter(is_active=True)
+
+    if _model_has_field(Payment, "is_active"):
+        qs = qs.filter(payment__is_active=True)
+
+    return qs
+
+
+def _collected_for_invoices(invoice_qs):
+    """
+    collected = allocated_total + direct_total_without_allocations
+    - allocated_total:
+        SUM(PaymentAllocation.amount) for allocations to invoice items whose invoice in invoice_qs
+    - direct_total_without_allocations:
+        SUM(Payment.amount) for completed payments linked to invoices in invoice_qs
+        where the payment has NO allocations (to avoid double counting).
+    """
+    invoice_ids = list(invoice_qs.values_list("id", flat=True))
+    if not invoice_ids:
+        return Decimal("0")
+
+    # 1) Allocated collections (best signal)
+    alloc_qs = _completed_allocations_base_qs().filter(invoice_item__invoice_id__in=invoice_ids)
+    allocated_total = alloc_qs.aggregate(x=Sum("amount"))["x"] or Decimal("0")
+
+    # 2) Direct payment totals ONLY for payments that have no allocations at all
+    pay_qs = _completed_payments_base_qs().filter(invoice_id__in=invoice_ids, allocations__isnull=True)
+    direct_total = pay_qs.aggregate(x=Sum("amount"))["x"] or Decimal("0")
+
+    return Decimal(str(allocated_total)) + Decimal(str(direct_total))
+
+
 def _finance_kpis(term=None):
     """
     Returns KPIs for:
     - current term
     - current academic year (derived from term)
+
+    DEFINITIONS:
+    billed      = SUM(Invoice.total_amount)
+    collected   = SUM(PaymentAllocation.amount for term invoices) + SUM(Payment.amount for term invoices with no allocations)
+    outstanding = billed - collected
     """
     term = term or _get_current_term()
     academic_year = getattr(term, "academic_year", None) if term else None
 
     base = _invoice_base_qs()
-    term_qs = base.filter(term=term) if term else base.none()
-    year_qs = base.filter(term__academic_year=academic_year) if academic_year else base.none()
+    term_invoices = base.filter(term=term) if term else base.none()
+    year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
-    def agg(qs):
-        billed = qs.aggregate(x=Sum("total_amount"))["x"] or 0
-        collected = qs.aggregate(x=Sum("amount_paid"))["x"] or 0
-        outstanding = qs.aggregate(x=Sum("balance"))["x"] or 0
-        invoice_count = qs.count()
-        students_outstanding = qs.filter(balance__gt=0).values("student_id").distinct().count()
+    def agg(invoice_qs):
+        billed = invoice_qs.aggregate(x=Sum("total_amount"))["x"] or Decimal("0")
+        billed = Decimal(str(billed))
+
+        collected = _collected_for_invoices(invoice_qs)
+
+        outstanding = billed - collected
+
+        invoice_count = invoice_qs.count()
+        students_outstanding = invoice_qs.filter(balance__gt=0).values("student_id").distinct().count()
+
         return {
             "billed": billed,
             "collected": collected,
@@ -128,22 +198,23 @@ def _finance_kpis(term=None):
             "students_outstanding": students_outstanding,
         }
 
-    term_stats = agg(term_qs) if term else agg(base.none())
-    year_stats = agg(year_qs) if academic_year else agg(base.none())
+    term_stats = agg(term_invoices)
+    year_stats = agg(year_invoices)
 
-    # Bank transactions (unmatched)
+    # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
     bank_qs = BankTransaction.objects.all()
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
-    unmatched_bank = bank_qs.filter(payment__isnull=True).count()
+
+    unmatched_bank = (
+        bank_qs.filter(payment__isnull=True)
+        .exclude(processing_status__in=["failed", "duplicate"])
+        .count()
+    )
 
     # Payments today (completed)
     today = timezone.localdate()
-    pay_qs = Payment.objects.all()
-    if _model_has_field(Payment, "is_active"):
-        pay_qs = pay_qs.filter(is_active=True)
-    pay_qs = pay_qs.filter(status=PaymentStatus.COMPLETED)
-
+    pay_qs = _completed_payments_base_qs()
     payments_today_total = pay_qs.filter(payment_date__date=today).aggregate(x=Sum("amount"))["x"] or 0
     payments_today_count = pay_qs.filter(payment_date__date=today).count()
 
@@ -332,7 +403,7 @@ def dashboard_admin(request):
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
-                "helper": f"Year: {_fmt_kes(year_billed)}",
+                "helper": f"Year billed: {_fmt_kes(year_billed)}",
             },
             {
                 "title": "Collected (This Term)",
@@ -356,7 +427,7 @@ def dashboard_admin(request):
                 "icon": "mdi-bank",
                 "bg": "bg-gradient-danger",
                 "url": bank_url,
-                "helper": "Need reconciliation",
+                "helper": "Not linked to any payment/student",
             },
         ],
     }
@@ -392,7 +463,7 @@ def dashboard_bursar(request):
     invoices_term_url = f"{invoices_url}{term_qs}"
     outstanding_term_url = f"{outstanding_url}{term_qs}"
 
-    # Top outstanding balances (current term)
+    # Top outstanding balances (current term) - based on Invoice.balance
     top_invoices = _invoice_base_qs()
     if term:
         top_invoices = top_invoices.filter(term=term)
@@ -433,16 +504,14 @@ def dashboard_bursar(request):
                 "amount": _fmt_kes(inv.balance),
                 "priority": pr_label,
                 "priority_class": pr_class,
-                "invoice_number": inv.invoice_number,
+                "invoice_number": getattr(inv, "invoice_number", ""),
                 "invoice_url": _safe_reverse("finance:invoice_detail", default="#", kwargs={"pk": inv.pk}),
             }
         )
 
     # Recent payments (latest)
-    pay_qs = Payment.objects.filter(status=PaymentStatus.COMPLETED)
-    if _model_has_field(Payment, "is_active"):
-        pay_qs = pay_qs.filter(is_active=True)
-    recent_payments = pay_qs.select_related("student").order_by("-payment_date")[:10]
+    pay_qs = _completed_payments_base_qs()
+    recent_payments = pay_qs.select_related("student", "invoice").order_by("-payment_date")[:10]
 
     context = {
         "current_term": term,
@@ -451,7 +520,7 @@ def dashboard_bursar(request):
                 "label": "Total Billed",
                 "value": _fmt_kes(billed),
                 "accent": "primary",
-                "helper": "Current term",
+                "helper": "Current term invoices",
                 "url": invoices_term_url,
             },
             {
@@ -472,7 +541,7 @@ def dashboard_bursar(request):
                 "label": "Unmatched Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
                 "accent": "danger",
-                "helper": "Need reconciliation",
+                "helper": "Not linked to any payment/student",
                 "url": bank_url,
             },
             {
@@ -567,7 +636,7 @@ def academics_overview(request):
 def finance_overview(request):
     """
     Finance section overview.
-    NOW uses real DB counts for invoice/payment/bank queues.
+    Uses real DB counts for invoice/payment/bank queues.
     """
     term = _get_current_term()
     students_count = _get_active_students_qs().count()
@@ -583,7 +652,12 @@ def finance_overview(request):
     bank_qs = BankTransaction.objects.all()
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
-    unmatched_bank = bank_qs.filter(payment__isnull=True).count()
+
+    unmatched_bank = (
+        bank_qs.filter(payment__isnull=True)
+        .exclude(processing_status__in=["failed", "duplicate"])
+        .count()
+    )
 
     outstanding_invoices_qs = invoices_qs.filter(balance__gt=0)
     outstanding_students = outstanding_invoices_qs.values("student_id").distinct().count()
@@ -615,8 +689,8 @@ def finance_overview(request):
             "url": f"{_safe_reverse('finance:invoice_generate', default=_safe_reverse('finance:dashboard'))}",
         },
         {
-            "title": "Unmatched Payments",
-            "subtitle": "Need reconciliation (bank txns without payment)",
+            "title": "Unmatched Bank Transactions",
+            "subtitle": "Not linked to payment/student admission number",
             "count": unmatched_bank,
             "percent": 0,
             "badge_class": "danger",
@@ -699,14 +773,34 @@ def _get_quick_stats(user):
         rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
         return [
-            {"label": "Today's Collections", "value": _fmt_kes(kpis["payments_today_total"]), "icon": "mdi-cash-plus", "color": "success",
-             "delta": f"{kpis['payments_today_count']} payment(s)"},
-            {"label": "Collection Rate", "value": f"{rate:.1f}%", "icon": "mdi-chart-line", "color": "primary",
-             "delta": f"Term collected {_fmt_kes(collected)}"},
-            {"label": "Outstanding", "value": _fmt_kes(outstanding), "icon": "mdi-alert-circle", "color": "danger",
-             "delta": f"{term_stats['students_outstanding']} student(s)"},
-            {"label": "Unmatched Bank Txns", "value": f"{kpis['unmatched_bank_transactions']:,}", "icon": "mdi-bank", "color": "warning",
-             "delta": "Needs reconciliation"},
+            {
+                "label": "Today's Collections",
+                "value": _fmt_kes(kpis["payments_today_total"]),
+                "icon": "mdi-cash-plus",
+                "color": "success",
+                "delta": f"{kpis['payments_today_count']} payment(s)",
+            },
+            {
+                "label": "Collection Rate",
+                "value": f"{rate:.1f}%",
+                "icon": "mdi-chart-line",
+                "color": "primary",
+                "delta": f"Term collected {_fmt_kes(collected)}",
+            },
+            {
+                "label": "Outstanding",
+                "value": _fmt_kes(outstanding),
+                "icon": "mdi-alert-circle",
+                "color": "danger",
+                "delta": f"{term_stats['students_outstanding']} student(s)",
+            },
+            {
+                "label": "Unmatched Bank Txns",
+                "value": f"{kpis['unmatched_bank_transactions']:,}",
+                "icon": "mdi-bank",
+                "color": "warning",
+                "delta": "Needs reconciliation",
+            },
         ]
 
     # sample for others (as you requested)
