@@ -13,33 +13,38 @@
 
 import logging
 from decimal import Decimal  # kept (may be used elsewhere / future)
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
+
 from django.db import transaction as db_transaction
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from payments.authentication import EquityAPIKeyAuthentication
+from payments.exceptions import (
+    BillNotFoundError,
+    DuplicateTransactionError,
+    PaymentProcessingError,
+    StudentNotFoundError,
+)
 from payments.serializers import (
-    EquityValidationRequestSerializer,
-    EquityValidationResponseSerializer,  # imported for completeness
     EquityNotificationRequestSerializer,
     EquityNotificationResponseSerializer,  # imported for completeness
+    EquityValidationRequestSerializer,
+    EquityValidationResponseSerializer,  # imported for completeness
 )
 from payments.services import (
     BankTransactionService,
-    ResolutionService,
-    PaymentService,
-    InvoiceService,
     NotificationService,
-)
-from payments.exceptions import (
-    BillNotFoundError,
-    StudentNotFoundError,
-    DuplicateTransactionError,
-    PaymentProcessingError,
+    PaymentService,
+    ResolutionService,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _err_text(e: Exception) -> str:
+    # Your custom exceptions may not have `.detail`
+    return str(getattr(e, "detail", e))
 
 
 class EquityValidationView(APIView):
@@ -54,6 +59,7 @@ class EquityValidationView(APIView):
     - amount: Outstanding balance
     - description: Validation result description
     """
+
     authentication_classes = [EquityAPIKeyAuthentication]
     permission_classes = []  # No additional permissions needed after auth
 
@@ -80,14 +86,13 @@ class EquityValidationView(APIView):
 
         try:
             # Resolve bill number to student
-            student, invoice = ResolutionService.resolve_bill_number(bill_number)
+            student, _invoice = ResolutionService.resolve_bill_number(bill_number)
 
             customer_name = f"{student.first_name} {student.last_name}"
 
             # Calculate outstanding amount
-            outstanding_amount, description = ResolutionService.calculate_outstanding_amount(student)
+            outstanding_amount, _description = ResolutionService.calculate_outstanding_amount(student)
 
-            # Build response per Equity spec
             response_data = {
                 "billNumber": student.admission_number,
                 "customerName": customer_name,
@@ -99,27 +104,22 @@ class EquityValidationView(APIView):
                 f"Equity Validation success: {bill_number} -> {customer_name}, "
                 f"Amount: {outstanding_amount}"
             )
-
             return Response(response_data, status=status.HTTP_200_OK)
 
         except (BillNotFoundError, StudentNotFoundError) as e:
             logger.warning(f"Equity Validation: Bill not found - {bill_number}")
-
-            # Equity-friendly: return HTTP 200 with amount 0 and description
             return Response(
                 {
                     "billNumber": bill_number,
                     "customerName": "",
                     "amount": "0",
-                    "description": str(e.detail),
+                    "description": _err_text(e),
                 },
                 status=status.HTTP_200_OK,
             )
 
         except Exception as e:
             logger.error(f"Equity Validation error: {e}", exc_info=True)
-
-            # Equity-friendly: return HTTP 200 with generic error description
             return Response(
                 {
                     "billNumber": bill_number,
@@ -140,18 +140,14 @@ class EquityNotificationView(APIView):
     Receives payment notification from Equity Bank and:
     1. Creates BankTransaction record
     2. Resolves student from bill number
-    3. Creates Payment record
-    4. Updates Invoice
-    5. Sends receipt notification
-
-    Returns:
-    - responseCode: "200" for success, "400"/"500" for failure
-    - responseMessage: Description of result
+    3. Creates Payment record (and allocates it oldest-invoice-first via PaymentService)
+    4. Sends receipt notification
 
     IMPORTANT:
     - Always respond with HTTP 200 to avoid bank retries / integration failures.
     - Use responseCode in JSON to signal business outcome.
     """
+
     authentication_classes = [EquityAPIKeyAuthentication]
     permission_classes = []
 
@@ -164,10 +160,7 @@ class EquityNotificationView(APIView):
         if not serializer.is_valid():
             logger.warning(f"Equity Notification: Invalid request - {serializer.errors}")
             return Response(
-                {
-                    "responseCode": "400",
-                    "responseMessage": f"Invalid request: {serializer.errors}",
-                },
+                {"responseCode": "400", "responseMessage": f"Invalid request: {serializer.errors}"},
                 status=status.HTTP_200_OK,
             )
 
@@ -184,17 +177,15 @@ class EquityNotificationView(APIView):
 
             # Step 2: Resolve student from bill number
             try:
-                student, invoice = ResolutionService.resolve_bill_number(bill_number)
+                student, _invoice = ResolutionService.resolve_bill_number(bill_number)
             except (BillNotFoundError, StudentNotFoundError) as e:
-                # Payment received but student not found - mark for manual matching
                 BankTransactionService.update_status(
                     bank_tx,
                     "received",
                     f"Student not found for bill number: {bill_number}",
                 )
-                logger.warning(f"Equity Notification: Student not found for {bill_number}")
+                logger.warning(f"Equity Notification: Student not found for {bill_number}: {_err_text(e)}")
 
-                # Still return success to bank - we received the payment payload
                 return Response(
                     {
                         "responseCode": "200",
@@ -203,7 +194,8 @@ class EquityNotificationView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
-            # Step 3: Create Payment record (store payer details)
+            # Step 3: Create Payment record + allocate (OPTION A)
+            # NOTE: create_payment_from_bank_transaction() already calls the allocator
             payment = PaymentService.create_payment_from_bank_transaction(
                 bank_tx=bank_tx,
                 student=student,
@@ -212,17 +204,11 @@ class EquityNotificationView(APIView):
                 payer_phone=validated_data.get("phoneNumber", ""),
             )
 
-            # Step 4: Update Invoice
-            if invoice:
-                InvoiceService.apply_payment_to_invoice(payment, invoice)
-                InvoiceService.allocate_payment_to_items(payment, invoice)
-
-            # Step 5: Send receipt notification (async in production)
+            # Step 4: Send receipt notification
             try:
                 NotificationService.send_payment_receipt(payment)
             except Exception as e:
                 logger.error(f"Failed to send receipt: {e}", exc_info=True)
-                # Do not fail the transaction for notification errors
 
             logger.info(
                 f"Equity Notification success: {bank_reference} -> "
@@ -230,45 +216,27 @@ class EquityNotificationView(APIView):
             )
 
             return Response(
-                {
-                    "responseCode": "200",
-                    "responseMessage": "Success",
-                },
+                {"responseCode": "200", "responseMessage": "Success"},
                 status=status.HTTP_200_OK,
             )
 
         except DuplicateTransactionError:
             logger.warning(f"Equity Notification: Duplicate transaction - {bank_reference}")
-
-            # Equity-friendly: HTTP 200, indicate duplicate in body
             return Response(
-                {
-                    "responseCode": "400",
-                    "responseMessage": "Duplicate transaction",
-                },
+                {"responseCode": "400", "responseMessage": "Duplicate transaction"},
                 status=status.HTTP_200_OK,
             )
 
         except PaymentProcessingError as e:
             logger.error(f"Equity Notification: Processing error - {e}", exc_info=True)
-
-            # Equity-friendly: HTTP 200, indicate server-side processing issue
             return Response(
-                {
-                    "responseCode": "500",
-                    "responseMessage": str(e.detail),
-                },
+                {"responseCode": "500", "responseMessage": _err_text(e)},
                 status=status.HTTP_200_OK,
             )
 
         except Exception as e:
             logger.error(f"Equity Notification error: {e}", exc_info=True)
-
-            # Equity-friendly: HTTP 200, generic internal error
             return Response(
-                {
-                    "responseCode": "500",
-                    "responseMessage": "Internal server error",
-                },
+                {"responseCode": "500", "responseMessage": "Internal server error"},
                 status=status.HTTP_200_OK,
             )

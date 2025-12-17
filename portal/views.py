@@ -403,7 +403,7 @@ def dashboard_admin(request):
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
-                "helper": f"Year billed: {_fmt_kes(year_billed)}",
+                "helper": f"Billed: {_fmt_kes(year_billed)}",
             },
             {
                 "title": "Collected (This Term)",
@@ -422,12 +422,12 @@ def dashboard_admin(request):
                 "helper": f"{term_stats['students_outstanding']} student(s) owing",
             },
             {
-                "title": "Unmatched Bank Txns",
+                "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
                 "icon": "mdi-bank",
                 "bg": "bg-gradient-danger",
                 "url": bank_url,
-                "helper": "Not linked to any payment/student",
+                "helper": "Not linked to payment/student",
             },
         ],
     }
