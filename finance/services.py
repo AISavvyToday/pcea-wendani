@@ -119,13 +119,13 @@ class InvoiceService:
 
         if student.credit_balance > 0:
             debt = student.credit_balance
-            invoice.total_amount += student.credit_balance
+            invoice.total_amount += debt
             student.credit_balance = Decimal(0)
             invoice.balance_bf = debt
             invoice.prepayment = Decimal(0)
         elif student.credit_balance < 0:
             credit = student.credit_balance
-            invoice.total_amount += student.credit_balance
+            invoice.total_amount += credit
             student.credit_balance = Decimal(0)
             invoice.prepayment = credit
             invoice.balance_bf = Decimal(0)
