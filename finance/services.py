@@ -119,13 +119,13 @@ class InvoiceService:
         # Add credit balance to invoice total -ve or positve
         if student.credit_balance > 0:
             debt = student.credit_balance
-            invoice.balance += debt
+            # invoice.balance += debt
             student.credit_balance = 0
             invoice.balance_bf = debt
             invoice.prepayment = 0
         elif student.credit_balance < 0:
             credit = student.credit_balance
-            invoice.balance += credit
+            # invoice.balance += credit
             student.credit_balance = 0
             invoice.prepayment = credit
             invoice.balance_bf = 0

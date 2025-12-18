@@ -232,6 +232,10 @@ class Invoice(BaseModel):
         # Auto-generate invoice number if not set
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
+
+        # FIXED FORMULA: Add balance_bf to the calculation
+        self.balance = self.total_amount + self.balance_bf - self.prepayment - self.amount_paid
+
         super().save(*args, **kwargs)
 
 
