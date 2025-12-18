@@ -19,7 +19,8 @@ Unmatched bank transactions:
 
 import logging
 from decimal import Decimal
-
+from decimal import Decimal
+from django.db.models import Sum
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
@@ -171,10 +172,6 @@ def _finance_kpis(term=None):
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
     def agg(invoice_qs):
-        from decimal import Decimal
-        from django.db.models import Sum
-
-
 
         collected = _collected_for_invoices(invoice_qs)
 
@@ -407,7 +404,6 @@ def dashboard_admin(request):
                 "icon": "mdi-cash",
                 "bg": "bg-gradient-success",
                 "url": payments_url,
-                "helper": f"Term rate: {rate:.1f}% · Year rate: {year_rate:.1f}%",
             },
             {
                 "title": "Outstanding (This Term)",
@@ -454,8 +450,8 @@ def dashboard_bursar(request):
     outstanding_url = _safe_reverse("finance:outstanding_report", default=invoices_url)
 
     term_qs = f"?term={term.pk}" if term else ""
-    invoices_term_url = f"{invoices_url}{term_qs}"
-    outstanding_term_url = f"{outstanding_url}{term_qs}"
+    invoices_term_url = f"{invoices_url}"
+    outstanding_term_url = f"{invoices_url}"
 
     # Top outstanding balances (current term) - based on Invoice.balance
     top_invoices = _invoice_base_qs()
