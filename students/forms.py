@@ -30,14 +30,12 @@ class StudentForm(forms.ModelForm):
             'previous_school',
             'previous_class',
             'status',
-            'status_date',
-            'status_reason',
+
             'has_special_needs',
             'special_needs_details',
             'uses_school_transport',
             'transport_route',
-            'is_boarder',
-            'dormitory',
+
         ]
         widgets = {
             'admission_number': forms.TextInput(attrs={

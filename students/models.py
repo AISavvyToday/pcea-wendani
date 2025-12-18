@@ -123,8 +123,7 @@ class Student(BaseModel):
         ('withdrawn', 'Withdrawn'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    status_date = models.DateField(null=True, blank=True)  # Date of status change
-    status_reason = models.TextField(blank=True)
+
     
     # Special needs
     has_special_needs = models.BooleanField(default=False)
@@ -137,10 +136,6 @@ class Student(BaseModel):
         null=True, blank=True, related_name='students'
     )
     
-    # Boarding
-    is_boarder = models.BooleanField(default=False)
-    dormitory = models.CharField(max_length=50, blank=True)
-
     credit_balance = models.DecimalField(
         max_digits=10,
         decimal_places=2,

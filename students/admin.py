@@ -73,7 +73,7 @@ class StudentAdmin(admin.ModelAdmin):
         'admission_number', 'full_name', 'gender', 'current_class',
         'status', 'primary_parent_display', 'balance_display', 'is_active'
     )
-    list_filter = ('status', 'gender', 'current_class', 'is_boarder', 'uses_school_transport', 'admission_date')
+    list_filter = ('status', 'gender', 'current_class', 'uses_school_transport', 'admission_date')
     search_fields = ('admission_number', 'first_name', 'middle_name', 'last_name', 'birth_certificate_number')
     ordering = ('admission_number',)
     autocomplete_fields = ['current_class', 'transport_route']
@@ -82,7 +82,7 @@ class StudentAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Admission', {
-            'fields': ('admission_number', 'admission_date', 'status', 'status_date', 'status_reason')
+            'fields': ('admission_number', 'admission_date')
         }),
         ('Personal Information', {
             'fields': ('first_name', 'middle_name', 'last_name', 'gender', 'date_of_birth', 'age', 'birth_certificate_number', 'photo')
