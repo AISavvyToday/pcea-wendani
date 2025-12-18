@@ -126,7 +126,7 @@ class InvoiceService:
         students = Student.objects.filter(is_active=True, status='active')
 
         if grade_levels:
-            students = students.filter(grade_level__in=grade_levels)
+            students = students.filter(current_class__grade_level__in=grade_levels)
 
         created_count = 0
         error_details = []
