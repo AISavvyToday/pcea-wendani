@@ -447,7 +447,7 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
         grade = self.request.GET.get('grade')
         if grade:
-            queryset = queryset.filter(student__grade_level=grade)
+            queryset = queryset.filter(student__current_class__grade_level=grade)
 
         return queryset.order_by('-issue_date', '-created_at')
 
@@ -516,8 +516,10 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             # DEBUG: Check if students exist
             from students.models import Student
             students = Student.objects.filter(is_active=True, status='active')
+
+            # FIXED: Use current_class__grade_level
             if grade_levels:
-                students = students.filter(grade_level__in=grade_levels)
+                students = students.filter(current_class__grade_level__in=grade_levels)
 
             logger.info(f"Found {students.count()} active students")
 
@@ -540,8 +542,10 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             # TEST: Try generating invoice for first student to see error
             if students.exists():
                 test_student = students.first()
-                logger.info(
-                    f"Testing with student: {test_student.admission_number} (Grade: {test_student.grade_level})")
+
+                # FIXED: Use current_class__grade_level
+                grade_display = test_student.current_class.grade_level if test_student.current_class else "No class"
+                logger.info(f"Testing with student: {test_student.admission_number} (Grade: {grade_display})")
 
                 try:
                     from .services import InvoiceService
@@ -590,7 +594,7 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
                 generated = created_count
                 if isinstance(error_list, (list, tuple)):
                     errors = len(error_list)
-                    error_details = error_list[:10]  # Get first 10 errors for display
+                    error_details = error_list[:10]
                 else:
                     errors = 1 if error_list else 0
                     error_details = [str(error_list)] if error_list else []
@@ -603,7 +607,7 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         # Log detailed errors
         if error_details:
             logger.error(f"Generation errors ({len(error_details)}):")
-            for i, err in enumerate(error_details[:5]):  # Log first 5 errors
+            for i, err in enumerate(error_details[:5]):
                 logger.error(f"  Error {i + 1}: {err}")
 
         # Create success message
@@ -632,7 +636,7 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         context['generated_invoices'] = Invoice.objects.filter(
             term=term,
             generated_by=self.request.user
-        ).order_by('-created_at')[:50]  # Show recent 50 invoices
+        ).order_by('-created_at')[:50]
 
         # Add error details to context for template
         if error_details:
