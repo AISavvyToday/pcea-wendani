@@ -361,12 +361,12 @@ def dashboard_admin(request):
     invoices_url = _safe_reverse("finance:invoice_list", default=finance_dashboard_url)
     payments_url = _safe_reverse("finance:payment_list", default=finance_dashboard_url)
     bank_url = _safe_reverse("finance:bank_transaction_list", default=finance_dashboard_url)
-    outstanding_url = _safe_reverse("finance:outstanding_report", default=invoices_url)
+    outstanding_url = _safe_reverse("finance:invoice_list", default=invoices_url)
 
     # Add term filter to some links
     term_qs = f"?term={term.pk}" if term else ""
-    invoices_term_url = f"{invoices_url}{term_qs}"
-    outstanding_term_url = f"{outstanding_url}{term_qs}"
+    invoices_term_url = f"{invoices_url}"
+    outstanding_term_url = f"{outstanding_url}"
 
     billed = Decimal(str(term_stats["billed"] or 0))
     collected = Decimal(str(term_stats["collected"] or 0))
@@ -410,6 +410,7 @@ def dashboard_admin(request):
                 "value": _fmt_kes(outstanding),
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
+                "url": "outstanding_term_url",
             },
             {
                 "title": "Bank Txns",
