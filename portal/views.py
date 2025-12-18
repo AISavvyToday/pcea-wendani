@@ -202,40 +202,13 @@ def _finance_kpis(term=None):
 
         invoice_count = invoice_qs.count()
 
-        # STUDENTS OUTSTANDING: Match StudentDetailView logic across all active students
-        # Step 1: Get active students with their credit balances
-        active_students = _get_active_students_qs().values('id', 'credit_balance')
 
-        # Step 2: Get invoice balances per student for this term/year
-        student_invoice_balances = {}
-        for invoice in invoice_qs.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED):
-            student_id = invoice.student_id
-            student_invoice_balances[student_id] = student_invoice_balances.get(student_id, Decimal('0.00')) + (
-                        invoice.balance or Decimal('0.00'))
-
-        # Step 3: Calculate total outstanding using StudentDetailView logic
-        students_outstanding = Decimal("0")
-
-        for student in active_students:
-            student_id = student['id']
-            invoice_balance = student_invoice_balances.get(student_id, Decimal('0.00'))
-            credit_balance = student['credit_balance'] or Decimal('0.00')
-
-            if credit_balance > 0:
-                # Debt not yet invoiced → add to outstanding balance
-                student_outstanding = invoice_balance + credit_balance
-            else:
-                # Student has prepaid credit (negative) or neutral balance
-                student_outstanding = invoice_balance
-
-            students_outstanding += student_outstanding
 
         return {
             "billed": billed,
             "collected": collected,
             "outstanding": outstanding,
             "invoice_count": invoice_count,
-            "students_outstanding": students_outstanding,  # Now matches StudentDetailView logic
         }
 
     term_stats = agg(term_invoices)
@@ -459,7 +432,6 @@ def dashboard_admin(request):
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
                 "url": outstanding_term_url,
-                "helper": f"{term_stats['students_outstanding']} student(s) owing",
             },
             {
                 "title": "Bank Txns",
