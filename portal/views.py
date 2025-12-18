@@ -19,7 +19,8 @@ Unmatched bank transactions:
 
 import logging
 from decimal import Decimal
-
+from decimal import Decimal
+from django.db.models import Sum
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
@@ -162,16 +163,7 @@ def _collected_for_invoices(invoice_qs):
 
 
 def _finance_kpis(term=None):
-    """
-    Returns KPIs for:
-    - current term
-    - current academic year (derived from term)
 
-    DEFINITIONS:
-    billed      = SUM(Invoice.total_amount)
-    collected   = SUM(PaymentAllocation.amount for term invoices) + SUM(Payment.amount for term invoices with no allocations)
-    outstanding = SUM(Invoice.balance) for the term (sum of all outstanding balances)
-    """
     term = term or _get_current_term()
     academic_year = getattr(term, "academic_year", None) if term else None
 
@@ -180,30 +172,21 @@ def _finance_kpis(term=None):
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
     def agg(invoice_qs):
-        from decimal import Decimal
-        from django.db.models import Sum
-
-
-
-        # Collected: As per your existing accurate logic
-        collected = _collected_for_invoices(invoice_qs)
-
         # Outstanding: Sum of remaining balances on invoices
-        invoices = Invoice.objects.filter(
-            is_active=True
-        ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
+        # invoices = Invoice.objects.filter(
+        #     is_active=True
+        # ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
 
         # Billed: Sum of total amounts on invoices
-        billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
+        billed = term_invoices.aggregate(total=Sum('total_amount'))['total'] or 0
         billed = Decimal(str(billed))
 
-        outstanding = invoices.aggregate(total=Sum('balance'))['total'] or 0
+        outstanding = term_invoices.aggregate(total=Sum('balance'))['total'] or 0
         outstanding = Decimal(str(outstanding))
 
+        collected = _collected_for_invoices(invoice_qs)
+
         invoice_count = invoice_qs.count()
-
-
-
         return {
             "billed": billed,
             "collected": collected,
@@ -402,14 +385,7 @@ def dashboard_admin(request):
                 "url": _safe_reverse("students:list"),
                 "helper": "Active/enrolled students",
             },
-            {
-                "title": "Staff Members",
-                "value": f"{staff_count:,}",
-                "icon": "mdi-account-tie",
-                "bg": "bg-gradient-success",
-                "url": _safe_reverse("portal:settings_overview"),
-                "helper": "Admins · Teachers · Bursar",
-            },
+
             {
                 "title": "Billed (This Term)",
                 "value": _fmt_kes(billed),
@@ -431,7 +407,6 @@ def dashboard_admin(request):
                 "value": _fmt_kes(outstanding),
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
-                "url": outstanding_term_url,
             },
             {
                 "title": "Bank Txns",
