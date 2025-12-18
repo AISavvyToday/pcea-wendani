@@ -19,8 +19,7 @@ Unmatched bank transactions:
 
 import logging
 from decimal import Decimal
-from decimal import Decimal
-from django.db.models import Sum
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
@@ -172,21 +171,29 @@ def _finance_kpis(term=None):
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
     def agg(invoice_qs):
-        # Outstanding: Sum of remaining balances on invoices
-        # invoices = Invoice.objects.filter(
-        #     is_active=True
-        # ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
+        from decimal import Decimal
+        from django.db.models import Sum
 
-        # Billed: Sum of total amounts on invoices
-        billed = term_invoices.aggregate(total=Sum('total_amount'))['total'] or 0
-        billed = Decimal(str(billed))
 
-        outstanding = term_invoices.aggregate(total=Sum('balance'))['total'] or 0
-        outstanding = Decimal(str(outstanding))
 
         collected = _collected_for_invoices(invoice_qs)
 
+        # Outstanding: Sum of remaining balances on invoices
+        invoices = Invoice.objects.filter(
+            is_active=True
+        ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
+
+        # Billed: Sum of total amounts on invoices
+        billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
+        billed = Decimal(str(billed))
+
+        outstanding = invoices.aggregate(total=Sum('balance'))['total'] or 0
+        outstanding = Decimal(str(outstanding))
+
         invoice_count = invoice_qs.count()
+
+
+
         return {
             "billed": billed,
             "collected": collected,
