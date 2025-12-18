@@ -76,8 +76,6 @@ class PaymentStatus(models.TextChoices):
 
 
 class InvoiceStatus(models.TextChoices):
-    DRAFT = 'draft', 'Draft'
-    SENT = 'sent', 'Sent'
     PARTIALLY_PAID = 'partially_paid', 'Partially Paid'
     PAID = 'paid', 'Paid'
     OVERDUE = 'overdue', 'Overdue'

@@ -183,9 +183,7 @@ def _finance_kpis(term=None):
         from decimal import Decimal
         from django.db.models import Sum
 
-        # Billed: Sum of total amounts on invoices
-        billed = invoice_qs.aggregate(x=Sum("total_amount"))["x"] or Decimal("0")
-        billed = Decimal(str(billed))
+
 
         # Collected: As per your existing accurate logic
         collected = _collected_for_invoices(invoice_qs)
@@ -207,23 +205,15 @@ def _finance_kpis(term=None):
             student_invoice_balances[student_id] = student_invoice_balances.get(student_id, Decimal('0.00')) + (
                         invoice.balance or Decimal('0.00'))
 
-        # Step 3: Calculate total outstanding using StudentDetailView logic
-        students_outstanding = Decimal("0")
+        invoices = Invoice.objects.filter(
+            is_active=True
+        ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
 
-        for student in active_students:
-            student_id = student['id']
-            invoice_balance = student_invoice_balances.get(student_id, Decimal('0.00'))
-            credit_balance = student['credit_balance'] or Decimal('0.00')
+        students_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or 0
 
-            if credit_balance > 0:
-                # Debt not yet invoiced → add to outstanding balance
-                student_outstanding = invoice_balance + credit_balance
-            else:
-                # Student has prepaid credit (negative) or neutral balance
-                student_outstanding = invoice_balance
-
-            students_outstanding += student_outstanding
-
+        # Billed: Sum of total amounts on invoices
+        billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
+        billed = Decimal(str(billed))
         return {
             "billed": billed,
             "collected": collected,
@@ -447,14 +437,14 @@ def dashboard_admin(request):
                 "url": payments_url,
                 "helper": f"Term rate: {rate:.1f}% · Year rate: {year_rate:.1f}%",
             },
-            # {
-            #     "title": "Outstanding (This Term)",
-            #     "value": _fmt_kes(outstanding),
-            #     "icon": "mdi-alert-circle",
-            #     "bg": "bg-gradient-warning",
-            #     "url": outstanding_term_url,
-            #     "helper": f"{term_stats['students_outstanding']} student(s) owing",
-            # },
+            {
+                "title": "Outstanding (This Term)",
+                "value": _fmt_kes(outstanding),
+                "icon": "mdi-alert-circle",
+                "bg": "bg-gradient-warning",
+                "url": outstanding_term_url,
+                "helper": f"{term_stats['students_outstanding']} student(s) owing",
+            },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
