@@ -283,7 +283,7 @@
 <div class="col-sm-3">
     <div class="small-muted">Outstanding Balance</div>
     <div class="info-val {% if outstanding_balance > 0 %}text-danger{% else %}text-success{% endif %}">
-        KES {{ outstanding_balance|default:"0.00" }}
+        KES {{ students_outstanding|default:"0.00" }}
     </div>
 </div>
   </div>
