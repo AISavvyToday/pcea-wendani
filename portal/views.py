@@ -386,7 +386,7 @@ def dashboard_admin(request):
                 "value": f"{total_students:,}",
                 "icon": "mdi-account-group",
                 "bg": "bg-gradient-primary",
-                "url": _safe_reverse("portal:academics_overview"),
+                "url": _safe_reverse("students:list"),
                 "helper": "Active/enrolled students",
             },
             {
