@@ -209,11 +209,10 @@ def _finance_kpis(term=None):
             is_active=True
         ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
 
-        students_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or 0
-
         # Billed: Sum of total amounts on invoices
         billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
         billed = Decimal(str(billed))
+        students_outstanding = billed - collected
         return {
             "billed": billed,
             "collected": collected,
