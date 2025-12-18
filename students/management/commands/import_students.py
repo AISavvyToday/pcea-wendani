@@ -9,18 +9,12 @@ import pandas as pd
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-from django.core.exceptions import FieldDoesNotExist
 
 from academics.models import AcademicYear, Term, Class
 from students.models import Student, Parent, StudentParent
-from finance.models import Invoice, InvoiceItem
-from payments.models import Payment
-from payments.services.payment import PaymentService as PaymentsPaymentService
-from core.models import TermChoices, FeeCategory, InvoiceStatus, PaymentMethod, PaymentStatus
-
+from core.models import TermChoices
 
 STREAM_EAST = "East"  # change if your Class.stream choices require something else
-OPENING_ITEM_DESC = "Imported opening balance (T3 2025)"
 
 
 def normalize_class_key(value: str) -> str:
@@ -116,41 +110,8 @@ def extract_phones(contacts: str) -> List[str]:
     return phones
 
 
-def pick_choice_value(choices: List[Tuple[str, str]], preferred: List[str]) -> str:
-    values = [c[0] for c in choices]
-    for p in preferred:
-        if p in values:
-            return p
-    return values[0]
-
-
-def get_default_fee_category() -> str:
-    # Try common category names if your FeeCategory includes them; else fallback to first choice
-    for attr in ("OTHER", "TUITION", "MISC"):
-        v = getattr(FeeCategory, attr, None)
-        if v and v in [c[0] for c in FeeCategory.choices]:
-            return v
-    return FeeCategory.choices[0][0]
-
-
-def get_sent_status_value() -> str:
-    # Prefer "sent" if it exists in InvoiceStatus choices; else draft.
-    return pick_choice_value(InvoiceStatus.choices, preferred=["sent", "draft"])
-
-
-def ensure_unallocated_amount_field():
-    try:
-        Payment._meta.get_field("unallocated_amount")
-    except FieldDoesNotExist:
-        raise RuntimeError(
-            "Payment.unallocated_amount field is missing. "
-            "You must add it to payments.models.Payment and run migrations "
-            "before importing (your allocation service depends on it)."
-        )
-
-
 class Command(BaseCommand):
-    help = "Import students + opening balances (arrears + credits) from Excel file"
+    help = "Import students with credit balances from Excel file"
 
     def add_arguments(self, parser):
         parser.add_argument("file_path", type=str, help="Path to Excel file")
@@ -158,8 +119,6 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=0, help="Only import first N rows (0 = all)")
 
     def handle(self, *args, **options):
-        ensure_unallocated_amount_field()
-
         file_path = options["file_path"]
         dry_run = options["dry_run"]
         limit = options["limit"] or 0
@@ -179,10 +138,6 @@ class Command(BaseCommand):
                 "Class": "Class",
                 "Class ": "Class",
                 "Contacts": "Contacts",
-                "Prepayment": "Prepayment",
-                "Balance B/F": "Balance_BF",
-                "Balance B/F ": "Balance_BF",
-                "Current Balance": "Current_Balance",
                 "Total Balance": "Total_Balance",
             }
         )
@@ -193,10 +148,7 @@ class Command(BaseCommand):
             "Name",
             "Class",
             "Contacts",
-            "Prepayment",
-            "Balance_BF",
-            "Current_Balance",
-            "Total_Balance",
+            "Total_Balance",  # Only this balance column exists
         ]
         missing = [c for c in required if c not in df.columns]
         if missing:
@@ -214,8 +166,6 @@ class Command(BaseCommand):
             "students_created": 0,
             "students_updated": 0,
             "parents_created": 0,
-            "invoices_created": 0,
-            "payments_created": 0,
             "rows_skipped": 0,
             "errors": 0,
         }
@@ -262,8 +212,6 @@ Import Complete! {'(DRY RUN - rolled back)' if dry_run else ''}
 Students created: {stats['students_created']}
 Students updated: {stats['students_updated']}
 Parents created: {stats['parents_created']}
-Invoices created: {stats['invoices_created']}
-Payments created: {stats['payments_created']}
 Rows skipped: {stats['rows_skipped']}
 Errors: {stats['errors']}
 """
@@ -355,7 +303,10 @@ Errors: {stats['errors']}
             self.stdout.write(self.style.WARNING(f"Unknown class '{class_name}' for {admission_no}"))
             return
 
-        # Student upsert
+        # Get credit_balance from Excel
+        credit_balance = to_decimal(row["Total_Balance"])  # This is the TOTAL_BALANCE column
+
+        # Student upsert with credit_balance
         student, created = Student.objects.update_or_create(
             admission_number=admission_no,
             defaults={
@@ -363,6 +314,7 @@ Errors: {stats['errors']}
                 "middle_name": middle_name.title(),
                 "last_name": last_name.title(),
                 "current_class": class_obj,
+                "credit_balance": credit_balance,  # Store the balance (+ve = debt, -ve = credit)
                 "admission_date": date(2025, 1, 6),
                 "date_of_birth": date(2015, 1, 1),  # placeholder
                 "gender": "M",  # placeholder
@@ -377,94 +329,6 @@ Errors: {stats['errors']}
         # Parent extraction/link
         if contacts and contacts.strip().lower() not in {"254", "nan"}:
             self.create_parent_from_contacts(student, contacts, stats)
-
-        # Sheet values
-        prepayment = to_decimal(row["Prepayment"])
-        balance_bf = to_decimal(row["Balance_BF"])
-        current_balance = to_decimal(row["Current_Balance"])
-
-        charges = balance_bf + current_balance
-        if charges < 0:
-            charges = Decimal("0.00")
-
-        # Create/update opening invoice (do NOT store credit on invoice.prepayment)
-        sent_status = get_sent_status_value()
-
-        issue_date = getattr(term, "start_date", None) or date(2025, 9, 1)
-        due_date = getattr(term, "fee_deadline", None) or date(2025, 9, 15)
-
-        invoice, inv_created = Invoice.objects.update_or_create(
-            student=student,
-            term=term,
-            defaults={
-                "subtotal": charges,
-                "discount_amount": Decimal("0.00"),
-                "total_amount": charges,
-                "balance_bf": balance_bf,
-                "prepayment": Decimal("0.00"),
-                "amount_paid": Decimal("0.00"),
-                "status": sent_status,
-                "issue_date": issue_date,
-                "due_date": due_date,
-                "notes": "Imported opening balance from legacy balances sheet (T3 2025).",
-                "generated_by": None,
-            },
-        )
-        if inv_created:
-            stats["invoices_created"] += 1
-
-        # Ensure at least 1 invoice item exists for allocation to attach to
-        default_category = get_default_fee_category()
-
-        opening_item = invoice.items.filter(description=OPENING_ITEM_DESC).first()
-        if not opening_item:
-            opening_item = InvoiceItem.objects.create(
-                invoice=invoice,
-                fee_item=None,  # allowed by your model
-                description=OPENING_ITEM_DESC,
-                category=default_category,
-                amount=charges,
-                discount_applied=Decimal("0.00"),
-                net_amount=Decimal("0.00"),  # will be overwritten by save()
-            )
-        else:
-            changed = False
-            if opening_item.category != default_category:
-                opening_item.category = default_category
-                changed = True
-            if opening_item.amount != charges:
-                opening_item.amount = charges
-                changed = True
-            if opening_item.discount_applied != Decimal("0.00"):
-                opening_item.discount_applied = Decimal("0.00")
-                changed = True
-            if changed:
-                opening_item.save()
-
-        # Create payment for prepayment as a COMPLETED Payment (idempotent)
-        if prepayment > 0:
-            tx_ref = f"IMPORT-T3-2025-{admission_no}"
-
-            existing_payment = Payment.objects.filter(transaction_reference=tx_ref).first()
-            if not existing_payment:
-                pm_value = pick_choice_value(PaymentMethod.choices, preferred=["cash", "bank_transfer", "mpesa"])
-
-                PaymentsPaymentService.create_manual_payment(
-                    student=student,
-                    amount=prepayment,
-                    payment_method=pm_value,
-                    received_by=None,
-                    payment_date=timezone.now(),
-                    payer_name="Imported",
-                    payer_phone="",
-                    notes="Imported prepayment/credit from opening balances sheet (T3 2025).",
-                    transaction_reference=tx_ref,
-                )
-                stats["payments_created"] += 1
-
-        # Ensure invoice status/balance consistent (will mark overdue if due_date passed)
-        invoice.refresh_from_db()
-        invoice.update_payment_status()
 
     def create_parent_from_contacts(self, student, contacts, stats):
         phones = extract_phones(contacts)

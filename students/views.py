@@ -189,25 +189,47 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['invoices'] = invoices
         context['payments'] = payments
 
-        # Total paid
-        context['total_paid'] = sum(
-            (p.amount for p in student.payments.all()),
-            0
-        )
+        # Total paid (sum of completed payments)
+        total_paid = student.payments.filter(
+            status='completed'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        context['total_paid'] = total_paid
 
-        # Outstanding balance
-        context['outstanding_balance'] = sum(
-            (inv.balance for inv in student.invoices.all()),
-            0
-        )
+        # Outstanding balance (from invoices)
+        outstanding_balance = student.invoices.filter(
+            is_active=True
+        ).exclude(
+            status=InvoiceStatus.CANCELLED
+        ).aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        context['outstanding_balance'] = outstanding_balance
 
-        # ✅ CREDIT / PREPAYMENT (unallocated payments)
-        credit_balance = 0
-        for p in student.payments.all():
-            if hasattr(p, 'unapplied_amount') and p.unapplied_amount:
-                credit_balance += p.unapplied_amount
+        # ✅ CREDIT / PREPAYMENT - Get from student.credit_balance field
+        credit_balance = student.credit_balance
 
-        context['credit_balance'] = credit_balance
+        # Display logic:
+        # If credit_balance is NEGATIVE = student has prepayment/credit
+        # If credit_balance is POSITIVE = student owes money (debt)
+
+        # For template display, we want to show prepayment/credit as positive number
+        # and debt as positive number (in the outstanding balance section)
+
+        # Calculate display values:
+        if credit_balance < 0:
+            # Student has credit (prepayment)
+            context['credit_balance'] = abs(credit_balance)  # Show as positive for display
+            context['has_credit'] = True
+            context['has_debt'] = False
+        else:
+            # Student owes money (or balance is zero)
+            context['credit_balance'] = Decimal('0.00')  # No credit to display
+            context['has_credit'] = False
+            context['has_debt'] = credit_balance > 0
+            # Add debt to outstanding balance
+            if credit_balance > 0:
+                context['outstanding_balance'] += credit_balance
+
+        # Keep original for calculations if needed
+        context['raw_credit_balance'] = credit_balance
 
         # ----------------------------
         # DOCUMENTS & RECORDS
