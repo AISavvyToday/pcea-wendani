@@ -273,18 +273,19 @@
     </div>
 
     <div class="col-sm-3">
-      <div class="small-muted">Outstanding Balance</div>
-      <div class="info-val text-danger">
-        KES {{ outstanding_balance|default:"0.00" }}
-      </div>
-    </div>
-
-    <div class="col-sm-3">
-      <div class="small-muted">Credit / Prepayment</div>
-      <div class="info-val text-primary">
+    <div class="small-muted">Credit / Prepayment</div>
+    <div class="info-val text-primary">
         KES {{ credit_balance|default:"0.00" }}
-      </div>
+        {% if has_credit %}<span class="badge bg-success ms-1">Available</span>{% endif %}
     </div>
+</div>
+
+<div class="col-sm-3">
+    <div class="small-muted">Outstanding Balance</div>
+    <div class="info-val {% if outstanding_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+        KES {{ outstanding_balance|default:"0.00" }}
+    </div>
+</div>
   </div>
 
   {% if credit_balance > 0 %}

@@ -163,6 +163,7 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+
 class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     model = Student
     template_name = 'students/student_detail.html'
@@ -178,7 +179,9 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         student = self.object
 
-        # Core profile data using service
+        # ----------------------------
+        # CORE PROFILE DATA (SERVICE)
+        # ----------------------------
         profile_data = StudentService.get_student_profile_data(student)
         context.update(profile_data)
 
@@ -191,47 +194,45 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['invoices'] = invoices
         context['payments'] = payments
 
-        # Total paid (sum of completed payments)
+        # Total paid (completed payments only)
         total_paid = student.payments.filter(
             status='completed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         context['total_paid'] = total_paid
 
-        # Outstanding balance (from invoices)
-        outstanding_balance = student.invoices.filter(
+        # Outstanding invoice balance (active, non-cancelled)
+        outstanding_invoice_balance = student.invoices.filter(
             is_active=True
         ).exclude(
             status=InvoiceStatus.CANCELLED
         ).aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
-        context['outstanding_balance'] = outstanding_balance
 
-        # ✅ CREDIT / PREPAYMENT - Get from student.credit_balance field
-        credit_balance = student.credit_balance
-
-        # Display logic:
-        # If credit_balance is NEGATIVE = student has prepayment/credit
-        # If credit_balance is POSITIVE = student owes money (debt)
-
-        # For template display, we want to show prepayment/credit as positive number
-        # and debt as positive number (in the outstanding balance section)
-
-        # Calculate display values:
-        if credit_balance < 0:
-            # Student has credit (prepayment)
-            context['credit_balance'] = abs(credit_balance)  # Show as positive for display
-            context['has_credit'] = True
-            context['has_debt'] = False
-        else:
-            # Student owes money (or balance is zero)
-            context['credit_balance'] = Decimal('0.00')  # No credit to display
-            context['has_credit'] = False
-            context['has_debt'] = credit_balance > 0
-            # Add debt to outstanding balance
-            if credit_balance > 0:
-                context['outstanding_balance'] += credit_balance
-
-        # Keep original for calculations if needed
+        # ----------------------------
+        # CREDIT / PREPAYMENT LOGIC
+        # ----------------------------
+        credit_balance = student.credit_balance  # source of truth
         context['raw_credit_balance'] = credit_balance
+
+        # If credit_balance > 0 → student owes money not yet invoiced
+        # If credit_balance < 0 → student has prepaid credit
+
+        if credit_balance > 0:
+            # Debt not yet invoiced → add to outstanding balance
+            outstanding_balance = outstanding_invoice_balance + credit_balance
+            context['credit_balance'] = Decimal('0.00')
+            context['has_credit'] = False
+        elif credit_balance < 0:
+            # Student has prepaid credit
+            outstanding_balance = outstanding_invoice_balance
+            context['credit_balance'] = abs(credit_balance)  # display as positive
+            context['has_credit'] = True
+        else:
+            # Neutral balance
+            outstanding_balance = outstanding_invoice_balance
+            context['credit_balance'] = Decimal('0.00')
+            context['has_credit'] = False
+
+        context['outstanding_balance'] = outstanding_balance
 
         # ----------------------------
         # DOCUMENTS & RECORDS
@@ -239,24 +240,25 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['documents'] = student.documents.order_by('-created_at')[:50]
         context['discipline_records'] = student.discipline_records.order_by('-incident_date')[:50]
         context['medical_records'] = student.medical_records.order_by('-record_date')[:50]
+
         context['grades'] = student.grades.select_related(
             'exam', 'subject'
         ).order_by('-entered_at')[:100]
+
         context['attendance_recent'] = student.attendance_records.select_related(
             'class_obj'
         ).order_by('-date')[:50]
 
-        # Enrollment history returned by service
+        # Enrollment history (from service)
         context['enrollments'] = profile_data.get('enrollments', [])
 
-        # Parents (already prepared by service)
+        # Parents (from service)
         context['student_parents'] = profile_data.get('student_parents', [])
 
         # Active tab (server-side fallback)
         context['active_tab'] = self.request.GET.get('tab', 'overview')
 
         return context
-
 
 class StudentPromotionView(LoginRequiredMixin, RoleRequiredMixin, FormView):
     """Bulk promote students to next class"""

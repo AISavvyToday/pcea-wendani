@@ -26,8 +26,10 @@ class InvoiceService:
 
     @staticmethod
     @transaction.atomic
+    @staticmethod
+    @transaction.atomic
     def generate_invoice(student, term, fee_structure=None, generated_by=None):
-        """Generate invoice for a student for a term."""
+        """Generate invoice for a student for a term, incorporating credit_balance."""
 
         # Check if invoice already exists
         existing = Invoice.objects.filter(
@@ -50,9 +52,23 @@ class InvoiceService:
         if not fee_structure:
             raise ValueError(f"No fee structure found for student {student.admission_number}")
 
+        # Handle student's credit_balance
+        credit_balance = student.credit_balance
+        balance_bf = Decimal("0.00")
+        prepayment = Decimal("0.00")
+        notes_parts = []
 
+        if credit_balance > 0:
+            # Student has debt (positive balance)
+            balance_bf = credit_balance
+            notes_parts.append(f"Balance brought forward: KES {credit_balance}")
+        elif credit_balance < 0:
+            # Student has credit/prepayment (negative balance)
+            prepayment = abs(credit_balance)  # Convert to positive for prepayment field
+            notes_parts.append(f"Prepayment applied: KES {abs(credit_balance)}")
+        # If credit_balance = 0, both remain 0
 
-        # Create invoice
+        # Create invoice with proper balance_bf and prepayment
         invoice = Invoice.objects.create(
             student=student,
             term=term,
@@ -60,10 +76,11 @@ class InvoiceService:
             issue_date=timezone.now().date(),
             due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
                 days=30),
-            balance_bf=Decimal("0.00"),
-            prepayment=Decimal("0.00"),
+            balance_bf=balance_bf,
+            prepayment=prepayment,
             generated_by=generated_by,
-            status='draft'
+            status='draft',
+            notes="Imported opening balance from legacy system. " + (" ".join(notes_parts) if notes_parts else "")
         )
 
         # Add fee items
@@ -103,16 +120,14 @@ class InvoiceService:
         # Update invoice totals
         invoice.subtotal = subtotal
         invoice.discount_amount = min(discount_amount, subtotal)
-        invoice.subtotal = subtotal
-        invoice.discount_amount = min(discount_amount, subtotal)
-
-        # Standalone: only this term's fees
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
-        # Let model save() compute balance
-        invoice.amount_paid = invoice.amount_paid or Decimal("0.00")
-        invoice.prepayment = Decimal("0.00")
-        invoice.balance_bf = Decimal("0.00")
+        # IMPORTANT: Reset student's credit_balance to 0 after transferring to invoice
+        student.credit_balance = Decimal("0.00")
+        student.save(update_fields=['credit_balance', 'updated_at'])
+
+        # Let model save() compute balance with corrected formula
+        invoice.amount_paid = Decimal("0.00")
         invoice.status = 'sent'
         invoice.save()
 
