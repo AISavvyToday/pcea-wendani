@@ -201,12 +201,7 @@
           </button>
           <a href="{% url 'finance:fee_structure_list' %}" class="btn btn-outline-secondary">Cancel</a>
 
-          {% if form.instance.pk %}
-            <a href="{% url 'finance:fee_structure_detail' form.instance.pk %}"
-               class="btn btn-outline-info ms-auto">
-              View structure
-            </a>
-          {% endif %}
+
         </div>
 
       </form>
