@@ -115,17 +115,17 @@ class InvoiceService:
         total_discount = invoice.items.aggregate(total=Sum('discount_applied'))['total'] or Decimal('0.00')
         invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
-        # Add credit balance to invoice total -ve or positve
 
+        # Add credit balance to invoice total -ve or positve
         if student.credit_balance > 0:
             debt = student.credit_balance
-            invoice.total_amount += debt
+            invoice.balance += debt
             student.credit_balance = Decimal(0)
             invoice.balance_bf = debt
             invoice.prepayment = Decimal(0)
         elif student.credit_balance < 0:
             credit = student.credit_balance
-            invoice.total_amount += credit
+            invoice.balance += credit
             student.credit_balance = Decimal(0)
             invoice.prepayment = credit
             invoice.balance_bf = Decimal(0)

@@ -328,10 +328,10 @@
               <td>KES {{ inv.balance_bf }}</td>
 
             <td>
-              KES {{ inv.balance }}
+              KES {{ inv.total_amount }}
             </td>
               <td>KES {{ inv.amount_paid }}</td>
-            <td class="{% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ inv.total_amount }}</td>
+            <td class="{% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ inv.balance }}</td>
             <td>{{ inv.get_status_display }}</td>
             <td class="small-muted">{{ inv.issue_date|date:"d M Y" }}</td>
           </tr>
