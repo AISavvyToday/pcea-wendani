@@ -308,7 +308,6 @@ Errors: {stats['errors']}
             self.stdout.write(self.style.WARNING(f"Unknown class '{class_name}' for {admission_no}"))
             return
 
-        # Get credit_balance from Excel
         credit_balance = to_decimal(row["Total_Balance"])  # This is the TOTAL_BALANCE column
 
         # Student upsert with credit_balance
