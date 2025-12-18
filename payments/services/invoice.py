@@ -19,6 +19,7 @@ from django.db.models.functions import Coalesce
 from core.models import InvoiceStatus, PaymentStatus
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
+from students.models import Student
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +28,12 @@ class InvoiceService:
     """Service for managing invoice updates from payments (oldest-invoice-first)."""
 
     PRIORITY_ORDER = [
-        "tuition",
-        "examination",
-        "meals",
-        "boarding",
-        "transport",
-        "books",
-        "uniform",
-        "activity",
-        "development",
-        "other",
+        "tuition",  # 1
+        "meals",  # 2 (Lunch)
+        "examination",  # 3 (Exam Fee)
+        "activity",  # 4
+        "transport",  # 5
+
     ]
 
     @staticmethod
@@ -249,6 +246,12 @@ class InvoiceService:
         leftover = payment.amount - allocated_total
 
         if leftover > 0:
+            # Add leftover to student's credit balance (negative means credit)
+            student = payment.student
+            # Since positive = debt, negative = credit, we subtract
+            student.credit_balance -= leftover  # Subtracting makes it more negative = more credit
+            student.save(update_fields=['credit_balance', 'updated_at'])
+
             note = f" | Unapplied credit: KES {leftover}"
             if note.strip() not in (payment.notes or ""):
                 payment.notes = (payment.notes or "") + note
@@ -258,3 +261,36 @@ class InvoiceService:
             f"Payment {payment.payment_reference} allocated. Applied={allocated_total}, Unapplied={leftover}"
         )
         return leftover
+
+    @staticmethod
+    @db_transaction.atomic
+    def apply_credit_to_invoice(student: Student, invoice: Invoice, amount: Decimal):
+        """
+        Apply student's credit balance to an invoice.
+        """
+        if amount <= 0 or student.credit_balance >= 0:  # No credit to apply
+            return Decimal("0")
+
+        # Determine how much credit we can use (negative credit_balance is the available credit)
+        available_credit = -student.credit_balance  # Convert to positive amount
+        amount_to_apply = min(amount, available_credit, invoice.balance)
+
+        if amount_to_apply <= 0:
+            return Decimal("0")
+
+        # Create a "virtual" payment from credit
+        from payments.models import Payment, PaymentAllocation
+
+        # You might want to create a special payment record for credit application
+        # Or just adjust balances directly
+
+        # For now, let's just adjust the student's credit balance and invoice
+        student.credit_balance += amount_to_apply  # Add makes it less negative
+        student.save(update_fields=['credit_balance', 'updated_at'])
+
+        # Add to invoice payment
+        invoice.amount_paid += amount_to_apply
+        invoice.balance = invoice.total_amount + invoice.balance_bf - invoice.prepayment - invoice.amount_paid
+        invoice.save(update_fields=['amount_paid', 'balance', 'updated_at'])
+
+        return amount_to_apply
