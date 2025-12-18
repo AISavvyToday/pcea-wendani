@@ -11,6 +11,7 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import timedelta, date
 
+from payments.services.payment import logger
 from .models import (
     FeeStructure, FeeItem, Invoice, InvoiceItem,
      StudentDiscount
@@ -114,6 +115,13 @@ class InvoiceService:
         total_discount = invoice.items.aggregate(total=Sum('discount_applied'))['total'] or Decimal('0.00')
         invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
+        # Add credit balance to invoice total -ve or positve
+        if student.credit_balance > 0:
+            invoice.total_amount += student.credit_balance
+            invoice.balance_bf -= student.credit_balance
+        elif student.credit_balance < 0:
+            invoice.total_amount -= student.credit_balance
+            invoice.prepayment -= student.credit_balance
         invoice.save()
 
         return invoice, True
