@@ -126,7 +126,13 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(f"Reading {file_path}..."))
 
         # Read Excel: your sheet has a top line then header row (Year, #, Name...)
-        df = pd.read_excel(file_path, skiprows=1)
+        df = pd.read_excel(file_path)
+
+
+
+        print("Columns found:", df.columns.tolist())
+        print("First few rows:")
+        print(df.head())
         df.columns = [str(c).strip() for c in df.columns]
 
         # Rename columns safely based on actual header row
@@ -136,7 +142,6 @@ class Command(BaseCommand):
                 "#": "Admission_No",
                 "Name": "Name",
                 "Class": "Class",
-                "Class ": "Class",
                 "Contacts": "Contacts",
                 "Total Balance": "Total_Balance",
             }
