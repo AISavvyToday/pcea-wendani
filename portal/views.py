@@ -447,14 +447,14 @@ def dashboard_admin(request):
                 "url": payments_url,
                 "helper": f"Term rate: {rate:.1f}% · Year rate: {year_rate:.1f}%",
             },
-            {
-                "title": "Outstanding (This Term)",
-                "value": _fmt_kes(outstanding),
-                "icon": "mdi-alert-circle",
-                "bg": "bg-gradient-warning",
-                "url": outstanding_term_url,
-                "helper": f"{term_stats['students_outstanding']} student(s) owing",
-            },
+            # {
+            #     "title": "Outstanding (This Term)",
+            #     "value": _fmt_kes(outstanding),
+            #     "icon": "mdi-alert-circle",
+            #     "bg": "bg-gradient-warning",
+            #     "url": outstanding_term_url,
+            #     "helper": f"{term_stats['students_outstanding']} student(s) owing",
+            # },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
