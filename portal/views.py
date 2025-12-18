@@ -410,7 +410,7 @@ def dashboard_admin(request):
                 "value": _fmt_kes(outstanding),
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
-                "url": "outstanding_term_url",
+                "url": outstanding_term_url,
             },
             {
                 "title": "Bank Txns",
