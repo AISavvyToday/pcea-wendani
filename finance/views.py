@@ -510,44 +510,135 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         term = form.cleaned_data['term']
         grade_levels = form.cleaned_data.get('grade_levels', [])
 
+        logger.info(f"Invoice generation started for term: {term}, grade levels: {grade_levels}")
+
         try:
-            # NOTE: overwrite removed by policy
+            # DEBUG: Check if students exist
+            from students.models import Student
+            students = Student.objects.filter(is_active=True, status='active')
+            if grade_levels:
+                students = students.filter(grade_level__in=grade_levels)
+
+            logger.info(f"Found {students.count()} active students")
+
+            if students.count() == 0:
+                messages.warning(self.request, "No active students found for the selected criteria.")
+                return super().form_invalid(form)
+
+            # DEBUG: Check fee structures
+            from finance.models import FeeStructure
+            fee_structures = FeeStructure.objects.filter(
+                academic_year=term.academic_year,
+                term=term.term,
+                is_active=True
+            )
+            logger.info(f"Found {fee_structures.count()} fee structures for {term.academic_year.year} {term.term}")
+
+            for fs in fee_structures:
+                logger.info(f"  - {fs.name}: grade_levels={fs.grade_levels}")
+
+            # TEST: Try generating invoice for first student to see error
+            if students.exists():
+                test_student = students.first()
+                logger.info(
+                    f"Testing with student: {test_student.admission_number} (Grade: {test_student.grade_level})")
+
+                try:
+                    from .services import InvoiceService
+                    invoice, created = InvoiceService.generate_invoice(
+                        student=test_student,
+                        term=term,
+                        generated_by=self.request.user,
+                    )
+                    if created:
+                        logger.info(f"✓ Test invoice created: {invoice.invoice_number}")
+                    else:
+                        logger.info(f"⚠ Test invoice already exists: {invoice.invoice_number}")
+                except Exception as test_error:
+                    logger.error(f"✗ Test invoice generation failed: {str(test_error)}", exc_info=True)
+                    messages.error(self.request, f"Test failed: {str(test_error)}")
+                    # Continue with bulk generation anyway
+
+            # Now run the bulk generation
+            logger.info("Starting bulk invoice generation...")
             results = InvoiceService.bulk_generate_invoices(
                 term=term,
                 grade_levels=grade_levels if grade_levels else None,
                 generated_by=self.request.user,
             )
+
+            logger.info(f"Bulk generation results: {results}")
+
         except Exception as e:
-            logger.exception("Invoice bulk generation failed")
+            logger.exception("Invoice bulk generation failed with exception")
             messages.error(self.request, f"Invoice generation failed: {str(e)}")
             return super().form_invalid(form)
 
+        # Parse results with better error handling
         generated = skipped = errors = 0
+        error_details = []
+
         if isinstance(results, dict):
             generated = results.get('generated', results.get('created', 0))
             skipped = results.get('skipped', 0)
             errors = results.get('errors', 0)
-        elif isinstance(results, (list, tuple)) and len(results) == 2:
-            created_count, error_list = results
-            generated = created_count
-            errors = len(error_list) if isinstance(error_list, (list, tuple)) else (1 if error_list else 0)
-            skipped = 0
-        else:
-            try:
-                generated = int(results)
-            except Exception:
-                generated = 0
+            error_details = results.get('error_details', [])
+        elif isinstance(results, (list, tuple)):
+            if len(results) == 2:
+                # (created_count, error_list) format
+                created_count, error_list = results
+                generated = created_count
+                if isinstance(error_list, (list, tuple)):
+                    errors = len(error_list)
+                    error_details = error_list[:10]  # Get first 10 errors for display
+                else:
+                    errors = 1 if error_list else 0
+                    error_details = [str(error_list)] if error_list else []
+            else:
+                try:
+                    generated = int(results[0]) if results else 0
+                except Exception:
+                    generated = 0
 
-        messages.success(
-            self.request,
-            f"Invoice generation complete: {generated} generated, {skipped} skipped, {errors} errors."
-        )
+        # Log detailed errors
+        if error_details:
+            logger.error(f"Generation errors ({len(error_details)}):")
+            for i, err in enumerate(error_details[:5]):  # Log first 5 errors
+                logger.error(f"  Error {i + 1}: {err}")
 
-        if errors:
-            messages.warning(self.request, "Some invoices failed to generate. Check logs for details.")
+        # Create success message
+        message = f"Invoice generation complete: {generated} generated, {skipped} skipped, {errors} errors."
+        messages.success(self.request, message)
 
-        return super().form_valid(form)
+        # Show first few errors in message if present
+        if error_details:
+            error_preview = "<br>".join([f"• {err}" for err in error_details[:3]])
+            if len(error_details) > 3:
+                error_preview += f"<br>• ... and {len(error_details) - 3} more errors"
 
+            messages.error(
+                self.request,
+                f"{errors} errors occurred during generation:<br>{error_preview}",
+                extra_tags='safe'
+            )
+        elif errors > 0:
+            messages.warning(
+                self.request,
+                f"{errors} errors occurred. Check server logs for details."
+            )
+
+        # Also add context for debugging
+        context = self.get_context_data()
+        context['generated_invoices'] = Invoice.objects.filter(
+            term=term,
+            generated_by=self.request.user
+        ).order_by('-created_at')[:50]  # Show recent 50 invoices
+
+        # Add error details to context for template
+        if error_details:
+            context['error_details'] = error_details[:10]
+
+        return self.render_to_response(context)
 
 class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """Print-friendly invoice view."""

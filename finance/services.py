@@ -26,61 +26,44 @@ class InvoiceService:
 
     @staticmethod
     @transaction.atomic
-    @staticmethod
-    @transaction.atomic
-    def generate_invoice(student, term, fee_structure=None, generated_by=None):
-        """Generate invoice for a student for a term, incorporating credit_balance."""
+    def generate_invoice(student, term, generated_by=None):
+        """Generate invoice for a student for a term."""
 
         # Check if invoice already exists
         existing = Invoice.objects.filter(
-            student=student, term=term, is_active=True
+            student=student,
+            term=term
         ).exclude(status='cancelled').first()
 
         if existing:
             return existing, False
 
         # Find applicable fee structure
-        if not fee_structure:
+        grade_level = student.grade_level if hasattr(student, 'grade_level') else None
+        if not grade_level and hasattr(student, 'current_class'):
             grade_level = student.current_class.grade_level if student.current_class else None
-            fee_structure = FeeStructure.objects.filter(
-                academic_year=term.academic_year,
-                is_active=True
-            ).filter(
-                Q(grade_levels__contains=[grade_level]) | Q(grade_levels=[])
-            ).first()
+
+        fee_structure = FeeStructure.objects.filter(
+            academic_year=term.academic_year,
+            term=term.term,  # Note: term.term is the string (term_1, term_2, term_3)
+            is_active=True
+        ).filter(
+            Q(grade_levels__contains=[grade_level]) | Q(grade_levels=[])
+        ).first()
 
         if not fee_structure:
-            raise ValueError(f"No fee structure found for student {student.admission_number}")
+            raise ValueError(f"No fee structure found for student {student.admission_number} (Grade: {grade_level})")
 
-        # Handle student's credit_balance
-        credit_balance = student.credit_balance
-        balance_bf = Decimal("0.00")
-        prepayment = Decimal("0.00")
-        notes_parts = []
-
-        if credit_balance > 0:
-            # Student has debt (positive balance)
-            balance_bf = credit_balance
-            notes_parts.append(f"Balance brought forward: KES {credit_balance}")
-        elif credit_balance < 0:
-            # Student has credit/prepayment (negative balance)
-            prepayment = abs(credit_balance)  # Convert to positive for prepayment field
-            notes_parts.append(f"Prepayment applied: KES {abs(credit_balance)}")
-        # If credit_balance = 0, both remain 0
-
-        # Create invoice with proper balance_bf and prepayment
+        # Create invoice
         invoice = Invoice.objects.create(
             student=student,
             term=term,
-            fee_structure=fee_structure,
+            fee_structure=fee_structure,  # Make sure Invoice model has this field
             issue_date=timezone.now().date(),
             due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
                 days=30),
-            balance_bf=balance_bf,
-            prepayment=prepayment,
             generated_by=generated_by,
-            status='draft',
-            notes="Imported opening balance from legacy system. " + (" ".join(notes_parts) if notes_parts else "")
+            status='draft'
         )
 
         # Add fee items
@@ -88,47 +71,49 @@ class InvoiceService:
         fee_items = FeeItem.objects.filter(fee_structure=fee_structure, is_active=True)
 
         for item in fee_items:
+            # Calculate discount for this item
+            discount_amount = Decimal('0.00')
+
+            # Get applicable student discounts
+            student_discounts = StudentDiscount.objects.filter(
+                student=student,
+                is_active=True,
+                is_approved=True,
+                discount__academic_year=term.academic_year
+            ).filter(
+                Q(start_date__lte=timezone.now().date()) | Q(start_date__isnull=True)
+            ).filter(
+                Q(end_date__gte=timezone.now().date()) | Q(end_date__isnull=True)
+            )
+
+            for sd in student_discounts:
+                discount = sd.discount
+                if not discount.applicable_categories or item.category in discount.applicable_categories:
+                    if discount.discount_type == 'percentage':
+                        discount_amount += item.amount * (discount.value / 100)
+                    else:
+                        discount_amount += discount.value
+
+            net_amount = item.amount - discount_amount
+
             InvoiceItem.objects.create(
                 invoice=invoice,
                 fee_item=item,
                 category=item.category,
-                description=item.description or item.get_category_display(),
-                amount=item.amount
+                description=item.description,
+                amount=item.amount,
+                discount_applied=discount_amount,
+                net_amount=net_amount
             )
             subtotal += item.amount
 
-        # Apply discounts
-        discount_amount = Decimal('0.00')
-        student_discounts = StudentDiscount.objects.filter(
-            student=student,
-            is_active=True,
-            is_approved=True
-        ).filter(
-            Q(start_date__lte=timezone.now().date()) | Q(start_date__isnull=True)
-        ).filter(
-            Q(end_date__gte=timezone.now().date()) | Q(end_date__isnull=True)
-        ).select_related('discount')
-
-        for sd in student_discounts:
-            if sd.custom_value:
-                discount_amount += sd.custom_value
-            elif sd.discount.discount_type == 'percentage':
-                discount_amount += subtotal * (sd.discount.value / 100)
-            else:
-                discount_amount += sd.discount.value
-
         # Update invoice totals
         invoice.subtotal = subtotal
-        invoice.discount_amount = min(discount_amount, subtotal)
+
+        # Calculate total discount (sum of all item discounts)
+        total_discount = invoice.items.aggregate(total=Sum('discount_applied'))['total'] or Decimal('0.00')
+        invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
-
-        # IMPORTANT: Reset student's credit_balance to 0 after transferring to invoice
-        student.credit_balance = Decimal("0.00")
-        student.save(update_fields=['credit_balance', 'updated_at'])
-
-        # Let model save() compute balance with corrected formula
-        invoice.amount_paid = Decimal("0.00")
-        invoice.status = 'sent'
         invoice.save()
 
         return invoice, True
@@ -141,10 +126,10 @@ class InvoiceService:
         students = Student.objects.filter(is_active=True, status='active')
 
         if grade_levels:
-            students = students.filter(current_class__grade_level__in=grade_levels)
+            students = students.filter(grade_level__in=grade_levels)
 
         created_count = 0
-        errors = []
+        error_details = []
 
         for student in students:
             try:
@@ -156,9 +141,11 @@ class InvoiceService:
                 if created:
                     created_count += 1
             except Exception as e:
-                errors.append(f"{student.admission_number}: {str(e)}")
+                error_msg = f"{student.admission_number} ({student.full_name}): {str(e)}"
+                error_details.append(error_msg)
+                logger.error(f"Failed to generate invoice for {student.admission_number}: {str(e)}", exc_info=True)
 
-        return created_count, errors
+        return created_count, error_details
 
     @staticmethod
     def get_student_statement(student, term=None):

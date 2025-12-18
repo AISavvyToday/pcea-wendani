@@ -180,6 +180,13 @@ class Invoice(BaseModel):
     generated_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name='invoices_generated'
     )
+    fee_structure = models.ForeignKey(
+        FeeStructure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices'
+    )
 
     class Meta:
         db_table = 'invoices'
