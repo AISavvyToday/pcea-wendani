@@ -125,7 +125,7 @@ class InvoiceService:
             invoice.prepayment = 0
         elif student.credit_balance < 0:
             credit = student.credit_balance
-            # invoice.balance += credit
+            invoice.balance += credit
             student.credit_balance = 0
             invoice.prepayment = credit
             invoice.balance_bf = 0
