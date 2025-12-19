@@ -132,7 +132,6 @@
 
           <div class="d-flex gap-2 justify-content-center mb-3 flex-wrap">
             <span class="stat-pill">Age: {{ student.age }}</span>
-            <span class="stat-pill">Gender: {{ student.get_gender_display }}</span>
             <span class="stat-pill">Status: {{ student.get_status_display }}</span>
           </div>
 
@@ -210,10 +209,7 @@
                         <td class="info-key">Date of birth</td>
                         <td>{{ student.date_of_birth|date:"d M Y" }}</td>
                       </tr>
-                      <tr>
-                        <td class="info-key">Gender</td>
-                        <td>{{ student.get_gender_display }}</td>
-                      </tr>
+
                     </table>
                   </div>
                 </div>
