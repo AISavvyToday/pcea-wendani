@@ -142,8 +142,7 @@
                 <th style="width:18%">Category *</th>
                 <th>Description *</th>
                 <th style="width:15%">Amount (KES) *</th>
-<!--                <th class="text-center">Optional</th>-->
-<!--                <th class="text-center">All</th>-->
+
                 <th style="width:10%">Actions</th>
               </tr>
             </thead>
@@ -155,11 +154,10 @@
                 <td>{{ item_form.category }}</td>
                 <td>{{ item_form.description }}</td>
                 <td>{{ item_form.amount }}</td>
-<!--                <td class="text-center">{{ item_form.is_optional }}</td>-->
-<!--                <td class="text-center">{{ item_form.applies_to_all }}</td>-->
+
                 <td class="text-center">
                     <button type="button" class="btn btn-sm btn-danger remove-item-btn">Remove</button>
-                  {% endif %}
+
                   {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
                 </td>
               </tr>
