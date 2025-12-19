@@ -235,8 +235,8 @@
                             <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h6>Total Invoiced</h6>
-                                        <h5 class="text-primary">KES {{ total_invoiced|intcomma }}</h5>
+                                        <h7>Total Invoiced</h7>
+                                        <h6 class="text-primary">KES {{ total_invoiced|intcomma }}</h6>
                                     </div>
                                 </div>
                             </div>
@@ -244,8 +244,8 @@
                             <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h6>Total Paid</h6>
-                                        <h5 class="text-success">KES {{ total_paid|intcomma }}</h5>
+                                        <h7>Total Paid</h7>
+                                        <h6 class="text-success">KES {{ total_paid|intcomma }}</h6>
                                     </div>
                                 </div>
                             </div>
@@ -253,10 +253,10 @@
                             <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h6>Balance Due</h6>
-                                        <h5 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                        <h7>Balance Due</h7>
+                                        <h6 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                             KES {{ total_balance|intcomma }}
-                                        </h5>
+                                        </h6>
                                     </div>
                                 </div>
                             </div>
