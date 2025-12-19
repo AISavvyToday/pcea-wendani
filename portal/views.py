@@ -187,7 +187,7 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
-        balances_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
+        balances_bf = invoices.aggregate(total=Sum('balance'))['total'] or 0
         prepayments = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
 
         invoice_count = invoice_qs.count()
@@ -425,12 +425,12 @@ def dashboard_admin(request):
                 "icon": "mdi-cash",
                 "bg": "bg-gradient-success",
             },
-            # {
-            #     "title": "Total Bal B/f",
-            #     "value": _fmt_kes(balances_bf),
-            #     "icon": "mdi-alert-circle",
-            #     "bg": "bg-gradient-warning",
-            # },
+            {
+                "title": "Total Bal B/f",
+                "value": _fmt_kes(balances_bf),
+                "icon": "mdi-alert-circle",
+                "bg": "bg-gradient-warning",
+            },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
