@@ -218,6 +218,7 @@ class Invoice(BaseModel):
         return f'INV-{year}-{new_num:05d}'
 
     def update_payment_status(self):
+        # REMOVE DRAFT LOGIC - just update based on balance
         if self.balance <= 0:
             self.status = InvoiceStatus.PAID
         elif self.amount_paid > 0:

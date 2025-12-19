@@ -66,14 +66,13 @@ class InvoiceService:
 
         today = date_cls.today()
 
-        # Keep DRAFT untouched unless you want to auto-promote it
-        if invoice.status != InvoiceStatus.DRAFT:
-            if invoice.balance <= 0:
-                invoice.status = InvoiceStatus.PAID
-            elif invoice.amount_paid > 0:
-                invoice.status = InvoiceStatus.PARTIALLY_PAID
-            elif invoice.due_date and invoice.due_date < today:
-                invoice.status = InvoiceStatus.OVERDUE
+        # REMOVED DRAFT CHECK - Only use the statuses we have
+        if invoice.balance <= 0:
+            invoice.status = InvoiceStatus.PAID
+        elif invoice.amount_paid > 0:
+            invoice.status = InvoiceStatus.PARTIALLY_PAID
+        elif invoice.due_date and invoice.due_date < today:
+            invoice.status = InvoiceStatus.OVERDUE
 
         # IMPORTANT: update_fields must include balance/amount_paid/status
         invoice.save(update_fields=["amount_paid", "balance", "status", "updated_at"])
@@ -89,7 +88,7 @@ class InvoiceService:
             return Decimal("0")
 
         items = list(invoice.items.filter(is_active=True))
-        # Sort by your priority order, then stable by id
+        # Sort by priority order, then stable by id
         items.sort(key=lambda it: (InvoiceService._priority_key(it.category), it.id))
 
         allocated_total = Decimal("0")
@@ -100,13 +99,13 @@ class InvoiceService:
                 break
 
             already_allocated = (
-                PaymentAllocation.objects.filter(
-                    is_active=True,
-                    invoice_item=item,
-                    payment__is_active=True,
-                    payment__status=PaymentStatus.COMPLETED,
-                ).aggregate(total=Sum("amount"))["total"]
-                or Decimal("0")
+                    PaymentAllocation.objects.filter(
+                        is_active=True,
+                        invoice_item=item,
+                        payment__is_active=True,
+                        payment__status=PaymentStatus.COMPLETED,
+                    ).aggregate(total=Sum("amount"))["total"]
+                    or Decimal("0")
             )
 
             item_due = (item.net_amount or Decimal("0")) - already_allocated
@@ -240,15 +239,15 @@ class InvoiceService:
 
         # Remaining is unapplied credit for this payment (if any)
         allocated_total = (
-            payment.allocations.filter(is_active=True).aggregate(total=Sum("amount"))["total"]
-            or Decimal("0")
+                payment.allocations.filter(is_active=True).aggregate(total=Sum("amount"))["total"]
+                or Decimal("0")
         )
         leftover = payment.amount - allocated_total
 
         if leftover > 0:
             # Add leftover to student's credit balance (negative means credit)
             student = payment.student
-            # Since positive = debt, negative = credit, we subtract
+            # Since positive = debt, negative = credit, we subtract to make it more negative
             student.credit_balance -= leftover  # Subtracting makes it more negative = more credit
             student.save(update_fields=['credit_balance', 'updated_at'])
 
