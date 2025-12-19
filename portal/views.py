@@ -184,7 +184,7 @@ def _finance_kpis(term=None):
         billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
         billed = Decimal(str(billed))
 
-        outstanding = invoices.aggregate(total=Sum('balance'))['total'] or 0
+        outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
         invoice_count = invoice_qs.count()
@@ -405,13 +405,13 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-success",
                 "url": payments_url,
             },
-            # {
-            #     "title": "Outstanding (This Term)",
-            #     "value": _fmt_kes(outstanding),
-            #     "icon": "mdi-alert-circle",
-            #     "bg": "bg-gradient-warning",
-            #     "url": outstanding_term_url,
-            # },
+            {
+                "title": "Outstanding (This Term)",
+                "value": _fmt_kes(outstanding),
+                "icon": "mdi-alert-circle",
+                "bg": "bg-gradient-warning",
+                "url": outstanding_term_url,
+            },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
