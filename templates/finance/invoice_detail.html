@@ -4,10 +4,58 @@
 {% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
 
 {% block content %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 20px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e0e0e0;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 15px;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4CAF50;
+    border: 2px solid white;
+}
+
+.timeline-content {
+    background: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid #e0e0e0;
+}
+</style>
+
 <div class="content-wrapper">
-    <div class="page-header">
-        <h3 class="page-title">Invoice {{ invoice.invoice_number }}</h3>
-        <div class="btn-group">
+    <!-- Header Section -->
+    <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
+        <div>
+            <h3 class="page-title mb-1">Invoice {{ invoice.invoice_number }}</h3>
+            <div class="small text-muted">
+                {{ invoice.student.full_name }} • {{ invoice.term }} • {{ invoice.issue_date|date:"d M Y" }}
+            </div>
+        </div>
+
+        <div class="btn-group mt-2 mt-md-0">
             <a href="{% url 'finance:invoice_print' invoice.pk %}" class="btn btn-secondary" target="_blank">
                 <i class="mdi mdi-printer"></i> Print
             </a>
@@ -21,37 +69,79 @@
     </div>
 
     <div class="row">
+        <!-- Main Content Column -->
         <div class="col-md-8">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-body">
+                    <!-- Student & Invoice Details -->
                     <div class="row mb-4">
                         <div class="col-md-6">
-                            <h5>Student Details</h5>
-                            <p><strong>Name:</strong> {{ invoice.student.full_name }}</p>
-                            <p><strong>Admission #:</strong> {{ invoice.student.admission_number }}</p>
-                            <p><strong>Grade:</strong> {{ invoice.student.grade_level }}</p>
-                            {% if invoice.student.parent %}
-                            <p><strong>Parent:</strong> {{ invoice.student.parent.full_name }}</p>
-                            {% endif %}
+                            <h5 class="mb-3">Student Details</h5>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted" style="width: 120px;">Name:</td>
+                                    <td><strong>{{ invoice.student.full_name }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Admission #:</td>
+                                    <td>{{ invoice.student.admission_number }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Grade:</td>
+                                    <td>{{ invoice.student.current_class }}</td>
+                                </tr>
+                                {% if invoice.student.parent %}
+                                <tr>
+                                    <td class="text-muted">Parent:</td>
+                                    <td>{{ invoice.student.parent.full_name }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
                         </div>
+
                         <div class="col-md-6">
-                            <h5>Invoice Details</h5>
-                            <p><strong>Invoice #:</strong> {{ invoice.invoice_number }}</p>
-                            <p><strong>Term:</strong> {{ invoice.term }}</p>
-                            <p><strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }}</p>
-                            <p><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y" }}</p>
-                            <p>
-                                <strong>Status:</strong>
-                                <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
-                                    {{ invoice.get_status_display }}
-                                </span>
-                            </p>
+                            <h5 class="mb-3">Invoice Details</h5>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted" style="width: 120px;">Invoice #:</td>
+                                    <td><strong>{{ invoice.invoice_number }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Term:</td>
+                                    <td>{{ invoice.term }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Issue Date:</td>
+                                    <td>{{ invoice.issue_date|date:"d M Y" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Due Date:</td>
+                                    <td>
+                                        {% if invoice.due_date %}
+                                            <span class="{% if invoice.due_date < today %}text-danger{% endif %}">
+                                                {{ invoice.due_date|date:"d M Y" }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">Not set</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Status:</td>
+                                    <td>
+                                        <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
+                                            {{ invoice.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
                         </div>
                     </div>
 
-                    <h5>Fee Breakdown & Allocation</h5>
+                    <!-- Fee Breakdown Table -->
+                    <h5 class="mb-3">Fee Breakdown & Allocation</h5>
                     <div class="table-responsive">
-                        <table class="table table-bordered">
+                        <table class="table table-bordered table-hover">
                             <thead class="thead-light">
                                 <tr>
                                     <th>Category</th>
@@ -69,15 +159,13 @@
                                     <td>
                                         <strong>{{ item.get_category_display }}</strong>
                                         {% if item_data.payment_count > 0 %}
-                                        <br>
-                                        <small class="text-muted">{{ item_data.payment_count }} payment(s)</small>
+                                            <br>
+                                            <small class="text-muted">{{ item_data.payment_count }} payment(s)</small>
                                         {% endif %}
                                     </td>
                                     <td>{{ item.description }}</td>
                                     <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
-                                    <td class="text-right text-success">
-                                        KES {{ item_data.total_allocated|intcomma }}
-                                    </td>
+                                    <td class="text-right text-success">KES {{ item_data.total_allocated|intcomma }}</td>
                                     <td class="text-right">
                                         <span class="{% if item_data.balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                             KES {{ item_data.balance|intcomma }}
@@ -85,16 +173,16 @@
                                     </td>
                                     <td>
                                         {% if item_data.is_fully_paid %}
-                                        <span class="badge badge-success">Paid</span>
+                                            <span class="badge badge-success">Paid</span>
                                         {% elif item_data.total_allocated > 0 %}
-                                        <span class="badge badge-info">Partial</span>
+                                            <span class="badge badge-info">Partial</span>
                                         {% else %}
-                                        <span class="badge badge-warning">Unpaid</span>
+                                            <span class="badge badge-warning">Unpaid</span>
                                         {% endif %}
                                     </td>
                                 </tr>
 
-                                <!-- Show allocation details for this item -->
+                                <!-- Allocation Details -->
                                 {% if item_data.allocations %}
                                 <tr class="bg-light">
                                     <td colspan="6" class="p-2">
@@ -106,9 +194,7 @@
                                                     {{ allocation.payment.payment_reference }}
                                                     ({{ allocation.payment.payment_date|date:"d M Y" }})
                                                 </span>
-                                                <span class="text-success">
-                                                    KES {{ allocation.amount|intcomma }}
-                                                </span>
+                                                <span class="text-success">KES {{ allocation.amount|intcomma }}</span>
                                             </div>
                                             {% endfor %}
                                         </div>
@@ -123,14 +209,18 @@
                                     <th colspan="2">TOTALS</th>
                                     <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
                                     <th class="text-right">KES {{ total_paid|intcomma }}</th>
-                                    <th class="text-right">KES {{ total_balance|intcomma }}</th>
+                                    <th class="text-right">
+                                        <span class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                            KES {{ total_balance|intcomma }}
+                                        </span>
+                                    </th>
                                     <th>
                                         {% if total_balance <= 0 %}
-                                        <span class="badge badge-success">Fully Paid</span>
+                                            <span class="badge badge-success">Fully Paid</span>
                                         {% elif total_paid > 0 %}
-                                        <span class="badge badge-info">Partially Paid</span>
+                                            <span class="badge badge-info">Partially Paid</span>
                                         {% else %}
-                                        <span class="badge badge-warning">Unpaid</span>
+                                            <span class="badge badge-warning">Unpaid</span>
                                         {% endif %}
                                     </th>
                                 </tr>
@@ -138,11 +228,11 @@
                         </table>
                     </div>
 
-                    <!-- Payment Summary -->
+                    <!-- Payment Summary Cards -->
                     <div class="mt-4">
-                        <h5>Payment Summary</h5>
+                        <h5 class="mb-3">Payment Summary</h5>
                         <div class="row text-center">
-                            <div class="col-md-4">
+                            <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Total Invoiced</h6>
@@ -150,7 +240,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+
+                            <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Total Paid</h6>
@@ -158,7 +249,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+
+                            <div class="col-md-4 mb-3">
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Balance Due</h6>
@@ -174,11 +266,12 @@
             </div>
         </div>
 
+        <!-- Sidebar Column -->
         <div class="col-md-4">
             <!-- Payment History Card -->
-            <div class="card">
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">Payment History</h5>
+                    <h5 class="card-title mb-3">Payment History</h5>
                     <p class="text-muted mb-3">
                         {{ payment_count }} payment(s) recorded for this invoice
                     </p>
@@ -201,18 +294,14 @@
                                             {{ payment.get_payment_method_display }}
                                         </small>
                                         <div class="mt-1">
-                                            <span class="badge badge-light">
-                                                Total: KES {{ payment.amount|intcomma }}
-                                            </span>
-                                            <span class="badge badge-info">
-                                                Allocated: KES {{ payment_data.total_allocated|intcomma }}
-                                            </span>
+                                            <span class="badge badge-light">Total: KES {{ payment.amount|intcomma }}</span>
+                                            <span class="badge badge-info ms-1">Allocated: KES {{ payment_data.total_allocated|intcomma }}</span>
                                         </div>
                                     </div>
                                     <span class="badge badge-success">KES {{ payment.amount|intcomma }}</span>
                                 </div>
 
-                                <!-- Show allocation breakdown for this payment -->
+                                <!-- Allocation Breakdown -->
                                 {% if payment_data.allocations %}
                                 <div class="mt-2 pl-3 border-left">
                                     <small class="text-muted d-block mb-1">Allocated to:</small>
@@ -236,46 +325,48 @@
                     </div>
                     {% endif %}
 
+                    {% if invoice.balance > 0 %}
                     <div class="mt-3">
                         <a href="{% url 'finance:payment_record' %}?student={{ invoice.student.pk }}&invoice={{ invoice.pk }}"
-                           class="btn btn-sm btn-primary btn-block">
+                           class="btn btn-primary btn-block">
                             <i class="mdi mdi-plus"></i> Record New Payment
                         </a>
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Invoice Summary Card -->
-            <div class="card mt-3">
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">Invoice Summary</h5>
+                    <h5 class="card-title mb-3">Invoice Summary</h5>
                     <table class="table table-sm">
                         <tr>
-                            <td>Invoice Number</td>
+                            <td class="text-muted">Invoice Number</td>
                             <td class="text-right"><strong>{{ invoice.invoice_number }}</strong></td>
                         </tr>
                         <tr>
-                            <td>Term</td>
+                            <td class="text-muted">Term</td>
                             <td class="text-right">{{ invoice.term }}</td>
                         </tr>
                         <tr>
-                            <td>Issue Date</td>
+                            <td class="text-muted">Issue Date</td>
                             <td class="text-right">{{ invoice.issue_date|date:"d M Y" }}</td>
                         </tr>
                         <tr>
-                            <td>Due Date</td>
+                            <td class="text-muted">Due Date</td>
                             <td class="text-right">
                                 {% if invoice.due_date %}
-                                <span class="{% if invoice.due_date < today %}text-danger{% endif %}">
-                                    {{ invoice.due_date|date:"d M Y" }}
-                                </span>
+                                    <span class="{% if invoice.due_date < today %}text-danger{% endif %}">
+                                        {{ invoice.due_date|date:"d M Y" }}
+                                    </span>
                                 {% else %}
-                                <span class="text-muted">Not set</span>
+                                    <span class="text-muted">Not set</span>
                                 {% endif %}
                             </td>
                         </tr>
                         <tr>
-                            <td>Status</td>
+                            <td class="text-muted">Status</td>
                             <td class="text-right">
                                 <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
                                     {{ invoice.get_status_display }}
@@ -284,7 +375,7 @@
                         </tr>
                     </table>
 
-                    <div class="mt-3">
+                    <div class="mt-4">
                         <div class="progress" style="height: 10px;">
                             <div class="progress-bar bg-success"
                                  role="progressbar"
@@ -294,36 +385,44 @@
                                  aria-valuemax="100">
                             </div>
                         </div>
-                        <small class="text-muted">
-                            {{ total_paid|intcomma }} / {{ total_invoiced|intcomma }}
-                            ({{ paid_percentage|floatformat:0 }}% paid)
-                        </small>
+                        <div class="d-flex justify-content-between mt-2">
+                            <small class="text-muted">
+                                {{ paid_percentage|floatformat:0 }}% paid
+                            </small>
+                            <small class="text-muted">
+                                {{ total_paid|intcomma }} / {{ total_invoiced|intcomma }}
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card mt-3">
+            <!-- Quick Actions Card -->
+            <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Quick Actions</h5>
+                    <h5 class="card-title mb-3">Quick Actions</h5>
                     <div class="list-group list-group-flush">
                         <a href="{% url 'finance:invoice_print' invoice.pk %}"
-                           class="list-group-item list-group-item-action" target="_blank">
-                            <i class="mdi mdi-printer mr-2"></i> Print Invoice
+                           class="list-group-item list-group-item-action d-flex align-items-center"
+                           target="_blank">
+                            <i class="mdi mdi-printer mr-2 text-muted"></i> Print Invoice
                         </a>
+
                         <a href="{% url 'finance:student_statement' invoice.student.pk %}"
-                           class="list-group-item list-group-item-action">
-                            <i class="mdi mdi-account-card-details mr-2"></i> View Student Statement
+                           class="list-group-item list-group-item-action d-flex align-items-center">
+                            <i class="mdi mdi-account-card-details mr-2 text-muted"></i> View Student Statement
                         </a>
+
                         {% if invoice.balance > 0 %}
                         <a href="{% url 'finance:payment_record' %}?student={{ invoice.student.pk }}&invoice={{ invoice.pk }}"
-                           class="list-group-item list-group-item-action">
-                            <i class="mdi mdi-plus mr-2"></i> Record Payment
+                           class="list-group-item list-group-item-action d-flex align-items-center">
+                            <i class="mdi mdi-plus mr-2 text-muted"></i> Record Payment
                         </a>
                         {% endif %}
+
                         <a href="{% url 'finance:invoice_list' %}"
-                           class="list-group-item list-group-item-action">
-                            <i class="mdi mdi-arrow-left mr-2"></i> Back to Invoices
+                           class="list-group-item list-group-item-action d-flex align-items-center">
+                            <i class="mdi mdi-arrow-left mr-2 text-muted"></i> Back to Invoices
                         </a>
                     </div>
                 </div>
@@ -331,41 +430,4 @@
         </div>
     </div>
 </div>
-
-<style>
-.timeline {
-    position: relative;
-    padding-left: 20px;
-}
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #e0e0e0;
-}
-.timeline-item {
-    position: relative;
-    padding-bottom: 15px;
-}
-.timeline-item::before {
-    content: '';
-    position: absolute;
-    left: -20px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #4CAF50;
-    border: 2px solid white;
-}
-.timeline-content {
-    background: white;
-    padding: 10px 15px;
-    border-radius: 5px;
-    border: 1px solid #e0e0e0;
-}
-</style>
 {% endblock %}
