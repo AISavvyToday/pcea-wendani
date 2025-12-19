@@ -235,6 +235,8 @@ class Invoice(BaseModel):
 
         # FIXED FORMULA: Add balance_bf to the calculation
         self.balance = self.total_amount + self.balance_bf - self.prepayment - self.amount_paid
+        if self.student.credit_balance < 0:
+            self.balance += self.student.credit_balance
 
         super().save(*args, **kwargs)
 
