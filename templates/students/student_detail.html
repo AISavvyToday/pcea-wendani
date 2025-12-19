@@ -4,293 +4,460 @@
 
 {% block content %}
 <style>
-/* =============================
-   DENSITY & REAL ESTATE TUNING
-   ============================= */
+/* Inline page-level styles (move to CSS file in production) */
 .student-profile {
   --card-radius: .5rem;
 }
-
-.student-profile .card {
-  border-radius: var(--card-radius);
-}
-
-.student-profile .card-body {
-  padding: 1rem;
-}
-
-.page-header {
-  margin-bottom: .75rem;
-}
-
-.page-title {
-  font-size: 1.35rem;
-}
-
-.avatar {
-  width: 96px;
-  height: 96px;
+.student-profile .avatar {
+  width: 110px;
+  height: 110px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 2px solid rgba(0,0,0,.06);
 }
-
-.info-key {
-  color: #6c757d;
-  font-size: .75rem;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-.info-val {
-  font-weight: 600;
-  font-size: .9rem;
-}
-
-.small-muted {
-  color: #6c757d;
-  font-size: .82rem;
-}
-
-.stat-pill {
-  background: #f8f9fa;
-  border-radius: 999px;
-  padding: .3rem .6rem;
-  font-size: .78rem;
-  font-weight: 600;
-}
-
-.tab-btn {
-  font-size: .82rem;
-  padding: .25rem .4rem;
-}
-
-.tab-btn.active {
-  border-bottom: 2px solid #0d6efd;
-  font-weight: 600;
-}
-
-.panel {
-  display: none;
-}
-
-.panel.active {
-  display: block;
-}
-
-.table-sm th,
-.table-sm td {
-  padding: .35rem .5rem;
-  font-size: .82rem;
-}
-
-.table-sm th {
-  text-transform: uppercase;
-  font-size: .7rem;
-  letter-spacing: .04em;
-  color: #6c757d;
-}
-
-@media (max-width: 768px) {
-  .avatar {
-    width: 72px;
-    height: 72px;
-  }
+.student-profile .info-key { color: #6c757d; font-size: .9rem; }
+.student-profile .info-val { font-weight: 600; font-size: .95rem; }
+.student-profile .tab-btn { cursor: pointer; }
+.student-profile .tab-btn.active { border-bottom: 3px solid #0d6efd; }
+.student-profile .panel { display: none; animation: fadeIn .18s ease-in; }
+.student-profile .panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+.small-muted { color: #6c757d; font-size: .9rem; }
+.stat-pill { background: #f8f9fa; border-radius: 8px; padding: .45rem .7rem; display:inline-block; font-weight:600; }
+.table-sm th, .table-sm td { padding: .5rem .6rem; vertical-align: middle; }
+@media (max-width: 767.98px) {
+  .student-profile .avatar { width: 84px; height: 84px; }
+  .student-profile .stat-pill { font-size:.85rem; }
 }
 </style>
 
 <div class="content-wrapper student-profile">
-
-  <!-- HEADER -->
-  <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start">
+  <!-- Header -->
+  <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-3">
     <div>
-      <h3 class="page-title mb-0">Student Profile</h3>
-      <div class="small-muted">
-        {{ student.get_full_name }} • <strong>{{ student.admission_number }}</strong>
-      </div>
+      <h3 class="page-title mb-1">Student Profile</h3>
+      <div class="small-muted">{{ student.get_full_name }} • <strong>{{ student.admission_number }}</strong></div>
     </div>
 
     <div class="mt-2 mt-md-0">
-      <a href="{% url 'students:list' %}" class="btn btn-sm btn-outline-secondary">
-        <i class="mdi mdi-arrow-left"></i>
+      <a href="{% url 'students:list' %}" class="btn btn-sm btn-outline-secondary me-2">
+        <i class="mdi mdi-arrow-left"></i> Back to list
       </a>
       {% if user.role == UserRole.SUPER_ADMIN or user.role == UserRole.SCHOOL_ADMIN %}
-      <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-warning">
-        <i class="mdi mdi-pencil"></i>
+      <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-warning me-1">
+        <i class="mdi mdi-pencil"></i> Edit
       </a>
       <a href="{% url 'students:delete' student.pk %}" class="btn btn-sm btn-danger">
-        <i class="mdi mdi-delete"></i>
+        <i class="mdi mdi-delete"></i> Delete
       </a>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-2">
-
-    <!-- LEFT COLUMN -->
+  <div class="row g-3">
+    <!-- Left column: summary -->
     <div class="col-12 col-lg-4">
       <div class="card shadow-sm">
         <div class="card-body text-center">
           {% if student.photo %}
-            <img src="{{ student.photo.url }}" class="avatar mb-2">
+            <img src="{{ student.photo.url }}" alt="{{ student.get_full_name }}" class="avatar mb-3">
           {% else %}
-            <div class="avatar bg-secondary text-white d-inline-flex align-items-center justify-content-center mb-2">
+            <div class="avatar d-inline-flex align-items-center justify-content-center bg-secondary text-white mb-3" style="font-size:28px;">
               {{ student.first_name|first }}{{ student.last_name|first }}
             </div>
           {% endif %}
 
-          <div class="fw-semibold">{{ student.get_full_name }}</div>
+          <h4 class="mb-0">{{ student.get_full_name }}</h4>
           <div class="small-muted mb-2">{{ student.admission_number }}</div>
 
-          <div class="d-flex justify-content-center gap-1 flex-wrap mb-2">
-            <span class="stat-pill">{{ student.age }} yrs</span>
-            <span class="stat-pill">{{ student.get_gender_display }}</span>
-            <span class="stat-pill">{{ student.get_status_display }}</span>
+          <div class="d-flex gap-2 justify-content-center mb-3">
+            <span class="stat-pill">Age: {{ student.age }}</span>
+            <span class="stat-pill">Gender: {{ student.get_gender_display }}</span>
+            <span class="stat-pill">Status: {{ student.get_status_display }}</span>
           </div>
 
-          <div class="text-start">
-            <div class="mb-1">
+          <div class="text-start mt-3 w-100">
+            <div class="mb-2">
               <div class="info-key">Class</div>
               <div class="info-val">{{ student.current_class|default:"Not Assigned" }}</div>
             </div>
-            <div>
-              <div class="info-key">Transport</div>
-              <div class="info-val">—</div>
+
+            <div class="mb-2">
+              <div class="info-key">Transport Route:</div>
+              <div class="info-val">
+
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Quick lists: Documents, Alerts -->
+      <div class="card mt-3 shadow-sm">
+        <div class="card-body">
+          <h6 class="mb-2">Quick Actions</h6>
+          <div class="d-grid gap-2">
+            <a href="#documents" class="btn btn-sm btn-light tab-btn" data-tab="documents"><i class="mdi mdi-file-document"></i> Documents ({{ documents|length }})</a>
+            <a href="#parents" class="btn btn-sm btn-light tab-btn" data-tab="parents"><i class="mdi mdi-account-multiple"></i> Parents ({{ student_parents|length }})</a>
+            <a href="#finance" class="btn btn-sm btn-light tab-btn" data-tab="finance"><i class="mdi mdi-cash-multiple"></i> Finance</a>
+            <a href="#academics" class="btn btn-sm btn-light tab-btn" data-tab="academics"><i class="mdi mdi-book-open"></i> Academics</a>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <!-- RIGHT COLUMN -->
+    <!-- Right column: tabs & content -->
     <div class="col-12 col-lg-8">
       <div class="card shadow-sm">
         <div class="card-body">
-
-          <!-- TABS -->
-          <div class="d-flex flex-wrap gap-2 border-bottom pb-1 mb-2">
-            <button class="btn btn-link btn-sm tab-btn active" data-tab="overview">Overview</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="academics">Academics</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="finance">Finance</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="parents">Parents</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="documents">Documents</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="medical">Medical</button>
-            <button class="btn btn-link btn-sm tab-btn" data-tab="communications">Comms</button>
+          <!-- Tab nav -->
+          <div class="d-flex flex-wrap gap-3 align-items-center mb-3 border-bottom pb-2">
+            <div class="d-flex flex-row gap-2 flex-wrap">
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'overview' %}active{% endif %}" data-tab="overview">Overview</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'academics' %}active{% endif %}" data-tab="academics">Academics</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'finance' %}active{% endif %}" data-tab="finance">Finance</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'parents' %}active{% endif %}" data-tab="parents">Parents</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'documents' %}active{% endif %}" data-tab="documents">Documents</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'medical' %}active{% endif %}" data-tab="medical">Medical</button>
+              <button class="btn btn-sm btn-link tab-btn px-2 {% if active_tab == 'communications' %}active{% endif %}" data-tab="communications">Communications</button>
+            </div>
 
             <div class="ms-auto small-muted">
-              {{ student.updated_at|date:"d M Y, H:i" }}
+              Last updated: <strong>{{ student.updated_at|date:"d M Y, H:i" }}</strong>
             </div>
           </div>
 
-          <!-- OVERVIEW -->
-          <div class="panel active" id="overview">
-            <h6>Basic Information</h6>
-            <table class="table table-sm">
-              <tr><th>Date of Birth</th><td>{{ student.date_of_birth }}</td></tr>
-              <tr><th>Nationality</th><td>{{ student.nationality }}</td></tr>
-              <tr><th>Religion</th><td>{{ student.religion }}</td></tr>
-            </table>
+          <!-- Panels -->
+
+          <!-- Overview -->
+          <div id="panel-overview" class="panel {% if active_tab == 'overview' %}active{% endif %}">
+            <div class="row">
+              <div class="col-12">
+                <h5 class="mb-3">Personal & Contact</h5>
+                <div class="row">
+                  <div class="col-sm-6">
+                    <table class="table table-borderless table-sm mb-0">
+                      <tr><td class="info-key">Full name</td><td class="info-val">{{ student.first_name }} {{ student.middle_name }} {{ student.last_name }}</td></tr>
+                      <tr><td class="info-key">Date of birth</td><td>{{ student.date_of_birth|date:"d M Y" }}</td></tr>
+                      <tr><td class="info-key">Gender</td><td>{{ student.get_gender_display }}</td></tr>
+                    </table>
+                  </div>
+                </div>
+
+                <hr class="my-3">
+
+
+
+                  <div class="col-12 col-md-6">
+                    <h6 class="mb-2">Academic</h6>
+                    <div class="small-muted mt-2">Current class</div>
+                    <div><strong>{{ student.current_class|default:"Not Assigned" }}</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- ACADEMICS -->
-          <div class="panel" id="academics">
-            <h6>Academic Records</h6>
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Term</th>
-                  <th>Year</th>
-                  <th>Average</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for record in academic_records %}
-                <tr>
-                  <td>{{ record.term }}</td>
-                  <td>{{ record.year }}</td>
-                  <td>{{ record.average }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="3" class="text-muted">No academic records</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <!-- Academics -->
+          <div id="panel-academics" class="panel {% if active_tab == 'academics' %}active{% endif %}">
+            <h5 class="mb-3">Academics</h5>
+
+            <div class="mb-3">
+              <div class="small-muted">Recent grades</div>
+              {% if grades %}
+              <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                  <thead>
+                    <tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th><th>Entered</th></tr>
+                  </thead>
+                  <tbody>
+                    {% for g in grades|slice:":10" %}
+                    <tr>
+                      <td>{{ g.exam.name }}</td>
+                      <td>{{ g.subject.name }}</td>
+                      <td>{{ g.marks }}</td>
+                      <td>{{ g.grade_letter }}</td>
+                      <td class="small-muted">{{ g.entered_at|date:"d M Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+                <div class="alert alert-light">No grade records yet.</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <div class="small-muted">Recent attendance (last 10 entries)</div>
+              {% if attendance_recent %}
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead>
+                <tbody>
+                  {% for a in attendance_recent|slice:":10" %}
+                  <tr>
+                    <td>{{ a.date|date:"d M Y" }}</td>
+                    <td>{{ a.class_obj }}</td>
+                    <td>{{ a.get_status_display }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+                <div class="alert alert-light">No attendance records.</div>
+              {% endif %}
+            </div>
           </div>
 
-          <!-- FINANCE -->
-          <div class="panel" id="finance">
-            <h6>Financial Summary</h6>
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for invoice in invoices %}
-                <tr>
-                  <td>{{ invoice.invoice_number }}</td>
-                  <td>{{ invoice.amount }}</td>
-                  <td>{{ invoice.get_status_display }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="3" class="text-muted">No invoices</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <!-- Finance -->
+<div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
+  <h5 class="mb-3">Finance</h5>
+
+  <!-- SUMMARY -->
+  <div class="row mb-3">
+    <div class="col-sm-3">
+      <div class="small-muted">Total Invoices</div>
+      <div class="info-val">{{ invoices|length }}</div>
+    </div>
+
+    <div class="col-sm-3">
+      <div class="small-muted">Total Paid</div>
+      <div class="info-val text-success">
+        KES {{ total_paid|default:"0.00" }}
+      </div>
+    </div>
+
+    <div class="col-sm-3">
+    <div class="small-muted">Credit / Prepayment</div>
+    <div class="info-val text-primary">
+        KES {{ credit_balance|default:"0.00" }}
+        {% if has_credit %}<span class="badge bg-success ms-1">Available</span>{% endif %}
+    </div>
+</div>
+
+<div class="col-sm-3">
+    <div class="small-muted">Outstanding Balance</div>
+    <div class="info-val {% if outstanding_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+        KES {{ outstanding_balance|default:"0.00" }}
+    </div>
+</div>
+  </div>
+
+  {% if credit_balance > 0 %}
+    <div class="alert alert-info py-2">
+      <i class="mdi mdi-information-outline"></i>
+      This student has <strong>KES {{ credit_balance }}</strong> as advance payment.
+      It will be automatically applied to future invoices.
+    </div>
+  {% endif %}
+
+  <!-- INVOICES -->
+  <h6 class="mb-2">Recent Invoices</h6>
+  {% if invoices %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Term</th>
+            <th>Credit/Prepayment</th>
+              <th>Bal B/f</th>
+
+            <th>Invoice Amount</th>
+              <th>Paid</th>
+            <th>Outstanding Amount</th>
+            <th>Status</th>
+            <th>Issued</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices|slice:":8" %}
+          <tr>
+            <td>
+              <a href="{% url 'finance:invoice_detail' inv.pk %}">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>{{ inv.term }}</td>
+              <td>KES {{ inv.prepayment }}</td>
+              <td>KES {{ inv.balance_bf }}</td>
+
+            <td>
+              KES {{ inv.total_amount }}
+            </td>
+              <td>KES {{ inv.amount_paid }}</td>
+            <td class="{% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ inv.balance }}</td>
+            <td>{{ inv.get_status_display }}</td>
+            <td class="small-muted">{{ inv.issue_date|date:"d M Y" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-light">No invoices yet.</div>
+  {% endif %}
+
+  <!-- PAYMENTS -->
+  <h6 class="mt-3 mb-2">Recent Payments</h6>
+  {% if payments %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>Ref</th>
+            <th>Amount</th>
+            <th>Applied</th>
+            <th>Credit</th>
+            <th>Method</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments|slice:":8" %}
+          <tr>
+            <td>{{ p.payment_reference }}</td>
+            <td>KES {{ p.amount }}</td>
+            <td>
+              KES {{ p.amount|floatformat:2|add:"-"|add:p.unapplied_amount }}
+            </td>
+            <td class="text-primary">
+              KES {{ p.unapplied_amount|default:"0.00" }}
+            </td>
+            <td>{{ p.get_payment_method_display }}</td>
+            <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-light">No payments found.</div>
+  {% endif %}
+</div>
+
+
+          <!-- Parents -->
+          <div id="panel-parents" class="panel {% if active_tab == 'parents' %}active{% endif %}">
+            <h5 class="mb-3">Parents / Guardians</h5>
+            <div class="table-responsive">
+              <table class="table table-hover table-sm">
+                <thead>
+                  <tr><th>Name</th><th>Relationship</th><th>Phone</th><th>Email</th><th>ID</th><th>Primary</th></tr>
+                </thead>
+                <tbody>
+                  {% for sp in student_parents %}
+                  <tr>
+                    <td><a href="{% url 'students:parent_detail' sp.parent.pk %}">{{ sp.parent.full_name }}</a></td>
+                    <td>{{ sp.get_relationship_display }}</td>
+                    <td>{{ sp.parent.phone_primary }}</td>
+                    <td>{{ sp.parent.email|default:"N/A" }}</td>
+                    <td>{{ sp.parent.id_number|default:"N/A" }}</td>
+                    <td>{% if sp.is_primary %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="6" class="text-center small-muted">No parents/guardians linked.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <!-- PARENTS -->
-          <div class="panel" id="parents">
-            <h6>Parents / Guardians</h6>
-            <ul class="list-group list-group-sm">
-              {% for parent in parents %}
-              <li class="list-group-item d-flex justify-content-between">
-                <span>{{ parent.full_name }}</span>
-                <span class="small-muted">{{ parent.phone }}</span>
-              </li>
-              {% empty %}
-              <li class="list-group-item text-muted">No parent records</li>
+          <!-- Documents -->
+          <div id="panel-documents" class="panel {% if active_tab == 'documents' %}active{% endif %}">
+            <h5 class="mb-3">Documents</h5>
+            {% if documents %}
+            <div class="list-group">
+              {% for d in documents %}
+                <a href="{{ d.file.url }}" class="list-group-item list-group-item-action" target="_blank">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ d.title }}</h6>
+                    <small class="small-muted">{{ d.uploaded_at|date:"d M Y" }}</small>
+                  </div>
+                  <p class="mb-1 small-muted">{{ d.document_type|capfirst }} • {{ d.description|truncatechars:80 }}</p>
+                </a>
               {% endfor %}
-            </ul>
+            </div>
+            {% else %}
+              <div class="alert alert-light">No documents uploaded.</div>
+            {% endif %}
           </div>
 
-          <!-- DOCUMENTS -->
-          <div class="panel" id="documents">
-            <h6>Documents</h6>
-            <ul class="list-group list-group-sm">
-              {% for doc in documents %}
-              <li class="list-group-item">
-                <a href="{{ doc.file.url }}">{{ doc.name }}</a>
-              </li>
-              {% empty %}
-              <li class="list-group-item text-muted">No documents uploaded</li>
-              {% endfor %}
-            </ul>
+          <!-- Discipline -->
+          <div id="panel-discipline" class="panel {% if active_tab == 'discipline' %}active{% endif %}">
+            <h5 class="mb-3">Discipline Records</h5>
+            {% if discipline_records %}
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Action</th></tr></thead>
+                <tbody>
+                  {% for r in discipline_records %}
+                  <tr>
+                    <td>{{ r.incident_date|date:"d M Y" }}</td>
+                    <td>{{ r.get_incident_type_display }}</td>
+                    <td>{{ r.description|truncatechars:100 }}</td>
+                    <td>{{ r.action_taken|truncatechars:100 }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <div class="alert alert-light">No discipline records.</div>
+            {% endif %}
           </div>
 
-          <!-- MEDICAL -->
-          <div class="panel" id="medical">
-            <h6>Medical Info</h6>
-            <p class="small-muted">Blood Group: {{ student.blood_group }}</p>
-            <p class="small-muted">Conditions: {{ student.medical_conditions|default:"None" }}</p>
+          <!-- Medical -->
+          <div id="panel-medical" class="panel {% if active_tab == 'medical' %}active{% endif %}">
+            <h5 class="mb-3">Medical Records</h5>
+            {% if medical_records %}
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Treatment</th></tr></thead>
+                <tbody>
+                  {% for m in medical_records %}
+                  <tr>
+                    <td>{{ m.record_date|date:"d M Y" }}</td>
+                    <td>{{ m.get_record_type_display }}</td>
+                    <td>{{ m.description|truncatechars:100 }}</td>
+                    <td>{{ m.treatment|default:"N/A"|truncatechars:100 }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <div class="alert alert-light">No medical records.</div>
+            {% endif %}
           </div>
 
-          <!-- COMMS -->
-          <div class="panel" id="communications">
-            <h6>Communication Log</h6>
-            <ul class="list-group list-group-sm">
-              {% for msg in communications %}
-              <li class="list-group-item">
-                {{ msg.message }}
-                <div class="small-muted">{{ msg.created_at|date:"d M Y H:i" }}</div>
-              </li>
-              {% empty %}
-              <li class="list-group-item text-muted">No communications</li>
-              {% endfor %}
-            </ul>
+          <!-- Communications -->
+          <div id="panel-communications" class="panel {% if active_tab == 'communications' %}active{% endif %}">
+            <h5 class="mb-3">Communications</h5>
+            <div class="alert alert-info">
+              <!-- If you have messages in context, iterate similarly -->
+            </div>
+          </div>
+
+          <!-- Enrollment History -->
+          <div id="panel-enrollment" class="panel {% if active_tab == 'enrollment' %}active{% endif %}">
+            <h5 class="mb-3">Enrollment History</h5>
+            {% if enrollments %}
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead><tr><th>Year</th><th>Term</th><th>Class</th><th>Current</th></tr></thead>
+                  <tbody>
+                    {% for e in enrollments %}
+                      <tr>
+                        <td>{{ e.academic_year }}</td>
+                        <td>{{ e.term }}</td>
+                        <td>{{ e.class_enrolled }}</td>
+                        <td>{% if e.is_current %}<span class="badge bg-success">Current</span>{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="alert alert-light">No enrollment history recorded.</div>
+            {% endif %}
           </div>
 
         </div>
@@ -299,15 +466,67 @@
   </div>
 </div>
 
+<!-- Tab switching JS: client-side only, no reloads -->
 <script>
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'))
+(function () {
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.panel');
 
-    btn.classList.add('active')
-    document.getElementById(btn.dataset.tab).classList.add('active')
-  })
-})
+  function activateTab(tabName, push = true) {
+    tabButtons.forEach(b => {
+      const t = b.dataset.tab || b.getAttribute('data-tab') || b.getAttribute('href')?.replace('#','');
+      if (t === tabName) b.classList.add('active'); else b.classList.remove('active');
+    });
+    panels.forEach(p => {
+      if (p.id === 'panel-' + tabName) p.classList.add('active'); else p.classList.remove('active');
+    });
+    // update url hash & history without reload
+    if (push) {
+      if (history && history.replaceState) {
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        history.replaceState({}, '', url);
+      }
+    }
+    // small accessibility focus adjustment
+    const activePanel = document.getElementById('panel-' + tabName);
+    if (activePanel) activePanel.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+
+  // click handlers
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const tabName = this.dataset.tab || this.getAttribute('data-tab') || (this.getAttribute('href')||'').replace('#','');
+      if (!tabName) return;
+      activateTab(tabName, true);
+    });
+  });
+
+  // On load: determine tab from URL param or hash or server-side variable
+  (function initTab() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let tab = urlParams.get('tab') || window.location.hash.replace('#','') || '{{ active_tab|default:"overview" }}';
+    // sanitize tab value
+    const allowed = Array.from(tabButtons).map(b => b.dataset.tab || b.getAttribute('data-tab') || b.getAttribute('href')?.replace('#',''));
+    if (!allowed.includes(tab)) tab = 'overview';
+    activateTab(tab, false);
+  })();
+
+  // keyboard navigation (left/right)
+  document.addEventListener('keydown', function (e) {
+    if (['ArrowLeft','ArrowRight'].includes(e.key)) {
+      const activeIndex = Array.from(tabButtons).findIndex(b => b.classList.contains('active'));
+      if (activeIndex === -1) return;
+      if (e.key === 'ArrowLeft') {
+        const prev = tabButtons[activeIndex - 1] || tabButtons[tabButtons.length - 1];
+        prev.click();
+      } else {
+        const next = tabButtons[activeIndex + 1] || tabButtons[0];
+        next.click();
+      }
+    }
+  });
+})();
 </script>
 {% endblock %}
