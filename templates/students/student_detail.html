@@ -4,278 +4,310 @@
 
 {% block content %}
 <style>
-/* ==============================
-   STUDENT PROFILE – ENHANCED UI
-   ============================== */
-
+/* =============================
+   DENSITY & REAL ESTATE TUNING
+   ============================= */
 .student-profile {
-  --radius: .75rem;
-  --soft-bg: #f8f9fb;
-  --border-soft: rgba(0,0,0,.06);
+  --card-radius: .5rem;
 }
 
-/* Avatar */
-.student-profile .avatar {
-  width: 120px;
-  height: 120px;
+.student-profile .card {
+  border-radius: var(--card-radius);
+}
+
+.student-profile .card-body {
+  padding: 1rem;
+}
+
+.page-header {
+  margin-bottom: .75rem;
+}
+
+.page-title {
+  font-size: 1.35rem;
+}
+
+.avatar {
+  width: 96px;
+  height: 96px;
   object-fit: cover;
-  border-radius: 14px;
-  border: 2px solid var(--border-soft);
-  background: #e9ecef;
+  border-radius: 10px;
+  border: 2px solid rgba(0,0,0,.06);
 }
 
-/* Typography helpers */
 .info-key {
   color: #6c757d;
-  font-size: .85rem;
+  font-size: .75rem;
   text-transform: uppercase;
-  letter-spacing: .03em;
+  letter-spacing: .04em;
 }
+
 .info-val {
   font-weight: 600;
-  font-size: .95rem;
-}
-.small-muted {
-  color: #6c757d;
   font-size: .9rem;
 }
 
-/* Pills */
+.small-muted {
+  color: #6c757d;
+  font-size: .82rem;
+}
+
 .stat-pill {
-  background: var(--soft-bg);
+  background: #f8f9fa;
   border-radius: 999px;
-  padding: .45rem .85rem;
-  font-weight: 600;
-  font-size: .85rem;
-  border: 1px solid var(--border-soft);
-}
-
-/* Cards */
-.card {
-  border-radius: var(--radius);
-  border: 1px solid var(--border-soft);
-}
-.card-header {
-  background: transparent;
+  padding: .3rem .6rem;
+  font-size: .78rem;
   font-weight: 600;
 }
 
-/* Tabs */
 .tab-btn {
-  cursor: pointer;
-  font-weight: 500;
-  color: #495057;
-}
-.tab-btn.active {
-  color: #0d6efd;
-  border-bottom: 3px solid #0d6efd;
+  font-size: .82rem;
+  padding: .25rem .4rem;
 }
 
-/* Panels */
+.tab-btn.active {
+  border-bottom: 2px solid #0d6efd;
+  font-weight: 600;
+}
+
 .panel {
   display: none;
-  animation: fadeIn .2s ease-in;
 }
+
 .panel.active {
   display: block;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+.table-sm th,
+.table-sm td {
+  padding: .35rem .5rem;
+  font-size: .82rem;
 }
 
-/* Tables */
 .table-sm th {
-  font-size: .8rem;
   text-transform: uppercase;
-  letter-spacing: .03em;
+  font-size: .7rem;
+  letter-spacing: .04em;
   color: #6c757d;
 }
-.table-sm td {
-  vertical-align: middle;
-}
 
-/* Responsive */
-@media (max-width: 767px) {
-  .student-profile .avatar {
-    width: 90px;
-    height: 90px;
+@media (max-width: 768px) {
+  .avatar {
+    width: 72px;
+    height: 72px;
   }
 }
 </style>
 
 <div class="content-wrapper student-profile">
 
-  <!-- PAGE HEADER -->
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
+  <!-- HEADER -->
+  <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start">
     <div>
-      <h3 class="mb-1">Student Profile</h3>
+      <h3 class="page-title mb-0">Student Profile</h3>
       <div class="small-muted">
         {{ student.get_full_name }} • <strong>{{ student.admission_number }}</strong>
       </div>
     </div>
 
-    <div class="mt-3 mt-md-0">
-      <a href="{% url 'students:list' %}" class="btn btn-sm btn-outline-secondary me-2">
-        <i class="mdi mdi-arrow-left"></i> Back
+    <div class="mt-2 mt-md-0">
+      <a href="{% url 'students:list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="mdi mdi-arrow-left"></i>
       </a>
       {% if user.role == UserRole.SUPER_ADMIN or user.role == UserRole.SCHOOL_ADMIN %}
-        <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-warning me-1">
-          <i class="mdi mdi-pencil"></i> Edit
-        </a>
-        <a href="{% url 'students:delete' student.pk %}" class="btn btn-sm btn-danger">
-          <i class="mdi mdi-delete"></i> Delete
-        </a>
+      <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-warning">
+        <i class="mdi mdi-pencil"></i>
+      </a>
+      <a href="{% url 'students:delete' student.pk %}" class="btn btn-sm btn-danger">
+        <i class="mdi mdi-delete"></i>
+      </a>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-4">
+  <div class="row g-2">
 
     <!-- LEFT COLUMN -->
-    <div class="col-lg-4">
-
-      <!-- PROFILE SUMMARY -->
+    <div class="col-12 col-lg-4">
       <div class="card shadow-sm">
         <div class="card-body text-center">
           {% if student.photo %}
-            <img src="{{ student.photo.url }}" class="avatar mb-3">
+            <img src="{{ student.photo.url }}" class="avatar mb-2">
           {% else %}
-            <div class="avatar d-flex align-items-center justify-content-center text-white bg-secondary mb-3 fs-3">
+            <div class="avatar bg-secondary text-white d-inline-flex align-items-center justify-content-center mb-2">
               {{ student.first_name|first }}{{ student.last_name|first }}
             </div>
           {% endif %}
 
-          <h5 class="mb-0">{{ student.get_full_name }}</h5>
-          <div class="small-muted mb-3">{{ student.admission_number }}</div>
+          <div class="fw-semibold">{{ student.get_full_name }}</div>
+          <div class="small-muted mb-2">{{ student.admission_number }}</div>
 
-          <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
-            <span class="stat-pill">Age: {{ student.age }}</span>
+          <div class="d-flex justify-content-center gap-1 flex-wrap mb-2">
+            <span class="stat-pill">{{ student.age }} yrs</span>
             <span class="stat-pill">{{ student.get_gender_display }}</span>
             <span class="stat-pill">{{ student.get_status_display }}</span>
           </div>
 
           <div class="text-start">
-            <div class="mb-2">
-              <div class="info-key">Current Class</div>
+            <div class="mb-1">
+              <div class="info-key">Class</div>
               <div class="info-val">{{ student.current_class|default:"Not Assigned" }}</div>
             </div>
-            <div class="mb-2">
-              <div class="info-key">Transport Route</div>
+            <div>
+              <div class="info-key">Transport</div>
               <div class="info-val">—</div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- QUICK ACTIONS -->
-      <div class="card shadow-sm mt-3">
-        <div class="card-body">
-          <h6 class="mb-3">Quick Access</h6>
-          <div class="d-grid gap-2">
-            <button class="btn btn-sm btn-light tab-btn" data-tab="documents">
-              <i class="mdi mdi-file-document"></i> Documents ({{ documents|length }})
-            </button>
-            <button class="btn btn-sm btn-light tab-btn" data-tab="parents">
-              <i class="mdi mdi-account-multiple"></i> Parents ({{ student_parents|length }})
-            </button>
-            <button class="btn btn-sm btn-light tab-btn" data-tab="finance">
-              <i class="mdi mdi-cash-multiple"></i> Finance
-            </button>
-            <button class="btn btn-sm btn-light tab-btn" data-tab="academics">
-              <i class="mdi mdi-book-open"></i> Academics
-            </button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- RIGHT COLUMN -->
-    <div class="col-lg-8">
+    <div class="col-12 col-lg-8">
       <div class="card shadow-sm">
         <div class="card-body">
 
-          <!-- TAB NAV -->
-          <div class="d-flex flex-wrap gap-3 border-bottom pb-2 mb-3">
-            {% for t in "overview,academics,finance,parents,documents,medical,communications".split(",") %}
-              <button class="btn btn-sm btn-link tab-btn {% if active_tab == t %}active{% endif %}" data-tab="{{ t }}">
-                {{ t|capfirst }}
-              </button>
-            {% endfor %}
+          <!-- TABS -->
+          <div class="d-flex flex-wrap gap-2 border-bottom pb-1 mb-2">
+            <button class="btn btn-link btn-sm tab-btn active" data-tab="overview">Overview</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="academics">Academics</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="finance">Finance</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="parents">Parents</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="documents">Documents</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="medical">Medical</button>
+            <button class="btn btn-link btn-sm tab-btn" data-tab="communications">Comms</button>
+
             <div class="ms-auto small-muted">
-              Updated {{ student.updated_at|date:"d M Y, H:i" }}
+              {{ student.updated_at|date:"d M Y, H:i" }}
             </div>
           </div>
 
           <!-- OVERVIEW -->
-          <div id="panel-overview" class="panel {% if active_tab == 'overview' %}active{% endif %}">
-            <h5 class="mb-3">Personal Information</h5>
-            <table class="table table-sm table-borderless">
-              <tr><td class="info-key">Full Name</td><td class="info-val">{{ student.get_full_name }}</td></tr>
-              <tr><td class="info-key">DOB</td><td>{{ student.date_of_birth|date:"d M Y" }}</td></tr>
-              <tr><td class="info-key">Gender</td><td>{{ student.get_gender_display }}</td></tr>
-              <tr><td class="info-key">Class</td><td>{{ student.current_class|default:"Not Assigned" }}</td></tr>
+          <div class="panel active" id="overview">
+            <h6>Basic Information</h6>
+            <table class="table table-sm">
+              <tr><th>Date of Birth</th><td>{{ student.date_of_birth }}</td></tr>
+              <tr><th>Nationality</th><td>{{ student.nationality }}</td></tr>
+              <tr><th>Religion</th><td>{{ student.religion }}</td></tr>
             </table>
           </div>
 
           <!-- ACADEMICS -->
-          <div id="panel-academics" class="panel {% if active_tab == 'academics' %}active{% endif %}">
-            <h5 class="mb-3">Academics</h5>
-            {% if grades %}
-              <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                  <thead>
-                    <tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr>
-                  </thead>
-                  <tbody>
-                    {% for g in grades|slice:":10" %}
-                      <tr>
-                        <td>{{ g.exam.name }}</td>
-                        <td>{{ g.subject.name }}</td>
-                        <td>{{ g.marks }}</td>
-                        <td><span class="badge bg-primary">{{ g.grade_letter }}</span></td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            {% else %}
-              <div class="alert alert-light">No academic records yet.</div>
-            {% endif %}
+          <div class="panel" id="academics">
+            <h6>Academic Records</h6>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Term</th>
+                  <th>Year</th>
+                  <th>Average</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for record in academic_records %}
+                <tr>
+                  <td>{{ record.term }}</td>
+                  <td>{{ record.year }}</td>
+                  <td>{{ record.average }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-muted">No academic records</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
 
-          <!-- FINANCE, PARENTS, DOCUMENTS, MEDICAL, COMMUNICATIONS -->
-          {{ block.super }}
+          <!-- FINANCE -->
+          <div class="panel" id="finance">
+            <h6>Financial Summary</h6>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for invoice in invoices %}
+                <tr>
+                  <td>{{ invoice.invoice_number }}</td>
+                  <td>{{ invoice.amount }}</td>
+                  <td>{{ invoice.get_status_display }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-muted">No invoices</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- PARENTS -->
+          <div class="panel" id="parents">
+            <h6>Parents / Guardians</h6>
+            <ul class="list-group list-group-sm">
+              {% for parent in parents %}
+              <li class="list-group-item d-flex justify-content-between">
+                <span>{{ parent.full_name }}</span>
+                <span class="small-muted">{{ parent.phone }}</span>
+              </li>
+              {% empty %}
+              <li class="list-group-item text-muted">No parent records</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <!-- DOCUMENTS -->
+          <div class="panel" id="documents">
+            <h6>Documents</h6>
+            <ul class="list-group list-group-sm">
+              {% for doc in documents %}
+              <li class="list-group-item">
+                <a href="{{ doc.file.url }}">{{ doc.name }}</a>
+              </li>
+              {% empty %}
+              <li class="list-group-item text-muted">No documents uploaded</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <!-- MEDICAL -->
+          <div class="panel" id="medical">
+            <h6>Medical Info</h6>
+            <p class="small-muted">Blood Group: {{ student.blood_group }}</p>
+            <p class="small-muted">Conditions: {{ student.medical_conditions|default:"None" }}</p>
+          </div>
+
+          <!-- COMMS -->
+          <div class="panel" id="communications">
+            <h6>Communication Log</h6>
+            <ul class="list-group list-group-sm">
+              {% for msg in communications %}
+              <li class="list-group-item">
+                {{ msg.message }}
+                <div class="small-muted">{{ msg.created_at|date:"d M Y H:i" }}</div>
+              </li>
+              {% empty %}
+              <li class="list-group-item text-muted">No communications</li>
+              {% endfor %}
+            </ul>
+          </div>
 
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
 <script>
-(function () {
-  const tabs = document.querySelectorAll('.tab-btn');
-  const panels = document.querySelectorAll('.panel');
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'))
 
-  function activate(tab) {
-    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    panels.forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
-    const url = new URL(window.location);
-    url.searchParams.set('tab', tab);
-    history.replaceState({}, '', url);
-  }
-
-  tabs.forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.preventDefault();
-      activate(btn.dataset.tab);
-    });
-  });
-
-  activate('{{ active_tab|default:"overview" }}');
-})();
+    btn.classList.add('active')
+    document.getElementById(btn.dataset.tab).classList.add('active')
+  })
+})
 </script>
 {% endblock %}
