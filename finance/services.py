@@ -118,11 +118,15 @@ class InvoiceService:
 
         # Add credit balance to invoice bal -ve or positve
         if student.credit_balance > 0:
+            print("##########################################")
+            print("Credit balance is ", student.credit_balance)
             debt = student.credit_balance
             student.credit_balance = 0
             invoice.balance_bf = debt
             invoice.prepayment = 0
         elif student.credit_balance < 0:
+            print("##########################################")
+            print("Credit balance is ", student.credit_balance)
             credit = student.credit_balance
             student.credit_balance = 0
             invoice.prepayment = credit
