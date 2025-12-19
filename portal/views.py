@@ -405,13 +405,13 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-success",
                 "url": payments_url,
             },
-            {
-                "title": "Outstanding (This Term)",
-                "value": _fmt_kes(outstanding),
-                "icon": "mdi-alert-circle",
-                "bg": "bg-gradient-warning",
-                "url": outstanding_term_url,
-            },
+            # {
+            #     "title": "Outstanding (This Term)",
+            #     "value": _fmt_kes(outstanding),
+            #     "icon": "mdi-alert-circle",
+            #     "bg": "bg-gradient-warning",
+            #     "url": outstanding_term_url,
+            # },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
