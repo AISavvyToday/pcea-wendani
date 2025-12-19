@@ -265,9 +265,13 @@
                         <tr>
                             <td>Due Date</td>
                             <td class="text-right">
+                                {% if invoice.due_date %}
                                 <span class="{% if invoice.due_date < today %}text-danger{% endif %}">
                                     {{ invoice.due_date|date:"d M Y" }}
                                 </span>
+                                {% else %}
+                                <span class="text-muted">Not set</span>
+                                {% endif %}
                             </td>
                         </tr>
                         <tr>
@@ -282,19 +286,17 @@
 
                     <div class="mt-3">
                         <div class="progress" style="height: 10px;">
-                            {% with paid_percentage=total_paid|div:total_invoiced|mul:100|floatformat:0 %}
                             <div class="progress-bar bg-success"
                                  role="progressbar"
-                                 style="width: {{ paid_percentage }}%"
-                                 aria-valuenow="{{ paid_percentage }}"
+                                 style="width: {{ paid_percentage|floatformat:0 }}%"
+                                 aria-valuenow="{{ paid_percentage|floatformat:0 }}"
                                  aria-valuemin="0"
                                  aria-valuemax="100">
                             </div>
-                            {% endwith %}
                         </div>
                         <small class="text-muted">
                             {{ total_paid|intcomma }} / {{ total_invoiced|intcomma }}
-                            ({% widthratio total_paid total_invoiced 100 %}% paid)
+                            ({{ paid_percentage|floatformat:0 }}% paid)
                         </small>
                     </div>
                 </div>

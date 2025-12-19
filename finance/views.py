@@ -549,11 +549,18 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         total_paid = sum(item['total_allocated'] for item in enhanced_items)
         total_balance = total_invoiced - total_paid
 
+        # Calculate paid percentage
+        paid_percentage = 0
+        if total_invoiced > 0:
+            paid_percentage = (total_paid / total_invoiced) * 100
+
         context.update({
             'total_invoiced': total_invoiced,
             'total_paid': total_paid,
             'total_balance': total_balance,
             'payment_count': len(enhanced_payments),
+            'paid_percentage': paid_percentage,
+            'today': timezone.now().date(),
         })
 
         return context
