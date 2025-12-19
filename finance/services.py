@@ -121,18 +121,21 @@ class InvoiceService:
             print("##########################################")
             print("Credit balance is ", student.credit_balance)
             debt = student.credit_balance
-            student.credit_balance = 0
+
             invoice.balance_bf = debt
             invoice.prepayment = 0
+
+            # student.credit_balance = 0
         elif student.credit_balance < 0:
             print("##########################################")
             print("Credit balance is ", student.credit_balance)
             credit = student.credit_balance
-            student.credit_balance = 0
             invoice.prepayment = credit
             invoice.balance_bf = 0
+
+            # student.credit_balance = 0
         invoice.save()
-        student.save()
+
 
 
         return invoice, True
