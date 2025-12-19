@@ -187,6 +187,9 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
+        balances_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
+        prepayments = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
+
         invoice_count = invoice_qs.count()
 
 
@@ -196,6 +199,8 @@ def _finance_kpis(term=None):
             "collected": collected,
             "outstanding": outstanding,
             "invoice_count": invoice_count,
+            "balances_bf": balances_bf,
+            "prepayments": prepayments
         }
 
     term_stats = agg(term_invoices)
@@ -371,6 +376,8 @@ def dashboard_admin(request):
     billed = Decimal(str(term_stats["billed"] or 0))
     collected = Decimal(str(term_stats["collected"] or 0))
     outstanding = Decimal(str(term_stats["outstanding"] or 0))
+    prepayments = Decimal(str(term_stats["prepayments"] or 0))
+    balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
     rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
     year_billed = Decimal(str(year_stats["billed"] or 0))
@@ -396,7 +403,7 @@ def dashboard_admin(request):
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
-                "helper": f"Billed: {_fmt_kes(year_billed)}",
+
             },
             {
                 "title": "Collected (This Term)",
@@ -411,6 +418,18 @@ def dashboard_admin(request):
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
                 "url": outstanding_term_url,
+            },
+            {
+                "title": "Total Prepayments",
+                "value": _fmt_kes(prepayments),
+                "icon": "mdi-cash",
+                "bg": "bg-gradient-success",
+            },
+            {
+                "title": "Total Bal B/f",
+                "value": _fmt_kes(balances_bf),
+                "icon": "mdi-alert-circle",
+                "bg": "bg-gradient-warning",
             },
             {
                 "title": "Bank Txns",
