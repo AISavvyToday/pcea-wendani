@@ -26,12 +26,11 @@ class FeeStructureForm(forms.ModelForm):
 
     class Meta:
         model = FeeStructure
-        fields = ['name', 'academic_year', 'term', 'grade_levels', 'is_boarding', 'description']
+        fields = ['name', 'academic_year', 'term', 'grade_levels', 'description']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Grade 1-3 Term 1 Fees 2025'}),
             'academic_year': forms.Select(attrs={'class': 'form-control'}),
             'term': forms.Select(attrs={'class': 'form-control'}),
-            'is_boarding': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
@@ -48,13 +47,11 @@ class FeeItemForm(forms.ModelForm):
 
     class Meta:
         model = FeeItem
-        fields = ['category', 'description', 'amount', 'is_optional', 'applies_to_all']
+        fields = ['category', 'description', 'amount']
         widgets = {
             'category': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Tuition Fee'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '0.01'}),
-            'is_optional': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'applies_to_all': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 
