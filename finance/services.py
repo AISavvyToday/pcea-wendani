@@ -116,21 +116,24 @@ class InvoiceService:
         invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
-        # Add credit balance to invoice total -ve or positve
+        # Add credit balance to invoice bal -ve or positve
         if student.credit_balance > 0:
             debt = student.credit_balance
             # invoice.balance += debt
             student.credit_balance = 0
             invoice.balance_bf = debt
             invoice.prepayment = 0
+            invoice.save()
+            student.save()
         elif student.credit_balance < 0:
             credit = student.credit_balance
-            invoice.balance += credit
+            invoice.balance -= credit
             student.credit_balance = 0
             invoice.prepayment = credit
             invoice.balance_bf = 0
-        invoice.save()
-        student.save()
+            invoice.save()
+            student.save()
+
 
         return invoice, True
 
