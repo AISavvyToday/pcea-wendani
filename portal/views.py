@@ -425,12 +425,12 @@ def dashboard_admin(request):
                 "icon": "mdi-cash",
                 "bg": "bg-gradient-success",
             },
-            {
-                "title": "Total Bal B/f",
-                "value": _fmt_kes(balances_bf),
-                "icon": "mdi-alert-circle",
-                "bg": "bg-gradient-warning",
-            },
+            # {
+            #     "title": "Total Bal B/f",
+            #     "value": _fmt_kes(balances_bf),
+            #     "icon": "mdi-alert-circle",
+            #     "bg": "bg-gradient-warning",
+            # },
             {
                 "title": "Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
