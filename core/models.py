@@ -93,6 +93,7 @@ class GradeLevel(models.TextChoices):
     # Pre-Primary
     PP1 = 'pp1', 'PP1'
     PP2 = 'pp2', 'PP2'
+    PlayGroup = 'play_group', 'Play Group'
     # Primary (CBC)
     GRADE_1 = 'grade_1', 'Grade 1'
     GRADE_2 = 'grade_2', 'Grade 2'
