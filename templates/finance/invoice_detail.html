@@ -236,7 +236,7 @@
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Total Invoiced</h6>
-                                        <h3 class="text-primary">KES {{ total_invoiced|intcomma }}</h3>
+                                        <h5 class="text-primary">KES {{ total_invoiced|intcomma }}</h5>
                                     </div>
                                 </div>
                             </div>
@@ -245,7 +245,7 @@
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Total Paid</h6>
-                                        <h3 class="text-success">KES {{ total_paid|intcomma }}</h3>
+                                        <h5 class="text-success">KES {{ total_paid|intcomma }}</h5>
                                     </div>
                                 </div>
                             </div>
@@ -254,9 +254,9 @@
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <h6>Balance Due</h6>
-                                        <h3 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                        <h5 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                             KES {{ total_balance|intcomma }}
-                                        </h3>
+                                        </h5>
                                     </div>
                                 </div>
                             </div>
