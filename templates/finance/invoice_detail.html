@@ -7,12 +7,15 @@
 <div class="content-wrapper">
     <div class="page-header">
         <h3 class="page-title">Invoice {{ invoice.invoice_number }}</h3>
-        <div>
+        <div class="btn-group">
             <a href="{% url 'finance:invoice_print' invoice.pk %}" class="btn btn-secondary" target="_blank">
                 <i class="mdi mdi-printer"></i> Print
             </a>
             <a href="{% url 'finance:payment_record' %}?invoice={{ invoice.pk }}" class="btn btn-primary">
                 <i class="mdi mdi-plus"></i> Record Payment
+            </a>
+            <a href="{% url 'finance:student_statement' invoice.student.pk %}" class="btn btn-info">
+                <i class="mdi mdi-account-card-details"></i> Student Statement
             </a>
         </div>
     </div>
@@ -27,6 +30,9 @@
                             <p><strong>Name:</strong> {{ invoice.student.full_name }}</p>
                             <p><strong>Admission #:</strong> {{ invoice.student.admission_number }}</p>
                             <p><strong>Grade:</strong> {{ invoice.student.grade_level }}</p>
+                            {% if invoice.student.parent %}
+                            <p><strong>Parent:</strong> {{ invoice.student.parent.full_name }}</p>
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <h5>Invoice Details</h5>
@@ -34,66 +40,330 @@
                             <p><strong>Term:</strong> {{ invoice.term }}</p>
                             <p><strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }}</p>
                             <p><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y" }}</p>
+                            <p>
+                                <strong>Status:</strong>
+                                <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
+                                    {{ invoice.get_status_display }}
+                                </span>
+                            </p>
                         </div>
                     </div>
 
-                    <h5>Fee Breakdown</h5>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Description</th>
-                                <th class="text-right">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in invoice_items %}
-                            <tr>
-                                <td>{{ item.description }}</td>
-                                <td class="text-right">KES {{ item.amount|intcomma }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <th>Total</th>
-                                <th class="text-right">KES {{ invoice.total_amount|intcomma }}</th>
-                            </tr>
-                            <tr>
-                                <td>Amount Paid</td>
-                                <td class="text-right text-success">KES {{ invoice.amount_paid|intcomma }}</td>
-                            </tr>
-                            <tr class="table-warning">
-                                <th>Balance Due</th>
-                                <th class="text-right">KES {{ invoice.balance|intcomma }}</th>
-                            </tr>
-                        </tfoot>
-                    </table>
+                    <h5>Fee Breakdown & Allocation</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th class="text-right">Amount</th>
+                                    <th class="text-right">Paid</th>
+                                    <th class="text-right">Balance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item_data in enhanced_items %}
+                                {% with item=item_data.item %}
+                                <tr class="{% if item_data.is_fully_paid %}table-success{% endif %}">
+                                    <td>
+                                        <strong>{{ item.get_category_display }}</strong>
+                                        {% if item_data.payment_count > 0 %}
+                                        <br>
+                                        <small class="text-muted">{{ item_data.payment_count }} payment(s)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.description }}</td>
+                                    <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
+                                    <td class="text-right text-success">
+                                        KES {{ item_data.total_allocated|intcomma }}
+                                    </td>
+                                    <td class="text-right">
+                                        <span class="{% if item_data.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                            KES {{ item_data.balance|intcomma }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if item_data.is_fully_paid %}
+                                        <span class="badge badge-success">Paid</span>
+                                        {% elif item_data.total_allocated > 0 %}
+                                        <span class="badge badge-info">Partial</span>
+                                        {% else %}
+                                        <span class="badge badge-warning">Unpaid</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+
+                                <!-- Show allocation details for this item -->
+                                {% if item_data.allocations %}
+                                <tr class="bg-light">
+                                    <td colspan="6" class="p-2">
+                                        <small class="text-muted">Allocation Details:</small>
+                                        <div class="pl-3">
+                                            {% for allocation in item_data.allocations %}
+                                            <div class="d-flex justify-content-between small">
+                                                <span>
+                                                    {{ allocation.payment.payment_reference }}
+                                                    ({{ allocation.payment.payment_date|date:"d M Y" }})
+                                                </span>
+                                                <span class="text-success">
+                                                    KES {{ allocation.amount|intcomma }}
+                                                </span>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endwith %}
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <th colspan="2">TOTALS</th>
+                                    <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
+                                    <th class="text-right">KES {{ total_paid|intcomma }}</th>
+                                    <th class="text-right">KES {{ total_balance|intcomma }}</th>
+                                    <th>
+                                        {% if total_balance <= 0 %}
+                                        <span class="badge badge-success">Fully Paid</span>
+                                        {% elif total_paid > 0 %}
+                                        <span class="badge badge-info">Partially Paid</span>
+                                        {% else %}
+                                        <span class="badge badge-warning">Unpaid</span>
+                                        {% endif %}
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Payment Summary -->
+                    <div class="mt-4">
+                        <h5>Payment Summary</h5>
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6>Total Invoiced</h6>
+                                        <h3 class="text-primary">KES {{ total_invoiced|intcomma }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6>Total Paid</h6>
+                                        <h3 class="text-success">KES {{ total_paid|intcomma }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6>Balance Due</h6>
+                                        <h3 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                            KES {{ total_balance|intcomma }}
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
+            <!-- Payment History Card -->
             <div class="card">
                 <div class="card-body">
-                    <h5>Status</h5>
-                    <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partial' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %} p-2">
-                        {{ invoice.get_status_display }}
-                    </span>
+                    <h5 class="card-title">Payment History</h5>
+                    <p class="text-muted mb-3">
+                        {{ payment_count }} payment(s) recorded for this invoice
+                    </p>
 
-                    <hr>
-                    <h5>Payment History</h5>
-                    {% for payment in payments %}
-                    <div class="mb-2 p-2 border rounded">
-                        <small class="text-muted">{{ payment.payment_date|date:"d M Y" }}</small>
-                        <br>KES {{ payment.amount|intcomma }}
-                        <br><small>{{ payment.get_payment_method_display }}</small>
+                    {% if enhanced_payments %}
+                    <div class="timeline">
+                        {% for payment_data in enhanced_payments %}
+                        {% with payment=payment_data.payment %}
+                        <div class="timeline-item mb-3">
+                            <div class="timeline-content">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            <a href="{% url 'finance:payment_detail' payment.pk %}">
+                                                {{ payment.payment_reference }}
+                                            </a>
+                                        </h6>
+                                        <small class="text-muted">
+                                            {{ payment.payment_date|date:"d M Y" }} •
+                                            {{ payment.get_payment_method_display }}
+                                        </small>
+                                        <div class="mt-1">
+                                            <span class="badge badge-light">
+                                                Total: KES {{ payment.amount|intcomma }}
+                                            </span>
+                                            <span class="badge badge-info">
+                                                Allocated: KES {{ payment_data.total_allocated|intcomma }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <span class="badge badge-success">KES {{ payment.amount|intcomma }}</span>
+                                </div>
+
+                                <!-- Show allocation breakdown for this payment -->
+                                {% if payment_data.allocations %}
+                                <div class="mt-2 pl-3 border-left">
+                                    <small class="text-muted d-block mb-1">Allocated to:</small>
+                                    {% for allocation in payment_data.allocations %}
+                                    <div class="d-flex justify-content-between small">
+                                        <span>{{ allocation.invoice_item.get_category_display }}</span>
+                                        <span class="text-success">KES {{ allocation.amount|intcomma }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
                     </div>
-                    {% empty %}
-                    <p class="text-muted">No payments recorded</p>
-                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="mdi mdi-wallet-outline mdi-48px text-muted"></i>
+                        <p class="text-muted mt-2">No payments recorded yet</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-3">
+                        <a href="{% url 'finance:payment_record' %}?student={{ invoice.student.pk }}&invoice={{ invoice.pk }}"
+                           class="btn btn-sm btn-primary btn-block">
+                            <i class="mdi mdi-plus"></i> Record New Payment
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoice Summary Card -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title">Invoice Summary</h5>
+                    <table class="table table-sm">
+                        <tr>
+                            <td>Invoice Number</td>
+                            <td class="text-right"><strong>{{ invoice.invoice_number }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Term</td>
+                            <td class="text-right">{{ invoice.term }}</td>
+                        </tr>
+                        <tr>
+                            <td>Issue Date</td>
+                            <td class="text-right">{{ invoice.issue_date|date:"d M Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td>Due Date</td>
+                            <td class="text-right">
+                                <span class="{% if invoice.due_date < today %}text-danger{% endif %}">
+                                    {{ invoice.due_date|date:"d M Y" }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Status</td>
+                            <td class="text-right">
+                                <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}info{% elif invoice.status == 'overdue' %}danger{% else %}warning{% endif %}">
+                                    {{ invoice.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="mt-3">
+                        <div class="progress" style="height: 10px;">
+                            {% with paid_percentage=total_paid|div:total_invoiced|mul:100|floatformat:0 %}
+                            <div class="progress-bar bg-success"
+                                 role="progressbar"
+                                 style="width: {{ paid_percentage }}%"
+                                 aria-valuenow="{{ paid_percentage }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                            </div>
+                            {% endwith %}
+                        </div>
+                        <small class="text-muted">
+                            {{ total_paid|intcomma }} / {{ total_invoiced|intcomma }}
+                            ({% widthratio total_paid total_invoiced 100 %}% paid)
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title">Quick Actions</h5>
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'finance:invoice_print' invoice.pk %}"
+                           class="list-group-item list-group-item-action" target="_blank">
+                            <i class="mdi mdi-printer mr-2"></i> Print Invoice
+                        </a>
+                        <a href="{% url 'finance:student_statement' invoice.student.pk %}"
+                           class="list-group-item list-group-item-action">
+                            <i class="mdi mdi-account-card-details mr-2"></i> View Student Statement
+                        </a>
+                        {% if invoice.balance > 0 %}
+                        <a href="{% url 'finance:payment_record' %}?student={{ invoice.student.pk }}&invoice={{ invoice.pk }}"
+                           class="list-group-item list-group-item-action">
+                            <i class="mdi mdi-plus mr-2"></i> Record Payment
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'finance:invoice_list' %}"
+                           class="list-group-item list-group-item-action">
+                            <i class="mdi mdi-arrow-left mr-2"></i> Back to Invoices
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 20px;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e0e0e0;
+}
+.timeline-item {
+    position: relative;
+    padding-bottom: 15px;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4CAF50;
+    border: 2px solid white;
+}
+.timeline-content {
+    background: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid #e0e0e0;
+}
+</style>
 {% endblock %}

@@ -26,7 +26,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.db.models import Q, Sum, Count
-from django.db import transaction as db_transaction
+from django.db import transaction as db_transaction, models
 from django.utils import timezone
 
 from core.mixins import RoleRequiredMixin
@@ -469,7 +469,7 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
 
 class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-    """View invoice details."""
+    """View invoice details with comprehensive allocation breakdown."""
 
     model = Invoice
     template_name = 'finance/invoice_detail.html'
@@ -478,17 +478,83 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.filter(is_active=True).order_by('category')
 
-        # IMPORTANT:
-        # Payments are no longer reliably tied to invoice via Payment.invoice
-        # because one payment can clear multiple invoices (allocations).
-        context['payments'] = Payment.objects.filter(
+        # Get invoice items with their allocations
+        items = self.object.items.filter(is_active=True).order_by('category')
+
+        # Enhanced items with allocation details
+        enhanced_items = []
+        for item in items:
+            # Get total allocated amount for this item from all payments
+            from payments.models import PaymentAllocation
+            total_allocated = PaymentAllocation.objects.filter(
+                invoice_item=item,
+                is_active=True,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED
+            ).aggregate(total=models.Sum('amount'))['total'] or 0
+
+            # Get individual allocations for this item
+            allocations = PaymentAllocation.objects.filter(
+                invoice_item=item,
+                is_active=True,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED
+            ).select_related('payment').order_by('-created_at')
+
+            enhanced_items.append({
+                'item': item,
+                'total_allocated': total_allocated,
+                'balance': item.net_amount - total_allocated,
+                'is_fully_paid': total_allocated >= item.net_amount,
+                'allocations': allocations,
+                'payment_count': allocations.count(),
+            })
+
+        context['enhanced_items'] = enhanced_items
+
+        # Get all payments for this invoice (via allocations)
+        from django.db.models import Q
+        payments = Payment.objects.filter(
             is_active=True,
             status=PaymentStatus.COMPLETED
         ).filter(
             Q(invoice=self.object) | Q(allocations__invoice_item__invoice=self.object)
-        ).distinct().order_by('-payment_date')
+        ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
+
+        # Enhance payments with allocation details for this invoice
+        enhanced_payments = []
+        for payment in payments:
+            # Get allocations for this payment that belong to this invoice
+            payment_allocations = payment.allocations.filter(
+                is_active=True,
+                invoice_item__invoice=self.object
+            ).select_related('invoice_item')
+
+            # Calculate total allocated from this payment to this invoice
+            total_from_payment = payment_allocations.aggregate(
+                total=models.Sum('amount')
+            )['total'] or 0
+
+            enhanced_payments.append({
+                'payment': payment,
+                'allocations': payment_allocations,
+                'total_allocated': total_from_payment,
+            })
+
+        context['enhanced_payments'] = enhanced_payments
+
+        # Calculate totals for display
+        total_invoiced = self.object.total_amount
+        total_paid = sum(item['total_allocated'] for item in enhanced_items)
+        total_balance = total_invoiced - total_paid
+
+        context.update({
+            'total_invoiced': total_invoiced,
+            'total_paid': total_paid,
+            'total_balance': total_balance,
+            'payment_count': len(enhanced_payments),
+        })
 
         return context
 
