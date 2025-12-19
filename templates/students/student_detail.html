@@ -391,8 +391,6 @@
                       <tr>
                         <td>{{ p.payment_reference }}</td>
                         <td>KES {{ p.amount }}</td>
-                        <td>KES {{ p.amount|floatformat:2|add:"-"|add:p.unapplied_amount }}</td>
-                        <td class="text-primary">KES {{ p.unapplied_amount|default:"0.00" }}</td>
                         <td>{{ p.get_payment_method_display }}</td>
                         <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
                       </tr>
