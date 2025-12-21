@@ -8,8 +8,10 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from decimal import Decimal
 
-from .models import FeeStructure, FeeItem, Discount, StudentDiscount, Invoice
-from academics.models import AcademicYear, Term
+from django.forms import inlineformset_factory
+
+from .models import FeeStructure, FeeItem, Discount, StudentDiscount, Invoice, InvoiceItem
+from academics.models import AcademicYear, Term, TransportRoute
 from students.models import Student
 from core.models import FeeCategory, GradeLevel, TermChoices
 
@@ -51,15 +53,66 @@ class FeeItemForm(forms.ModelForm):
         widgets = {
             'category': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Tuition Fee'}),
-            'amount': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '0.01'}),
+            'amount': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0',
+                'step': '0.01',
+                'placeholder': 'Enter amount'
+            }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set amount field as not required initially
+        self.fields['amount'].required = False
+
+    def clean(self):
+        """Custom validation for fee items."""
+        cleaned_data = super().clean()
+        category = cleaned_data.get('category')
+        amount = cleaned_data.get('amount')
+
+        # Skip validation for empty forms (formset will handle these)
+        is_empty = not any(cleaned_data.values())
+        if is_empty:
+            return cleaned_data
+
+        # Handle transport items
+        if category == 'transport':
+            # Set amount to 0 for transport items
+            cleaned_data['amount'] = Decimal('0.00')
+        else:
+            # For non-transport items, amount is required
+            if amount is None:
+                self.add_error('amount', 'This field is required.')
+            elif amount < Decimal('0.00'):
+                self.add_error('amount', 'Amount must be a positive number.')
+
+        return cleaned_data
+
+    def clean_amount(self):
+        """Clean amount field."""
+        amount = self.cleaned_data.get('amount')
+
+        # If amount is empty string or None, return None
+        if amount in [None, '']:
+            return None
+
+        # If it's already a decimal, return it
+        if isinstance(amount, Decimal):
+            return amount
+
+        # Try to convert to Decimal
+        try:
+            return Decimal(str(amount))
+        except (ValueError, TypeError):
+            return None
 
 FeeItemFormSet = forms.inlineformset_factory(
     FeeStructure,
     FeeItem,
     form=FeeItemForm,
-    extra=5,
+    extra=1,  # Start with just 1 empty form instead of 5
     can_delete=True,
     min_num=1,
     validate_min=True
@@ -183,16 +236,31 @@ class PaymentRecordForm(forms.Form):
     )
 
     PAYMENT_METHOD_CHOICES = [
-        ('cash', 'Cash'),
-        ('cheque', 'Cheque'),
-        ('bank_transfer', 'Bank Transfer'),
+
         ('mpesa', 'M-PESA'),
+        ('equity_bank', 'Equity Bank'),
+        ('coop_bank', 'Co-operative Bank'),
+        ('manual_entry', 'Manual Entry'),
+        ('cheque', 'Cheque'),
+        ('bank_transfer', 'Bank Transfer')
+
     ]
+
 
     payment_method = forms.ChoiceField(
         choices=PAYMENT_METHOD_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+    PAYMENT_SOURCE_CHOICES = [
+        ('equity_bank', 'Equity Bank'),
+        ('coop_bank', 'Co-operative Bank'),
+        ('mpesa', 'Mpesa')
+    ]
+    payment_source = forms.ChoiceField(
+        choices=PAYMENT_SOURCE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
 
     payment_date = forms.DateTimeField(
         widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
@@ -281,3 +349,61 @@ class DateRangeFilterForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+
+
+class InvoiceEditForm(forms.ModelForm):
+    class Meta:
+        model = Invoice
+        fields = ['notes', 'due_date']
+        widgets = {
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+
+class InvoiceItemForm(forms.ModelForm):
+    # show transport fields
+    transport_route = forms.ModelChoiceField(
+        queryset=TransportRoute.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    transport_trip_type = forms.ChoiceField(
+        choices=InvoiceItem.TRIP_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class Meta:
+        model = InvoiceItem
+        fields = ['description', 'category', 'amount', 'discount_applied', 'transport_route', 'transport_trip_type']
+        widgets = {
+            'description': forms.TextInput(attrs={'class': 'form-control'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'discount_applied': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get('category')
+        # If category is transport and route/trip_type provided, amount may be left blank — handle later in view
+        amount = cleaned.get('amount')
+        if category != 'transport':
+            # For non-transport items ensure amount is present and non-negative
+            if amount in (None, ''):
+                self.add_error('amount', 'Amount is required for non-transport items.')
+            elif amount is not None and amount < Decimal('0.00'):
+                self.add_error('amount', 'Amount must be a non-negative number.')
+        else:
+            # If transport, allow amount to be empty; view will populate it based on transport fee.
+            if (not cleaned.get('transport_route')) or (not cleaned.get('transport_trip_type')):
+                # It's valid to have an empty transport item (user might want to enter amount manually)
+                pass
+
+        return cleaned
+
+
+InvoiceItemFormSet = inlineformset_factory(
+    Invoice, InvoiceItem, form=InvoiceItemForm,
+    extra=1, can_delete=True, min_num=1, validate_min=False
+)

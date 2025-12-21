@@ -262,8 +262,6 @@ class StudentService:
             'total_students': students.count(),
             'male_count': students.filter(gender='M').count(),
             'female_count': students.filter(gender='F').count(),
-            'boarders': students.filter(is_boarder=True).count(),
-            'day_scholars': students.filter(is_boarder=False).count(),
             'special_needs': students.filter(has_special_needs=True).count(),
             'using_transport': students.filter(uses_school_transport=True).count(),
         }
@@ -272,9 +270,6 @@ class StudentService:
     def generate_admission_number(year=None):
         """
         Generate the next admission number for a student.
-        Format: PWA{YEAR}{SEQUENCE}
-        Example: PWA2025001
-
         Args:
             year: Year for admission (defaults to current year)
 
@@ -287,7 +282,7 @@ class StudentService:
             year = date.today().year
 
         # Get the last admission number for this year
-        prefix = f"PWA{year}"
+        prefix = f"{year}"
         last_student = Student.objects.filter(
             admission_number__startswith=prefix
         ).order_by('-admission_number').first()

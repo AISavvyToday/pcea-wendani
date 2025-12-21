@@ -13,6 +13,7 @@
 
 import logging
 from decimal import Decimal  # kept (may be used elsewhere / future)
+from core.models import PaymentSource
 
 from django.db import transaction as db_transaction
 from rest_framework import status
@@ -202,6 +203,7 @@ class EquityNotificationView(APIView):
                 invoice=None,
                 payer_name=validated_data.get("customerName", ""),
                 payer_phone=validated_data.get("phoneNumber", ""),
+                payment_source=PaymentSource.EQUITY_BANK
             )
 
             # Step 4: Send receipt notification

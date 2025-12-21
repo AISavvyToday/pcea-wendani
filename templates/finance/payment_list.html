@@ -81,9 +81,9 @@
                             <th>Student</th>
                             <th class="text-end">Amount</th>
                             <th>Method</th>
+                            <th>Source</th>
                             <th>Reference</th>
                             <th>Status</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
 
@@ -103,7 +103,7 @@
 
                                 <td style="min-width:200px;">
                                     {% if payment.student %}
-                                        <a href="{% url 'finance:student_statement' payment.student.pk %}">{{ payment.student.full_name|default:"—" }}</a>
+                                        <a href="{% url 'students:detail' payment.student.pk %}">{{ payment.student.full_name|default:"—" }}</a>
                                         <div class="small text-muted">{{ payment.student.admission_number|default:"—" }}</div>
                                     {% else %}
                                         <span class="text-muted">Unassigned</span>
@@ -114,6 +114,9 @@
 
                                 <td>
                                     {{ payment.get_payment_method_display|default:"—" }}
+                                </td>
+                                <td>
+                                    {{ payment.payment_source }}
                                 </td>
 
                                 <td class="text-wrap" style="max-width:160px;">
@@ -130,15 +133,6 @@
                                     {% endif %}
                                 </td>
 
-                                <td class="text-nowrap">
-                                    <a href="{% url 'finance:payment_detail' payment.pk %}" class="btn btn-sm btn-outline-primary" title="View">
-                                        <i class="mdi mdi-eye"></i>
-                                    </a>
-
-                                    <a href="" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print receipt">
-                                        <i class="mdi mdi-printer"></i>
-                                    </a>
-                                </td>
                             </tr>
                         {% empty %}
                             <tr>

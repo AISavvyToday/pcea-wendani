@@ -68,21 +68,41 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
-// Auto-load invoices when student is selected
-document.getElementById('id_student').addEventListener('change', function() {
-    const studentId = this.value;
-    if (studentId) {
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Make student dropdown searchable
+    $('#id_student').select2({
+        placeholder: 'Search student by name...',
+        allowClear: true,
+        width: '100%'
+    });
+
+    // Auto-load invoices when student is selected
+    $('#id_student').on('change', function () {
+        const studentId = this.value;
+        const invoiceSelect = document.getElementById('id_invoice');
+
+        if (!studentId) {
+            invoiceSelect.innerHTML = '<option value="">Auto-allocate</option>';
+            return;
+        }
+
         fetch(`/api/finance/student/${studentId}/invoices/`)
             .then(r => r.json())
             .then(data => {
-                const invoiceSelect = document.getElementById('id_invoice');
                 invoiceSelect.innerHTML = '<option value="">Auto-allocate</option>';
                 data.forEach(inv => {
-                    invoiceSelect.innerHTML += `<option value="${inv.id}">${inv.invoice_number} - Balance: KES ${inv.balance}</option>`;
+                    invoiceSelect.innerHTML +=
+                        `<option value="${inv.id}">
+                            ${inv.invoice_number} - Balance: KES ${inv.balance}
+                        </option>`;
                 });
             });
-    }
+    });
+
 });
 </script>
 {% endblock %}

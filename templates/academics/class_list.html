@@ -17,7 +17,6 @@
       <th>Class Teacher</th>
       <th>Students</th>
       <th>Capacity</th>
-      <th>Room</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -31,7 +30,6 @@
       <td>{{ class.class_teacher }}</td>
       <td>{{ class.student_count }}</td>
       <td>{{ class.capacity }}</td>
-      <td>{{ class.room }}</td>
       <td>
         <a href="{% url 'academics:class_edit' class.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
       </td>

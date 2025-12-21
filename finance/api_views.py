@@ -9,15 +9,13 @@ import json
 import logging
 
 from .models import Invoice
-from .services import PaymentService
+from payments.services import PaymentService
 from students.models import Student
 
 logger = logging.getLogger(__name__)
 
 
 class StudentInvoicesAPIView(View):
-    """API to get student invoices."""
-
     def get(self, request, student_pk):
         invoices = Invoice.objects.filter(
             student_id=student_pk, is_active=True, balance__gt=0
@@ -28,7 +26,6 @@ class StudentInvoicesAPIView(View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CoopBankIPNView(View):
-    """Handle Co-operative Bank IPN callbacks."""
 
     def post(self, request):
         try:
@@ -49,7 +46,6 @@ class CoopBankIPNView(View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class EquityBankIPNView(View):
-    """Handle Equity Bank IPN callbacks."""
 
     def post(self, request):
         try:
@@ -70,7 +66,6 @@ class EquityBankIPNView(View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class MpesaIPNView(View):
-    """Handle M-PESA IPN callbacks."""
 
     def post(self, request):
         try:

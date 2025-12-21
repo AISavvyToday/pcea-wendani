@@ -28,7 +28,7 @@ class InvoiceService:
     @staticmethod
     @transaction.atomic
     def generate_invoice(student, term, generated_by=None):
-        """Generate invoice for a student for a term."""
+        """Generate invoice for a student for a term with route-specific transport fees."""
 
         # Check if invoice already exists
         existing = Invoice.objects.filter(
@@ -46,7 +46,7 @@ class InvoiceService:
 
         fee_structure = FeeStructure.objects.filter(
             academic_year=term.academic_year,
-            term=term.term,  # Note: term.term is the string (term_1, term_2, term_3)
+            term=term.term,
             is_active=True
         ).filter(
             Q(grade_levels__contains=[grade_level]) | Q(grade_levels=[])
@@ -59,7 +59,7 @@ class InvoiceService:
         invoice = Invoice.objects.create(
             student=student,
             term=term,
-            fee_structure=fee_structure,  # Make sure Invoice model has this field
+            fee_structure=fee_structure,
             issue_date=timezone.now().date(),
             due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
                 days=30),
@@ -72,6 +72,36 @@ class InvoiceService:
         fee_items = FeeItem.objects.filter(fee_structure=fee_structure, is_active=True)
 
         for item in fee_items:
+            # SPECIAL HANDLING FOR TRANSPORT FEES
+            if item.category == 'transport':
+                # Check if student uses school transport
+                if student.uses_school_transport and student.transport_route:
+                    try:
+                        # Get transport fee for this student's route, term, and academic year
+                        from academics.models import TransportFee
+                        transport_fee = TransportFee.objects.get(
+                            route=student.transport_route,
+                            academic_year=term.academic_year,
+                            term=term.term,
+                            is_active=True
+                        )
+                        item_amount = transport_fee.amount
+                        description = f"Transport ({student.transport_route.name} Route)"
+                    except TransportFee.DoesNotExist:
+                        # No transport fee defined for this route - set to 0
+                        item_amount = Decimal('0.00')
+                        description = f"Transport - Route fee not configured"
+                        logger.warning(
+                            f"No transport fee configured for {student.transport_route.name} in {term.academic_year.year} {term.term}")
+                else:
+                    # Student doesn't use transport - set amount to 0
+                    item_amount = Decimal('0.00')
+                    description = item.description
+            else:
+                # Non-transport items use the fixed amount from fee structure
+                item_amount = item.amount
+                description = item.description
+
             # Calculate discount for this item
             discount_amount = Decimal('0.00')
 
@@ -91,22 +121,22 @@ class InvoiceService:
                 discount = sd.discount
                 if not discount.applicable_categories or item.category in discount.applicable_categories:
                     if discount.discount_type == 'percentage':
-                        discount_amount += item.amount * (discount.value / 100)
+                        discount_amount += item_amount * (discount.value / 100)
                     else:
                         discount_amount += discount.value
 
-            net_amount = item.amount - discount_amount
+            net_amount = item_amount - discount_amount
 
             InvoiceItem.objects.create(
                 invoice=invoice,
                 fee_item=item,
                 category=item.category,
-                description=item.description,
-                amount=item.amount,
+                description=description,
+                amount=item_amount,
                 discount_applied=discount_amount,
                 net_amount=net_amount
             )
-            subtotal += item.amount
+            subtotal += item_amount
 
         # Update invoice totals
         invoice.subtotal = subtotal
@@ -386,21 +416,17 @@ class FeeStructureService:
         - Academic year
         - Term
         - Grade level
-        - Boarding status
         """
         grade_level = student.grade_level
-        is_boarding = getattr(student, 'is_boarding', False)
 
         fee_structure = FeeStructure.objects.filter(
             academic_year=term.academic_year,
             term=term,
-            is_boarding=is_boarding,
             is_active=True
         ).filter(
             grade_levels__contains=[grade_level]
         ).first()
 
-        # Fallback: try without boarding filter
         if not fee_structure:
             fee_structure = FeeStructure.objects.filter(
                 academic_year=term.academic_year,

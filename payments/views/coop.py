@@ -9,7 +9,7 @@
 
 import logging
 from decimal import Decimal  # kept
-
+from core.models import PaymentSource
 from django.conf import settings
 from django.db import transaction as db_transaction
 from rest_framework import status
@@ -160,6 +160,7 @@ class CoopIPNView(APIView):
                 invoice=None,
                 payer_name=payer_name,
                 payer_phone=payer_phone,
+                payment_source=PaymentSource.COOP_BANK
             )
 
             # Step 7: Send receipt notification

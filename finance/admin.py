@@ -16,8 +16,8 @@ class FeeItemInline(admin.TabularInline):
 
 @admin.register(FeeStructure)
 class FeeStructureAdmin(admin.ModelAdmin):
-    list_display = ('name', 'academic_year', 'term', 'is_boarding', 'total_amount_display', 'is_active')
-    list_filter = ('academic_year', 'term', 'is_boarding', 'is_active')
+    list_display = ('name', 'academic_year', 'term', 'total_amount_display', 'is_active')
+    list_filter = ('academic_year', 'term', 'is_active')
     search_fields = ('name',)
     ordering = ('-academic_year__year', 'term')
     inlines = [FeeItemInline]
@@ -29,8 +29,8 @@ class FeeStructureAdmin(admin.ModelAdmin):
 
 @admin.register(FeeItem)
 class FeeItemAdmin(admin.ModelAdmin):
-    list_display = ('fee_structure', 'category', 'description', 'amount', 'is_optional')
-    list_filter = ('fee_structure__academic_year', 'category', 'is_optional')
+    list_display = ('fee_structure', 'category', 'description', 'amount')
+    list_filter = ('fee_structure__academic_year', 'category')
     search_fields = ('description', 'fee_structure__name')
 
 
@@ -65,8 +65,8 @@ class StudentDiscountAdmin(admin.ModelAdmin):
 
 class InvoiceItemInline(admin.TabularInline):
     model = InvoiceItem
+    fields = ('description', 'category', 'amount', 'discount_applied', 'transport_route', 'transport_trip_type',)
     extra = 0
-    readonly_fields = ('net_amount',)
 
 
 @admin.register(Invoice)

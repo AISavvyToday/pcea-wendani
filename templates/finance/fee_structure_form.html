@@ -211,15 +211,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const totalEl = document.getElementById('items-total');
   const addBtn = document.getElementById('add-item-btn');
   const emptyTpl = document.getElementById('empty-form-template').innerHTML;
+  const form = document.querySelector('form');
 
   function updateTotal() {
     let total = 0;
     tableBody.querySelectorAll('input[name$="-amount"]').forEach(i => {
-      total += parseFloat(i.value || 0);
+      // Skip transport items marked as N/A
+      if (i.getAttribute('data-transport-na') === 'true') {
+        return;
+      }
+      // Parse the value, treating empty or invalid as 0
+      const value = i.value.trim();
+      if (value === '' || value === 'N/A' || isNaN(parseFloat(value))) {
+        return;
+      }
+      total += parseFloat(value);
     });
     totalEl.textContent = 'KES ' + total.toLocaleString(undefined, { minimumFractionDigits: 2 });
   }
 
+  // Function to update transport item display
+  function updateTransportItemDisplay(row) {
+    const categorySelect = row.querySelector('select[name$="-category"]');
+    const amountInput = row.querySelector('input[name$="-amount"]');
+
+    if (categorySelect && categorySelect.value === 'transport') {
+      amountInput.readOnly = true;
+      amountInput.classList.add('bg-light');
+      amountInput.value = 'N/A';  // Show N/A for display
+      amountInput.placeholder = 'Amount depends on student route';
+
+      // Add a data attribute to track that this is N/A
+      amountInput.setAttribute('data-transport-na', 'true');
+      amountInput.setAttribute('data-original-value', amountInput.getAttribute('value') || '');
+
+      // Remove any validation errors
+      const errorDiv = amountInput.closest('td').querySelector('.text-danger');
+      if (errorDiv) {
+        errorDiv.remove();
+      }
+    } else {
+      amountInput.readOnly = false;
+      amountInput.classList.remove('bg-light');
+      amountInput.placeholder = '';
+      amountInput.removeAttribute('data-transport-na');
+
+      // Restore original value if available
+      const originalValue = amountInput.getAttribute('data-original-value');
+      if (originalValue) {
+        amountInput.value = originalValue;
+        amountInput.removeAttribute('data-original-value');
+      }
+
+      // Clear the value if it was set to N/A from transport
+      if (amountInput.value === 'N/A') {
+        amountInput.value = '';
+      }
+    }
+  }
+
+  // Add new fee item row
   addBtn.addEventListener('click', () => {
     const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
     const idx = parseInt(totalForms.value);
@@ -228,17 +279,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const rowHtml = emptyTpl.replace(/__prefix__/g, idx);
     const temp = document.createElement('tbody');
     temp.innerHTML = rowHtml;
-    tableBody.appendChild(temp.firstElementChild);
+    const newRow = temp.firstElementChild;
+    tableBody.appendChild(newRow);
+
+    // Initialize the new row
+    updateTransportItemDisplay(newRow);
+    updateTotal();
   });
 
+  // Update total when amount changes
   tableBody.addEventListener('input', e => {
-    if (e.target.name.endsWith('-amount')) updateTotal();
+    if (e.target.name.endsWith('-amount')) {
+      // Don't allow input in transport amount fields
+      if (e.target.getAttribute('data-transport-na') === 'true') {
+        e.target.value = 'N/A';
+        return;
+      }
+      updateTotal();
+    }
   });
 
+  // Handle category changes
+  tableBody.addEventListener('change', e => {
+    if (e.target.name.endsWith('-category')) {
+      const row = e.target.closest('tr');
+      updateTransportItemDisplay(row);
+      updateTotal(); // Update total when category changes
+    }
+  });
+
+  // Remove item button
   tableBody.addEventListener('click', e => {
     if (e.target.classList.contains('remove-item-btn')) {
       e.target.closest('tr').remove();
       updateTotal();
+
+      // Update the management form count
+      const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
+      const deleteInputs = document.querySelectorAll('input[name$="-DELETE"]');
+      let deletedCount = 0;
+      deleteInputs.forEach(input => {
+        if (input.value === 'on') deletedCount++;
+      });
+      totalForms.value = tableBody.querySelectorAll('.fee-item-row').length - deletedCount;
     }
   });
 
@@ -247,16 +330,66 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     document.querySelectorAll('input[name="grade_levels"]').forEach(cb => cb.checked = true);
   });
+
   document.getElementById('clear-all-grades')?.addEventListener('click', e => {
     e.preventDefault();
     document.querySelectorAll('input[name="grade_levels"]').forEach(cb => cb.checked = false);
   });
 
+  // Check existing rows on load
+  tableBody.querySelectorAll('.fee-item-row').forEach(row => {
+    updateTransportItemDisplay(row);
+  });
+
+  // Before form submission, convert N/A to empty string for transport items
+  form.addEventListener('submit', function(e) {
+    // Convert all transport N/A values to empty string before submission
+    // The form will handle setting them to 0.00 in clean() method
+    document.querySelectorAll('input[name$="-amount"][data-transport-na="true"]').forEach(input => {
+      input.value = '';  // Set to empty, form will convert to 0.00
+      input.removeAttribute('data-transport-na');
+      input.readOnly = false; // Temporarily enable for submission
+    });
+
+    // Update total one last time with actual values
+    updateTotal();
+  });
+
+  // Toggle descriptions button
+  document.getElementById('expand-all-btn')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    const descriptionInputs = tableBody.querySelectorAll('input[name$="-description"]');
+    const isExpanded = this.getAttribute('data-expanded') === 'true';
+
+    descriptionInputs.forEach(input => {
+      if (isExpanded) {
+        input.style.width = '';
+        input.title = '';
+      } else {
+        input.style.width = '100%';
+        input.title = input.value || input.placeholder;
+      }
+    });
+
+    this.setAttribute('data-expanded', !isExpanded);
+    this.textContent = isExpanded ? 'Expand descriptions' : 'Collapse descriptions';
+  });
+
+  // Initialize total calculation
   updateTotal();
 });
 </script>
 
 <style>
 .table td, .table th { vertical-align: middle; }
+input.bg-light {
+  background-color: #f8f9fa !important;
+  cursor: not-allowed;
+}
+.text-danger {
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
 </style>
+
 {% endblock %}

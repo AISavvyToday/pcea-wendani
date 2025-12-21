@@ -425,38 +425,70 @@ class Timetable(BaseModel):
     def __str__(self):
         return f"{self.class_obj.name} - {self.get_day_of_week_display()} - {self.subject.name}"
 
+
+# File: academics/models.py (or create new file transport.py)
+from django.db import models
+from decimal import Decimal
+from core.models import BaseModel, TermChoices
+
+
 class TransportRoute(BaseModel):
-    """
-    School transport routes.
-    """
-    name = models.CharField(max_length=100)  # e.g., "Thika Road Route"
+    """Transport route with route-specific fees per academic year/term."""
+    name = models.CharField(max_length=100, default="Route")
     description = models.TextField(blank=True)
-
-    # Driver info
-    driver_name = models.CharField(max_length=100, blank=True)
-    driver_phone = models.CharField(max_length=15, blank=True)
-    vehicle_registration = models.CharField(max_length=20, blank=True)
-
-    # Stops
-    pickup_points = models.JSONField(default=list)  # List of pickup locations
-
-    # Timing
-    morning_departure = models.TimeField(null=True, blank=True)
-    afternoon_departure = models.TimeField(null=True, blank=True)
-
-    # Fee - MODIFIED FIELDS
-    full_trip_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal('0.00'),
-        help_text="Cost for a full trip (both ways) for the term."
-    )
-    half_trip_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal('0.00'),
-        help_text="Cost for a half trip (one way) for the term."
-    )
+    pickup_points = models.TextField(blank=True, help_text="List of pickup points, one per line")
+    dropoff_points = models.TextField(blank=True, help_text="List of drop-off points, one per line")
 
     class Meta:
         db_table = 'transport_routes'
         ordering = ['name']
 
     def __str__(self):
-        return self.name
+        # avoid referencing non-existent 'code' field — just show the name
+        return f"{self.name}"
+
+
+class TransportFee(BaseModel):
+    """
+    Transport fee amount for a specific route, academic year, and term.
+
+    - `amount` is the full-trip amount (default).
+    - `half_amount` is optional and stores explicitly the half-trip amount if different.
+    If `half_amount` is empty, half-trip will be computed as half of `amount`.
+    """
+    route = models.ForeignKey(TransportRoute, on_delete=models.CASCADE, related_name='fees')
+    academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.CASCADE, related_name='transport_fees')
+    term = models.CharField(max_length=10, choices=TermChoices.choices)
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text="Full-trip transport fee for this route, term, and academic year"
+    )
+    half_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text="Optional explicit half-trip fee; if empty half-trip is computed as amount/2"
+    )
+
+    class Meta:
+        db_table = 'transport_fees'
+        unique_together = ['route', 'academic_year', 'term']
+        ordering = ['route__name', 'academic_year__year', 'term']
+
+    def __str__(self):
+        return f"{self.route.name} - {self.academic_year.year} {self.term}: KES {self.amount}"
+
+    def get_amount_for_trip(self, trip_type: str):
+        """
+        trip_type: 'full' or 'half'
+        """
+        if trip_type == 'half':
+            if self.half_amount is not None:
+                return self.half_amount
+            # fallback: half the full amount
+            return (self.amount / 2) if self.amount is not None else Decimal('0.00')
+        return self.amount or Decimal('0.00')

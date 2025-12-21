@@ -89,7 +89,6 @@
                             <th scope="col">Academic Year</th>
                             <th scope="col">Term</th>
                             <th scope="col">Grade Levels</th>
-                            <th scope="col">Boarding</th>
                             <th scope="col" class="text-end">Total Amount</th>
                             <th scope="col">Status</th>
                             <th scope="col" class="text-center">Actions</th>
@@ -121,13 +120,6 @@
                                 {% endif %}
                             </td>
 
-                            <td class="align-middle">
-                                {% if structure.is_boarding %}
-                                    <span class="badge bg-info small">Boarding</span>
-                                {% else %}
-                                    <span class="badge bg-light text-dark small">Day</span>
-                                {% endif %}
-                            </td>
 
                             <td class="align-middle text-end fw-bold">KES {{ structure.total_amount|default:0|floatformat:0|intcomma }}</td>
 

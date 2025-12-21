@@ -7,9 +7,16 @@
 <div class="content-wrapper">
     <div class="page-header">
         <h3 class="page-title">Student Statement</h3>
-        <a href="{% url 'finance:student_statement_print' student.pk %}?term={{ selected_term }}" class="btn btn-secondary" target="_blank">
+        <form method="get" action="{% url 'finance:student_statement_print' student.pk %}" target="_blank" class="d-inline-flex">
+    <input type="hidden" name="term" value="{{ selected_term }}" />
+    <input type="hidden" name="copies" value="2" />
+    <div class="input-group input-group-sm">
+        <input type="text" name="notes" class="form-control" placeholder="Optional print notes" style="min-width:220px;" />
+        <button class="btn btn-secondary" type="submit">
             <i class="mdi mdi-printer"></i> Print Statement
-        </a>
+        </button>
+    </div>
+</form>
     </div>
 
     <!-- Student Info -->

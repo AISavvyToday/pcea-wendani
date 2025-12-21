@@ -80,7 +80,7 @@ class Student(BaseModel):
     )
     
     # Admission info
-    admission_number = models.CharField(max_length=20, unique=True)  # e.g., PWA2024001
+    admission_number = models.CharField(max_length=20, unique=True)
     admission_date = models.DateField()
     
     # Personal info
@@ -132,8 +132,11 @@ class Student(BaseModel):
     # Transport
     uses_school_transport = models.BooleanField(default=False)
     transport_route = models.ForeignKey(
-        'academics.TransportRoute', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='students'
+        'academics.TransportRoute',  # Updated reference
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='students',
+
     )
     
     credit_balance = models.DecimalField(

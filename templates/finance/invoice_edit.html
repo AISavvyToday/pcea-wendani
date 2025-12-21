@@ -1,0 +1,95 @@
+<!-- templates/finance/invoice_edit.html -->
+{% extends 'base/base.html' %}
+{% load static humanize %}
+{% block title %}Edit Invoice - {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+      <h3 class="page-title">Edit Invoice {{ invoice.invoice_number }}</h3>
+      <small class="text-muted">Student: {{ invoice.student.full_name }} — Admission: {{ invoice.student.admission_number }}</small>
+    </div>
+    <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary btn-sm">Back</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-6">
+            {{ form.due_date.label_tag }} {{ form.due_date }}
+          </div>
+          <div class="col-md-6">
+            {{ form.notes.label_tag }} {{ form.notes }}
+          </div>
+        </div>
+
+        <hr/>
+
+        <h5>Invoice Items</h5>
+        {{ formset.management_form }}
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Amount (KES)</th>
+              <th>Discount</th>
+              <th>Transport Route</th>
+              <th>Trip</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in formset.forms %}
+            <tr>
+              <td style="width:30%;">{{ f.description }}</td>
+              <td style="width:12%;">{{ f.category }}</td>
+              <td style="width:12%;">{{ f.amount }}</td>
+              <td style="width:10%;">{{ f.discount_applied }}</td>
+              <td style="width:18%;">{{ f.transport_route }}</td>
+              <td style="width:8%;">{{ f.transport_trip_type }}</td>
+              <td style="width:4%;">{{ f.DELETE }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" type="submit">Save Invoice</button>
+          <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // optional: add client-side behavior later (e.g., show transport fields when category=transport)
+  document.addEventListener('DOMContentLoaded', function () {
+    const rows = document.querySelectorAll('table tbody tr');
+    rows.forEach(row => {
+      // find category select in the row and toggle transport inputs
+      const catSelect = row.querySelector('select[name$="-category"]');
+      const routeSelect = row.querySelector('select[name$="-transport_route"]');
+      const tripSelect = row.querySelector('select[name$="-transport_trip_type"]');
+
+      function toggleTransport() {
+        if (!catSelect) return;
+        const val = catSelect.value;
+        if (val === 'transport') {
+          if (routeSelect) routeSelect.closest('td').style.display = '';
+          if (tripSelect) tripSelect.closest('td').style.display = '';
+        } else {
+          if (routeSelect) routeSelect.closest('td').style.display = 'none';
+          if (tripSelect) tripSelect.closest('td').style.display = 'none';
+        }
+      }
+      toggleTransport();
+      if (catSelect) catSelect.addEventListener('change', toggleTransport);
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,165 @@
+{# templates/reports/outstanding_report.html #}
+{% extends 'base/base.html' %}
+{% load humanize static %}
+{% block title %}Outstanding Balances{% endblock %}
+
+{% block extra_head %}
+<style>
+  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+  .report-letterhead img.logo { max-height: 70px; }
+  .report-title { text-align:center; width:100%; }
+  .report-table { width:100%; border-collapse: collapse; }
+  .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
+  .report-table thead th { background: #f2f2f2; font-weight:700; }
+  .no-print { margin-bottom: 10px; }
+  @media print { .no-print { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <h3 class="page-title">Outstanding Balances Report</h3>
+    <div class="no-print">
+      <button class="btn btn-outline-secondary" onclick="window.print();">
+        <i class="mdi mdi-printer"></i> Print
+      </button>
+    </div>
+  </div>
+
+    <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
+  <a class="btn btn-success" target="_blank"
+     href="{% url 'reports:outstanding_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+    <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
+  </a>
+  <a class="btn btn-outline-secondary" target="_blank"
+     href="{% url 'reports:outstanding_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+    <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
+  </a>
+</div>
+
+
+
+
+
+  <div class="card mb-3 no-print">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-md-2">
+          <label class="form-label">From</label>
+          {{ form.start_date }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">To</label>
+          {{ form.end_date }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Academic Year</label>
+          {{ form.academic_year }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Term</label>
+          {{ form.term }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Class</label>
+          {{ form.student_class }}
+        </div>
+        <div class="col-md-1">
+          <label class="form-label">Include Zero</label>
+          <div class="mt-2">{{ form.show_zero_balances }}</div>
+        </div>
+
+        <div class="col-md-2 mt-2">
+          <label class="form-label">Balance Filter</label>
+          {{ form.balance_operator }}
+        </div>
+        <div class="col-md-2 mt-2">
+          <label class="form-label">Amount</label>
+          {{ form.balance_amount }}
+        </div>
+
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary" type="submit">Run</button>
+          <a href="{% url 'reports:outstanding_report' %}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if rows is none %}
+    <div class="card">
+      <div class="card-body text-muted">Adjust filters and click Run to generate the outstanding balances report.</div>
+    </div>
+  {% else %}
+    <div class="report-letterhead">
+      {% if SCHOOL_LOGO_URL %}
+        <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="logo">
+      {% endif %}
+      <div class="report-title">
+        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+        <h5 style="margin-top:8px">Balances Report</h5>
+        <small class="text-muted">
+          {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
+          {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+          {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
+          {% if filters.term %} • Term: {{ filters.term }} {% endif %}
+          {% if filters.student_class %} • Class: {{ filters.student_class }} {% endif %}
+        </small>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="report-table table table-sm">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Admission No</th>
+                <th>Name</th>
+                <th>Class</th>
+                <th>Contacts</th>
+                <th class="text-right">Prepayment</th>
+                <th class="text-right">Balance B/F</th>
+                <th class="text-right">Balance</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Total Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rows %}
+              <tr>
+                <td>{{ r.term__academic_year__year }}</td>
+                <td>{{ r.student__admission_number }}</td>
+                <td>{{ r.student__full_name }}</td>
+                <td>{{ r.student__current_class }}</td>
+                <td>{{ r.student__contacts|default:"-" }}</td>
+                <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_balance|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_paid|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5">Total</th>
+                <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_balance_bf|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_balance|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_paid|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="mt-3 small text-muted">Generated by {{ request.user.get_full_name }} on {{ now|date:"d M Y H:i" }}</div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

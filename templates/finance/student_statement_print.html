@@ -1,0 +1,130 @@
+<!--emplates/finance/student_statement_print.html-->
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>{{ school_name }} - Student Statement - {{ student.full_name }}</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; color:#222; font-size:12px; margin:0; padding:0; }
+        .page { width:210mm; min-height:297mm; padding:12mm; box-sizing:border-box; background:white; margin:0 auto; }
+        .statement { border:1px solid #ccc; padding:12px; margin-bottom:14px; }
+        .header { display:flex; align-items:center; justify-content:space-between; }
+        .header .logos { display:flex; align-items:center; gap:12px; }
+        .logo { height:60px; width:auto; }
+        .school-title { text-align:center; flex:1; }
+        .meta { margin-top:8px; font-size:12px; color:#444; }
+        .two-col { display:flex; gap:12px; margin-top:12px; }
+        .col { flex:1; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; }
+        th, td { padding:6px 8px; border:1px solid #e6e6e6; text-align:left; vertical-align:middle; }
+        th { background:#f7f7f7; }
+        .text-right { text-align:right; }
+        .small { font-size:11px; color:#555; }
+        .notes { margin-top:10px; padding:8px; border:1px dashed #ddd; background:#fafafa; min-height:36px; }
+        .footer { margin-top:12px; font-size:11px; color:#333; border-top:1px dashed #ddd; padding-top:8px; }
+        .bank-list { margin:6px 0 0 0; padding-left:16px; }
+        .copy-sep { border-top:1px dashed #999; margin-top:12px; }
+        @media print { .page { margin:0; box-shadow:none; } .no-print{ display:none; } }
+    </style>
+</head>
+<body>
+    <div class="page">
+        {% for _ in copies_range %}
+        <div class="statement">
+            <div class="header">
+                <div class="logos">
+                    <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
+                </div>
+                <div class="school-title">
+                    <h2>{{ school_name }}</h2>
+                    <div class="small">Student Financial Statement</div>
+                </div>
+                <div class="logos">
+                    <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
+                </div>
+            </div>
+
+            <div class="meta">
+                <strong>Student:</strong> {{ student.full_name }} &nbsp; | &nbsp;
+                <strong>Admission #:</strong> {{ student.admission_number }} &nbsp; | &nbsp;
+                Printed: {{ print_datetime|date:"d M Y H:i" }} &nbsp; | &nbsp; By: {{ printed_by }}
+                {% if term %}&nbsp; | &nbsp; Term: {{ term }}{% endif %}
+            </div>
+
+            <div class="two-col">
+                <div class="col">
+                    <strong>Summary</strong>
+                    <div class="small">Total Invoiced: <strong>KES {{ statement.total_invoiced|intcomma }}</strong></div>
+                    <div class="small">Total Paid: <strong>KES {{ statement.total_paid|intcomma }}</strong></div>
+                    <div class="small">Balance: <strong>KES {{ statement.balance|intcomma }}</strong></div>
+                </div>
+                <div class="col">
+                    <strong>Contact</strong>
+                    <div class="small">Grade: {{ student.grade_level }}</div>
+                    {% if student.parent %}<div class="small">Parent: {{ student.parent.full_name }}</div>{% endif %}
+                </div>
+            </div>
+
+            <div style="margin-top:12px;">
+                <strong>Transaction History</strong>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:12%;">Date</th>
+                            <th>Description</th>
+                            <th>Reference</th>
+                            <th style="width:12%;" class="text-right">Debit</th>
+                            <th style="width:12%;" class="text-right">Credit</th>
+                            <th style="width:12%;" class="text-right">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for txn in statement.transactions %}
+                        <tr>
+                            <td>{{ txn.date|date:"d M Y" }}</td>
+                            <td>{{ txn.description }}</td>
+                            <td>{{ txn.reference }}</td>
+                            <td class="text-right">{% if txn.debit %}KES {{ txn.debit|intcomma }}{% endif %}</td>
+                            <td class="text-right text-success">{% if txn.credit %}KES {{ txn.credit|intcomma }}{% endif %}</td>
+                            <td class="text-right">KES {{ txn.running_balance|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center">No transactions found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="notes">
+                <strong>Notes:</strong>
+                <div>{{ notes|default:"-" }}</div>
+            </div>
+
+            <div class="footer">
+                <div><strong>Payment terms / Mode of Payment</strong></div>
+                <ol>
+                    <li>All the above payments should be received on or before the first day of the term by way of Banker's cheque or direct deposit to the school's bank account.</li>
+                    <li>Cash payments and Personal cheques are not acceptable.</li>
+                    <li>School bank accounts:</li>
+                </ol>
+                <ul class="bank-list">
+                    <li>{{ bank_details.equity.name }} — {{ bank_details.equity.account_name }} Account No: {{ bank_details.equity.account_no }}</li>
+                    <li>{{ bank_details.coop.name }} — {{ bank_details.coop.account_name }} Account No: {{ bank_details.coop.account_no }}</li>
+                    <li>{{ bank_details.paybill_1.label }} — ACC NO: {{ bank_details.paybill_1.acc_format }}</li>
+                    <li>{{ bank_details.paybill_2.label }} — ACC NO: {{ bank_details.paybill_2.acc_format }}</li>
+                </ul>
+            </div>
+        </div>
+
+        {% if not forloop.last %}
+        <div class="copy-sep"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="no-print" style="position:fixed; bottom:10px; right:10px;">
+        <button onclick="window.print()" style="padding:8px 12px;">Print</button>
+    </div>
+</body>
+</html>

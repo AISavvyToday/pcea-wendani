@@ -21,9 +21,7 @@ class FeeStructure(BaseModel):
     # Which grade levels this applies to
     grade_levels = models.JSONField(default=list)  # e.g., ['grade_1', 'grade_2', 'grade_3']
     
-    # Boarding vs Day
-    is_boarding = models.BooleanField(default=False)
-    
+
     description = models.TextField(blank=True)
 
     class Meta:
@@ -242,16 +240,35 @@ class Invoice(BaseModel):
 class InvoiceItem(BaseModel):
     """
     Line items on an invoice.
+
+    Extended to optionally store transport meta (route, trip_type) for transport items.
     """
+    TRIP_CHOICES = [
+        ('full', 'Full Trip'),
+        ('half', 'Half Trip'),
+    ]
+
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
     fee_item = models.ForeignKey(
-        FeeItem, on_delete=models.SET_NULL, null=True, related_name='invoice_items'
+        FeeItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_items'
     )
-    description = models.CharField(max_length=100)
-    category = models.CharField(max_length=20, choices=FeeCategory.choices)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    net_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.CharField(max_length=200)
+    category = models.CharField(max_length=50, choices=FeeCategory.choices)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    discount_applied = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
+    # Transport-specific metadata (nullable)
+    transport_route = models.ForeignKey(
+        'academics.TransportRoute',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='invoice_items'
+    )
+    transport_trip_type = models.CharField(
+        max_length=10, choices=TRIP_CHOICES, null=True, blank=True,
+        help_text="If set and category=='transport', indicates half/full trip"
+    )
 
     class Meta:
         db_table = 'invoice_items'
@@ -260,5 +277,17 @@ class InvoiceItem(BaseModel):
         return f"{self.invoice.invoice_number} - {self.description}"
 
     def save(self, *args, **kwargs):
-        self.net_amount = self.amount - self.discount_applied
+        # Normalize None values
+        if self.discount_applied in (None, ''):
+            self.discount_applied = Decimal('0.00')
+        if self.amount in (None, ''):
+            self.amount = Decimal('0.00')
+
+        # Recompute net_amount defensively
+        try:
+            self.net_amount = (self.amount or Decimal('0.00')) - (self.discount_applied or Decimal('0.00'))
+        except Exception:
+            # Fallback to zeros for safety
+            self.net_amount = Decimal('0.00')
+
         super().save(*args, **kwargs)

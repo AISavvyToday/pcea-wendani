@@ -184,12 +184,25 @@ class TimetableAdmin(admin.ModelAdmin):
     ordering = ('class_obj', 'day_of_week', 'start_time')
 
 
+from django.contrib import admin
+from .models import TransportRoute, TransportFee
+
+
 @admin.register(TransportRoute)
 class TransportRouteAdmin(admin.ModelAdmin):
-    list_display = ('name', 'driver_name', 'driver_phone', 'vehicle_registration', 'students_count')
-    search_fields = ('name', 'driver_name', 'vehicle_registration')
+    list_display = ['name', 'student_count']
+    list_filter = ['is_active']
+    search_fields = ['name']
 
-    def students_count(self, obj):
-        return obj.students.count()
+    def student_count(self, obj):
+        return obj.students.filter(is_active=True, uses_school_transport=True).count()
 
-    students_count.short_description = 'Students'
+    student_count.short_description = 'Students on Route'
+
+
+@admin.register(TransportFee)
+class TransportFeeAdmin(admin.ModelAdmin):
+    list_display = ['route', 'academic_year', 'term', 'amount', 'is_active']
+    list_filter = ['academic_year', 'term', 'route', 'is_active']
+    search_fields = ['route__name']
+    list_editable = ['amount', 'is_active']

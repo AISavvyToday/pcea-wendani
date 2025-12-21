@@ -11,6 +11,8 @@ urlpatterns = [
     path('students/', include('students.urls')),
     path('finance/', include('finance.urls', namespace='finance')),
     path('academics/', include('academics.urls', namespace='academics')),
+    path('other-income/', include('other_income.urls', namespace='other_income')),
+    path('reports/', include('reports.urls', namespace='reports')),
 ]
 
 if settings.DEBUG:

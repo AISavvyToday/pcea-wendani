@@ -1,0 +1,21 @@
+{% extends 'base/base.html' %}
+{% load humanize %}
+{% block title %}Record Payment - {{ invoice.invoice_number }}{% endblock %}
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Record Payment for {{ invoice.invoice_number }}</h3>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button class="btn btn-primary" type="submit">Record Payment</button>
+                <a href="{% url 'other_income:invoice_detail' invoice.pk %}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

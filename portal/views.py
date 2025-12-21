@@ -187,7 +187,7 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
-        balances_bf = invoices.aggregate(total=Sum('balance'))['total'] or 0
+        balances_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
         prepayments = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
 
         invoice_count = invoice_qs.count()

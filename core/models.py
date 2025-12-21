@@ -62,9 +62,15 @@ class PaymentMethod(models.TextChoices):
     MPESA = 'mpesa', 'M-PESA'
     EQUITY_BANK = 'equity_bank', 'Equity Bank'
     COOP_BANK = 'coop_bank', 'Co-operative Bank'
-    CASH = 'cash', 'Cash'
+    CASH = 'manual_entry', 'Manual Entry'
     CHEQUE = 'cheque', 'Cheque'
     BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
+
+class PaymentSource(models.TextChoices):
+    EQUITY_BANK = 'equity_bank', 'Equity Bank'
+    COOP_BANK = 'coop_bank', 'Co-operative Bank'
+    MPESA = 'mpesa', 'Mpesa'
+
 
 
 class PaymentStatus(models.TextChoices):
@@ -72,7 +78,6 @@ class PaymentStatus(models.TextChoices):
     COMPLETED = 'completed', 'Completed'
     FAILED = 'failed', 'Failed'
     CANCELLED = 'cancelled', 'Cancelled'
-    REFUNDED = 'refunded', 'Refunded'
 
 
 class InvoiceStatus(models.TextChoices):

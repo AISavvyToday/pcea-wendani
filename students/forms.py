@@ -40,7 +40,7 @@ class StudentForm(forms.ModelForm):
         widgets = {
             'admission_number': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'e.g., PWA2025001'
+                'placeholder': 'e.g., 2025001'
             }),
             'admission_date': forms.DateInput(attrs={
                 'class': 'form-control',

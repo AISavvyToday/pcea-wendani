@@ -35,8 +35,9 @@ urlpatterns = [
     # Invoices
     path('invoices/', views.InvoiceListView.as_view(), name='invoice_list'),
     path('invoices/generate/', views.InvoiceGenerateView.as_view(), name='invoice_generate'),
+    path('invoice/<uuid:pk>/edit/', views.InvoiceEditView.as_view(), name='invoice_edit'),
     path('invoices/<uuid:pk>/', views.InvoiceDetailView.as_view(), name='invoice_detail'),
-    path('invoices/<uuid:pk>/print/', views.InvoicePrintView.as_view(), name='invoice_print'),
+    path('invoices/<uuid:pk>/receipt/', views.InvoicePrintView.as_view(), name='invoice_receipt_print'),
     path('invoices/<uuid:pk>/cancel/', views.InvoiceCancelView.as_view(), name='invoice_cancel'),
 
     # Payments

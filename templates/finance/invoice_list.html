@@ -107,7 +107,7 @@
 
                                 <td style="min-width:220px;">
                                     {% if invoice.student %}
-                                        <a href="{% url 'finance:student_statement' invoice.student.pk %}" class="d-block">
+                                        <a href="{% url 'students:detail' student.pk %}" class="d-block">
                                             {{ invoice.student.full_name|default:"—" }}
                                         </a>
                                         <small class="text-muted">{{ invoice.student.admission_number|default:"—" }}</small>
@@ -145,37 +145,6 @@
                                     <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" title="View">
                                         <i class="mdi mdi-eye"></i>
                                     </a>
-
-                                    <a href="{% url 'finance:invoice_print' invoice.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print">
-                                        <i class="mdi mdi-printer"></i>
-                                    </a>
-
-                                    {# Cancel button: only show when invoice has no payments (server will also check) #}
-                                    {% if invoice.amount_paid|default:0 == 0 %}
-                                        <form method="post" action="{% url 'finance:invoice_cancel' invoice.pk %}" class="d-inline-block" onsubmit="return confirm('Cancel invoice {{ invoice.invoice_number }}? This cannot be undone.');">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel">
-                                                <i class="mdi mdi-cancel"></i>
-                                            </button>
-                                        </form>
-                                    {% endif %}
-
-                                    {# Dropdown for extra actions (send, download PDF, etc.) #}
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a class="dropdown-item" href="{% url 'finance:invoice_detail' invoice.pk %}#email">
-                                                    <i class="mdi mdi-email-outline me-2"></i>Send by email
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item" href="{% url 'finance:invoice_print' invoice.pk %}?download=1">
-                                                    <i class="mdi mdi-file-pdf-box me-2"></i>Download PDF
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
                                 </td>
                             </tr>
                         {% empty %}

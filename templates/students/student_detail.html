@@ -131,7 +131,6 @@
           <div class="small-muted mb-2">{{ student.admission_number }}</div>
 
           <div class="d-flex gap-2 justify-content-center mb-3 flex-wrap">
-            <span class="stat-pill">Age: {{ student.age }}</span>
             <span class="stat-pill">Status: {{ student.get_status_display }}</span>
           </div>
 
@@ -205,10 +204,7 @@
                         <td class="info-key">Full name</td>
                         <td class="info-val">{{ student.first_name }} {{ student.middle_name }} {{ student.last_name }}</td>
                       </tr>
-                      <tr>
-                        <td class="info-key">Date of birth</td>
-                        <td>{{ student.date_of_birth|date:"d M Y" }}</td>
-                      </tr>
+
 
                     </table>
                   </div>
@@ -381,6 +377,7 @@
                       <th>Ref</th>
                       <th>Amount</th>
                       <th>Method</th>
+                        <th>Source</th>
                       <th>Date</th>
                     </tr>
                   </thead>
@@ -390,6 +387,7 @@
                         <td>{{ p.payment_reference }}</td>
                         <td>KES {{ p.amount }}</td>
                         <td>{{ p.get_payment_method_display }}</td>
+                          <td>{{ payment.payment_source }}</td>
                         <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
                       </tr>
                     {% endfor %}

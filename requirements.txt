@@ -11,3 +11,5 @@ Pillow
 pandas
 openpyxl
 djangorestframework>=3.15.0
+openpyxl
+WeasyPrint

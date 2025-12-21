@@ -3,7 +3,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from decimal import Decimal
-from core.models import BaseModel, PaymentMethod, PaymentStatus
+from core.models import BaseModel, PaymentMethod, PaymentStatus, PaymentSource
 from accounts.models import User
 
 
@@ -28,6 +28,7 @@ class Payment(BaseModel):
     )
     
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
+    payment_source = models.CharField(max_length=20, choices=PaymentSource.choices)
     status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     
     # Payment date/time

@@ -69,11 +69,8 @@ class ParentAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = (
-        'admission_number', 'full_name', 'gender', 'current_class',
-        'status', 'primary_parent_display', 'balance_display', 'is_active'
-    )
-    list_filter = ('status', 'gender', 'current_class', 'uses_school_transport', 'admission_date')
+    list_display = ['admission_number', 'full_name', 'current_class', 'uses_school_transport', 'transport_route']
+    list_filter = ['uses_school_transport', 'transport_route', 'current_class__grade_level']
     search_fields = ('admission_number', 'first_name', 'middle_name', 'last_name', 'birth_certificate_number')
     ordering = ('admission_number',)
     autocomplete_fields = ['current_class', 'transport_route']
@@ -98,9 +95,8 @@ class StudentAdmin(admin.ModelAdmin):
             'fields': ('emergency_contact_name', 'emergency_contact_phone'),
             'classes': ('collapse',)
         }),
-        ('Transport & Boarding', {
-            'fields': ('uses_school_transport', 'transport_route', 'is_boarder', 'dormitory'),
-            'classes': ('collapse',)
+        ('Transport Information', {
+            'fields': ('uses_school_transport', 'transport_route')
         }),
         ('Portal Access', {
             'fields': ('user',),

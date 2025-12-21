@@ -20,9 +20,7 @@
                 <div class="card-body">
                     <h5>Details</h5>
                     <p><strong>Academic Year:</strong> {{ fee_structure.academic_year }}</p>
-                    <p><strong>Grade Level:</strong> {{ fee_structure.grade_level|default:"All Grades" }}</p>
-                    <p><strong>Category:</strong> {{ fee_structure.get_student_category_display|default:"All" }}</p>
-                    <p><strong>Status:</strong> 
+                    <p><strong>Status:</strong>
                         <span class="badge badge-{% if fee_structure.is_active %}success{% else %}secondary{% endif %}">
                             {% if fee_structure.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
@@ -44,22 +42,26 @@
                                     <th>Category</th>
                                     <th>Description</th>
                                     <th>Amount</th>
-                                    <th>Term</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in fee_items %}
-                                <tr>
-                                    <td>{{ item.get_category_display }}</td>
-                                    <td>{{ item.description|default:"-" }}</td>
-                                    <td>KES {{ item.amount|intcomma }}</td>
-                                    <td>{{ item.term|default:"All Terms" }}</td>
-
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="5" class="text-center">No fee items added yet</td></tr>
-                                {% endfor %}
-                            </tbody>
+    {% for item in fee_items %}
+    <tr>
+        <td>{{ item.get_category_display }}</td>
+        <td>{{ item.description|default:"-" }}</td>
+        <td>
+            {% if item.category == 'transport' %}
+                <span class="text-muted" title="Transport fees vary by student route">N/A</span>
+                <small class="d-block text-muted">(varies by route)</small>
+            {% else %}
+                KES {{ item.amount|intcomma }}
+            {% endif %}
+        </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="text-center">No fee items added yet</td></tr>
+    {% endfor %}
+</tbody>
                         </table>
                     </div>
                 </div>

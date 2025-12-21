@@ -11,10 +11,15 @@ Invoice generation policy (NO OVERWRITE):
 - Bulk invoice generation should NOT overwrite existing invoices.
 - If an invoice already exists for a student+term, it is skipped (service returns created count only).
 """
+from academics.models import Term
 
 import logging
+
+
+from django.conf import settings
+from .forms import InvoiceEditForm, InvoiceItemFormSet
 from decimal import Decimal
-from datetime import date
+from academics.models import TransportFee
 
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
@@ -47,7 +52,15 @@ from academics.models import Term
 from payments.models import Payment, BankTransaction
 from payments.services.payment import PaymentService as PaymentsPaymentService
 from core.models import InvoiceStatus, PaymentMethod, PaymentStatus
+from decimal import Decimal
+from django.db import models
+from django.db.models import Q, Sum
+from django.utils import timezone
 
+# local service imports
+from payments.services.invoice import InvoiceService as PaymentsInvoiceService
+from payments.models import Payment, PaymentAllocation
+from core.models import PaymentStatus
 logger = logging.getLogger(__name__)
 
 
@@ -170,15 +183,70 @@ class FeeStructureCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         context = self.get_context_data()
         formset = context['formset']
 
-        if formset.is_valid():
-            with db_transaction.atomic():
-                self.object = form.save()
-                formset.instance = self.object
-                formset.save()
+        # Debug logging
+        logger.info(f"FeeStructureCreateView.form_valid - Form valid: {form.is_valid()}")
+        logger.info(f"FeeStructureCreateView.form_valid - Formset valid: {formset.is_valid()}")
 
-            messages.success(self.request, f'Fee structure "{self.object.name}" created successfully!')
-            return redirect('finance:fee_structure_detail', pk=self.object.pk)
+        if not formset.is_valid():
+            logger.error(f"Formset has errors: {formset.errors}")
+            for i, f in enumerate(formset.forms):
+                if f.errors:
+                    logger.error(f"Form {i} has errors: {f.errors}")
+                    # Log the POST data for this form
+                    for field_name in ['category', 'description', 'amount']:
+                        field_key = f'{formset.prefix}-{i}-{field_name}'
+                        field_value = self.request.POST.get(field_key)
+                        logger.error(f"  Field {field_name}: {field_value}")
+
+        if formset.is_valid():
+            try:
+                with db_transaction.atomic():
+                    self.object = form.save()
+                    formset.instance = self.object
+
+                    # Save formset items
+                    instances = formset.save(commit=False)
+                    for instance in instances:
+                        # Set the fee structure for each item
+                        instance.fee_structure = self.object
+                        instance.save()
+
+                    # Delete any marked for deletion
+                    for instance in formset.deleted_objects:
+                        instance.delete()
+
+                    logger.info(f"Fee structure created successfully: {self.object.pk}")
+                    logger.info(f"Fee items created: {self.object.items.count()}")
+
+                    # Log all created items
+                    for item in self.object.items.all():
+                        logger.info(f"  - {item.category}: {item.description} = {item.amount}")
+
+                messages.success(self.request, f'Fee structure "{self.object.name}" created successfully!')
+                return redirect('finance:fee_structure_detail', pk=self.object.pk)
+
+            except Exception as e:
+                logger.exception(f"Error saving fee structure: {str(e)}")
+                messages.error(self.request, f'Error saving fee structure: {str(e)}')
+                return self.render_to_response(self.get_context_data(form=form))
         else:
+            # Compile error messages for user
+            error_summary = []
+            for i, form in enumerate(formset.forms):
+                if form.errors:
+                    for field, errors in form.errors.items():
+                        # Get the field label or use field name
+                        field_label = form.fields[field].label if field in form.fields else field
+                        for error in errors:
+                            error_summary.append(f"Item {i + 1}, {field_label}: {error}")
+
+            if error_summary:
+                messages.error(self.request, "Please correct the following errors:")
+                for error in error_summary[:5]:  # Show first 5 errors
+                    messages.error(self.request, f"• {error}")
+                if len(error_summary) > 5:
+                    messages.error(self.request, f"... and {len(error_summary) - 5} more errors")
+
             return self.render_to_response(self.get_context_data(form=form))
 
     def get_success_url(self):
@@ -218,11 +286,14 @@ class FeeStructureUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
             messages.success(self.request, 'Fee structure updated successfully!')
             return redirect('finance:fee_structure_detail', pk=self.object.pk)
         else:
+            # Log errors for debugging
+            for i, f in enumerate(formset.forms):
+                if f.errors:
+                    logger.error(f"Form {i} errors in update: {f.errors}")
             return self.render_to_response(self.get_context_data(form=form))
 
     def get_success_url(self):
         return reverse('finance:fee_structure_detail', kwargs={'pk': self.object.pk})
-
 
 class FeeStructureDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
     """Delete a fee structure."""
@@ -468,6 +539,7 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
+
 class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """View invoice details with comprehensive allocation breakdown."""
 
@@ -478,23 +550,29 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        invoice = self.object
 
-        # Get invoice items with their allocations
-        items = self.object.items.filter(is_active=True).order_by('category')
+        # Get invoice items with their allocations, ordered by priority (same as allocation logic)
+        items_qs = invoice.items.filter(is_active=True)
+
+        # Build priority mapping from InvoiceService
+        priority_order = {cat: i for i, cat in enumerate(PaymentsInvoiceService.PRIORITY_ORDER)}
+
+        def priority_key(it):
+            return (priority_order.get(it.category, 999), it.id)
+
+        items = sorted(list(items_qs), key=priority_key)
 
         # Enhanced items with allocation details
         enhanced_items = []
         for item in items:
-            # Get total allocated amount for this item from all payments
-            from payments.models import PaymentAllocation
             total_allocated = PaymentAllocation.objects.filter(
                 invoice_item=item,
                 is_active=True,
                 payment__is_active=True,
                 payment__status=PaymentStatus.COMPLETED
-            ).aggregate(total=models.Sum('amount'))['total'] or 0
+            ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
 
-            # Get individual allocations for this item
             allocations = PaymentAllocation.objects.filter(
                 invoice_item=item,
                 is_active=True,
@@ -505,39 +583,34 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             enhanced_items.append({
                 'item': item,
                 'total_allocated': total_allocated,
-                'balance': item.net_amount - total_allocated,
-                'is_fully_paid': total_allocated >= item.net_amount,
+                'balance': (item.net_amount or Decimal('0.00')) - total_allocated,
+                'is_fully_paid': total_allocated >= (item.net_amount or Decimal('0.00')),
                 'allocations': allocations,
                 'payment_count': allocations.count(),
             })
 
         context['enhanced_items'] = enhanced_items
 
-        # Get all payments for this invoice (via allocations)
-        from django.db.models import Q
-        payments = Payment.objects.filter(
+        # Get all payments for this invoice (via allocations or legacy Payment.invoice link)
+        payments_qs = Payment.objects.filter(
             is_active=True,
             status=PaymentStatus.COMPLETED
         ).filter(
-            Q(invoice=self.object) | Q(allocations__invoice_item__invoice=self.object)
+            Q(invoice=invoice) | Q(allocations__invoice_item__invoice=invoice)
         ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
 
-        # Enhance payments with allocation details for this invoice
+        # Enhance payments with allocation details for THIS invoice
         enhanced_payments = []
-        for payment in payments:
-            # Get allocations for this payment that belong to this invoice
-            payment_allocations = payment.allocations.filter(
+        for p in payments_qs:
+            payment_allocations = p.allocations.filter(
                 is_active=True,
-                invoice_item__invoice=self.object
+                invoice_item__invoice=invoice
             ).select_related('invoice_item')
 
-            # Calculate total allocated from this payment to this invoice
-            total_from_payment = payment_allocations.aggregate(
-                total=models.Sum('amount')
-            )['total'] or 0
+            total_from_payment = payment_allocations.aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
 
             enhanced_payments.append({
-                'payment': payment,
+                'payment': p,
                 'allocations': payment_allocations,
                 'total_allocated': total_from_payment,
             })
@@ -545,14 +618,17 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['enhanced_payments'] = enhanced_payments
 
         # Calculate totals for display
-        total_invoiced = self.object.total_amount
-        total_paid = sum(item['total_allocated'] for item in enhanced_items)
+        total_invoiced = invoice.total_amount or Decimal('0.00')
+        total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
         total_balance = total_invoiced - total_paid
 
-        # Calculate paid percentage
+        # paid percentage
         paid_percentage = 0
-        if total_invoiced > 0:
-            paid_percentage = (total_paid / total_invoiced) * 100
+        try:
+            if total_invoiced > 0:
+                paid_percentage = (total_paid / total_invoiced) * 100
+        except Exception:
+            paid_percentage = 0
 
         context.update({
             'total_invoiced': total_invoiced,
@@ -564,6 +640,103 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         })
 
         return context
+
+# class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+#     """View invoice details with comprehensive allocation breakdown."""
+#
+#     model = Invoice
+#     template_name = 'finance/invoice_detail.html'
+#     context_object_name = 'invoice'
+#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+#
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#
+#         # Get invoice items with their allocations
+#         items = self.object.items.filter(is_active=True).order_by('category')
+#
+#         # Enhanced items with allocation details
+#         enhanced_items = []
+#         for item in items:
+#             # Get total allocated amount for this item from all payments
+#             from payments.models import PaymentAllocation
+#             total_allocated = PaymentAllocation.objects.filter(
+#                 invoice_item=item,
+#                 is_active=True,
+#                 payment__is_active=True,
+#                 payment__status=PaymentStatus.COMPLETED
+#             ).aggregate(total=models.Sum('amount'))['total'] or 0
+#
+#             # Get individual allocations for this item
+#             allocations = PaymentAllocation.objects.filter(
+#                 invoice_item=item,
+#                 is_active=True,
+#                 payment__is_active=True,
+#                 payment__status=PaymentStatus.COMPLETED
+#             ).select_related('payment').order_by('-created_at')
+#
+#             enhanced_items.append({
+#                 'item': item,
+#                 'total_allocated': total_allocated,
+#                 'balance': item.net_amount - total_allocated,
+#                 'is_fully_paid': total_allocated >= item.net_amount,
+#                 'allocations': allocations,
+#                 'payment_count': allocations.count(),
+#             })
+#
+#         context['enhanced_items'] = enhanced_items
+#
+#         # Get all payments for this invoice (via allocations)
+#         from django.db.models import Q
+#         payments = Payment.objects.filter(
+#             is_active=True,
+#             status=PaymentStatus.COMPLETED
+#         ).filter(
+#             Q(invoice=self.object) | Q(allocations__invoice_item__invoice=self.object)
+#         ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
+#
+#         # Enhance payments with allocation details for this invoice
+#         enhanced_payments = []
+#         for payment in payments:
+#             # Get allocations for this payment that belong to this invoice
+#             payment_allocations = payment.allocations.filter(
+#                 is_active=True,
+#                 invoice_item__invoice=self.object
+#             ).select_related('invoice_item')
+#
+#             # Calculate total allocated from this payment to this invoice
+#             total_from_payment = payment_allocations.aggregate(
+#                 total=models.Sum('amount')
+#             )['total'] or 0
+#
+#             enhanced_payments.append({
+#                 'payment': payment,
+#                 'allocations': payment_allocations,
+#                 'total_allocated': total_from_payment,
+#             })
+#
+#         context['enhanced_payments'] = enhanced_payments
+#
+#         # Calculate totals for display
+#         total_invoiced = self.object.total_amount
+#         total_paid = sum(item['total_allocated'] for item in enhanced_items)
+#         total_balance = total_invoiced - total_paid
+#
+#         # Calculate paid percentage
+#         paid_percentage = 0
+#         if total_invoiced > 0:
+#             paid_percentage = (total_paid / total_invoiced) * 100
+#
+#         context.update({
+#             'total_invoiced': total_invoiced,
+#             'total_paid': total_paid,
+#             'total_balance': total_balance,
+#             'payment_count': len(enhanced_payments),
+#             'paid_percentage': paid_percentage,
+#             'today': timezone.now().date(),
+#         })
+#
+#         return context
 
 
 class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
@@ -717,8 +890,9 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
 
         return self.render_to_response(context)
 
+
 class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-    """Print-friendly invoice view."""
+    """Print-friendly invoice/receipt view."""
 
     model = Invoice
     template_name = 'finance/invoice_print.html'
@@ -727,8 +901,112 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.filter(is_active=True).order_by('category')
-        context['school_name'] = 'PCEA Wendani Academy'
+        invoice = self.object
+
+        # Determine mode: explicit ?mode=invoice|receipt else infer by amount_paid
+        mode = self.request.GET.get('mode')
+        if mode not in ('invoice', 'receipt'):
+            mode = 'receipt' if (invoice.amount_paid and invoice.amount_paid > Decimal('0.00')) else 'invoice'
+
+        # notes from querystring (optional)
+        notes = self.request.GET.get('notes', '').strip()
+
+        # copies parameter for printing multiple receipts on one page (default 2 for Epson LX350 A4)
+        try:
+            copies = int(self.request.GET.get('copies', '2'))
+        except Exception:
+            copies = 2
+        copies = max(1, min(copies, 4))  # limit to 1..4
+
+        copies_range = range(copies)
+
+        # printed metadata
+        printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
+        print_datetime = timezone.now()
+
+        # Items sorted by allocation priority
+        items_qs = invoice.items.filter(is_active=True)
+        priority_order = {cat: i for i, cat in enumerate(PaymentsInvoiceService.PRIORITY_ORDER)}
+
+        def priority_key(it):
+            return (priority_order.get(it.category, 999), it.id)
+
+        items = sorted(list(items_qs), key=priority_key)
+
+        # Build enhanced_items (with allocation totals)
+        enhanced_items = []
+        for item in items:
+            total_allocated = PaymentAllocation.objects.filter(
+                invoice_item=item,
+                is_active=True,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+            enhanced_items.append({
+                'item': item,
+                'total_allocated': total_allocated,
+                'balance': (item.net_amount or Decimal('0.00')) - total_allocated,
+            })
+
+        # Payments for this invoice (distinct)
+        payments_qs = Payment.objects.filter(
+            is_active=True,
+            status=PaymentStatus.COMPLETED
+        ).filter(
+            Q(invoice=invoice) | Q(allocations__invoice_item__invoice=invoice)
+        ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
+
+        # Build enhanced_payments (with allocated_total for this invoice)
+        enhanced_payments = []
+        for p in payments_qs:
+            allocs = p.allocations.filter(is_active=True, invoice_item__invoice=invoice).select_related('invoice_item')
+            allocated_total = allocs.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            enhanced_payments.append({
+                'payment': p,
+                'allocations': allocs,
+                'allocated_total': allocated_total,
+            })
+
+        # Totals
+        total_invoiced = invoice.total_amount or Decimal('0.00')
+        # total_paid for this invoice computed from enhanced_items (sum of allocated amounts)
+        total_paid = sum(x['total_allocated'] for x in enhanced_items) if enhanced_items else Decimal('0.00')
+
+        # Important: follow same formula as Invoice.save/update -- include balance_bf and prepayment
+        balance_bf = invoice.balance_bf or Decimal('0.00')
+        prepayment = invoice.prepayment or Decimal('0.00')
+        total_balance = (total_invoiced + balance_bf - prepayment) - total_paid
+
+        # Bank details & logos from settings (fallback to hardcoded)
+        bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
+            'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+            'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+            'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+        })
+
+        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+
+        context.update({
+            'mode': mode,
+            'notes': notes,
+            'copies': copies,
+            'copies_range': copies_range,
+            'printed_by': printed_by,
+            'print_datetime': print_datetime,
+            'enhanced_items': enhanced_items,
+            'enhanced_payments': enhanced_payments,
+            'total_invoiced': total_invoiced,
+            'total_paid': total_paid,
+            'total_balance': total_balance,
+            'bank_details': bank_details,
+            'school_logo_url': school_logo_url,
+            'sponsor_logo_url': sponsor_logo_url,
+            'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
+        })
+
         return context
 
 
@@ -866,6 +1144,7 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         student = cd['student']
         amount = cd['amount']
         payment_method = cd['payment_method']
+        payment_source = cd['payment_source']
         payment_date = cd.get('payment_date') or timezone.now()
 
         selected_invoice = cd.get('invoice')  # optional; policy is still oldest-first
@@ -882,6 +1161,7 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             student=student,
             amount=amount,
             payment_method=payment_method,
+            payment_source=payment_source,
             received_by=self.request.user,
             payment_date=payment_date,
             payer_name=payer_name,
@@ -1173,8 +1453,15 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
+
 class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-    """Print-friendly student statement."""
+    """
+    Print-friendly student statement.
+    Accepts optional query params:
+      - term=<term_pk> (filter statement by term)
+      - notes=<text> (optional notes to put on printout)
+      - copies=<n> (how many copies to render on same A4; default 2)
+    """
 
     model = Student
     template_name = 'finance/student_statement_print.html'
@@ -1184,14 +1471,59 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        student = self.object
 
+        # Term filter
         term_id = self.request.GET.get('term')
         term = Term.objects.filter(pk=term_id).first() if term_id else None
 
-        statement = InvoiceService.get_student_statement(self.object, term)
-        context.update(statement)
-        context['school_name'] = 'PCEA Wendani Academy'
-        context['print_date'] = timezone.now()
+        # Prepare statement using existing InvoiceService helper
+        statement = InvoiceService.get_student_statement(student, term)
+
+        # Notes and copies
+        notes = self.request.GET.get('notes', '').strip()
+        try:
+            copies = int(self.request.GET.get('copies', '2'))
+        except Exception:
+            copies = 2
+        copies = max(1, min(copies, 4))
+        copies_range = range(copies)
+
+        # printed metadata
+        printed_by = getattr(self.request.user, 'get_full_name', None)
+        if callable(printed_by):
+            printed_by = printed_by()
+        else:
+            printed_by = str(self.request.user)
+
+        print_datetime = timezone.now()
+
+        # School branding & bank details from settings (fallback defaults)
+        bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
+            'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+            'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+            'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+        })
+        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+        school_name = getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy')
+
+        # Put everything in context
+        context.update({
+            'statement': statement,
+            'term': term,
+            'notes': notes,
+            'copies': copies,
+            'copies_range': copies_range,
+            'printed_by': printed_by,
+            'print_datetime': print_datetime,
+            'bank_details': bank_details,
+            'school_logo_url': school_logo_url,
+            'sponsor_logo_url': sponsor_logo_url,
+            'school_name': school_name,
+        })
+
         return context
 
 
@@ -1270,3 +1602,98 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
                 ])
 
         return response
+
+
+class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+    """
+    Edit invoice header and items (inline). Staff can add/remove items,
+    including transport items with route & half/full trip selection.
+    """
+    model = Invoice
+    form_class = InvoiceEditForm
+    template_name = 'finance/invoice_edit.html'
+    context_object_name = 'invoice'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = InvoiceItemFormSet(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = InvoiceItemFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        invoice = form.instance
+        formset = InvoiceItemFormSet(self.request.POST, instance=invoice)
+
+        if not formset.is_valid():
+            messages.error(self.request, "There are errors in the invoice items. Please fix them.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        try:
+            with db_transaction.atomic():
+                # Save invoice header first (notes/due_date)
+                self.object = form.save(commit=False)
+                self.object.save()
+
+                # Process each form in formset to handle transport amounts
+                instances = formset.save(commit=False)
+
+                # Track saved instance pks in case of deletion
+                for inst in instances:
+                    # If this item is transport and amount is blank or zero, try to auto-fill using TransportFee
+                    if inst.category == 'transport':
+                        # If transport_route and trip_type provided, attempt to fetch transport fee for the invoice.term
+                        if inst.transport_route and inst.transport_trip_type:
+                            try:
+                                tf = TransportFee.objects.get(
+                                    route=inst.transport_route,
+                                    academic_year=invoice.term.academic_year,
+                                    term=invoice.term.term,
+                                    is_active=True
+                                )
+                                inst.amount = tf.get_amount_for_trip(inst.transport_trip_type)
+                                # description override for clarity
+                                inst.description = inst.description or f"Transport ({inst.transport_route.name} - {inst.get_transport_trip_type_display()})"
+                            except TransportFee.DoesNotExist:
+                                # No configured fee: leave amount as 0.0 (user can edit manually)
+                                inst.amount = inst.amount or Decimal('0.00')
+                                inst.description = inst.description or f"Transport ({inst.transport_route.name if inst.transport_route else 'Route not configured'})"
+                        else:
+                            # If route/trip not provided and amount blank, default to zero
+                            inst.amount = inst.amount or Decimal('0.00')
+
+                    # Ensure net_amount & discount logic will compute on save()
+                    inst.save()
+
+                # Handle deleted forms
+                for inst in formset.deleted_objects:
+                    # mark as inactive or delete
+                    inst.delete()
+
+                # Recalculate invoice totals from remaining items
+                subtotal = Decimal('0.00')
+                total_discount = Decimal('0.00')
+                # consider only active items linked to this invoice
+                items_qs = invoice.items.filter()  # keep default filter (no active flag in this model)
+                for it in items_qs:
+                    subtotal += it.amount or Decimal('0.00')
+                    total_discount += it.discount_applied or Decimal('0.00')
+
+                invoice.subtotal = subtotal
+                invoice.discount_amount = total_discount
+                invoice.total_amount = invoice.subtotal - invoice.discount_amount
+
+                # Recompute balance using same business rule (balance_bf & prepayment)
+                invoice.balance = (invoice.total_amount + (invoice.balance_bf or Decimal('0.00')) - (invoice.amount_paid or Decimal('0.00'))) + (invoice.prepayment or Decimal('0.00'))
+                # Update status using the existing method
+                invoice.update_payment_status()
+                invoice.save()
+
+            messages.success(self.request, f"Invoice {invoice.invoice_number} updated successfully.")
+            return redirect('finance:invoice_detail', pk=invoice.pk)
+        except Exception as e:
+            logger.exception("Failed to update invoice")
+            messages.error(self.request, f"Error updating invoice: {e}")
+            return self.render_to_response(self.get_context_data(form=form))
