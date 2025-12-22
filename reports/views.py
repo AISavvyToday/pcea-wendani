@@ -7,7 +7,8 @@ from django.shortcuts import render
 from django.db.models import Sum, F, Value, Case, When, CharField, Q
 from django.db.models.functions import TruncDate, Coalesce
 from decimal import Decimal
-
+from decimal import Decimal
+from django.db.models import ExpressionWrapper, DecimalField
 from .forms import (
     InvoiceReportFilterForm, FeesCollectionFilterForm,
     OutstandingBalancesFilterForm, TransportReportFilterForm
@@ -390,11 +391,26 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         # Aggregate per student
         # Use Coalesce to ensure numeric 0 instead of None
         annotations = {
-            'total_billed': Coalesce(Sum('total_amount'), Value(0)),
-            'total_paid': Coalesce(Sum('amount_paid'), Value(0)),
-            'total_balance': Coalesce(Sum('balance'), Value(0)),
-            'total_balance_bf': Coalesce(Sum('balance_bf'), Value(0)),
-            'total_prepayment': Coalesce(Sum('prepayment'), Value(0)),
+            'total_billed': ExpressionWrapper(
+                Coalesce(Sum('total_amount'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_paid': ExpressionWrapper(
+                Coalesce(Sum('amount_paid'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance': ExpressionWrapper(
+                Coalesce(Sum('balance'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance_bf': ExpressionWrapper(
+                Coalesce(Sum('balance_bf'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_prepayment': ExpressionWrapper(
+                Coalesce(Sum('prepayment'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
         }
 
         # Values grouped by student (only essential fields)

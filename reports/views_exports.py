@@ -2,7 +2,8 @@
 import io
 from decimal import Decimal
 from datetime import datetime
-
+from decimal import Decimal
+from django.db.models import ExpressionWrapper, DecimalField
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -681,11 +682,26 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             invoices = invoices.filter(student__current_class=student_class)
 
         annotations = {
-            'total_billed': Coalesce(Sum('total_amount'), Value(0)),
-            'total_paid': Coalesce(Sum('amount_paid'), Value(0)),
-            'total_balance': Coalesce(Sum('balance'), Value(0)),
-            'total_balance_bf': Coalesce(Sum('balance_bf'), Value(0)),
-            'total_prepayment': Coalesce(Sum('prepayment'), Value(0)),
+            'total_billed': ExpressionWrapper(
+                Coalesce(Sum('total_amount'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_paid': ExpressionWrapper(
+                Coalesce(Sum('amount_paid'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance': ExpressionWrapper(
+                Coalesce(Sum('balance'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance_bf': ExpressionWrapper(
+                Coalesce(Sum('balance_bf'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_prepayment': ExpressionWrapper(
+                Coalesce(Sum('prepayment'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
         }
 
         grouped_qs = invoices.values(
@@ -827,11 +843,26 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             invoices = invoices.filter(student__current_class=student_class)
 
         annotations = {
-            'total_billed': Coalesce(Sum('total_amount'), Value(0)),
-            'total_paid': Coalesce(Sum('amount_paid'), Value(0)),
-            'total_balance': Coalesce(Sum('balance'), Value(0)),
-            'total_balance_bf': Coalesce(Sum('balance_bf'), Value(0)),
-            'total_prepayment': Coalesce(Sum('prepayment'), Value(0)),
+            'total_billed': ExpressionWrapper(
+                Coalesce(Sum('total_amount'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_paid': ExpressionWrapper(
+                Coalesce(Sum('amount_paid'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance': ExpressionWrapper(
+                Coalesce(Sum('balance'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_balance_bf': ExpressionWrapper(
+                Coalesce(Sum('balance_bf'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
+            'total_prepayment': ExpressionWrapper(
+                Coalesce(Sum('prepayment'), Value(Decimal('0.00'))),
+                output_field=DecimalField()
+            ),
         }
 
         grouped_qs = invoices.values(
