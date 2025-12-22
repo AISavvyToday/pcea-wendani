@@ -1,4 +1,4 @@
-<!--reports/pdf/invoice_report_pdf.html-->
+<!-- reports/pdf/invoice_report_pdf.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,162 +6,571 @@
 <title>{{ SCHOOL_NAME }} - Invoice Summary Report</title>
 
 <style>
+/* ===== A4 PAGE SETUP ===== */
+@page {
+  size: A4;
+  margin: 0;
+}
+
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 11px;
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 10pt;
   color: #222;
   margin: 0;
+  padding: 0;
+  background: #fff;
+  line-height: 1.4;
 }
 
 .page {
   width: 210mm;
   min-height: 297mm;
-  padding: 15mm;
+  margin: 0 auto;
+  position: relative;
+  box-sizing: border-box;
+  page-break-after: always;
 }
 
-/* ===== Letterhead ===== */
-.header {
+.page-content {
+  padding: 15mm 15mm 20mm 15mm;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ===== LETTERHEAD ===== */
+.letterhead {
+  border-bottom: 2px solid #000;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid #000;
-  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.logo-container {
+  width: 20%;
 }
 
 .logo {
-  height: 50px;
+  max-height: 60px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
-.school {
+.school-info {
   text-align: center;
   flex: 1;
+  padding: 0 10px;
 }
 
-.school h2 {
+.school-name {
   margin: 0;
-  font-size: 18px;
+  font-size: 18pt;
+  font-weight: bold;
+  color: #2c3e50;
+  line-height: 1.2;
 }
 
-.school .small {
-  font-size: 10px;
-  color: #444;
+.school-details {
+  font-size: 9pt;
+  color: #555;
+  margin-top: 4px;
 }
 
-/* ===== Meta ===== */
-.meta {
-  margin-top: 8px;
+.report-title {
+  font-size: 14pt;
+  font-weight: bold;
+  margin: 8px 0 4px 0;
+  color: #2c3e50;
+}
+
+.report-period {
+  font-size: 10pt;
+  color: #666;
+  font-weight: 600;
+}
+
+/* ===== META INFO ===== */
+.meta-info {
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 12px 0;
+  font-size: 9pt;
   text-align: center;
-  font-size: 10px;
-  background: #f5f5f5;
-  padding: 6px;
+  border: 1px solid #e9ecef;
 }
 
-/* ===== Table ===== */
-table {
+.meta-info span {
+  margin: 0 8px;
+}
+
+/* ===== TABLE ===== */
+.table-container {
+  margin: 15px 0 20px 0;
+  overflow: hidden;
+}
+
+.report-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
+  font-size: 9.5pt;
+  table-layout: fixed;
 }
 
-th, td {
-  border: 1px solid #ccc;
-  padding: 7px;
+.report-table thead {
+  background: linear-gradient(to bottom, #34495e 0%, #2c3e50 100%);
+  color: white;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-th {
-  background: #f0f0f0;
+.report-table th {
+  padding: 10px 8px;
+  text-align: left;
   font-weight: bold;
+  border: 1px solid #2c3e50;
+  font-size: 10pt;
+  letter-spacing: 0.5px;
 }
 
+.report-table th.text-right {
+  text-align: right;
+}
+
+.report-table th:first-child {
+  width: 35%;
+}
+
+.report-table th:not(:first-child) {
+  width: 22%;
+}
+
+.report-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+
+.report-table tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.report-table td {
+  padding: 9px 8px;
+  vertical-align: middle;
+  border: 1px solid #e0e0e0;
+}
+
+.report-table .category {
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: capitalize;
+}
+
+.report-table .text-right {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.report-table .amount-positive {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.report-table .amount-negative {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.report-table .amount-zero {
+  color: #7f8c8d;
+}
+
+/* ===== TABLE FOOTER ===== */
+.report-table tfoot {
+  background: linear-gradient(to bottom, #ecf0f1 0%, #d5dbdb 100%);
+  border-top: 2px solid #2c3e50;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.report-table tfoot th {
+  padding: 12px 8px;
+  font-size: 10.5pt;
+  border: 1px solid #2c3e50;
+}
+
+.report-table tfoot td {
+  padding: 12px 8px;
+  font-size: 10.5pt;
+  font-weight: bold;
+  border: 1px solid #2c3e50;
+  font-family: 'Courier New', monospace;
+}
+
+/* ===== SUMMARY ===== */
+.summary-box {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 12px;
+  margin: 15px 0;
+  page-break-inside: avoid;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  text-align: center;
+}
+
+.summary-item {
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.summary-label {
+  font-size: 9pt;
+  color: #666;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.summary-value {
+  font-size: 12pt;
+  font-weight: bold;
+  color: #2c3e50;
+  font-family: 'Courier New', monospace;
+}
+
+.summary-value.positive {
+  color: #c0392b;
+}
+
+.summary-value.negative {
+  color: #27ae60;
+}
+
+/* ===== FOOTER ===== */
+.document-footer {
+  position: absolute;
+  bottom: 15mm;
+  left: 15mm;
+  right: 15mm;
+  padding-top: 15px;
+  border-top: 1px solid #ccc;
+  font-size: 9pt;
+  color: #666;
+  page-break-inside: avoid;
+}
+
+.banking-details {
+  margin-bottom: 12px;
+}
+
+.bank-title {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 6px;
+  font-size: 10pt;
+}
+
+.bank-info {
+  margin-bottom: 4px;
+  padding-left: 10px;
+}
+
+.paybill-info {
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.disclaimer {
+  text-align: center;
+  font-style: italic;
+  color: #777;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #aaa;
+  font-size: 8.5pt;
+}
+
+/* ===== PAGE NUMBERS ===== */
+.page-number {
+  position: absolute;
+  bottom: 8mm;
+  right: 15mm;
+  font-size: 9pt;
+  color: #777;
+}
+
+/* ===== PRINT OPTIMIZATIONS ===== */
+@media print {
+  body {
+    font-size: 10pt;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+  }
+
+  .page-content {
+    padding: 15mm 15mm 20mm 15mm;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure backgrounds print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent page breaks inside critical elements */
+  .letterhead,
+  .summary-box,
+  .document-footer {
+    page-break-inside: avoid;
+  }
+
+  .report-table {
+    page-break-inside: avoid;
+  }
+
+  .report-table tbody tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
+
+/* ===== UTILITY CLASSES ===== */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
+.text-left { text-align: left; }
+.bold { font-weight: bold; }
+.italic { font-style: italic; }
 
-/* ===== Footer ===== */
-.footer {
+/* ===== CONDITIONAL FORMATTING ===== */
+.warning-note {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 8px;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 9pt;
+  color: #856404;
+  page-break-inside: avoid;
+}
+
+.warning-note:before {
+  content: "⚠️ ";
+}
+
+/* ===== NO DATA STATE ===== */
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #7f8c8d;
+  font-size: 11pt;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.no-data h3 {
+  color: #95a5a6;
   margin-top: 15px;
-  font-size: 9px;
-  border-top: 1px dashed #aaa;
-  padding-top: 8px;
 }
 </style>
 </head>
 
 <body>
 <div class="page">
+  <div class="page-content">
 
-  <!-- ===== LETTERHEAD ===== -->
-  <div class="header">
-    {% if SCHOOL_LOGO_URL %}
-      <img src="{{ SCHOOL_LOGO_URL }}" class="logo">
-    {% endif %}
+    <!-- ===== LETTERHEAD ===== -->
+    <div class="letterhead">
+      <div class="header-content">
+        <div class="logo-container">
+          {% if SCHOOL_LOGO_URL %}
+            <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">
+          {% endif %}
+        </div>
 
-    <div class="school">
-      <h2>{{ SCHOOL_NAME }}</h2>
-      <div class="small">
-        {{ SCHOOL_ADDRESS }}
-        {% if SCHOOL_ADDRESS and SCHOOL_CONTACT %} • {% endif %}
-        {{ SCHOOL_CONTACT }}
+        <div class="school-info">
+          <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
+          <div class="school-details">
+            {{ SCHOOL_ADDRESS }}
+            {% if SCHOOL_ADDRESS and SCHOOL_CONTACT %} • {% endif %}
+            {{ SCHOOL_CONTACT }}
+          </div>
+        </div>
+
+        <div class="logo-container">
+          {% if SPONSOR_LOGO_URL %}
+            <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">
+          {% endif %}
+        </div>
       </div>
-      <strong>Invoice Summary Report</strong><br>
-      {{ academic_year.year }} – {{ term }}
+
+      <div class="text-center">
+        <h2 class="report-title">Invoice Summary Report</h2>
+        <div class="report-period">
+          {{ academic_year.year }} – {{ term|title }}
+        </div>
+      </div>
     </div>
 
-    {% if SPONSOR_LOGO_URL %}
-      <img src="{{ SPONSOR_LOGO_URL }}" class="logo">
+    <!-- ===== META INFORMATION ===== -->
+    <div class="meta-info">
+      <span><strong>Generated:</strong> {{ generated_on|date:"d M Y H:i" }}</span>
+      <span><strong>By:</strong> {{ generated_by }}</span>
+      <span><strong>Report ID:</strong> INV-{{ generated_on|date:"Ymd-His" }}</span>
+    </div>
+
+    <!-- ===== SUMMARY BOX ===== -->
+    {% if totals %}
+    <div class="summary-box">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Billed</div>
+          <div class="summary-value">{{ totals.billed|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Collected</div>
+          <div class="summary-value">{{ totals.collected|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Net Outstanding</div>
+          <div class="summary-value {% if totals.outstanding > 0 %}positive{% elif totals.outstanding < 0 %}negative{% endif %}">
+            {{ totals.outstanding|floatformat:2|intcomma }}
+          </div>
+        </div>
+      </div>
+    </div>
     {% endif %}
-  </div>
 
-  <div class="meta">
-    Generated: {{ generated_on|date:"d M Y H:i" }} |
-    By: {{ generated_by }}
-  </div>
+    <!-- ===== MAIN TABLE ===== -->
+    <div class="table-container">
+      {% if report_rows %}
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th class="text-left">Fee Category</th>
+              <th class="text-right">Billed (KES)</th>
+              <th class="text-right">Collected (KES)</th>
+              <th class="text-right">Outstanding (KES)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report_rows %}
+            <tr>
+              <td class="category">{{ row.category|title }}</td>
+              <td class="text-right">{{ row.total_billed|floatformat:2|intcomma }}</td>
+              <td class="text-right">{{ row.collected|floatformat:2|intcomma }}</td>
+              <td class="text-right">
+                {% if row.outstanding > 0 %}
+                  <span class="amount-positive">{{ row.outstanding|floatformat:2|intcomma }}</span>
+                {% elif row.outstanding < 0 %}
+                  <span class="amount-negative">{{ row.outstanding|floatformat:2|intcomma }}</span>
+                {% else %}
+                  <span class="amount-zero">{{ row.outstanding|floatformat:2|intcomma }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th class="text-right">TOTALS</th>
+              <th class="text-right">{{ totals.billed|floatformat:2|intcomma }}</th>
+              <th class="text-right">{{ totals.collected|floatformat:2|intcomma }}</th>
+              <th class="text-right">
+                {% if totals.outstanding > 0 %}
+                  <span class="amount-positive">{{ totals.outstanding|floatformat:2|intcomma }}</span>
+                {% elif totals.outstanding < 0 %}
+                  <span class="amount-negative">{{ totals.outstanding|floatformat:2|intcomma }}</span>
+                {% else %}
+                  <span class="amount-zero">{{ totals.outstanding|floatformat:2|intcomma }}</span>
+                {% endif %}
+              </th>
+            </tr>
+          </tfoot>
+        </table>
+      {% else %}
+        <div class="no-data">
+          <h3>No Data Available</h3>
+          <p>No invoice data found for the selected period.</p>
+        </div>
+      {% endif %}
+    </div>
 
-  <!-- ===== TABLE ===== -->
-  <table>
-    <thead>
-      <tr>
-        <th>Fee Category</th>
-        <th class="text-right">Billed</th>
-        <th class="text-right">Collected</th>
-        <th class="text-right">Outstanding</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in report_rows %}
-      <tr>
-        <td>{{ r.category }}</td>
-        <td class="text-right">{{ r.total_billed|floatformat:2 }}</td>
-        <td class="text-right">{{ r.collected|floatformat:2 }}</td>
-        <td class="text-right">{{ r.outstanding|floatformat:2 }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-
-    <tfoot>
-      <tr>
-        <th class="text-right">TOTAL</th>
-        <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
-        <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
-        <th class="text-right">{{ totals.outstanding|floatformat:2 }}</th>
-      </tr>
-    </tfoot>
-  </table>
-
-  <div class="footer">
-    <strong>Banking & Payment Details</strong><br>
-    {% if BANK_DETAILS.equity %}
-      {{ BANK_DETAILS.equity.name }} —
-      {{ BANK_DETAILS.equity.account_name }} :
-      {{ BANK_DETAILS.equity.account_no }}<br>
+    <!-- ===== NOTES & WARNINGS ===== -->
+    {% if totals.outstanding > 0 %}
+    <div class="warning-note">
+      <strong>Note:</strong> There is a total outstanding balance of <strong>KES {{ totals.outstanding|floatformat:2|intcomma }}</strong>
+      for the selected period. Please ensure all payments are collected promptly.
+    </div>
     {% endif %}
-    {% if BANK_DETAILS.coop %}
-      {{ BANK_DETAILS.coop.name }} —
-      {{ BANK_DETAILS.coop.account_name }} :
-      {{ BANK_DETAILS.coop.account_no }}<br>
-    {% endif %}
-    <em>This document is system generated and valid without signature.</em>
-  </div>
 
+    <!-- ===== FOOTER WITH BANKING DETAILS ===== -->
+    <div class="document-footer">
+      <div class="banking-details">
+        <div class="bank-title">Banking & Payment Details:</div>
+
+        {% if BANK_DETAILS.equity %}
+          <div class="bank-info">
+            <strong>{{ BANK_DETAILS.equity.name }}</strong> —
+            Account Name: {{ BANK_DETAILS.equity.account_name }} |
+            Account No: {{ BANK_DETAILS.equity.account_no }}
+          </div>
+        {% endif %}
+
+        {% if BANK_DETAILS.coop %}
+          <div class="bank-info">
+            <strong>{{ BANK_DETAILS.coop.name }}</strong> —
+            Account Name: {{ BANK_DETAILS.coop.account_name }} |
+            Account No: {{ BANK_DETAILS.coop.account_no }}
+          </div>
+        {% endif %}
+
+        {% if BANK_DETAILS.paybills %}
+          <div class="paybill-info">
+            <strong>Mobile Payment Options:</strong>
+            {% for paybill in BANK_DETAILS.paybills %}
+              <br>{{ paybill.label }} — Account Format: {{ paybill.acc_format }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="disclaimer">
+        This document is computer-generated and valid without signature.<br>
+        For any queries, contact: {{ SCHOOL_CONTACT }}
+      </div>
+    </div>
+
+    <!-- ===== PAGE NUMBER ===== -->
+    <div class="page-number">
+      Page 1 of 1
+    </div>
+  </div>
 </div>
 </body>
 </html>
