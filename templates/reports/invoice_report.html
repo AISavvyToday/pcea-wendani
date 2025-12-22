@@ -1,3 +1,5 @@
+<!--reports/invoice_report.html-->
+
 {% extends "base/base.html" %}
 {% load humanize static %}
 
@@ -94,12 +96,12 @@ th {
 
 <!-- ===== ACTION BUTTONS ===== -->
 <div class="action-bar no-print">
-  <a href="{% url 'reports:invoice_report_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+  <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
      class="btn-pdf">
      ⬇ Download PDF
   </a>
 
-  <a href="{% url 'reports:invoice_report_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+  <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
      class="btn-excel">
      ⬇ Export Excel
   </a>
