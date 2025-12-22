@@ -456,16 +456,16 @@ body {
       <div class="summary-grid">
         <div class="summary-item">
           <div class="summary-label">Total Billed</div>
-          <div class="summary-value">{{ totals.billed_formatted }}</div>
+          <div class="summary-value">{{ totals.billed|floatformat:2 }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">Total Collected</div>
-          <div class="summary-value">{{ totals.collected_formatted }}</div>
+          <div class="summary-value">{{ totals.collected|floatformat:2 }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">Net Outstanding</div>
           <div class="summary-value {% if totals.outstanding > 0 %}positive{% elif totals.outstanding < 0 %}negative{% endif %}">
-            {{ totals.outstanding_formatted }}
+            {{ totals.outstanding|floatformat:2 }}
           </div>
         </div>
       </div>
@@ -488,15 +488,15 @@ body {
             {% for row in report_rows %}
             <tr>
               <td class="category">{{ row.category|title }}</td>
-              <td class="text-right">{{ row.total_billed_formatted }}</td>
-              <td class="text-right">{{ row.collected_formatted }}</td>
+              <td class="text-right">{{ row.total_billed|floatformat:2 }}</td>
+              <td class="text-right">{{ row.collected|floatformat:2 }}</td>
               <td class="text-right">
                 {% if row.outstanding > 0 %}
-                  <span class="amount-positive">{{ row.outstanding_formatted }}</span>
+                  <span class="amount-positive">{{ row.outstanding|floatformat:2 }}</span>
                 {% elif row.outstanding < 0 %}
-                  <span class="amount-negative">{{ row.outstanding_formatted }}</span>
+                  <span class="amount-negative">{{ row.outstanding|floatformat:2 }}</span>
                 {% else %}
-                  <span class="amount-zero">{{ row.outstanding_formatted }}</span>
+                  <span class="amount-zero">{{ row.outstanding|floatformat:2 }}</span>
                 {% endif %}
               </td>
             </tr>
@@ -505,15 +505,15 @@ body {
           <tfoot>
             <tr>
               <th class="text-right">TOTALS</th>
-              <th class="text-right">{{ totals.billed_formatted }}</th>
-              <th class="text-right">{{ totals.collected_formatted }}</th>
+              <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
+              <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
               <th class="text-right">
                 {% if totals.outstanding > 0 %}
-                  <span class="amount-positive">{{ totals.outstanding_formatted }}</span>
+                  <span class="amount-positive">{{ totals.outstanding|floatformat:2 }}</span>
                 {% elif totals.outstanding < 0 %}
-                  <span class="amount-negative">{{ totals.outstanding_formatted }}</span>
+                  <span class="amount-negative">{{ totals.outstanding|floatformat:2 }}</span>
                 {% else %}
-                  <span class="amount-zero">{{ totals.outstanding_formatted }}</span>
+                  <span class="amount-zero">{{ totals.outstanding|floatformat:2 }}</span>
                 {% endif %}
               </th>
             </tr>
@@ -530,7 +530,7 @@ body {
     <!-- ===== NOTES & WARNINGS ===== -->
     {% if totals.outstanding > 0 %}
     <div class="warning-note">
-      <strong>Note:</strong> There is a total outstanding balance of <strong>KES {{ totals.outstanding_formatted }}</strong>
+      <strong>Note:</strong> There is a total outstanding balance of <strong>KES {{ totals.outstanding|floatformat:2 }}</strong>
       for the selected period. Please ensure all payments are collected promptly.
     </div>
     {% endif %}

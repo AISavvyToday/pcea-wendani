@@ -284,14 +284,6 @@ body {
         {% endfor %}
       </select>
     </div>
-
-    <div class="filter-group">
-      <label for="id_show_zero_rows">Show Zero Rows</label>
-      <select name="show_zero_rows" id="id_show_zero_rows" class="form-select" onchange="this.form.submit()">
-        <option value="false" {% if not form.show_zero_rows.value %}selected{% endif %}>No</option>
-        <option value="true" {% if form.show_zero_rows.value %}selected{% endif %}>Yes</option>
-      </select>
-    </div>
   </form>
 
   <div class="export-buttons">
