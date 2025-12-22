@@ -45,11 +45,7 @@ body {
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.logo {
-  max-height: 45px;
+  justify-content: center;
 }
 
 .school-info {
@@ -233,29 +229,23 @@ body {
   z-index: 10;
 }
 
-/* Column widths for landscape */
+/* Column widths for landscape - UPDATED for 8 columns */
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 6%; } /* Year */
+.report-table td:nth-child(1) { width: 8%; } /* Year */
 .report-table th:nth-child(2),
-.report-table td:nth-child(2) { width: 9%; } /* Admission */
+.report-table td:nth-child(2) { width: 12%; } /* Admission */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 16%; } /* Name */
+.report-table td:nth-child(3) { width: 20%; } /* Name */
 .report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 7%; } /* Class */
+.report-table td:nth-child(4) { width: 10%; } /* Balance B/F */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 11%; } /* Contacts */
+.report-table td:nth-child(5) { width: 10%; } /* Prepayment */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 8%; } /* Prepayment */
+.report-table td:nth-child(6) { width: 12%; } /* Total Billed */
 .report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 8%; } /* Balance B/F */
+.report-table td:nth-child(7) { width: 10%; } /* Paid */
 .report-table th:nth-child(8),
-.report-table td:nth-child(8) { width: 10%; } /* Balance */
-.report-table th:nth-child(9),
-.report-table td:nth-child(9) { width: 8%; } /* Paid */
-.report-table th:nth-child(10),
-.report-table td:nth-child(10) { width: 9%; } /* Total Billed */
-.report-table th:nth-child(11),
-.report-table td:nth-child(11) { width: 8%; } /* Status */
+.report-table td:nth-child(8) { width: 18%; } /* Outstanding Balance */
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -457,12 +447,10 @@ body {
     <!-- LETTERHEAD -->
     <div class="letterhead">
       <div class="header-content">
-        {% if SCHOOL_LOGO_URL %}<img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">{% endif %}
         <div class="school-info">
           <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
           <div class="school-details">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
         </div>
-        {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
       </div>
 
       <div class="text-center">
@@ -474,16 +462,6 @@ body {
           {% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}
         </div>
       </div>
-    </div>
-
-    <!-- META INFO -->
-    <div class="meta-info">
-      Generated: {{ generated_on|date:"d M Y H:i" }} |
-      By: {{ generated_by }} |
-      Report ID: OUT-{{ generated_on|date:"Ymd-His" }} |
-      {% if filters.balance_op and filters.balance_op != 'any' and filters.balance_amt %}
-      Filter: Balance {{ filters.balance_op }} {{ filters.balance_amt|floatformat:2 }}
-      {% endif %}
     </div>
 
     <!-- FILTERS SUMMARY -->
@@ -501,13 +479,6 @@ body {
         <div class="filter-item">
           <span class="filter-label">Term:</span>
           <span class="filter-value">{{ filters.term|title }}</span>
-        </div>
-        {% endif %}
-
-        {% if filters.student_class %}
-        <div class="filter-item">
-          <span class="filter-label">Class:</span>
-          <span class="filter-value">{{ filters.student_class }}</span>
         </div>
         {% endif %}
 
@@ -568,14 +539,11 @@ body {
             <th>Year</th>
             <th>Admission No</th>
             <th>Name</th>
-            <th>Class</th>
-            <th>Contacts</th>
-            <th class="text-right">Prepayment</th>
             <th class="text-right">Balance B/F</th>
-            <th class="text-right">Balance</th>
-            <th class="text-right">Paid</th>
+            <th class="text-right">Prepayment</th>
             <th class="text-right">Total Billed</th>
-            <th class="text-center">Status</th>
+            <th class="text-right">Paid</th>
+            <th class="text-right">Outstanding Balance</th>
           </tr>
         </thead>
         <tbody>
@@ -584,17 +552,32 @@ body {
           <tr class="{% if balance > 10000 %}high-balance{% elif balance > 5000 %}medium-balance{% elif balance > 0 %}low-balance{% endif %}">
             <td>{{ r.term__academic_year__year|default:"—" }}</td>
             <td><strong>{{ r.student__admission_number|default:"—" }}</strong></td>
-            <td>{{ r.student__full_name|default:"—" }}</td>
-            <td>{{ r.student__current_class|default:"—" }}</td>
+            <td>
+              {% if r.student__middle_name %}
+                {{ r.student__first_name }} {{ r.student__middle_name }} {{ r.student__last_name }}
+              {% else %}
+                {{ r.student__first_name }} {{ r.student__last_name }}
+              {% endif %}
+            </td>
+
+            <!-- Balance B/F -->
+            <td class="text-right amount-cell {% if r.total_balance_bf > 0 %}amount-medium{% else %}amount-zero{% endif %}">
+              {{ r.total_balance_bf|floatformat:2|default:"0.00" }}
+            </td>
 
             <!-- Prepayment -->
             <td class="text-right amount-cell {% if r.total_prepayment > 0 %}amount-low{% else %}amount-zero{% endif %}">
               {{ r.total_prepayment|floatformat:2|default:"0.00" }}
             </td>
 
-            <!-- Balance B/F -->
-            <td class="text-right amount-cell {% if r.total_balance_bf > 0 %}amount-medium{% else %}amount-zero{% endif %}">
-              {{ r.total_balance_bf|floatformat:2|default:"0.00" }}
+            <!-- Total Billed -->
+            <td class="text-right amount-cell">
+              {{ r.total_billed|floatformat:2|default:"0.00" }}
+            </td>
+
+            <!-- Amount Paid -->
+            <td class="text-right amount-cell {% if r.total_paid > 0 %}amount-low{% else %}amount-zero{% endif %}">
+              {{ r.total_paid|floatformat:2|default:"0.00" }}
             </td>
 
             <!-- Current Balance -->
@@ -605,42 +588,18 @@ body {
               {% else %}amount-zero{% endif %}">
               {{ balance|floatformat:2 }}
             </td>
-
-            <!-- Amount Paid -->
-            <td class="text-right amount-cell {% if r.total_paid > 0 %}amount-low{% else %}amount-zero{% endif %}">
-              {{ r.total_paid|floatformat:2|default:"0.00" }}
-            </td>
-
-            <!-- Total Billed -->
-            <td class="text-right amount-cell">
-              {{ r.total_billed|floatformat:2|default:"0.00" }}
-            </td>
-
-            <!-- Status -->
-            <td class="text-center">
-              {% if balance == 0 %}
-                <span class="status-badge status-paid">Paid</span>
-              {% elif r.total_paid > 0 %}
-                <span class="status-badge status-partial">Partial</span>
-              {% elif balance > 0 %}
-                <span class="status-badge status-overdue">Due</span>
-              {% else %}
-                <span class="status-badge status-pending">Pending</span>
-              {% endif %}
-            </td>
           </tr>
           {% endwith %}
           {% endfor %}
         </tbody>
         <tfoot>
           <tr class="totals-row">
-            <th colspan="5" class="text-right">GRAND TOTALS</th>
-            <th class="text-right">{{ totals.total_prepayment|floatformat:2|default:"0.00" }}</th>
+            <th colspan="3" class="text-right">GRAND TOTALS</th>
             <th class="text-right">{{ totals.total_balance_bf|floatformat:2|default:"0.00" }}</th>
-            <th class="text-right">{{ totals.total_balance|floatformat:2|default:"0.00" }}</th>
-            <th class="text-right">{{ totals.total_paid|floatformat:2|default:"0.00" }}</th>
+            <th class="text-right">{{ totals.total_prepayment|floatformat:2|default:"0.00" }}</th>
             <th class="text-right">{{ totals.total_billed|floatformat:2|default:"0.00" }}</th>
-            <th></th>
+            <th class="text-right">{{ totals.total_paid|floatformat:2|default:"0.00" }}</th>
+            <th class="text-right">{{ totals.total_balance|floatformat:2|default:"0.00" }}</th>
           </tr>
         </tfoot>
       </table>
@@ -660,9 +619,6 @@ body {
           <div>
             • Balance B/F: Balance brought forward from previous term<br>
             • Prepayment: Credit carried forward from previous term<br>
-            • Status colors: <span class="status-badge status-overdue" style="padding:0 3px;">High</span>
-            <span class="status-badge status-partial" style="padding:0 3px;">Medium</span>
-            <span class="status-badge status-paid" style="padding:0 3px;">Low/Paid</span>
           </div>
 
           <div class="balance-legend">

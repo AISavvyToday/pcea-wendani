@@ -920,14 +920,13 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             })
 
         context = {
-            'rows': processed_rows,
+            'rows': grouped_qs,  # Pass the queryset directly, not processed_rows
             'totals': totals,
             'filters': {
                 'start_date': start_date,
                 'end_date': end_date,
                 'academic_year': academic_year,
                 'term': term,
-                'student_class': student_class,
                 'balance_op': balance_op,
                 'balance_amt': balance_amt,
             },
