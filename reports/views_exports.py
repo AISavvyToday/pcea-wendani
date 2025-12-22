@@ -291,6 +291,8 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import FeesCollectionFilterForm
+        from datetime import datetime as dt
+        from django.utils import timezone
 
         # Initialize form
         form = FeesCollectionFilterForm(request.GET or None)
@@ -307,10 +309,13 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         # Base queryset
         payments_qs = Payment.objects.all()
 
+        # Fix datetime warnings - convert dates to timezone-aware datetimes
         if start_date:
-            payments_qs = payments_qs.filter(payment_date__gte=start_date)
+            start_datetime = timezone.make_aware(dt.combine(start_date, dt.min.time()))
+            payments_qs = payments_qs.filter(payment_date__gte=start_datetime)
         if end_date:
-            payments_qs = payments_qs.filter(payment_date__lte=end_date)
+            end_datetime = timezone.make_aware(dt.combine(end_date, dt.max.time()))
+            payments_qs = payments_qs.filter(payment_date__lte=end_datetime)
 
         if selected_class:
             payments_qs = payments_qs.filter(
@@ -350,29 +355,31 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         for p in payments_list:
             # Get student details
             student_name = None
-            student_class = None
+            student_class_obj = None  # Keep as object first
             admission = None
 
             if hasattr(p, 'student') and p.student:
                 student_name = getattr(p.student, 'full_name', '')
-                student_class = getattr(p.student, 'current_class', '')
+                student_class_obj = getattr(p.student, 'current_class', '')
                 admission = getattr(p.student, 'admission_number', '')
             elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
                 st = p.invoice.student
                 student_name = getattr(st, 'full_name', '')
-                student_class = getattr(st, 'current_class', '')
+                student_class_obj = getattr(st, 'current_class', '')
                 admission = getattr(st, 'admission_number', '')
             else:
                 student_name = getattr(p, 'payer_name', '') or getattr(p, 'payment_source', '') or '—'
 
-            bank_display = getattr(p, 'bank', '') or getattr(p, 'payment_source', '') or getattr(p, 'payment_method',
-                                                                                                 '')
+            # Convert Class object to string
+            student_class = str(student_class_obj) if student_class_obj else ''
+
+            bank_display = getattr(p, 'bank', '') or getattr(p, 'payment_source', '') or getattr(p, 'payment_method', '')
 
             ws.cell(row=row_num, column=1, value=p.payment_date.strftime('%Y-%m-%d %H:%M') if p.payment_date else '')
             ws.cell(row=row_num, column=2, value=getattr(p, 'receipt_number', getattr(p, 'payment_reference', '')))
             ws.cell(row=row_num, column=3, value=student_name)
             ws.cell(row=row_num, column=4, value=admission or '')
-            ws.cell(row=row_num, column=5, value=student_class or '')
+            ws.cell(row=row_num, column=5, value=student_class or '')  # Now a string
             amount_cell = ws.cell(row=row_num, column=6, value=float(p.amount or 0))
             format_money_cell(amount_cell)
             ws.cell(row=row_num, column=7, value=getattr(p, 'payment_method', ''))
@@ -393,7 +400,6 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         bytes_data = workbook_to_bytes(wb)
         filename = f"fees-collections-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
         return xlsx_response(bytes_data, filename)
-
 
 class FeesCollectionPDFView(LoginRequiredMixin, View):
     """Generates PDF for fees collection report."""
