@@ -1,6 +1,6 @@
 <!-- reports/invoice_report.html -->
 {% extends "base/base.html" %}
-{% load humanize static %}
+{% load humanize static custom_filters %}
 
 {% block title %}Invoice Summary Report{% endblock %}
 
@@ -30,7 +30,11 @@
 <div class="content-wrapper">
   <div class="page-header d-flex justify-content-between align-items-center mb-3">
     <h3 class="page-title">Invoice Summary Report</h3>
-
+    <div class="no-print">
+      <button class="btn btn-outline-secondary" onclick="window.print();">
+        <i class="mdi mdi-printer"></i> Print
+      </button>
+    </div>
   </div>
 
   <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
@@ -55,12 +59,7 @@
           <label class="form-label">Term</label>
           {{ form.term }}
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Show Categories with Zero Billed</label>
-          <div class="mt-2">{{ form.show_zero_rows }}</div>
-        </div>
-
-        <div class="col-12 d-flex gap-2 mt-2">
+               <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Generate Report</button>
           <a href="{% url 'reports:invoice_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>
@@ -87,7 +86,7 @@
         <h5 style="margin-top:8px">Invoice Summary Report</h5>
         <small class="text-muted">
           {{ academic_year.year }} • Term {{ term|title }}
-          {% if not form.cleaned_data.show_zero_rows %} • Excluding zero-billed categories {% endif %}
+          {% if form.cleaned_data and not form.cleaned_data.show_zero_rows %} • Excluding zero-billed categories {% endif %}
         </small>
       </div>
     </div>
@@ -151,17 +150,14 @@
                 </td>
                 <td class="text-center">
                   {% if row.total_billed > 0 %}
-                    {% with row.collected|default:0 as collected_amount %}
-                    {% with row.total_billed as billed_amount %}
-                      {% widthratio collected_amount billed_amount 100 as percentage %}
+                    {% with row.collected|default:0|divide:row.total_billed|multiply:100 as percentage %}
                       {% if percentage >= 100 %}
-                        <span class="badge bg-success">{{ percentage }}%</span>
+                        <span class="badge bg-success">{{ percentage|floatformat:0 }}%</span>
                       {% elif percentage >= 50 %}
-                        <span class="badge bg-warning">{{ percentage }}%</span>
+                        <span class="badge bg-warning">{{ percentage|floatformat:0 }}%</span>
                       {% else %}
-                        <span class="badge bg-danger">{{ percentage }}%</span>
+                        <span class="badge bg-danger">{{ percentage|floatformat:0 }}%</span>
                       {% endif %}
-                    {% endwith %}
                     {% endwith %}
                   {% else %}
                     <span class="badge bg-secondary">N/A</span>
@@ -193,13 +189,10 @@
                 </th>
                 <th class="text-center">
                   {% if totals.billed > 0 %}
-                    {% with totals.collected|default:0 as total_collected %}
-                    {% with totals.billed as total_billed %}
-                      {% widthratio total_collected total_billed 100 as total_percentage %}
+                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as total_percentage %}
                       <span class="badge {% if total_percentage >= 100 %}bg-success{% elif total_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
-                        {{ total_percentage }}%
+                        {{ total_percentage|floatformat:0 }}%
                       </span>
-                    {% endwith %}
                     {% endwith %}
                   {% endif %}
                 </th>
