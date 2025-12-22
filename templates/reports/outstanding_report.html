@@ -5,9 +5,7 @@
 
 {% block extra_head %}
 <style>
-  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
-  .report-letterhead img.logo { max-height: 70px; }
-  .report-title { text-align:center; width:100%; }
+  .report-title { text-align:center; width:100%; margin-bottom:12px; }
   .report-table { width:100%; border-collapse: collapse; }
   .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
   .report-table thead th { background: #f2f2f2; font-weight:700; }
@@ -65,22 +63,17 @@
       <div class="card-body text-muted">Adjust filters and click Run to generate the outstanding balances report.</div>
     </div>
   {% else %}
-    <div class="report-letterhead">
-      {% if SCHOOL_LOGO_URL %}
-        <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="logo">
-      {% endif %}
-      <div class="report-title">
-        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
-        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
-        <h5 style="margin-top:8px">Balances Report</h5>
-        <small class="text-muted">
-          {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
-          {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
-          {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
-          {% if filters.term %} • Term: {{ filters.term }} {% endif %}
-          {% if filters.student_class %} • Class: {{ filters.student_class }} {% endif %}
-        </small>
-      </div>
+    <div class="report-title">
+      <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+      <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+      <h5 style="margin-top:8px">Balances Report</h5>
+      <small class="text-muted">
+        {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
+        {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+        {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
+        {% if filters.term %} • Term: {{ filters.term }} {% endif %}
+        {% if filters.student_class %} • Class: {{ filters.student_class }} {% endif %}
+      </small>
     </div>
 
     <div class="card">
@@ -92,7 +85,6 @@
                 <th>Year</th>
                 <th>Admission No</th>
                 <th>Student Name</th>
-                <th>Class</th>
                 <th class="text-right">Balance B/F</th>
                 <th class="text-right">Prepayment</th>
                 <th class="text-right">Total Billed</th>
@@ -112,7 +104,6 @@
                     {{ r.student__first_name }} {{ r.student__last_name }}
                   {% endif %}
                 </td>
-                <td>{{ r.student__current_class }}</td>
                 <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
@@ -123,7 +114,7 @@
             </tbody>
             <tfoot>
               <tr>
-                <th colspan="4">Total</th>
+                <th colspan="3">Total</th>
                 <th class="text-right">KES {{ totals.total_balance_bf|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>
