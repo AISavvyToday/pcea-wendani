@@ -202,7 +202,32 @@ class TransportRouteAdmin(admin.ModelAdmin):
 
 @admin.register(TransportFee)
 class TransportFeeAdmin(admin.ModelAdmin):
-    list_display = ['route', 'academic_year', 'term', 'amount', 'is_active']
+    list_display = ['route', 'academic_year', 'term', 'amount_display', 'half_amount_display', 'is_active']
     list_filter = ['academic_year', 'term', 'route', 'is_active']
     search_fields = ['route__name']
-    list_editable = ['amount', 'is_active']
+    list_editable = ['amount', 'half_amount', 'is_active']
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('route', 'academic_year', 'term')
+        }),
+        ('Fee Amounts', {
+            'fields': ('amount', 'half_amount'),
+            'description': 'Set the full trip amount. Half trip amount can be set explicitly or will be calculated as half of full amount.'
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        })
+    )
+
+    def amount_display(self, obj):
+        return f"KES {obj.amount}"
+
+    amount_display.short_description = 'Full Amount'
+
+    def half_amount_display(self, obj):
+        if obj.half_amount:
+            return f"KES {obj.half_amount}"
+        return f"KES {obj.amount / 2} (auto-calculated)"
+
+    half_amount_display.short_description = 'Half Amount'

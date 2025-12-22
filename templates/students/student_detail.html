@@ -287,7 +287,9 @@
           <!-- Finance Panel -->
           <div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
             <h5 class="mb-3">Finance</h5>
-
+            <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info ms-2">
+        <i class="mdi mdi-account-card-details"></i> Student Statement
+    </a>
             <!-- Summary -->
             <div class="row mb-3">
               <div class="col-sm-3">

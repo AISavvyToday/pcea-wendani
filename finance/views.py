@@ -1617,34 +1617,78 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        invoice = self.object
+
         if self.request.POST:
-            context['formset'] = InvoiceItemFormSet(self.request.POST, instance=self.object)
+            context['formset'] = InvoiceItemFormSet(
+                self.request.POST,
+                instance=self.object,
+                form_kwargs={'invoice': invoice}
+            )
         else:
-            context['formset'] = InvoiceItemFormSet(instance=self.object)
+            context['formset'] = InvoiceItemFormSet(
+                instance=self.object,
+                form_kwargs={'invoice': invoice}
+            )
+
+        # Add fee map for JavaScript
+        if invoice and invoice.term:
+            from academics.models import TransportFee
+            import json
+            from decimal import Decimal
+
+            transport_fees = TransportFee.objects.filter(
+                academic_year=invoice.term.academic_year,
+                term=invoice.term.term,
+                is_active=True
+            ).select_related('route')
+
+            fee_map = {}
+            for tf in transport_fees:
+                half_amount = tf.half_amount if tf.half_amount is not None else tf.amount / 2
+                fee_map[str(tf.route.id)] = {
+                    'full': float(tf.amount),
+                    'half': float(half_amount)
+                }
+
+            context['fee_map_json'] = json.dumps(fee_map)
+
+        # Add initial totals for display
+        context['current_subtotal'] = invoice.subtotal or Decimal('0.00')
+        context['current_discount'] = invoice.discount_amount or Decimal('0.00')
+        context['current_total'] = invoice.total_amount or Decimal('0.00')
+
         return context
 
     def form_valid(self, form):
         invoice = form.instance
-        formset = InvoiceItemFormSet(self.request.POST, instance=invoice)
+        formset = InvoiceItemFormSet(
+            self.request.POST,
+            instance=invoice,
+            form_kwargs={'invoice': invoice}
+        )
 
         if not formset.is_valid():
+            # Log formset errors for debugging
+            for i, f in enumerate(formset.forms):
+                if f.errors:
+                    logger.error(f"Form {i} errors in invoice edit: {f.errors}")
+
             messages.error(self.request, "There are errors in the invoice items. Please fix them.")
             return self.render_to_response(self.get_context_data(form=form))
 
         try:
             with db_transaction.atomic():
-                # Save invoice header first (notes/due_date)
-                self.object = form.save(commit=False)
-                self.object.save()
+                # Save invoice header (notes/due_date)
+                self.object = form.save()
 
                 # Process each form in formset to handle transport amounts
                 instances = formset.save(commit=False)
 
-                # Track saved instance pks in case of deletion
                 for inst in instances:
-                    # If this item is transport and amount is blank or zero, try to auto-fill using TransportFee
-                    if inst.category == 'transport':
-                        # If transport_route and trip_type provided, attempt to fetch transport fee for the invoice.term
+                    # If this item is transport and route is selected, auto-calculate amount
+                    if inst.category == 'transport' and inst.transport_route:
+                        # If transport_route and trip_type provided, fetch transport fee
                         if inst.transport_route and inst.transport_trip_type:
                             try:
                                 tf = TransportFee.objects.get(
@@ -1653,47 +1697,112 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                                     term=invoice.term.term,
                                     is_active=True
                                 )
-                                inst.amount = tf.get_amount_for_trip(inst.transport_trip_type)
-                                # description override for clarity
-                                inst.description = inst.description or f"Transport ({inst.transport_route.name} - {inst.get_transport_trip_type_display()})"
-                            except TransportFee.DoesNotExist:
-                                # No configured fee: leave amount as 0.0 (user can edit manually)
-                                inst.amount = inst.amount or Decimal('0.00')
-                                inst.description = inst.description or f"Transport ({inst.transport_route.name if inst.transport_route else 'Route not configured'})"
-                        else:
-                            # If route/trip not provided and amount blank, default to zero
-                            inst.amount = inst.amount or Decimal('0.00')
+                                # Calculate amount based on trip type
+                                if inst.transport_trip_type == 'half':
+                                    amount = tf.half_amount if tf.half_amount is not None else tf.amount / 2
+                                else:
+                                    amount = tf.amount
 
-                    # Ensure net_amount & discount logic will compute on save()
+                                inst.amount = amount
+
+                                # Update description if empty
+                                if not inst.description or inst.description.strip() == '':
+                                    trip_display = "Half Trip" if inst.transport_trip_type == 'half' else "Full Trip"
+                                    inst.description = f"Transport ({inst.transport_route.name} - {trip_display})"
+
+                            except TransportFee.DoesNotExist:
+                                # No configured fee: keep existing amount or set to 0
+                                if not inst.amount or inst.amount == Decimal('0.00'):
+                                    inst.amount = Decimal('0.00')
+                                    inst.description = inst.description or f"Transport ({inst.transport_route.name} - Fee not configured)"
+                        else:
+                            # If route selected but no trip type, default to full trip
+                            if inst.transport_route and not inst.transport_trip_type:
+                                inst.transport_trip_type = 'full'
+                                try:
+                                    tf = TransportFee.objects.get(
+                                        route=inst.transport_route,
+                                        academic_year=invoice.term.academic_year,
+                                        term=invoice.term.term,
+                                        is_active=True
+                                    )
+                                    inst.amount = tf.amount
+                                    if not inst.description or inst.description.strip() == '':
+                                        inst.description = f"Transport ({inst.transport_route.name} - Full Trip)"
+                                except TransportFee.DoesNotExist:
+                                    if not inst.amount or inst.amount == Decimal('0.00'):
+                                        inst.amount = Decimal('0.00')
+                    elif inst.category == 'transport' and not inst.transport_route:
+                        # Transport item without route - ensure amount is set
+                        if not inst.amount or inst.amount == Decimal('0.00'):
+                            inst.amount = Decimal('0.00')
+
+                    # Ensure net_amount is calculated properly
+                    if inst.discount_applied is None:
+                        inst.discount_applied = Decimal('0.00')
+                    if inst.amount is None:
+                        inst.amount = Decimal('0.00')
+
+                    inst.net_amount = (inst.amount or Decimal('0.00')) - (inst.discount_applied or Decimal('0.00'))
                     inst.save()
 
                 # Handle deleted forms
                 for inst in formset.deleted_objects:
-                    # mark as inactive or delete
                     inst.delete()
 
-                # Recalculate invoice totals from remaining items
-                subtotal = Decimal('0.00')
-                total_discount = Decimal('0.00')
-                # consider only active items linked to this invoice
-                items_qs = invoice.items.filter()  # keep default filter (no active flag in this model)
-                for it in items_qs:
-                    subtotal += it.amount or Decimal('0.00')
-                    total_discount += it.discount_applied or Decimal('0.00')
+                # Recalculate invoice totals from all items
+                self.recalculate_invoice_totals(invoice)
 
-                invoice.subtotal = subtotal
-                invoice.discount_amount = total_discount
-                invoice.total_amount = invoice.subtotal - invoice.discount_amount
-
-                # Recompute balance using same business rule (balance_bf & prepayment)
-                invoice.balance = (invoice.total_amount + (invoice.balance_bf or Decimal('0.00')) - (invoice.amount_paid or Decimal('0.00'))) + (invoice.prepayment or Decimal('0.00'))
-                # Update status using the existing method
+                # Update payment status
                 invoice.update_payment_status()
-                invoice.save()
 
             messages.success(self.request, f"Invoice {invoice.invoice_number} updated successfully.")
             return redirect('finance:invoice_detail', pk=invoice.pk)
+
         except Exception as e:
             logger.exception("Failed to update invoice")
-            messages.error(self.request, f"Error updating invoice: {e}")
+            messages.error(self.request, f"Error updating invoice: {str(e)}")
             return self.render_to_response(self.get_context_data(form=form))
+
+    def recalculate_invoice_totals(self, invoice):
+        """Recalculate invoice totals from items."""
+        from decimal import Decimal
+
+        # Get all active items for this invoice
+        items = invoice.items.all()
+
+        # Calculate totals
+        subtotal = Decimal('0.00')
+        total_discount = Decimal('0.00')
+
+        for item in items:
+            subtotal += item.amount or Decimal('0.00')
+            total_discount += item.discount_applied or Decimal('0.00')
+
+        # Update invoice fields
+        invoice.subtotal = subtotal
+        invoice.discount_amount = total_discount
+        invoice.total_amount = subtotal - total_discount
+
+        # Recompute balance using the correct formula
+        balance_bf = invoice.balance_bf or Decimal('0.00')
+        prepayment = invoice.prepayment or Decimal('0.00')
+        amount_paid = invoice.amount_paid or Decimal('0.00')
+
+        # Formula: (total + balance_bf - prepayment) - amount_paid
+        invoice.balance = (invoice.total_amount + balance_bf - prepayment) - amount_paid
+
+        # Ensure balance is not negative due to overpayment
+        if invoice.balance < Decimal('0.00'):
+            # If overpaid, set balance to 0 and adjust prepayment
+            invoice.prepayment = abs(invoice.balance)
+            invoice.balance = Decimal('0.00')
+
+        invoice.save(update_fields=[
+            'subtotal', 'discount_amount', 'total_amount',
+            'balance', 'prepayment', 'updated_at'
+        ])
+
+        logger.info(f"Recalculated totals for invoice {invoice.invoice_number}: "
+                    f"Subtotal={subtotal}, Discount={total_discount}, "
+                    f"Total={invoice.total_amount}, Balance={invoice.balance}")

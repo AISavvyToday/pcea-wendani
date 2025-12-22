@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.forms import inlineformset_factory
 
 from .models import FeeStructure, FeeItem, Discount, StudentDiscount, Invoice, InvoiceItem
-from academics.models import AcademicYear, Term, TransportRoute
+from academics.models import AcademicYear, Term, TransportRoute, TransportFee
 from students.models import Student
 from core.models import FeeCategory, GradeLevel, TermChoices
 
@@ -354,45 +354,123 @@ class InvoiceEditForm(forms.ModelForm):
             'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
 
+
 class InvoiceItemForm(forms.ModelForm):
     # show transport fields
     transport_route = forms.ModelChoiceField(
         queryset=TransportRoute.objects.all(),
         required=False,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'form-select transport-route'})
     )
     transport_trip_type = forms.ChoiceField(
         choices=InvoiceItem.TRIP_CHOICES,
         required=False,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'form-select transport-trip-type'})
     )
 
     class Meta:
         model = InvoiceItem
         fields = ['description', 'category', 'amount', 'discount_applied', 'transport_route', 'transport_trip_type']
         widgets = {
-            'description': forms.TextInput(attrs={'class': 'form-control'}),
-            'category': forms.Select(attrs={'class': 'form-select'}),
-            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'discount_applied': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'description': forms.TextInput(attrs={'class': 'form-control item-description'}),
+            'category': forms.Select(
+                attrs={'class': 'form-select item-category', 'onchange': 'toggleTransportFields(this)'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control item-amount', 'step': '0.01'}),
+            'discount_applied': forms.NumberInput(attrs={'class': 'form-control item-discount', 'step': '0.01'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        # Get invoice from kwargs if available
+        self.invoice = kwargs.pop('invoice', None)
+        super().__init__(*args, **kwargs)
+
+        # If we have an invoice, filter transport routes with fees for this term
+        if self.invoice and self.invoice.term:
+            from django.db.models import Case, When, Value, F
+            from django.db.models.functions import Concat
+
+            # Get transport fees for this term
+            transport_fees = TransportFee.objects.filter(
+                academic_year=self.invoice.term.academic_year,
+                term=self.invoice.term.term,
+                is_active=True
+            ).select_related('route')
+
+            # Create a mapping of route IDs to fee info for JavaScript
+            self.fee_info = {}
+            for tf in transport_fees:
+                half_amount = tf.half_amount if tf.half_amount is not None else tf.amount / 2
+                self.fee_info[str(tf.route.id)] = {
+                    'full': float(tf.amount),
+                    'half': float(half_amount),
+                    'full_display': f"KES {tf.amount}",
+                    'half_display': f"KES {half_amount}"
+                }
+
+            # Get routes that have fees configured for this term
+            routes_with_fees = TransportRoute.objects.filter(
+                id__in=[tf.route.id for tf in transport_fees]
+            ).distinct()
+
+            # Create enhanced choices with fee information
+            route_choices = [('', '--------')]
+            for route in routes_with_fees:
+                fee = next((tf for tf in transport_fees if tf.route.id == route.id), None)
+                if fee:
+                    half_amount = fee.half_amount if fee.half_amount is not None else fee.amount / 2
+                    label = f"{route.name} (Full: KES {fee.amount} | Half: KES {half_amount})"
+                else:
+                    label = f"{route.name} (No fee configured)"
+                route_choices.append((route.id, label))
+
+            self.fields['transport_route'].choices = route_choices
+            self.fields['transport_route'].queryset = routes_with_fees
+
+            # Set initial transport trip type to full if not set
+            if self.instance and self.instance.category == 'transport' and not self.instance.transport_trip_type:
+                self.initial['transport_trip_type'] = 'full'
+
+        # Set up widget attributes for JavaScript
+        if self.instance and self.instance.category == 'transport':
+            self.fields['transport_route'].widget.attrs.update({
+                'data-initial-value': str(self.instance.transport_route.id) if self.instance.transport_route else ''
+            })
+            self.fields['transport_trip_type'].widget.attrs.update({
+                'data-initial-value': self.instance.transport_trip_type or 'full'
+            })
 
     def clean(self):
         cleaned = super().clean()
         category = cleaned.get('category')
-        # If category is transport and route/trip_type provided, amount may be left blank — handle later in view
         amount = cleaned.get('amount')
-        if category != 'transport':
+        transport_route = cleaned.get('transport_route')
+        transport_trip_type = cleaned.get('transport_trip_type')
+
+        if category == 'transport':
+            # For transport items, amount can be auto-calculated if route is selected
+            if transport_route and not amount:
+                # Amount will be auto-calculated in the view
+                pass
+            elif transport_route and transport_trip_type and self.invoice:
+                # Try to get the fee for display purposes
+                try:
+                    tf = TransportFee.objects.get(
+                        route=transport_route,
+                        academic_year=self.invoice.term.academic_year,
+                        term=self.invoice.term.term,
+                        is_active=True
+                    )
+                    # Just validate, don't set amount here - view will handle it
+                except TransportFee.DoesNotExist:
+                    if not amount or amount == Decimal('0.00'):
+                        self.add_error('transport_route',
+                                       'No transport fee configured for this route in the current term.')
+        else:
             # For non-transport items ensure amount is present and non-negative
             if amount in (None, ''):
                 self.add_error('amount', 'Amount is required for non-transport items.')
             elif amount is not None and amount < Decimal('0.00'):
                 self.add_error('amount', 'Amount must be a non-negative number.')
-        else:
-            # If transport, allow amount to be empty; view will populate it based on transport fee.
-            if (not cleaned.get('transport_route')) or (not cleaned.get('transport_trip_type')):
-                # It's valid to have an empty transport item (user might want to enter amount manually)
-                pass
 
         return cleaned
 
