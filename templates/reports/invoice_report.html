@@ -1,392 +1,265 @@
-{# templates/reports/invoice_report.html #}
-{% extends 'base/base.html' %}
+{% extends "base/base.html" %}
 {% load humanize static %}
-{% block title %}Invoice Report{% endblock %}
+
+{% block title %}Invoice Summary Report{% endblock %}
 
 {% block extra_head %}
 <style>
-  /* Print-friendly letterhead styling - matches invoice_print.html */
-  .report-letterhead {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-    padding: 12px;
-    border: 1px solid #ccc;
-    background: white;
-  }
-  .report-letterhead .logos {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .report-letterhead img.logo {
-    height: 60px;
-    width: auto;
-    max-height: 70px;
-  }
-  .report-title {
-    text-align: center;
-    flex: 1;
-    padding: 0 20px;
-  }
-  .report-meta {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #444;
-    text-align: center;
-    background: #f9f9f9;
-    padding: 6px;
-    border-radius: 4px;
-  }
-  .report-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    margin-top: 15px;
-  }
-  .report-table th, .report-table td {
-    border: 1px solid #ddd;
-    padding: 8px 10px;
-    text-align: left;
-  }
-  .report-table thead th {
-    background: #f7f7f7;
-    font-weight: 700;
-    border-bottom: 2px solid #333;
-  }
-  .report-table tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  .report-table tbody tr:hover {
-    background-color: #f0f0f0;
-  }
-  .text-right { text-align: right; }
-  .text-center { text-align: center; }
-  .report-footer {
-    margin-top: 20px;
-    font-size: 11px;
-    color: #333;
-    border-top: 1px dashed #ddd;
-    padding-top: 12px;
-  }
-  .bank-list {
-    margin: 6px 0 0 0;
-    padding-left: 16px;
-    list-style-type: none;
-  }
-  .bank-list li {
-    margin-bottom: 4px;
-    padding-left: 5px;
-  }
-  .highlight {
-    background-color: #fffacd;
-    padding: 3px 6px;
-    border-radius: 3px;
-    font-weight: bold;
+/* ===============================
+   RECEIPT-STYLE PRINT LAYOUT
+   =============================== */
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #222;
+  font-size: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  box-sizing: border-box;
+  background: #fff;
+  margin: 0 auto;
+}
+
+.receipt {
+  border: 1px solid #ccc;
+  padding: 12px;
+}
+
+/* ===== Header ===== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header .logos {
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  height: 60px;
+  width: auto;
+}
+
+.school-title {
+  flex: 1;
+  text-align: center;
+}
+
+.school-title h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.school-title h4 {
+  margin: 2px 0 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.small {
+  font-size: 11px;
+  color: #444;
+}
+
+/* ===== Meta ===== */
+.meta {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #444;
+}
+
+/* ===== Tables ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+th, td {
+  padding: 6px 8px;
+  border: 1px solid #e6e6e6;
+  vertical-align: middle;
+}
+
+th {
+  background: #f7f7f7;
+  font-weight: 600;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* ===== Totals ===== */
+.totals-row th {
+  background: #eee;
+  font-weight: 700;
+}
+
+/* ===== Footer ===== */
+.footer {
+  margin-top: 14px;
+  font-size: 11px;
+  color: #333;
+  border-top: 1px dashed #ddd;
+  padding-top: 8px;
+}
+
+.bank-list {
+  margin: 6px 0 0 0;
+  padding-left: 16px;
+}
+
+/* ===== Print ===== */
+@media print {
+  .no-print {
+    display: none !important;
   }
 
-  /* Print styles - matches invoice_print.html */
-  @media print {
-    .no-print { display: none !important; }
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 12px;
-      color: #000;
-    }
-    .report-letterhead {
-      border: none;
-      padding: 0;
-      margin-bottom: 10px;
-    }
-    .report-letterhead img.logo {
-      height: 50px;
-    }
-    .page-break { page-break-after: always; }
-    .page-container {
-      width: 210mm;
-      min-height: 297mm;
-      padding: 15mm;
-      box-sizing: border-box;
-      margin: 0 auto;
-    }
-    .report-table {
-      border: 1px solid #000;
-    }
-    .report-table th {
-      background: #e0e0e0 !important;
-      -webkit-print-color-adjust: exact;
-    }
+  .page {
+    margin: 0;
+    box-shadow: none;
   }
-
-  /* Non-print adjustments */
-  @media screen {
-    .page-container {
-      max-width: 100%;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .content-wrapper {
-      background: #f5f5f5;
-      padding: 20px;
-    }
-  }
-
-  /* Action buttons */
-  .action-buttons {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    padding: 15px;
-    background: white;
-    border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-  .action-buttons .btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="content-wrapper">
-  <div class="page-header d-flex justify-content-between align-items-center mb-3">
-    <h3 class="page-title">Invoice Summary Report</h3>
-    <div class="no-print">
-      <div class="action-buttons">
-        <button class="btn btn-outline-secondary" onclick="window.print();">
-          <i class="mdi mdi-printer"></i> Print Report
-        </button>
-        <a class="btn btn-success" target="_blank"
-           href="{% url 'reports:invoice_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-          <i class="mdi mdi-file-excel"></i> Download Excel
-        </a>
-        <a class="btn btn-outline-danger" target="_blank"
-           href="{% url 'reports:invoice_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-          <i class="mdi mdi-file-pdf"></i> Download PDF
-        </a>
+<div class="page">
+  <div class="receipt">
+
+    <!-- ===== HEADER ===== -->
+    <div class="header">
+      <div class="logos">
+        {% if SCHOOL_LOGO_URL %}
+          <img src="{{ SCHOOL_LOGO_URL }}" class="logo">
+        {% endif %}
       </div>
-    </div>
-  </div>
 
-  <div class="card no-print mb-4">
-    <div class="card-header bg-light">
-      <h5 class="mb-0">Report Filters</h5>
-    </div>
-    <div class="card-body">
-      <form method="get" class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label">{{ form.academic_year.label }}</label>
-          {{ form.academic_year }}
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">{{ form.term.label }}</label>
-          {{ form.term }}
-        </div>
-        <div class="col-md-3">
-          <div class="form-check mt-4 pt-2">
-            {{ form.show_zero_rows }}
-            <label class="form-check-label" for="{{ form.show_zero_rows.id_for_label }}">
-              {{ form.show_zero_rows.label }}
-            </label>
-          </div>
-        </div>
-        <div class="col-md-2">
-          <div class="d-grid">
-            <button class="btn btn-primary mt-4" type="submit">
-              <i class="mdi mdi-chart-bar"></i> Generate Report
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  {% if report_rows is None %}
-    <div class="alert alert-info">
-      <i class="mdi mdi-information-outline"></i>
-      Select academic year and term, then click "Generate Report" to view the invoice summary.
-    </div>
-  {% else %}
-    <div class="page-container">
-      <!-- Letterhead matching invoice_print.html -->
-      <div class="report-letterhead">
-        <div class="logos">
-          {% if SCHOOL_LOGO_URL %}
-            <img src="{{ SCHOOL_LOGO_URL }}" alt="School Logo" class="logo">
-          {% endif %}
-        </div>
-        <div class="report-title">
-          <h2 style="margin:0; color: #2c3e50;">{{ SCHOOL_NAME }}</h2>
-          {% if SCHOOL_ADDRESS or SCHOOL_CONTACT %}
-          <div class="small text-muted" style="margin-top: 4px;">
-            {% if SCHOOL_ADDRESS %}{{ SCHOOL_ADDRESS }}{% endif %}
+      <div class="school-title">
+        <h2>{{ SCHOOL_NAME }}</h2>
+        {% if SCHOOL_ADDRESS or SCHOOL_CONTACT %}
+          <div class="small">
+            {{ SCHOOL_ADDRESS }}
             {% if SCHOOL_ADDRESS and SCHOOL_CONTACT %} • {% endif %}
-            {% if SCHOOL_CONTACT %}{{ SCHOOL_CONTACT }}{% endif %}
+            {{ SCHOOL_CONTACT }}
           </div>
-          {% endif %}
-          <h4 style="margin-top:12px; color: #34495e;">Invoice Summary Report</h4>
-          {% if academic_year and term %}
-          <div class="highlight" style="display: inline-block; margin-top: 8px;">
-            {{ academic_year.year }} - Term {{ term }}
+        {% endif %}
+        <h4>Invoice Summary Report</h4>
+        {% if academic_year and term %}
+          <div class="small">
+            <strong>{{ academic_year.year }} – Term {{ term }}</strong>
           </div>
-          {% endif %}
-        </div>
-        <div class="logos">
-          {% if SPONSOR_LOGO_URL %}
-            <img src="{{ SPONSOR_LOGO_URL }}" alt="Sponsor Logo" class="logo">
-          {% endif %}
-        </div>
+        {% endif %}
       </div>
 
-      <div class="report-meta">
-        <strong>Report Period:</strong> {{ academic_year.year }} - Term {{ term }}
-        &nbsp;|&nbsp; <strong>Generated:</strong> {{ now|date:"d M Y H:i" }}
-        &nbsp;|&nbsp; <strong>By:</strong> {{ request.user.get_full_name }}
+      <div class="logos">
+        {% if SPONSOR_LOGO_URL %}
+          <img src="{{ SPONSOR_LOGO_URL }}" class="logo">
+        {% endif %}
       </div>
+    </div>
 
-      <div class="table-responsive">
-        <table class="report-table">
-          <thead>
-            <tr>
-              <th style="width:50%;" class="text-center">FEE CATEGORY</th>
-              <th class="text-right">Total Billed (KES)</th>
-              <th class="text-right">Collected (KES)</th>
-              <th class="text-right">Outstanding (KES)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in report_rows %}
-            <tr>
-              <td class="text-center"><strong>{{ r.category|upper }}</strong></td>
-              <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
-              <td class="text-right">KES {{ r.collected|floatformat:2|intcomma }}</td>
-              <td class="text-right">
-                {% if r.outstanding > 0 %}
-                  <span style="color:#c00; font-weight:bold">KES {{ r.outstanding|floatformat:2|intcomma }}</span>
-                {% else %}
-                  <span style="color:#080">KES {{ r.outstanding|floatformat:2|intcomma }}</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-          <tfoot>
-            <tr style="background-color: #e8f4f8; font-weight: bold;">
-              <th class="text-center">TOTAL</th>
-              <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
-              <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
-              <th class="text-right">
-                {% if totals.outstanding > 0 %}
-                  <span style="color:#c00">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
-                {% else %}
-                  <span style="color:#080">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
-                {% endif %}
-              </th>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+    <!-- ===== META ===== -->
+    <div class="meta">
+      Printed: {{ now|date:"d M Y H:i" }}
+      &nbsp;|&nbsp;
+      By: {{ request.user.get_full_name|default:request.user.username }}
+    </div>
 
-      <!-- Summary Statistics -->
-      <div class="row mt-4">
-        <div class="col-md-4">
-          <div class="card text-white bg-primary mb-3">
-            <div class="card-body text-center">
-              <h5 class="card-title">Total Billed</h5>
-              <h2 class="card-text">KES {{ totals.billed|floatformat:2|intcomma }}</h2>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card text-white bg-success mb-3">
-            <div class="card-body text-center">
-              <h5 class="card-title">Collected</h5>
-              <h2 class="card-text">KES {{ totals.collected|floatformat:2|intcomma }}</h2>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card text-white {% if totals.outstanding > 0 %}bg-danger{% else %}bg-info{% endif %} mb-3">
-            <div class="card-body text-center">
-              <h5 class="card-title">Outstanding</h5>
-              <h2 class="card-text">KES {{ totals.outstanding|floatformat:2|intcomma }}</h2>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- ===== SUMMARY TABLE ===== -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40%" class="text-center">Fee Category</th>
+          <th style="width:20%" class="text-right">Billed (KES)</th>
+          <th style="width:20%" class="text-right">Collected (KES)</th>
+          <th style="width:20%" class="text-right">Balance (KES)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report_rows %}
+        <tr>
+          <td>{{ row.category }}</td>
+          <td class="text-right">{{ row.billed|intcomma }}</td>
+          <td class="text-right">{{ row.collected|intcomma }}</td>
+          <td class="text-right">
+            {% if row.balance < 0 %}
+              <span style="color:#d9534f;">{{ row.balance|intcomma }}</span>
+            {% elif row.balance > 0 %}
+              <span style="color:#f0ad4e;">{{ row.balance|intcomma }}</span>
+            {% else %}
+              <span style="color:#5cb85c;">0</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="text-center small">
+            No invoice data available.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
 
-      <!-- Collection Rate -->
-      {% if totals.billed > 0 %}
-      <div class="progress mt-3" style="height: 25px;">
-        <div class="progress-bar bg-success" role="progressbar"
-             style="width: {% widthratio totals.collected totals.billed 100 %}%"
-             aria-valuenow="{% widthratio totals.collected totals.billed 100 %}"
-             aria-valuemin="0" aria-valuemax="100">
-          Collection Rate: {% widthratio totals.collected totals.billed 100 %}%
-        </div>
-      </div>
+      {% if totals %}
+      <tfoot>
+        <tr class="totals-row">
+          <th class="text-right">TOTAL</th>
+          <th class="text-right">{{ totals.billed|intcomma }}</th>
+          <th class="text-right">{{ totals.collected|intcomma }}</th>
+          <th class="text-right">{{ totals.balance|intcomma }}</th>
+        </tr>
+      </tfoot>
       {% endif %}
+    </table>
 
-      <div class="report-footer">
-        <div><strong>Banking & Payment Details</strong></div>
-        <ul class="bank-list">
-          {% if BANK_DETAILS.equity %}
+    <!-- ===== FOOTER ===== -->
+    <div class="footer">
+      <strong>Banking & Payment Details</strong>
+      <ul class="bank-list">
+        {% if BANK_DETAILS.equity %}
           <li>
-            <i class="mdi mdi-bank"></i>
             <strong>{{ BANK_DETAILS.equity.name }}</strong> —
             {{ BANK_DETAILS.equity.account_name }} •
-            Account No: <span class="highlight">{{ BANK_DETAILS.equity.account_no }}</span>
+            {{ BANK_DETAILS.equity.account_no }}
           </li>
-          {% endif %}
-          {% if BANK_DETAILS.coop %}
+        {% endif %}
+        {% if BANK_DETAILS.coop %}
           <li>
-            <i class="mdi mdi-bank"></i>
             <strong>{{ BANK_DETAILS.coop.name }}</strong> —
             {{ BANK_DETAILS.coop.account_name }} •
-            Account No: <span class="highlight">{{ BANK_DETAILS.coop.account_no }}</span>
+            {{ BANK_DETAILS.coop.account_no }}
           </li>
-          {% endif %}
-          {% if BANK_DETAILS.paybills %}
-            {% for paybill in BANK_DETAILS.paybills %}
-            <li>
-              <i class="mdi mdi-cellphone"></i>
-              <strong>{{ paybill.label }}</strong> —
-              Account No: <span class="highlight">{{ paybill.acc_format }}</span>
-            </li>
-            {% endfor %}
-          {% endif %}
-        </ul>
-        <div class="mt-2 text-muted">
-          <small>
-            <i class="mdi mdi-information-outline"></i>
-            Report generated electronically. For official purposes, this document is valid without signature.
-          </small>
-        </div>
+        {% endif %}
+        {% for p in BANK_DETAILS.paybills %}
+          <li>
+            <strong>{{ p.label }}</strong> — {{ p.acc_format }}
+          </li>
+        {% endfor %}
+      </ul>
+
+      <div class="small" style="margin-top:6px;">
+        This report was generated electronically and is valid without signature.
       </div>
     </div>
-  {% endif %}
+
+  </div>
 </div>
-
-<script>
-// Auto-submit form when academic year or term changes for better UX
-document.addEventListener('DOMContentLoaded', function() {
-  const academicYearSelect = document.getElementById('{{ form.academic_year.auto_id }}');
-  const termSelect = document.getElementById('{{ form.term.auto_id }}');
-
-  if (academicYearSelect && termSelect) {
-    academicYearSelect.addEventListener('change', function() {
-      this.form.submit();
-    });
-    termSelect.addEventListener('change', function() {
-      this.form.submit();
-    });
-  }
-});
-</script>
 {% endblock %}
