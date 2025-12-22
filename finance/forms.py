@@ -236,16 +236,10 @@ class PaymentRecordForm(forms.Form):
     )
 
     PAYMENT_METHOD_CHOICES = [
-
-        ('mpesa', 'M-PESA'),
-        ('equity_bank', 'Equity Bank'),
-        ('coop_bank', 'Co-operative Bank'),
-        ('manual_entry', 'Manual Entry'),
+        ('mobile_money', 'Mobile Money'),
+        ('bank_deposit', 'Bank Deposit'),
         ('cheque', 'Cheque'),
-        ('bank_transfer', 'Bank Transfer')
-
     ]
-
 
     payment_method = forms.ChoiceField(
         choices=PAYMENT_METHOD_CHOICES,

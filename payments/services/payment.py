@@ -29,9 +29,9 @@ class PaymentService:
     """Service for creating and managing payment records."""
 
     GATEWAY_TO_METHOD = {
-        "equity": PaymentMethod.EQUITY_BANK,
-        "coop": PaymentMethod.COOP_BANK,
-        "mpesa": PaymentMethod.MPESA,
+        "mpesa": PaymentMethod.MOBILE_MONEY,
+        "equity": PaymentMethod.BANK_DEPOSIT,
+        "coop": PaymentMethod.BANK_DEPOSIT,
     }
 
     @staticmethod
@@ -101,6 +101,7 @@ class PaymentService:
         student: Student,
         amount,
         payment_method: str,
+        payment_source=None,
         received_by=None,
         payment_date=None,
         payer_name: str = "",

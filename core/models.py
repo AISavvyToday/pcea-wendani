@@ -57,14 +57,11 @@ class TermChoices(models.TextChoices):
     TERM_2 = 'term_2', 'Term 2'
     TERM_3 = 'term_3', 'Term 3'
 
-
 class PaymentMethod(models.TextChoices):
-    MPESA = 'mpesa', 'M-PESA'
-    EQUITY_BANK = 'equity_bank', 'Equity Bank'
-    COOP_BANK = 'coop_bank', 'Co-operative Bank'
-    CASH = 'manual_entry', 'Manual Entry'
+    MOBILE_MONEY = 'mobile_money', 'Mobile Money'
+    BANK_DEPOSIT = 'bank_deposit', 'Bank Deposit'
     CHEQUE = 'cheque', 'Cheque'
-    BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
+
 
 class PaymentSource(models.TextChoices):
     EQUITY_BANK = 'equity_bank', 'Equity Bank'

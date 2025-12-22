@@ -1171,7 +1171,7 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         )
 
         messages.success(self.request, f'Payment of KES {payment.amount:,.2f} recorded successfully.')
-        return redirect('finance:payment_detail', pk=payment.pk)
+        return redirect('finance:payment_list')
 
 
 class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
