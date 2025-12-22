@@ -12,15 +12,16 @@
   --success: #2e7d32;
   --danger: #c62828;
   --muted: #6b7280;
-  --border: #e5e7eb;
-  --bg-soft: #f9fafb;
+  --border: #d1d5db;
+  --header-bg: #f1f5f9;
+  --row-alt: #f9fafb;
 }
 
 /* ===== Base ===== */
 body {
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
   font-size: 13px;
-  color: #1f2937;
+  color: #111827;
 }
 
 /* ===== Action Bar ===== */
@@ -28,115 +29,110 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .action-bar a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 6px;
-  text-decoration: none;
+  padding: 7px 14px;
+  font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0,0,0,.08);
-}
-
-.btn-pdf {
-  background: #dc2626;
+  border-radius: 4px;
+  text-decoration: none;
   color: #fff;
 }
 
-.btn-excel {
-  background: #16a34a;
-  color: #fff;
-}
+.btn-pdf { background: #dc2626; }
+.btn-excel { background: #16a34a; }
 
-/* ===== Report Card ===== */
+/* ===== Report Wrapper ===== */
 .report-box {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 18px 20px;
+  padding: 14px;
 }
 
-/* ===== Header ===== */
-.report-box h3 {
+/* ===== Title ===== */
+.report-title {
   text-align: center;
-  font-size: 18px;
-  margin-bottom: 6px;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--primary);
+  margin-bottom: 4px;
 }
 
-/* ===== Meta ===== */
-.meta {
-  text-align: center;
+/* ===== Meta Table ===== */
+.meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
   font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 18px;
 }
 
-.meta strong {
-  color: #111827;
+.meta-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
 }
 
-/* ===== Table ===== */
-table {
+.meta-label {
+  background: var(--header-bg);
+  font-weight: 600;
+  width: 20%;
+}
+
+/* ===== Main Table ===== */
+.report-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-thead th {
-  background: var(--bg-soft);
-  border-bottom: 2px solid var(--border);
-  padding: 10px 12px;
-  font-weight: 700;
+.report-table th,
+.report-table td {
+  border: 1px solid var(--border);
+  padding: 9px 10px;
+}
+
+.report-table thead th {
+  background: var(--header-bg);
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: .04em;
+  font-weight: 700;
+  text-align: left;
 }
 
-tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+.report-table tbody tr:nth-child(even) {
+  background: var(--row-alt);
 }
 
-tbody tr:nth-child(even) {
-  background: #fcfcfd;
-}
-
-tfoot th {
-  padding: 12px;
+.report-table tfoot th {
+  background: #e5e7eb;
   font-weight: 800;
-  background: #f3f4f6;
-  border-top: 2px solid var(--border);
 }
 
 /* ===== Alignment ===== */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 
-/* ===== Amount Styling ===== */
+/* ===== Amount Colors ===== */
 .amount-positive {
   color: var(--success);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .amount-negative {
   color: var(--danger);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* ===== Footer ===== */
 .footer {
-  margin-top: 18px;
-  padding-top: 10px;
-  font-size: 12px;
+  margin-top: 12px;
+  font-size: 11px;
   color: var(--muted);
-  border-top: 1px dashed #d1d5db;
   text-align: center;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
 }
 
 /* ===== Print ===== */
@@ -147,7 +143,6 @@ tfoot th {
 
   .report-box {
     border: none;
-    border-radius: 0;
     padding: 0;
   }
 }
@@ -158,37 +153,42 @@ tfoot th {
 
 <!-- ===== ACTION BUTTONS ===== -->
 <div class="action-bar no-print">
-  <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
-     class="btn-pdf">
-     ⬇ Download PDF
+  <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}" class="btn-pdf">
+    Download PDF
   </a>
-
-  <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
-     class="btn-excel">
-     ⬇ Export Excel
+  <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}" class="btn-excel">
+    Export Excel
   </a>
 </div>
 
 <div class="report-box">
 
-  <h3>Invoice Summary Report</h3>
+  <div class="report-title">Invoice Summary Report</div>
 
-  <div class="meta">
-    Academic Year: <strong>{{ academic_year.year }}</strong> &nbsp;|&nbsp;
-    Term: <strong>{{ term }}</strong> &nbsp;|&nbsp;
-    Generated: {{ now|date:"d M Y H:i" }} &nbsp;|&nbsp;
-    By:
-    <strong>
-      {% if request.user.get_full_name %}
-        {{ request.user.get_full_name }}
-      {% else %}
-        {{ request.user.email }}
-      {% endif %}
-    </strong>
-  </div>
+  <!-- ===== META INFO AS TABLE ===== -->
+  <table class="meta-table">
+    <tr>
+      <td class="meta-label">Academic Year</td>
+      <td>{{ academic_year.year }}</td>
+      <td class="meta-label">Term</td>
+      <td>{{ term }}</td>
+    </tr>
+    <tr>
+      <td class="meta-label">Generated</td>
+      <td>{{ now|date:"d M Y H:i" }}</td>
+      <td class="meta-label">Generated By</td>
+      <td>
+        {% if request.user.get_full_name %}
+          {{ request.user.get_full_name }}
+        {% else %}
+          {{ request.user.email }}
+        {% endif %}
+      </td>
+    </tr>
+  </table>
 
-  <!-- ===== TABLE ===== -->
-  <table>
+  <!-- ===== MAIN REPORT TABLE ===== -->
+  <table class="report-table">
     <thead>
       <tr>
         <th style="width:40%">Fee Category</th>
