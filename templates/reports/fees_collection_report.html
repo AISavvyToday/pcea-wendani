@@ -56,10 +56,7 @@
           <label class="form-label">End</label>
           {{ form.end_date }}
         </div>
-        <div class="col-md-3">
-          <label class="form-label">Class</label>
-          {{ form.student_class }}
-        </div>
+
         <div class="col-md-3">
           <label class="form-label">Bank</label>
           {{ form.bank }}
@@ -96,7 +93,6 @@
       <small class="text-muted">
         {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
         {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
-        {% if filters.student_class %} • Class: {{ filters.student_class }} {% endif %}
         {% if filters.bank %} • Bank: {{ filters.bank }} {% endif %}
       </small>
     </div>

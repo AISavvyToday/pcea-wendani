@@ -1,5 +1,4 @@
 <!-- reports/invoice_report.html -->
-
 {% extends "base/base.html" %}
 {% load humanize static %}
 
@@ -7,413 +6,243 @@
 
 {% block extra_head %}
 <style>
-:root {
-  --primary: #1f3c88;
-  --success: #2e7d32;
-  --danger: #c62828;
-  --muted: #6b7280;
-  --border: #d1d5db;
-  --header-bg: #f1f5f9;
-  --row-alt: #f9fafb;
-}
+  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+  .report-letterhead img.logo { max-height: 70px; }
+  .report-title { text-align:center; width:100%; }
+  .report-table { width:100%; border-collapse: collapse; }
+  .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
+  .report-table thead th { background: #f2f2f2; font-weight:700; }
+  .no-print { margin-bottom: 10px; }
+  @media print { .no-print { display:none !important; } }
 
-/* ===== Base ===== */
-body {
-  font-family: "Inter", "Segoe UI", Arial, sans-serif;
-  font-size: 13px;
-  color: #111827;
-}
-
-/* ===== Action Bar ===== */
-.action-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 15px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.filter-form {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.filter-group label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
-.filter-group select {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  min-width: 160px;
-  background: white;
-}
-
-.filter-group select:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
-.export-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 4px;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-pdf {
-  background: #dc2626;
-  color: white;
-}
-
-.btn-pdf:hover {
-  background: #b91c1c;
-  transform: translateY(-1px);
-}
-
-.btn-excel {
-  background: #16a34a;
-  color: white;
-}
-
-.btn-excel:hover {
-  background: #15803d;
-  transform: translateY(-1px);
-}
-
-/* ===== Report Wrapper ===== */
-.report-box {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 20px;
-  margin-top: 10px;
-}
-
-/* ===== Title ===== */
-.report-title {
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--primary);
-  margin-bottom: 4px;
-}
-
-/* ===== Meta Table ===== */
-.meta-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 20px 0;
-  font-size: 12px;
-}
-
-.meta-table td {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-}
-
-.meta-label {
-  background: var(--header-bg);
-  font-weight: 600;
-  width: 20%;
-  color: var(--primary);
-}
-
-/* ===== Main Table ===== */
-.report-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin: 20px 0;
-}
-
-.report-table th,
-.report-table td {
-  border: 1px solid var(--border);
-  padding: 10px 12px;
-}
-
-.report-table thead th {
-  background: var(--header-bg);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: .04em;
-  font-weight: 700;
-  text-align: left;
-  color: var(--primary);
-}
-
-.report-table tbody tr:nth-child(even) {
-  background: var(--row-alt);
-}
-
-.report-table tbody tr:hover {
-  background: #f3f4f6;
-}
-
-.report-table tfoot th {
-  background: #e5e7eb;
-  font-weight: 800;
-  color: var(--primary);
-}
-
-/* ===== Alignment ===== */
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-
-/* ===== Amount Colors ===== */
-.amount-positive {
-  color: var(--success);
-  font-weight: 700;
-}
-
-.amount-negative {
-  color: var(--danger);
-  font-weight: 700;
-}
-
-/* ===== Status Indicators ===== */
-.no-data {
-  text-align: center;
-  padding: 40px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.no-data i {
-  font-size: 48px;
-  margin-bottom: 10px;
-  opacity: 0.3;
-}
-
-/* ===== Footer ===== */
-.report-footer {
-  margin-top: 20px;
-  font-size: 11px;
-  color: var(--muted);
-  text-align: center;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  font-style: italic;
-}
-
-/* ===== Responsive ===== */
-@media (max-width: 768px) {
-  .action-bar {
-    flex-direction: column;
-    gap: 15px;
-    align-items: stretch;
-  }
-
-  .filter-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filter-group select {
-    width: 100%;
-  }
-
-  .export-buttons {
-    justify-content: center;
-  }
-}
-
-/* ===== Print ===== */
-@media print {
-  .action-bar {
-    display: none !important;
-  }
-
-  .report-box {
-    border: none;
-    padding: 0;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-}
+  /* Custom invoice styles */
+  .amount-positive { color: #28a745; font-weight: 600; }
+  .amount-negative { color: #dc3545; font-weight: 600; }
+  .amount-zero { color: #6c757d; }
+  .summary-cards { display: flex; gap: 15px; margin-bottom: 15px; }
+  .summary-card { flex: 1; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; text-align: center; }
+  .summary-label { font-size: 12px; color: #6c757d; margin-bottom: 5px; }
+  .summary-value { font-size: 18px; font-weight: bold; }
 </style>
 {% endblock %}
 
 {% block content %}
-
-<div class="action-bar no-print">
-  <form method="get" class="filter-form">
-    <div class="filter-group">
-      <label for="id_academic_year">Academic Year</label>
-      <select name="academic_year" id="id_academic_year" class="form-select" onchange="this.form.submit()">
-        {% for year in form.academic_year.field.queryset %}
-          <option value="{{ year.id }}" {% if year.id == academic_year.id %}selected{% endif %}>{{ year.year }}</option>
-        {% endfor %}
-      </select>
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <h3 class="page-title">Invoice Summary Report</h3>
+    <div class="no-print">
+      <button class="btn btn-outline-secondary" onclick="window.print();">
+        <i class="mdi mdi-printer"></i> Print
+      </button>
     </div>
+  </div>
 
-    <div class="filter-group">
-      <label for="id_term">Term</label>
-      <select name="term" id="id_term" class="form-select" onchange="this.form.submit()">
-        {% for term_value, term_label in form.term.field.choices %}
-          <option value="{{ term_value }}" {% if term_value == term %}selected{% endif %}>{{ term_label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </form>
-
-  <div class="export-buttons">
-    <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
-       class="btn btn-pdf">
-       <i class="fas fa-file-pdf"></i> Download PDF
+  <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
+    <a class="btn btn-success" target="_blank"
+       href="{% url 'reports:invoice_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
     </a>
-    <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
-       class="btn btn-excel">
-       <i class="fas fa-file-excel"></i> Export Excel
+    <a class="btn btn-outline-secondary" target="_blank"
+       href="{% url 'reports:invoice_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
     </a>
   </div>
-</div>
 
-<div class="report-box">
+  <div class="card mb-3 no-print">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Academic Year</label>
+          {{ form.academic_year }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Term</label>
+          {{ form.term }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Show Categories with Zero Billed</label>
+          <div class="mt-2">{{ form.show_zero_rows }}</div>
+        </div>
 
-  <div class="report-title">Invoice Summary Report</div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary" type="submit">Generate Report</button>
+          <a href="{% url 'reports:invoice_report' %}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  {% if report_rows %}
-    <!-- ===== META INFO AS TABLE ===== -->
-    <table class="meta-table">
-      <tr>
-        <td class="meta-label">Academic Year</td>
-        <td>{{ academic_year.year }}</td>
-        <td class="meta-label">Term</td>
-        <td>{{ term|title }}</td>
-      </tr>
-      <tr>
-        <td class="meta-label">Generated</td>
-        <td>{{ now|date:"d M Y H:i" }}</td>
-        <td class="meta-label">Generated By</td>
-        <td>
-          {% if request.user.get_full_name %}
-            {{ request.user.get_full_name }}
-          {% else %}
-            {{ request.user.email }}
-          {% endif %}
-        </td>
-      </tr>
-    </table>
-
-    <!-- ===== MAIN REPORT TABLE ===== -->
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th style="width:40%">Fee Category</th>
-          <th class="text-right">Billed (KES)</th>
-          <th class="text-right">Collected (KES)</th>
-          <th class="text-right">Outstanding (KES)</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for row in report_rows %}
-        <tr>
-          <td>{{ row.category|title }}</td>
-          <td class="text-right">{{ row.total_billed|floatformat:2|intcomma }}</td>
-          <td class="text-right">{{ row.collected|floatformat:2|intcomma }}</td>
-          <td class="text-right">
-            {% if row.outstanding > 0 %}
-              <span class="amount-negative">{{ row.outstanding|floatformat:2|intcomma }}</span>
-            {% elif row.outstanding < 0 %}
-              <span class="amount-positive">{{ row.outstanding|floatformat:2|intcomma }}</span>
-            {% else %}
-              {{ row.outstanding|floatformat:2|intcomma }}
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-
-      <tfoot>
-        <tr>
-          <th class="text-right">TOTAL</th>
-          <th class="text-right">{{ totals.billed|floatformat:2|intcomma }}</th>
-          <th class="text-right">{{ totals.collected|floatformat:2|intcomma }}</th>
-          <th class="text-right">
-            {% if totals.outstanding > 0 %}
-              <span class="amount-negative">{{ totals.outstanding|floatformat:2|intcomma }}</span>
-            {% elif totals.outstanding < 0 %}
-              <span class="amount-positive">{{ totals.outstanding|floatformat:2|intcomma }}</span>
-            {% else %}
-              {{ totals.outstanding|floatformat:2|intcomma }}
-            {% endif %}
-          </th>
-        </tr>
-      </tfoot>
-    </table>
+  {% if report_rows is none %}
+    <div class="card">
+      <div class="card-body text-muted">
+        Use the controls above to generate the invoice summary report.
+        Select an academic year and term to view the report.
+      </div>
+    </div>
   {% else %}
-    <!-- ===== NO DATA STATE ===== -->
-    <div class="no-data">
-      <i class="fas fa-chart-bar"></i>
-      <h3>No Data Available</h3>
-      <p>Select an academic year and term to generate the report.</p>
+    <!-- Letterhead -->
+    <div class="report-letterhead">
+      {% if SCHOOL_LOGO_URL %}
+        <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="logo">
+      {% endif %}
+      <div class="report-title">
+        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+        <h5 style="margin-top:8px">Invoice Summary Report</h5>
+        <small class="text-muted">
+          {{ academic_year.year }} • Term {{ term|title }}
+          {% if not form.cleaned_data.show_zero_rows %} • Excluding zero-billed categories {% endif %}
+        </small>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    {% if totals %}
+    <div class="summary-cards">
+      <div class="summary-card">
+        <div class="summary-label">Total Billed</div>
+        <div class="summary-value">KES {{ totals.billed|floatformat:2|intcomma }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Total Collected</div>
+        <div class="summary-value">KES {{ totals.collected|floatformat:2|intcomma }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Net Outstanding</div>
+        <div class="summary-value {% if totals.outstanding > 0 %}amount-negative{% elif totals.outstanding < 0 %}amount-positive{% else %}amount-zero{% endif %}">
+          KES {{ totals.outstanding|floatformat:2|intcomma }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="report-table table table-sm">
+            <thead>
+              <tr>
+                <th>Fee Category</th>
+                <th class="text-right">Billed (KES)</th>
+                <th class="text-right">Collected (KES)</th>
+                <th class="text-right">Outstanding (KES)</th>
+                <th class="text-center">Collection %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report_rows %}
+              <tr>
+                <td>
+                  <strong>{{ row.category|title }}</strong>
+                  {% if row.category == 'tuition' %}
+                    <span class="badge bg-primary ms-1">Core</span>
+                  {% elif row.category == 'transport' %}
+                    <span class="badge bg-info ms-1">Optional</span>
+                  {% elif row.category == 'meals' %}
+                    <span class="badge bg-success ms-1">Meals</span>
+                  {% endif %}
+                </td>
+                <td class="text-right">KES {{ row.total_billed|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ row.collected|floatformat:2|intcomma }}</td>
+                <td class="text-right">
+                  {% if row.outstanding > 0 %}
+                    <span class="amount-negative">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% elif row.outstanding < 0 %}
+                    <span class="amount-positive">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% else %}
+                    <span class="amount-zero">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if row.total_billed > 0 %}
+                    {% with percentage=row.collected|default:0|divide:row.total_billed|multiply:100 %}
+                      {% if percentage >= 100 %}
+                        <span class="badge bg-success">{{ percentage|floatformat:0 }}%</span>
+                      {% elif percentage >= 50 %}
+                        <span class="badge bg-warning">{{ percentage|floatformat:0 }}%</span>
+                      {% else %}
+                        <span class="badge bg-danger">{{ percentage|floatformat:0 }}%</span>
+                      {% endif %}
+                    {% endwith %}
+                  {% else %}
+                    <span class="badge bg-secondary">N/A</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <i class="mdi mdi-information-outline me-1"></i>
+                  No invoice data found for the selected filters.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th class="text-right">TOTALS</th>
+                <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
+                <th class="text-right">
+                  {% if totals.outstanding > 0 %}
+                    <span class="amount-negative">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% elif totals.outstanding < 0 %}
+                    <span class="amount-positive">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% else %}
+                    <span class="amount-zero">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% endif %}
+                </th>
+                <th class="text-center">
+                  {% if totals.billed > 0 %}
+                    {% with percentage=totals.collected|default:0|divide:totals.billed|multiply:100 %}
+                      <span class="badge {% if percentage >= 100 %}bg-success{% elif percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+                        {{ percentage|floatformat:0 }}%
+                      </span>
+                    {% endwith %}
+                  {% endif %}
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="mt-4">
+          <div class="row">
+            <div class="col-md-6">
+              <h6>Report Notes:</h6>
+              <ul class="small text-muted mb-0">
+                <li>Report shows aggregated billing and collection by fee category</li>
+                <li>Outstanding = Billed - Collected (positive values indicate amounts due)</li>
+                <li>Negative outstanding indicates overpayment/credit balance</li>
+                <li>Collection percentage based on collected vs billed amounts</li>
+              </ul>
+            </div>
+            <div class="col-md-6 text-end">
+              <div class="small text-muted">
+                Generated by {{ request.user.get_full_name }}<br>
+                on {{ now|date:"d M Y H:i" }}<br>
+                Report ID: INV-{{ now|date:"Ymd-His" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   {% endif %}
-
-
 </div>
 
-<!-- Font Awesome for icons -->
-<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+<!-- Template filters for calculations -->
+{% comment %}
+Note: You'll need to create a custom template filter for division.
+Add this to your templatetags directory:
+from django import template
+register = template.Library()
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Auto-submit form when filters change
-  const selects = document.querySelectorAll('.filter-form select');
-  selects.forEach(select => {
-    select.addEventListener('change', function() {
-      this.form.submit();
-    });
-  });
-
-  // Add loading state to export buttons
-  const exportButtons = document.querySelectorAll('.export-buttons a');
-  exportButtons.forEach(button => {
-    button.addEventListener('click', function(e) {
-      if (!this.classList.contains('disabled')) {
-        const originalText = this.innerHTML;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-        this.classList.add('disabled');
-
-        // Re-enable after 5 seconds
-        setTimeout(() => {
-          this.innerHTML = originalText;
-          this.classList.remove('disabled');
-        }, 5000);
-      }
-    });
-  });
-});
-</script>
+@register.filter
+def divide(value, arg):
+    try:
+        return float(value) / float(arg)
+    except (ValueError, ZeroDivisionError):
+        return 0
+{% endcomment %}
 {% endblock %}
