@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>{{ SCHOOL_NAME }} - Invoice Report</title>
+    <style>
+        /* Same styling as invoice_print.html */
+        body { font-family: Arial, Helvetica, sans-serif; color:#222; font-size:12px; margin:0; padding:0; }
+        .page { width: 210mm; min-height: 297mm; padding: 12mm; box-sizing: border-box; background: white; margin: 0 auto; }
+        .receipt { border: 1px solid #ccc; padding: 12px; margin-bottom: 14px; }
+        .header { display:flex; align-items:center; justify-content:space-between; }
+        .header .logos { display:flex; align-items:center; gap:12px; }
+        .logo { height:60px; width:auto; }
+        .school-title { text-align:center; flex:1; }
+        h2, h3 { margin:0; padding:0; }
+        .meta { margin-top:8px; font-size:12px; color:#444; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; }
+        th, td { padding:6px 8px; border:1px solid #e6e6e6; text-align:left; vertical-align: middle; }
+        th { background:#f7f7f7; }
+        .text-right { text-align:right; }
+        .small { font-size:11px; color:#555; }
+        .footer { margin-top:12px; font-size:11px; color:#333; border-top:1px dashed #ddd; padding-top:8px; }
+        .bank-list { margin:6px 0 0 0; padding-left:16px; }
+
+        @media print {
+            .page { margin:0; box-shadow:none; }
+            .no-print { display:none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="receipt">
+            <div class="header">
+                <div class="logos">
+                    <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo" />
+                </div>
+                <div class="school-title">
+                    <h2>{{ SCHOOL_NAME }}</h2>
+                    <div class="small">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
+                    <h3>Invoice Summary Report</h3>
+                </div>
+                <div class="logos">
+                    <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo" />
+                </div>
+            </div>
+
+            <div class="meta">
+                <strong>Period:</strong> {{ academic_year.year }} - Term {{ term }}
+                &nbsp;|&nbsp; Generated: {{ generated_on|date:"d M Y H:i" }}
+                &nbsp;|&nbsp; By: {{ generated_by }}
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:50%;">ITEM</th>
+                        <th class="text-right">Total Billed</th>
+                        <th class="text-right">Collected</th>
+                        <th class="text-right">Outstanding</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in report_rows %}
+                    <tr>
+                        <td>{{ r.category|capfirst }}</td>
+                        <td class="text-right">KES {{ r.total_billed|floatformat:2 }}</td>
+                        <td class="text-right">KES {{ r.collected|floatformat:2 }}</td>
+                        <td class="text-right">KES {{ r.outstanding|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th>Total</th>
+                        <th class="text-right">KES {{ totals.billed|floatformat:2 }}</th>
+                        <th class="text-right">KES {{ totals.collected|floatformat:2 }}</th>
+                        <th class="text-right">KES {{ totals.outstanding|floatformat:2 }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="footer">
+                <div><strong>Banking Details</strong></div>
+                <ul class="bank-list">
+                    {% if BANK_DETAILS.equity %}
+                    <li>{{ BANK_DETAILS.equity.name }} — {{ BANK_DETAILS.equity.account_name }} Account No: {{ BANK_DETAILS.equity.account_no }}</li>
+                    {% endif %}
+                    {% if BANK_DETAILS.coop %}
+                    <li>{{ BANK_DETAILS.coop.name }} — {{ BANK_DETAILS.coop.account_name }} Account No: {{ BANK_DETAILS.coop.account_no }}</li>
+                    {% endif %}
+                    {% if BANK_DETAILS.paybill_1 %}
+                    <li>{{ BANK_DETAILS.paybill_1.label }} — ACC NO: {{ BANK_DETAILS.paybill_1.acc_format }}</li>
+                    {% endif %}
+                    {% if BANK_DETAILS.paybill_2 %}
+                    <li>{{ BANK_DETAILS.paybill_2.label }} — ACC NO: {{ BANK_DETAILS.paybill_2.acc_format }}</li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

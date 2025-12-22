@@ -274,7 +274,10 @@ class InvoiceItem(BaseModel):
         db_table = 'invoice_items'
 
     def __str__(self):
-        return f"{self.invoice.invoice_number} - {self.description}"
+        if self.category == 'transport' and self.transport_route:
+            trip_display = self.get_transport_trip_type_display() if self.transport_trip_type else 'Trip'
+            return f"{self.description} ({self.transport_route.name} - {trip_display})"
+        return self.description
 
     def save(self, *args, **kwargs):
         # Normalize None values

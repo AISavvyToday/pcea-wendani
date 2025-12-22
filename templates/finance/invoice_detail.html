@@ -1,343 +1,401 @@
 {% extends 'base/base.html' %}
-{% load static humanize %}
+{% load static %}
 
-{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+{% block title %}Edit Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .transport-fields {
+        display: none;
+    }
+
+    .transport-visible .transport-fields {
+        display: table-cell !important;
+    }
+
+    .amount-readonly {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-.timeline {
-    position: relative;
-    padding-left: 20px;
-}
-
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #e0e0e0;
-}
-
-.timeline-item {
-    position: relative;
-    padding-bottom: 15px;
-}
-
-.timeline-item::before {
-    content: '';
-    position: absolute;
-    left: -20px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #4CAF50;
-    border: 2px solid white;
-}
-
-.timeline-content {
-    background: white;
-    padding: 10px 15px;
-    border-radius: 5px;
-    border: 1px solid #e0e0e0;
-}
-</style>
-
 <div class="content-wrapper">
-    <!-- Header Section -->
-    <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="page-title mb-1">Invoice {{ invoice.invoice_number }}</h3>
+            <h3 class="page-title">Edit Invoice: {{ invoice.invoice_number }}</h3>
             <div class="small text-muted">
                 {{ invoice.student.full_name }} • {{ invoice.term }} • {{ invoice.issue_date|date:"d M Y" }}
             </div>
         </div>
-
-        <div class="btn-group mt-2 mt-md-0">
-            <a href="{% url 'finance:invoice_edit' invoice.pk %}" class="btn btn-outline-secondary ms-2">
-    <i class="mdi mdi-pencil"></i> Edit Invoice
-  </a>
-    <a href="{% url 'finance:payment_record' %}?invoice={{ invoice.pk }}" class="btn btn-primary ms-2">
-        <i class="mdi mdi-plus"></i> Record Payment
-    </a>
-    <form method="get" action="{% url 'finance:invoice_receipt_print' invoice.pk %}" target="_blank" class="d-inline-flex">
-        <!-- default 2 copies for LX350; override via copies input if needed -->
-        <input type="hidden" name="copies" value="2" />
-        <input type="hidden" name="mode" value="{% if invoice.amount_paid > 0 %}receipt{% else %}invoice{% endif %}" />
-        <div class="input-group input-group-sm">
-            <input type="text" name="notes" class="form-control" placeholder="Optional print notes (appear on receipt)" style="min-width:260px;" />
-            <button class="btn btn-secondary" type="submit">
-                <i class="mdi mdi-printer"></i>
-                {% if invoice.amount_paid > 0 %} Print Receipt {% else %} Print Invoice {% endif %}
-            </button>
-        </div>
-    </form>
-
-
-    <a href="{% url 'finance:student_statement' invoice.student.pk %}" class="btn btn-info ms-2">
-        <i class="mdi mdi-account-card-details"></i> Student Statement
-    </a>
-</div>
+        <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-secondary">
+            <i class="mdi mdi-arrow-left"></i> Back to Invoice
+        </a>
     </div>
 
     <div class="row">
-        <!-- Main Content Column -->
-        <div class="col-md-8">
-            <div class="card shadow-sm">
+        <div class="col-md-12">
+            <div class="card">
                 <div class="card-body">
-                    <!-- Student & Invoice Details -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <h5 class="mb-3">Student Details</h5>
-                            <table class="table table-sm table-borderless">
-                                <tr>
-                                    <td class="text-muted" style="width: 120px;">Name:</td>
-                                    <td><strong>{{ invoice.student.full_name }}</strong></td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Admission #:</td>
-                                    <td>{{ invoice.student.admission_number }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Grade:</td>
-                                    <td>{{ invoice.student.current_class }}</td>
-                                </tr>
-                                {% if invoice.student.parent %}
-                                <tr>
-                                    <td class="text-muted">Parent:</td>
-                                    <td>{{ invoice.student.parent.full_name }}</td>
-                                </tr>
-                                {% endif %}
-                            </table>
-                        </div>
+                    <h5 class="card-title mb-4">Edit Invoice Items</h5>
 
-                        <div class="col-md-6">
-                            <h5 class="mb-3">Invoice Details</h5>
-                            <table class="table table-sm table-borderless">
-                                <tr>
-                                    <td class="text-muted" style="width: 120px;">Invoice #:</td>
-                                    <td><strong>{{ invoice.invoice_number }}</strong></td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Term:</td>
-                                    <td>{{ invoice.term }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Issue Date:</td>
-                                    <td>{{ invoice.issue_date|date:"d M Y" }}</td>
-                                </tr>
+                    <form method="post" id="invoiceEditForm">
+                        {% csrf_token %}
 
-
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Fee Breakdown Table -->
-                    <h5 class="mb-3">Fee Breakdown & Allocation</h5>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Category</th>
-                                    <th>Description</th>
-                                    <th class="text-right">Amount</th>
-                                    <th class="text-right">Paid</th>
-                                    <th class="text-right">Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item_data in enhanced_items %}
-                                {% with item=item_data.item %}
-                                <tr class="{% if item_data.is_fully_paid %}table-success{% endif %}">
-                                    <td>
-                                        <strong>{{ item.get_category_display }}</strong>
-                                        {% if item_data.payment_count > 0 %}
-                                            <br>
-                                            <small class="text-muted">{{ item_data.payment_count }} payment(s)</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-    {{ item.description }}
-    {% if item.category == 'transport' %}
-      <div class="small text-muted mt-1">
-        Route:
-        {% if item.transport_route %}
-          {{ item.transport_route.name }}
-        {% else %}
-          &mdash;
-        {% endif %}
-        {% if item.transport_trip_type %} • {{ item.get_transport_trip_type_display }}{% endif %}
-      </div>
-    {% endif %}
-</td>
-                                    <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
-                                    <td class="text-right text-success">KES {{ item_data.total_allocated|intcomma }}</td>
-                                    <td class="text-right">
-                                        <span class="{% if item_data.balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                                            KES {{ item_data.balance|intcomma }}
-                                        </span>
-                                    </td>
-                                </tr>
-
-                                <!-- Allocation Details -->
-                                {% if item_data.allocations %}
-                                <tr class="bg-light">
-                                    <td colspan="6" class="p-2">
-                                        <small class="text-muted">Allocation Details:</small>
-                                        <div class="pl-3">
-                                            {% for allocation in item_data.allocations %}
-                                            <div class="d-flex justify-content-between small">
-                                                <span>
-                                                    {{ allocation.payment.payment_reference }}
-                                                    ({{ allocation.payment.payment_date|date:"d M Y" }})
-                                                </span>
-                                                <span class="text-success">KES {{ allocation.amount|intcomma }}</span>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endif %}
-                                {% endwith %}
-                                {% endfor %}
-                            </tbody>
-                            <tfoot class="table-secondary">
-                                <tr>
-                                    <th colspan="2">TOTALS</th>
-                                    <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
-                                    <th class="text-right">KES {{ total_paid|intcomma }}</th>
-                                    <th class="text-right">
-                                        <span class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                                            KES {{ total_balance|intcomma }}
-                                        </span>
-                                    </th>
-                                    <th>
-                                        {% if total_balance <= 0 %}
-                                            <span class="badge badge-success">Fully Paid</span>
-                                        {% elif total_paid > 0 %}
-                                            <span class="badge badge-info">Partially Paid</span>
-                                        {% else %}
-                                            <span class="badge badge-warning">Unpaid</span>
-                                        {% endif %}
-                                    </th>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-
-                    <!-- Payment Summary Cards -->
-                    <div class="mt-4">
-                        <h5 class="mb-3">Payment Summary</h5>
-                        <div class="row text-center">
-                            <div class="col-md-4 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Total Invoiced</h7>
-                                        <h6 class="text-primary">KES {{ total_invoiced|intcomma }}</h6>
-                                    </div>
+                        <!-- Invoice Header Fields -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.notes.label_tag }}
+                                    {{ form.notes }}
                                 </div>
                             </div>
-
-                            <div class="col-md-4 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Total Paid</h7>
-                                        <h6 class="text-success">KES {{ total_paid|intcomma }}</h6>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Balance Due</h7>
-                                        <h6 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                                            KES {{ total_balance|intcomma }}
-                                        </h6>
-                                    </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.due_date.label_tag }}
+                                    {{ form.due_date }}
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Sidebar Column -->
-        <div class="col-md-4">
-            <!-- Payment History Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Payment History</h5>
-                    <p class="text-muted mb-3">
-                        {{ payment_count }} payment(s) recorded for this invoice
-                    </p>
+                        <!-- Invoice Items Table -->
+                        <h6 class="mb-3">Invoice Items</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="invoiceItemsTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 20%;">Category</th>
+                                        <th style="width: 25%;">Description</th>
+                                        <th style="width: 15%;">Amount</th>
+                                        <th style="width: 15%;">Discount</th>
+                                        <th style="width: 15%;">Transport Route</th>
+                                        <th style="width: 10%;">Trip Type</th>
+                                        <th style="width: 5%;">Delete</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="formset-container">
+                                    {{ formset.management_form }}
 
-                    {% if enhanced_payments %}
-                    <div class="timeline">
-                        {% for payment_data in enhanced_payments %}
-                        {% with payment=payment_data.payment %}
-                        <div class="timeline-item mb-3">
-                            <div class="timeline-content">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h6 class="mb-1">
-                                            <a href="{% url 'finance:payment_detail' payment.pk %}">
-                                                {{ payment.payment_reference }}
-                                            </a>
-                                        </h6>
-                                        <small class="text-muted">
-                                            {{ payment.payment_date|date:"d M Y" }} •
-                                            {{ payment.get_payment_method_display }}
-                                            {{ payment.payment_source }}
-                                        </small>
-                                        <div class="mt-1">
-                                            <span class="badge badge-light">Total: KES {{ payment.amount|intcomma }}</span>
-                                            <span class="badge badge-info ms-1">Allocated: KES {{ payment_data.total_allocated|intcomma }}</span>
-                                        </div>
-                                    </div>
-                                    <span class="badge badge-success">KES {{ payment.amount|intcomma }}</span>
-                                </div>
-
-                                <!-- Allocation Breakdown -->
-                                {% if payment_data.allocations %}
-                                <div class="mt-2 pl-3 border-left">
-                                    <small class="text-muted d-block mb-1">Allocated to:</small>
-                                    {% for allocation in payment_data.allocations %}
-                                    <div class="d-flex justify-content-between small">
-                                        <span>{{ allocation.invoice_item.get_category_display }}</span>
-                                        <span class="text-success">KES {{ allocation.amount|intcomma }}</span>
-                                    </div>
+                                    {% for form in formset %}
+                                    <tr class="form-row {% if form.instance.category == 'transport' %}transport-visible{% endif %}"
+                                        data-form-index="{{ forloop.counter0 }}">
+                                        <td>
+                                            {{ form.category }}
+                                            {{ form.id }}
+                                        </td>
+                                        <td>{{ form.description }}</td>
+                                        <td>
+                                            {{ form.amount }}
+                                            <small class="text-muted transport-note" style="display: none;">
+                                                Auto-filled from route
+                                            </small>
+                                        </td>
+                                        <td>{{ form.discount_applied }}</td>
+                                        <td class="transport-fields">
+                                            {{ form.transport_route }}
+                                        </td>
+                                        <td class="transport-fields">
+                                            {{ form.transport_trip_type }}
+                                        </td>
+                                        <td>
+                                            {% if form.instance.pk %}
+                                                {{ form.DELETE }}
+                                            {% else %}
+                                                <button type="button" class="btn btn-sm btn-danger remove-form">
+                                                    <i class="mdi mdi-delete"></i>
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
                                     {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Totals Summary -->
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6>Current Totals:</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Subtotal:</span>
+                                        <span>KES {{ current_subtotal|floatformat:2 }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Discount:</span>
+                                        <span>KES {{ current_discount|floatformat:2 }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Total:</span>
+                                        <span><strong>KES {{ current_total|floatformat:2 }}</strong></span>
+                                    </div>
                                 </div>
-                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-light">
+                                    <h6>Transport Notes:</h6>
+                                    <ul class="small">
+                                        <li>When selecting "Transport" category, choose route and trip type</li>
+                                        <li>Amount will be auto-filled based on selected route</li>
+                                        <li>Amount field becomes read-only for transport items</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
-                        {% endwith %}
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center py-4">
-                        <i class="mdi mdi-wallet-outline mdi-48px text-muted"></i>
-                        <p class="text-muted mt-2">No payments recorded yet</p>
-                    </div>
-                    {% endif %}
 
-                    {% if invoice.balance > 0 %}
-                    <div class="mt-3">
-                        <a href="{% url 'finance:payment_record' %}?student={{ invoice.student.pk }}&invoice={{ invoice.pk }}"
-                           class="btn btn-primary btn-block">
-                            <i class="mdi mdi-plus"></i> Record New Payment
-                        </a>
-                    </div>
-                    {% endif %}
+                        <!-- Buttons -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <button type="button" class="btn btn-outline-primary" id="addItemBtn">
+                                <i class="mdi mdi-plus"></i> Add Another Item
+                            </button>
+                            <div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="mdi mdi-check"></i> Save Changes
+                                </button>
+                                <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-light ml-2">
+                                    Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
-
-
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Fee map from Django context
+    const feeMap = {{ fee_map_json|safe }};
+
+    // Function to toggle transport fields visibility
+    function toggleTransportFields(selectElement) {
+        const row = selectElement.closest('tr.form-row');
+        const isTransport = selectElement.value === 'transport';
+        const amountInput = row.querySelector('.item-amount');
+        const transportNote = row.querySelector('.transport-note');
+
+        // Toggle transport fields
+        if (isTransport) {
+            row.classList.add('transport-visible');
+            amountInput.classList.add('amount-readonly');
+            amountInput.readOnly = true;
+            transportNote.style.display = 'block';
+
+            // Clear and show transport fields
+            const routeSelect = row.querySelector('.transport-route');
+            const tripSelect = row.querySelector('.transport-trip-type');
+            if (routeSelect) {
+                routeSelect.required = true;
+                // Auto-select first option if empty
+                if (!routeSelect.value) {
+                    routeSelect.selectedIndex = 1;
+                    updateTransportAmount(row);
+                }
+            }
+            if (tripSelect && !tripSelect.value) {
+                tripSelect.value = 'full';
+                updateTransportAmount(row);
+            }
+        } else {
+            row.classList.remove('transport-visible');
+            amountInput.classList.remove('amount-readonly');
+            amountInput.readOnly = false;
+            transportNote.style.display = 'none';
+
+            // Clear and hide transport fields
+            const routeSelect = row.querySelector('.transport-route');
+            const tripSelect = row.querySelector('.transport-trip-type');
+            if (routeSelect) {
+                routeSelect.required = false;
+                routeSelect.value = '';
+            }
+            if (tripSelect) {
+                tripSelect.value = '';
+            }
+        }
+    }
+
+    // Function to update transport amount based on route and trip type
+    function updateTransportAmount(row) {
+        const routeSelect = row.querySelector('.transport-route');
+        const tripSelect = row.querySelector('.transport-trip-type');
+        const amountInput = row.querySelector('.item-amount');
+
+        if (routeSelect && tripSelect && amountInput) {
+            const routeId = routeSelect.value;
+            const tripType = tripSelect.value;
+
+            if (routeId && tripType && feeMap[routeId]) {
+                const amount = feeMap[routeId][tripType];
+                amountInput.value = amount.toFixed(2);
+
+                // Update description if empty
+                const descriptionInput = row.querySelector('.item-description');
+                if (descriptionInput && (!descriptionInput.value || descriptionInput.value.trim() === '')) {
+                    const routeName = routeSelect.options[routeSelect.selectedIndex].text;
+                    const tripDisplay = tripType === 'half' ? 'Half Trip' : 'Full Trip';
+                    descriptionInput.value = `Transport (${routeName.split('(')[0].trim()} - ${tripDisplay})`;
+                }
+            }
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize existing forms
+        document.querySelectorAll('.form-row').forEach(row => {
+            const categorySelect = row.querySelector('.item-category');
+            const routeSelect = row.querySelector('.transport-route');
+            const tripSelect = row.querySelector('.transport-trip-type');
+
+            // Set up category change listener
+            if (categorySelect) {
+                categorySelect.addEventListener('change', function() {
+                    toggleTransportFields(this);
+                });
+
+                // Initialize current state
+                toggleTransportFields(categorySelect);
+            }
+
+            // Set up route change listener
+            if (routeSelect) {
+                routeSelect.addEventListener('change', function() {
+                    updateTransportAmount(row);
+                });
+            }
+
+            // Set up trip type change listener
+            if (tripSelect) {
+                tripSelect.addEventListener('change', function() {
+                    updateTransportAmount(row);
+                });
+            }
+        });
+
+        // Add new item button
+        document.getElementById('addItemBtn').addEventListener('click', function() {
+            const formsetContainer = document.getElementById('formset-container');
+            const totalForms = document.getElementById('id_form-TOTAL_FORMS');
+            const formCount = parseInt(totalForms.value);
+
+            // Get the last form to clone structure
+            const lastForm = formsetContainer.querySelector('.form-row:last-child');
+            const newForm = lastForm.cloneNode(true);
+
+            // Update form indices
+            const newIndex = formCount;
+            newForm.innerHTML = newForm.innerHTML.replace(
+                /form-(\d+)-/g,
+                `form-${newIndex}-`
+            );
+
+            // Clear values
+            newForm.querySelectorAll('input, select').forEach(field => {
+                if (field.type !== 'checkbox' && field.type !== 'hidden' && !field.classList.contains('form-control-static')) {
+                    if (field.tagName === 'SELECT') {
+                        field.selectedIndex = 0;
+                    } else {
+                        field.value = '';
+                    }
+                }
+            });
+
+            // Remove delete checkbox, add remove button
+            const deleteCell = newForm.querySelector('td:last-child');
+            deleteCell.innerHTML = `
+                <button type="button" class="btn btn-sm btn-danger remove-form">
+                    <i class="mdi mdi-delete"></i>
+                </button>
+            `;
+
+            // Add to container
+            formsetContainer.appendChild(newForm);
+
+            // Update total forms count
+            totalForms.value = formCount + 1;
+
+            // Initialize new form
+            const categorySelect = newForm.querySelector('.item-category');
+            if (categorySelect) {
+                categorySelect.addEventListener('change', function() {
+                    toggleTransportFields(this);
+                });
+                toggleTransportFields(categorySelect);
+            }
+
+            const routeSelect = newForm.querySelector('.transport-route');
+            if (routeSelect) {
+                routeSelect.addEventListener('change', function() {
+                    updateTransportAmount(newForm);
+                });
+            }
+
+            const tripSelect = newForm.querySelector('.transport-trip-type');
+            if (tripSelect) {
+                tripSelect.addEventListener('change', function() {
+                    updateTransportAmount(newForm);
+                });
+            }
+        });
+
+        // Remove form button
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-form')) {
+                const row = e.target.closest('.form-row');
+                if (row && row.querySelector('.item-category').value === '') {
+                    row.remove();
+
+                    // Update form indices
+                    const forms = document.querySelectorAll('.form-row');
+                    const totalForms = document.getElementById('id_form-TOTAL_FORMS');
+
+                    forms.forEach((form, index) => {
+                        form.setAttribute('data-form-index', index);
+                        form.innerHTML = form.innerHTML.replace(
+                            /form-(\d+)-/g,
+                            `form-${index}-`
+                        );
+                    });
+
+                    totalForms.value = forms.length;
+                } else {
+                    alert('Cannot remove item with data. Please use the delete checkbox for saved items.');
+                }
+            }
+        });
+
+        // Form submission validation
+        document.getElementById('invoiceEditForm').addEventListener('submit', function(e) {
+            let valid = true;
+            let errorMessages = [];
+
+            document.querySelectorAll('.form-row').forEach(row => {
+                const categorySelect = row.querySelector('.item-category');
+                const amountInput = row.querySelector('.item-amount');
+                const routeSelect = row.querySelector('.transport-route');
+
+                if (categorySelect && categorySelect.value === 'transport') {
+                    if (!routeSelect || !routeSelect.value) {
+                        valid = false;
+                        errorMessages.push('Transport items require a route selection');
+                    }
+                }
+
+                if (amountInput && (amountInput.value === '' || parseFloat(amountInput.value) < 0)) {
+                    valid = false;
+                        errorMessages.push('All items require a non-negative amount');
+                    }
+                });
+
+                if (!valid) {
+                    e.preventDefault();
+                    alert('Please fix the following errors:\n\n' + errorMessages.join('\n'));
+                }
+            });
+        });
+    </script>
 {% endblock %}

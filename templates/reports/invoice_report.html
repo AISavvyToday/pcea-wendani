@@ -5,41 +5,82 @@
 
 {% block extra_head %}
 <style>
-  /* Print-friendly letterhead and table styling */
+  /* Print-friendly letterhead styling - matches invoice_print.html */
   .report-letterhead {
     display: flex;
     align-items: center;
-    gap: 16px;
+    justify-content: space-between;
     margin-bottom: 18px;
+    padding: 12px;
+    border: 1px solid #ccc;
+  }
+  .report-letterhead .logos {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   .report-letterhead img.logo {
-    max-height: 70px;
+    height: 60px;
+    width: auto;
   }
   .report-title {
     text-align: center;
-    width: 100%;
+    flex: 1;
+  }
+  .report-meta {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #444;
+    text-align: center;
   }
   .report-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 12px;
   }
   .report-table th, .report-table td {
-    border: 1px solid #222;
+    border: 1px solid #e6e6e6;
     padding: 8px 10px;
   }
   .report-table thead th {
-    background: #f2f2f2;
+    background: #f7f7f7;
     font-weight: 700;
   }
+  .text-right { text-align: right; }
   .report-footer {
     margin-top: 12px;
+    font-size: 11px;
+    color: #333;
+    border-top: 1px dashed #ddd;
+    padding-top: 8px;
+  }
+  .bank-list {
+    margin: 6px 0 0 0;
+    padding-left: 16px;
   }
 
+  /* Print styles - matches invoice_print.html */
   @media print {
     .no-print { display: none !important; }
-    body { margin: 0; }
-    .report-letterhead img.logo { max-height: 60px; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; }
+    .report-letterhead { border: none; }
+    .report-letterhead img.logo { height: 50px; }
     .page-break { page-break-after: always; }
+    .page-container {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 12mm;
+      box-sizing: border-box;
+      margin: 0 auto;
+    }
+  }
+
+  /* Non-print adjustments */
+  @media screen {
+    .page-container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
   }
 </style>
 {% endblock %}
@@ -52,23 +93,20 @@
       <button class="btn btn-outline-secondary" onclick="window.print();">
         <i class="mdi mdi-printer"></i> Print
       </button>
+      <a class="btn btn-success" target="_blank"
+         href="{% url 'reports:invoice_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+        <i class="mdi mdi-file-excel"></i> Excel
+      </a>
+      <a class="btn btn-outline-danger" target="_blank"
+         href="{% url 'reports:invoice_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+        <i class="mdi mdi-file-pdf"></i> PDF
+      </a>
     </div>
   </div>
 
-
-    <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
-  <a class="btn btn-success" target="_blank"
-     href="{% url 'reports:invoice_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-    <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
-  </a>
-  <a class="btn btn-outline-secondary" target="_blank"
-     href="{% url 'reports:invoice_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-    <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
-  </a>
-</div>
-  <div class="card">
+  <div class="card no-print">
     <div class="card-body">
-      <form method="get" class="row g-2 no-print mb-3">
+      <form method="get" class="row g-2 mb-3">
         <div class="col-md-4">
           {{ form.academic_year.label_tag }} {{ form.academic_year }}
         </div>
@@ -84,58 +122,87 @@
           <button class="btn btn-primary" type="submit">Generate</button>
         </div>
       </form>
+    </div>
+  </div>
 
-      {% if report_rows is None %}
-        <div class="text-muted">Select academic year and term, then click Generate.</div>
-      {% else %}
-        <!-- letterhead -->
-        <div class="report-letterhead mb-3">
+  {% if report_rows is None %}
+    <div class="text-muted">Select academic year and term, then click Generate.</div>
+  {% else %}
+    <div class="page-container">
+      <!-- Letterhead matching invoice_print.html -->
+      <div class="report-letterhead">
+        <div class="logos">
           {% if SCHOOL_LOGO_URL %}
             <img src="{{ SCHOOL_LOGO_URL }}" alt="logo" class="logo">
           {% endif %}
-          <div class="report-title">
-            <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
-            <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
-            <h5 style="margin-top:8px">Invoice report for {{ term }} {{ academic_year }}</h5>
-          </div>
         </div>
+        <div class="report-title">
+          <h2 style="margin:0">{{ SCHOOL_NAME }}</h2>
+          <div class="small">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
+          <h4 style="margin-top:8px">Invoice Summary Report</h4>
+        </div>
+        <div class="logos">
+          {% if SPONSOR_LOGO_URL %}
+            <img src="{{ SPONSOR_LOGO_URL }}" alt="sponsor logo" class="logo">
+          {% endif %}
+        </div>
+      </div>
 
-        <div class="table-responsive">
-          <table class="report-table table">
-            <thead>
-              <tr>
-                <th style="width:50%;">ITEM</th>
-                <th class="text-right">Total Billed</th>
-                <th class="text-right">Collected</th>
-                <th class="text-right">Outstanding</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in report_rows %}
-              <tr>
-                <td>{{ r.category|capfirst }}</td>
-                <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ r.collected|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ r.outstanding|floatformat:2|intcomma }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th>Total</th>
-                <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.outstanding|floatformat:2|intcomma }}</th>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+      <div class="report-meta">
+        <strong>Period:</strong> {{ academic_year.year }} - Term {{ term }}
+        &nbsp;|&nbsp; Generated: {{ now|date:"d M Y H:i" }}
+        &nbsp;|&nbsp; By: {{ request.user.get_full_name }}
+      </div>
 
-        <div class="report-footer small text-muted mt-3">
-          Generated by {{ request.user.get_full_name }} on {{ now|date:"d M Y H:i" }}
-        </div>
-      {% endif %}
+      <div class="table-responsive">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width:50%;">ITEM</th>
+              <th class="text-right">Total Billed</th>
+              <th class="text-right">Collected</th>
+              <th class="text-right">Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in report_rows %}
+            <tr>
+              <td>{{ r.category|capfirst }}</td>
+              <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
+              <td class="text-right">KES {{ r.collected|floatformat:2|intcomma }}</td>
+              <td class="text-right">KES {{ r.outstanding|floatformat:2|intcomma }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total</th>
+              <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
+              <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
+              <th class="text-right">KES {{ totals.outstanding|floatformat:2|intcomma }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="report-footer">
+        <div><strong>Banking Details</strong></div>
+        <ul class="bank-list">
+          {% if BANK_DETAILS.equity %}
+          <li>{{ BANK_DETAILS.equity.name }} — {{ BANK_DETAILS.equity.account_name }} Account No: {{ BANK_DETAILS.equity.account_no }}</li>
+          {% endif %}
+          {% if BANK_DETAILS.coop %}
+          <li>{{ BANK_DETAILS.coop.name }} — {{ BANK_DETAILS.coop.account_name }} Account No: {{ BANK_DETAILS.coop.account_no }}</li>
+          {% endif %}
+          {% if BANK_DETAILS.paybill_1 %}
+          <li>{{ BANK_DETAILS.paybill_1.label }} — ACC NO: {{ BANK_DETAILS.paybill_1.acc_format }}</li>
+          {% endif %}
+          {% if BANK_DETAILS.paybill_2 %}
+          <li>{{ BANK_DETAILS.paybill_2.label }} — ACC NO: {{ BANK_DETAILS.paybill_2.acc_format }}</li>
+          {% endif %}
+        </ul>
+      </div>
     </div>
-  </div>
+  {% endif %}
 </div>
 {% endblock %}
