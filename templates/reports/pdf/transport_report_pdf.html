@@ -6,22 +6,6 @@
 <title>{{ SCHOOL_NAME }} - Transport Report</title>
 
 <style>
-.report-center {
-  text-align: center;
-  width: 100%;
-  margin-top: 6px;
-}
-
-.report-title {
-  font-size: 13pt;
-  font-weight: bold;
-}
-
-.report-period {
-  font-size: 9.5pt;
-  color: #666;
-}
-
 @page {
   size: A4;
   margin: 0;
@@ -84,6 +68,99 @@ body {
   color: #555;
 }
 
+.report-center {
+  text-align: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.report-title {
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.report-period {
+  font-size: 9.5pt;
+  color: #666;
+}
+
+/* ===== META INFO ===== */
+.meta-info {
+  background: #f4f6f8;
+  border: 1px solid #ddd;
+  padding: 6px;
+  margin: 10px 0;
+  font-size: 8.8pt;
+  text-align: center;
+}
+
+/* ===== FILTERS SUMMARY ===== */
+.filters-summary {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 9pt;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.filter-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dotted #ddd;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.filter-value {
+  font-weight: 500;
+  color: #222;
+}
+
+/* ===== SUMMARY BOX ===== */
+.summary-box {
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 12px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.summary-item {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.summary-label {
+  font-size: 8.5pt;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
+.summary-value {
+  font-size: 12pt;
+  font-weight: bold;
+  font-family: "Courier New", monospace;
+}
+
 /* ===== TABLE ===== */
 .table-container {
   margin-top: 12px;
@@ -113,6 +190,28 @@ body {
   font-family: "Courier New", monospace;
 }
 
+.report-table tbody tr:nth-child(even) {
+  background: #f8f8f8;
+}
+
+/* ===== NO DATA ===== */
+.no-data {
+  text-align: center;
+  padding: 25px;
+  border: 2px dashed #bbb;
+  font-size: 10pt;
+}
+
+/* ===== FOOTER ===== */
+.document-footer {
+  margin-top: 14px;
+  border-top: 1px solid #aaa;
+  padding-top: 8px;
+  font-size: 8.5pt;
+  color: #666;
+  text-align: center;
+}
+
 /* ===== PAGE NUMBER ===== */
 .page-number {
   position: absolute;
@@ -131,20 +230,12 @@ body {
     <!-- LETTERHEAD -->
     <div class="letterhead">
       <div class="header-content">
-        {% if SCHOOL_LOGO_URL %}
-          <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">
-        {% endif %}
-
+        {% if SCHOOL_LOGO_URL %}<img src="{{ SCHOOL_LOGO_URL }}" class="logo">{% endif %}
         <div class="school-info">
           <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
-          <div class="school-details">
-            {{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}
-          </div>
+          <div class="school-details">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
         </div>
-
-        {% if SPONSOR_LOGO_URL %}
-          <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">
-        {% endif %}
+        {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo">{% endif %}
       </div>
 
       <div class="report-center">
@@ -157,19 +248,88 @@ body {
       </div>
     </div>
 
+    <!-- FILTERS SUMMARY -->
+    {% if filters %}
+    <div class="filters-summary">
+      <div class="filters-grid">
+        {% if filters.academic_year %}
+        <div class="filter-item">
+          <span class="filter-label">Academic Year:</span>
+          <span class="filter-value">{{ filters.academic_year.year }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.term %}
+        <div class="filter-item">
+          <span class="filter-label">Term:</span>
+          <span class="filter-value">{{ filters.term|title }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.route %}
+        <div class="filter-item">
+          <span class="filter-label">Route:</span>
+          <span class="filter-value">{{ filters.route.name }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.status %}
+        <div class="filter-item">
+          <span class="filter-label">Status:</span>
+          <span class="filter-value">{{ filters.status|title }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.from_date %}
+        <div class="filter-item">
+          <span class="filter-label">From Date:</span>
+          <span class="filter-value">{{ filters.from_date }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.to_date %}
+        <div class="filter-item">
+          <span class="filter-label">To Date:</span>
+          <span class="filter-value">{{ filters.to_date }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- SUMMARY BOX -->
+    {% if summary %}
+    <div class="summary-box">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Students</div>
+          <div class="summary-value">{{ summary.total_students }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Billed</div>
+          <div class="summary-value">{{ summary.total_billed|floatformat:2 }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Collected</div>
+          <div class="summary-value">{{ summary.total_collected|floatformat:2 }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- MAIN TABLE -->
     <div class="table-container">
       {% if rows %}
       <table class="report-table">
         <thead>
           <tr>
-            <th>Student Name</th>
-            <th>Admission #</th>
-            <th>Class</th>
-            <th>Route</th>
-            <th class="text-right">Amount</th>
-            <th class="text-right">Paid</th>
-            <th class="text-right">Balance</th>
+            <th style="width: 25%;">Student Name</th>
+            <th style="width: 15%;">Admission #</th>
+            <th style="width: 15%;">Class</th>
+            <th style="width: 20%;">Route</th>
+            <th style="width: 15%;" class="text-right">Amount</th>
+            <th style="width: 15%;" class="text-right">Paid</th>
+            <th style="width: 15%;" class="text-right">Balance</th>
           </tr>
         </thead>
         <tbody>
@@ -185,10 +345,21 @@ body {
           </tr>
           {% endfor %}
         </tbody>
+        {% if totals %}
+        <tfoot>
+          <tr>
+            <th colspan="4" class="text-right">TOTALS</th>
+            <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.balance|floatformat:2 }}</th>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
       {% else %}
       <div class="no-data">
         <h3>No Transport Data Available</h3>
+        <p>No transport data found for the selected filters.</p>
       </div>
       {% endif %}
     </div>
