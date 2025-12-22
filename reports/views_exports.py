@@ -762,8 +762,6 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             full_name = ' '.join(full_name.split())
             ws.cell(row=row_num, column=3, value=full_name)
 
-            ws.cell(row=row_num, column=4, value=r.get('student__current_class'))
-
 
 
             # Money columns
@@ -839,8 +837,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             invoices = invoices.filter(issue_date__gte=start_date)
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
-        if student_class:
-            invoices = invoices.filter(student__current_class=student_class)
+
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -871,7 +868,6 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'student__first_name',
             'student__middle_name',
             'student__last_name',
-            'student__current_class',
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -916,7 +912,6 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
                 'student__first_name': first,
                 'student__middle_name': middle,
                 'student__last_name': last,
-                'student__current_class': r.get('student__current_class'),
                 'total_balance_bf': r.get('total_balance_bf'),
                 'total_prepayment': r.get('total_prepayment'),
                 'total_billed': r.get('total_billed'),
@@ -988,8 +983,7 @@ class TransportReportExcelView(LoginRequiredMixin, View):
 
         if route:
             items_qs = items_qs.filter(transport_route=route)
-        if student_class:
-            items_qs = items_qs.filter(invoice__student__current_class=student_class)
+
         if start_date:
             items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
         if end_date:
@@ -999,7 +993,6 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             'invoice__student__pk',
             'invoice__student__full_name',
             'invoice__student__admission_number',
-            'invoice__student__current_class',
             'transport_route__pk',
             'transport_route__name'
         ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by('invoice__student__full_name')
@@ -1050,7 +1043,6 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             rows.append({
                 'student_name': g.get('invoice__student__full_name') or '',
                 'admission': g.get('invoice__student__admission_number') or '',
-                'student_class': g.get('invoice__student__current_class') or '',
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,
@@ -1134,8 +1126,7 @@ class TransportReportPDFView(LoginRequiredMixin, View):
 
         if route:
             items_qs = items_qs.filter(transport_route=route)
-        if student_class:
-            items_qs = items_qs.filter(invoice__student__current_class=student_class)
+
         if start_date:
             items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
         if end_date:
@@ -1145,7 +1136,6 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             'invoice__student__pk',
             'invoice__student__full_name',
             'invoice__student__admission_number',
-            'invoice__student__current_class',
             'transport_route__pk',
             'transport_route__name'
         ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by('invoice__student__full_name')
@@ -1194,7 +1184,6 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             rows.append({
                 'student_name': g.get('invoice__student__full_name') or '',
                 'admission': g.get('invoice__student__admission_number') or '',
-                'student_class': g.get('invoice__student__current_class') or '',
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,
