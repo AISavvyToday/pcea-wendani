@@ -91,14 +91,13 @@
               <tr>
                 <th>Year</th>
                 <th>Admission No</th>
-                <th>Name</th>
+                <th>Student Name</th>
                 <th>Class</th>
-                <th>Contacts</th>
-                <th class="text-right">Prepayment</th>
                 <th class="text-right">Balance B/F</th>
-                <th class="text-right">Balance</th>
+                <th class="text-right">Prepayment</th>
+                <th class="text-right">Total Billed</th>
                 <th class="text-right">Paid</th>
-                <th class="text-right">Total Balance</th>
+                <th class="text-right">Outstanding Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -114,23 +113,22 @@
                   {% endif %}
                 </td>
                 <td>{{ r.student__current_class }}</td>
-                <td>{{ r.student__contacts|default:"-" }}</td>
-                <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ r.total_balance|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ r.total_paid|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_paid|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ r.total_balance|floatformat:2|intcomma }}</td>
               </tr>
               {% endfor %}
             </tbody>
             <tfoot>
               <tr>
-                <th colspan="5">Total</th>
-                <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
+                <th colspan="4">Total</th>
                 <th class="text-right">KES {{ totals.total_balance_bf|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.total_balance|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.total_paid|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_paid|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_balance|floatformat:2|intcomma }}</th>
               </tr>
             </tfoot>
           </table>
