@@ -748,18 +748,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
 
             ws.cell(row=row_num, column=4, value=r.get('student__current_class'))
 
-            # Build emergency contact info
-            contact_name = r.get('student__emergency_contact_name', '')
-            contact_phone = r.get('student__emergency_contact_phone', '')
-            if contact_name and contact_phone:
-                contact_info = f"{contact_name} ({contact_phone})"
-            elif contact_name:
-                contact_info = contact_name
-            elif contact_phone:
-                contact_info = contact_phone
-            else:
-                contact_info = ""
-            ws.cell(row=row_num, column=5, value=contact_info)
+
 
             # Money columns
             money_columns = [6, 7, 8, 9, 10]
@@ -888,17 +877,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             full_name = f"{first} {middle} {last}".strip()
             full_name = ' '.join(full_name.split())
 
-            # Build emergency contact info
-            contact_name = r.get('student__emergency_contact_name', '')
-            contact_phone = r.get('student__emergency_contact_phone', '')
-            if contact_name and contact_phone:
-                contact_info = f"{contact_name} ({contact_phone})"
-            elif contact_name:
-                contact_info = contact_name
-            elif contact_phone:
-                contact_info = contact_phone
-            else:
-                contact_info = ""
+
 
             processed_rows.append({
                 'term__academic_year__year': r.get('term__academic_year__year'),
