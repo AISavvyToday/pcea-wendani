@@ -202,7 +202,7 @@ class TransportRouteAdmin(admin.ModelAdmin):
 
 @admin.register(TransportFee)
 class TransportFeeAdmin(admin.ModelAdmin):
-    list_display = ['route', 'academic_year', 'term', 'amount_display', 'half_amount_display', 'is_active']
+    list_display = ['route', 'academic_year', 'term', 'amount', 'half_amount', 'is_active']
     list_filter = ['academic_year', 'term', 'route', 'is_active']
     search_fields = ['route__name']
     list_editable = ['amount', 'half_amount', 'is_active']
@@ -219,15 +219,3 @@ class TransportFeeAdmin(admin.ModelAdmin):
             'fields': ('is_active',)
         })
     )
-
-    def amount_display(self, obj):
-        return f"KES {obj.amount}"
-
-    amount_display.short_description = 'Full Amount'
-
-    def half_amount_display(self, obj):
-        if obj.half_amount:
-            return f"KES {obj.half_amount}"
-        return f"KES {obj.amount / 2} (auto-calculated)"
-
-    half_amount_display.short_description = 'Half Amount'
