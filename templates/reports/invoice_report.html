@@ -27,34 +27,99 @@ body {
 /* ===== Action Bar ===== */
 .action-bar {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-bottom: 14px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
-.action-bar a {
-  padding: 7px 14px;
+.filter-form {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.filter-group select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  min-width: 160px;
+  background: white;
+}
+
+.filter-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.export-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
   font-size: 12px;
   font-weight: 600;
   border-radius: 4px;
   text-decoration: none;
-  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.btn-pdf { background: #dc2626; }
-.btn-excel { background: #16a34a; }
+.btn-pdf {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-pdf:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.btn-excel {
+  background: #16a34a;
+  color: white;
+}
+
+.btn-excel:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
 
 /* ===== Report Wrapper ===== */
 .report-box {
   background: #fff;
   border: 1px solid var(--border);
-  padding: 14px;
+  border-radius: 6px;
+  padding: 20px;
+  margin-top: 10px;
 }
 
 /* ===== Title ===== */
 .report-title {
   text-align: center;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--primary);
   margin-bottom: 4px;
@@ -64,12 +129,12 @@ body {
 .meta-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 14px;
+  margin: 20px 0;
   font-size: 12px;
 }
 
 .meta-table td {
-  padding: 6px 8px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
 }
 
@@ -77,6 +142,7 @@ body {
   background: var(--header-bg);
   font-weight: 600;
   width: 20%;
+  color: var(--primary);
 }
 
 /* ===== Main Table ===== */
@@ -84,12 +150,13 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  margin: 20px 0;
 }
 
 .report-table th,
 .report-table td {
   border: 1px solid var(--border);
-  padding: 9px 10px;
+  padding: 10px 12px;
 }
 
 .report-table thead th {
@@ -99,15 +166,21 @@ body {
   letter-spacing: .04em;
   font-weight: 700;
   text-align: left;
+  color: var(--primary);
 }
 
 .report-table tbody tr:nth-child(even) {
   background: var(--row-alt);
 }
 
+.report-table tbody tr:hover {
+  background: #f3f4f6;
+}
+
 .report-table tfoot th {
   background: #e5e7eb;
   font-weight: 800;
+  color: var(--primary);
 }
 
 /* ===== Alignment ===== */
@@ -125,14 +198,51 @@ body {
   font-weight: 700;
 }
 
+/* ===== Status Indicators ===== */
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.no-data i {
+  font-size: 48px;
+  margin-bottom: 10px;
+  opacity: 0.3;
+}
+
 /* ===== Footer ===== */
-.footer {
-  margin-top: 12px;
+.report-footer {
+  margin-top: 20px;
   font-size: 11px;
   color: var(--muted);
   text-align: center;
   border-top: 1px solid var(--border);
-  padding-top: 6px;
+  padding-top: 12px;
+  font-style: italic;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .action-bar {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-group select {
+    width: 100%;
+  }
+
+  .export-buttons {
+    justify-content: center;
+  }
 }
 
 /* ===== Print ===== */
@@ -145,95 +255,176 @@ body {
     border: none;
     padding: 0;
   }
+
+  .no-print {
+    display: none !important;
+  }
 }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- ===== ACTION BUTTONS ===== -->
 <div class="action-bar no-print">
-  <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}" class="btn-pdf">
-    Download PDF
-  </a>
-  <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}" class="btn-excel">
-    Export Excel
-  </a>
+  <form method="get" class="filter-form">
+    <div class="filter-group">
+      <label for="id_academic_year">Academic Year</label>
+      <select name="academic_year" id="id_academic_year" class="form-select" onchange="this.form.submit()">
+        {% for year in form.academic_year.field.queryset %}
+          <option value="{{ year.id }}" {% if year.id == academic_year.id %}selected{% endif %}>{{ year.year }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="id_term">Term</label>
+      <select name="term" id="id_term" class="form-select" onchange="this.form.submit()">
+        {% for term_value, term_label in form.term.field.choices %}
+          <option value="{{ term_value }}" {% if term_value == term %}selected{% endif %}>{{ term_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="id_show_zero_rows">Show Zero Rows</label>
+      <select name="show_zero_rows" id="id_show_zero_rows" class="form-select" onchange="this.form.submit()">
+        <option value="false" {% if not form.show_zero_rows.value %}selected{% endif %}>No</option>
+        <option value="true" {% if form.show_zero_rows.value %}selected{% endif %}>Yes</option>
+      </select>
+    </div>
+  </form>
+
+  <div class="export-buttons">
+    <a href="{% url 'reports:invoice_report_export_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+       class="btn btn-pdf">
+       <i class="fas fa-file-pdf"></i> Download PDF
+    </a>
+    <a href="{% url 'reports:invoice_report_export_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+       class="btn btn-excel">
+       <i class="fas fa-file-excel"></i> Export Excel
+    </a>
+  </div>
 </div>
 
 <div class="report-box">
 
   <div class="report-title">Invoice Summary Report</div>
 
-  <!-- ===== META INFO AS TABLE ===== -->
-  <table class="meta-table">
-    <tr>
-      <td class="meta-label">Academic Year</td>
-      <td>{{ academic_year.year }}</td>
-      <td class="meta-label">Term</td>
-      <td>{{ term }}</td>
-    </tr>
-    <tr>
-      <td class="meta-label">Generated</td>
-      <td>{{ now|date:"d M Y H:i" }}</td>
-      <td class="meta-label">Generated By</td>
-      <td>
-        {% if request.user.get_full_name %}
-          {{ request.user.get_full_name }}
-        {% else %}
-          {{ request.user.email }}
-        {% endif %}
-      </td>
-    </tr>
-  </table>
-
-  <!-- ===== MAIN REPORT TABLE ===== -->
-  <table class="report-table">
-    <thead>
+  {% if report_rows %}
+    <!-- ===== META INFO AS TABLE ===== -->
+    <table class="meta-table">
       <tr>
-        <th style="width:40%">Fee Category</th>
-        <th class="text-right">Billed (KES)</th>
-        <th class="text-right">Collected (KES)</th>
-        <th class="text-right">Balance (KES)</th>
+        <td class="meta-label">Academic Year</td>
+        <td>{{ academic_year.year }}</td>
+        <td class="meta-label">Term</td>
+        <td>{{ term|title }}</td>
       </tr>
-    </thead>
-
-    <tbody>
-      {% for row in report_rows %}
       <tr>
-        <td>{{ row.category }}</td>
-        <td class="text-right">{{ row.billed|intcomma }}</td>
-        <td class="text-right">{{ row.collected|intcomma }}</td>
-        <td class="text-right">
-          {% if row.balance > 0 %}
-            <span class="amount-negative">{{ row.balance|intcomma }}</span>
+        <td class="meta-label">Generated</td>
+        <td>{{ now|date:"d M Y H:i" }}</td>
+        <td class="meta-label">Generated By</td>
+        <td>
+          {% if request.user.get_full_name %}
+            {{ request.user.get_full_name }}
           {% else %}
-            <span class="amount-positive">{{ row.balance|intcomma }}</span>
+            {{ request.user.email }}
           {% endif %}
         </td>
       </tr>
-      {% empty %}
-      <tr>
-        <td colspan="4" class="text-center">No data available</td>
-      </tr>
-      {% endfor %}
-    </tbody>
+    </table>
 
-    {% if totals %}
-    <tfoot>
-      <tr>
-        <th class="text-right">TOTAL</th>
-        <th class="text-right">{{ totals.billed|intcomma }}</th>
-        <th class="text-right">{{ totals.collected|intcomma }}</th>
-        <th class="text-right">{{ totals.balance|intcomma }}</th>
-      </tr>
-    </tfoot>
-    {% endif %}
-  </table>
+    <!-- ===== MAIN REPORT TABLE ===== -->
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th style="width:40%">Fee Category</th>
+          <th class="text-right">Billed (KES)</th>
+          <th class="text-right">Collected (KES)</th>
+          <th class="text-right">Outstanding (KES)</th>
+        </tr>
+      </thead>
 
-  <div class="footer">
+      <tbody>
+        {% for row in report_rows %}
+        <tr>
+          <td>{{ row.category|title }}</td>
+          <td class="text-right">{{ row.total_billed|floatformat:2|intcomma }}</td>
+          <td class="text-right">{{ row.collected|floatformat:2|intcomma }}</td>
+          <td class="text-right">
+            {% if row.outstanding > 0 %}
+              <span class="amount-negative">{{ row.outstanding|floatformat:2|intcomma }}</span>
+            {% elif row.outstanding < 0 %}
+              <span class="amount-positive">{{ row.outstanding|floatformat:2|intcomma }}</span>
+            {% else %}
+              {{ row.outstanding|floatformat:2|intcomma }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <th class="text-right">TOTAL</th>
+          <th class="text-right">{{ totals.billed|floatformat:2|intcomma }}</th>
+          <th class="text-right">{{ totals.collected|floatformat:2|intcomma }}</th>
+          <th class="text-right">
+            {% if totals.outstanding > 0 %}
+              <span class="amount-negative">{{ totals.outstanding|floatformat:2|intcomma }}</span>
+            {% elif totals.outstanding < 0 %}
+              <span class="amount-positive">{{ totals.outstanding|floatformat:2|intcomma }}</span>
+            {% else %}
+              {{ totals.outstanding|floatformat:2|intcomma }}
+            {% endif %}
+          </th>
+        </tr>
+      </tfoot>
+    </table>
+  {% else %}
+    <!-- ===== NO DATA STATE ===== -->
+    <div class="no-data">
+      <i class="fas fa-chart-bar"></i>
+      <h3>No Data Available</h3>
+      <p>Select an academic year and term to generate the report.</p>
+    </div>
+  {% endif %}
+
+  <div class="report-footer">
     This report was generated electronically and does not require a signature.
   </div>
 
 </div>
+
+<!-- Font Awesome for icons -->
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-submit form when filters change
+  const selects = document.querySelectorAll('.filter-form select');
+  selects.forEach(select => {
+    select.addEventListener('change', function() {
+      this.form.submit();
+    });
+  });
+
+  // Add loading state to export buttons
+  const exportButtons = document.querySelectorAll('.export-buttons a');
+  exportButtons.forEach(button => {
+    button.addEventListener('click', function(e) {
+      if (!this.classList.contains('disabled')) {
+        const originalText = this.innerHTML;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        this.classList.add('disabled');
+
+        // Re-enable after 5 seconds
+        setTimeout(() => {
+          this.innerHTML = originalText;
+          this.classList.remove('disabled');
+        }, 5000);
+      }
+    });
+  });
+});
+</script>
 {% endblock %}
