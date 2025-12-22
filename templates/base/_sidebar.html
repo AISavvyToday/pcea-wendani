@@ -53,6 +53,24 @@
           </div>
         </li>
 
+
+
+        <!-- Academics -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#academics-menu" aria-expanded="false" aria-controls="academics-menu">
+            <span class="menu-title">Academics</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-school menu-icon"></i>
+          </a>
+          <div class="collapse" id="academics-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:class_list' %}">Classes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:academic_year_list' %}">Academic Years</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:term_list' %}">Terms</a></li>
+            </ul>
+          </div>
+        </li>
+
       <!-- Reports (Standalone Menu with Submenus) -->
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="collapse" href="#reports-menu" aria-expanded="false" aria-controls="reports-menu">
@@ -67,22 +85,6 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'reports:outstanding_report' %}">Outstanding Balances</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'reports:transport_report' %}">Transport Report</a></li>
               <!-- add more report links here as new reports are implemented -->
-            </ul>
-          </div>
-        </li>
-
-        <!-- Academics -->
-        <li class="nav-item">
-          <a class="nav-link" data-bs-toggle="collapse" href="#academics-menu" aria-expanded="false" aria-controls="academics-menu">
-            <span class="menu-title">Academics</span>
-            <i class="menu-arrow"></i>
-            <i class="mdi mdi-school menu-icon"></i>
-          </a>
-          <div class="collapse" id="academics-menu">
-            <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:class_list' %}">Classes</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:academic_year_list' %}">Academic Years</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:term_list' %}">Terms</a></li>
             </ul>
           </div>
         </li>

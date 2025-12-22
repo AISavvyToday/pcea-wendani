@@ -15,11 +15,12 @@
         color: #28a745;
         margin-top: 5px;
     }
-    .item-row td {
-        vertical-align: middle;
+    .readonly-amount {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
     }
-    .hidden-field {
-        display: none;
+    .item-row:hover {
+        background-color: #f8f9fa;
     }
 </style>
 {% endblock %}
@@ -85,7 +86,7 @@
                                         <th style="width: 10%;">Discount</th>
                                         <th style="width: 15%;">Transport Route</th>
                                         <th style="width: 8%;">Trip Type</th>
-                                        <th style="width: 5%;">Actions</th>
+                                        <th style="width: 5%;" class="text-center">Remove</th>
                                     </tr>
                                 </thead>
                                 <tbody id="formset-container">
@@ -109,7 +110,7 @@
                                         </td>
                                         <td class="text-center">
                                             <button type="button" class="btn btn-sm btn-outline-danger remove-row">
-                                                <i class="mdi mdi-delete"></i>
+                                                <i class="mdi mdi-close"></i>
                                             </button>
                                         </td>
                                     </tr>
@@ -129,15 +130,15 @@
                                     <div class="card-body">
                                         <div class="row mb-2">
                                             <div class="col-6 text-end"><strong>Subtotal:</strong></div>
-                                            <div class="col-6" id="subtotal-display">KES {{ current_subtotal|floatformat:2 }}</div>
+                                            <div class="col-6" id="subtotal-display">KES 0.00</div>
                                         </div>
                                         <div class="row mb-2">
                                             <div class="col-6 text-end"><strong>Discount:</strong></div>
-                                            <div class="col-6" id="discount-display">KES {{ current_discount|floatformat:2 }}</div>
+                                            <div class="col-6" id="discount-display">KES 0.00</div>
                                         </div>
                                         <div class="row mb-2">
                                             <div class="col-6 text-end"><strong>Total:</strong></div>
-                                            <div class="col-6" id="total-display">KES {{ current_total|floatformat:2 }}</div>
+                                            <div class="col-6" id="total-display">KES 0.00</div>
                                         </div>
                                     </div>
                                 </div>
@@ -185,7 +186,7 @@
                         <li class="mb-2">
                             <small class="text-muted">
                                 <i class="mdi mdi-information text-primary me-1"></i>
-                                Transport amount will be auto-filled when route and trip type are selected
+                                Click "Add Item" to add more fee items
                             </small>
                         </li>
                     </ul>
@@ -233,55 +234,55 @@
     // Fee map for transport amounts
     const feeMap = {{ fee_map_json|safe }};
     let formCount = {{ formset.total_form_count }};
+    let originalFormCount = formCount;
 
-    // Store form state for transport items
-    const formState = {};
+    // Track which amount fields are auto-populated
+    const autoPopulatedFields = new Set();
 
     // Initialize each row
     document.addEventListener('DOMContentLoaded', function() {
         // Set up category change handlers for existing rows
         document.querySelectorAll('select[name$="-category"]').forEach(select => {
-            const row = select.closest('tr');
-            const formIndex = row.getAttribute('data-form-index');
-            const amountInput = row.querySelector('input[name$="-amount"]');
-
-            // Store initial state
-            formState[formIndex] = {
-                category: select.value,
-                transportRoute: row.querySelector('select[name$="-transport_route"]')?.value || '',
-                transportTrip: row.querySelector('select[name$="-transport_trip_type"]')?.value || '',
-                amount: amountInput?.value || '0'
-            };
-
-            // Initialize category
             initCategoryChange(select);
-
-            // Set up event listeners
-            select.addEventListener('change', function() {
-                initCategoryChange(this);
-                updateRowTotals(this.closest('tr'));
-                updateTotals();
-            });
+            // If it's already a transport item with route, set the amount
+            if (select.value === 'transport') {
+                const row = select.closest('tr');
+                const routeSelect = row.querySelector('select[name$="-transport_route"]');
+                if (routeSelect && routeSelect.value) {
+                    updateTransportAmount(routeSelect);
+                }
+            }
+            updateRowTotals(select.closest('tr'));
         });
 
         // Set up transport route change handlers
         document.querySelectorAll('select[name$="-transport_route"]').forEach(select => {
             select.addEventListener('change', function() {
-                updateTransportFee(this);
+                updateTransportAmount(this);
+                updateTransportFeePreview(this);
             });
         });
 
         // Set up trip type change handlers
         document.querySelectorAll('select[name$="-transport_trip_type"]').forEach(select => {
             select.addEventListener('change', function() {
-                updateTransportFee(this);
+                const row = this.closest('tr');
+                const routeSelect = row.querySelector('select[name$="-transport_route"]');
+                if (routeSelect && routeSelect.value) {
+                    updateTransportAmount(routeSelect);
+                    updateTransportFeePreview(routeSelect);
+                }
             });
         });
 
         // Set up amount change handlers
         document.querySelectorAll('input[name$="-amount"]').forEach(input => {
             input.addEventListener('input', function() {
-                updateRowTotals(this.closest('tr'));
+                const row = this.closest('tr');
+                const formIndex = row.getAttribute('data-form-index');
+                // If user manually changes amount, remove from auto-populated set
+                autoPopulatedFields.delete(`amount-${formIndex}`);
+                updateRowTotals(row);
                 updateTotals();
             });
         });
@@ -310,62 +311,64 @@
                 }
             });
 
-            // Clear values for new row
-            template.querySelectorAll('input:not([type="hidden"]), select').forEach(field => {
-                if (!field.name.includes('id')) {
+            // Clear values
+            template.querySelectorAll('input, select').forEach(field => {
+                if (field.type !== 'hidden' && field.type !== 'submit' && field.type !== 'button') {
                     field.value = '';
                 }
             });
 
-            // Reset display
+            // Clear the ID field (it's a hidden input for existing items)
+            const idField = template.querySelector('input[name$="-id"]');
+            if (idField) {
+                idField.value = '';
+            }
+
+            // Set form index
+            template.setAttribute('data-form-index', newIndex);
+
+            // Hide transport fields by default
             const routeCell = template.querySelector('.transport-route-cell');
             const tripCell = template.querySelector('.transport-trip-cell');
             if (routeCell) routeCell.style.display = 'none';
             if (tripCell) tripCell.style.display = 'none';
 
-            // Clear fee preview
-            const preview = template.querySelector('.fee-preview');
-            if (preview) preview.textContent = '';
-
-            // Set form index
-            template.setAttribute('data-form-index', newIndex);
-
-            // Initialize state for new row
-            formState[newIndex] = {
-                category: '',
-                transportRoute: '',
-                transportTrip: '',
-                amount: '0'
-            };
-
-            // Add event handlers
+            // Add event handlers to the new row
             const categorySelect = template.querySelector('select[name$="-category"]');
             if (categorySelect) {
                 categorySelect.addEventListener('change', function() {
                     initCategoryChange(this);
                     updateRowTotals(this.closest('tr'));
-                    updateTotals();
                 });
             }
 
             const routeSelect = template.querySelector('select[name$="-transport_route"]');
             if (routeSelect) {
                 routeSelect.addEventListener('change', function() {
-                    updateTransportFee(this);
+                    updateTransportAmount(this);
+                    updateTransportFeePreview(this);
                 });
             }
 
             const tripSelect = template.querySelector('select[name$="-transport_trip_type"]');
             if (tripSelect) {
                 tripSelect.addEventListener('change', function() {
-                    updateTransportFee(this);
+                    const row = this.closest('tr');
+                    const routeSelect = row.querySelector('select[name$="-transport_route"]');
+                    if (routeSelect && routeSelect.value) {
+                        updateTransportAmount(routeSelect);
+                        updateTransportFeePreview(routeSelect);
+                    }
                 });
             }
 
             const amountInput = template.querySelector('input[name$="-amount"]');
             if (amountInput) {
                 amountInput.addEventListener('input', function() {
-                    updateRowTotals(this.closest('tr'));
+                    const row = this.closest('tr');
+                    const formIndex = row.getAttribute('data-form-index');
+                    autoPopulatedFields.delete(`amount-${formIndex}`);
+                    updateRowTotals(row);
                     updateTotals();
                 });
             }
@@ -382,9 +385,29 @@
             if (removeButton) {
                 removeButton.addEventListener('click', function() {
                     const row = this.closest('tr');
-                    const rowIndex = row.getAttribute('data-form-index');
-                    delete formState[rowIndex];
-                    row.remove();
+                    const formIndex = row.getAttribute('data-form-index');
+
+                    // If this is an existing item (has an ID), we need to mark it for deletion
+                    const idField = row.querySelector('input[name$="-id"]');
+                    if (idField && idField.value) {
+                        // Create a hidden DELETE field if it doesn't exist
+                        let deleteField = row.querySelector('input[name$="-DELETE"]');
+                        if (!deleteField) {
+                            deleteField = document.createElement('input');
+                            deleteField.type = 'hidden';
+                            deleteField.name = `items-${formIndex}-DELETE`;
+                            deleteField.value = 'on';
+                            row.appendChild(deleteField);
+                        } else {
+                            deleteField.value = 'on';
+                        }
+                        // Hide the row instead of removing it
+                        row.style.display = 'none';
+                    } else {
+                        // For new items, just remove the row
+                        row.remove();
+                    }
+
                     updateTotals();
                 });
             }
@@ -396,168 +419,157 @@
             // Add to container
             container.appendChild(template);
             formCount++;
-
-            // Update totals
-            updateTotals();
         });
 
-        // Remove row handlers
+        // Remove row handlers for existing rows
         document.querySelectorAll('.remove-row').forEach(btn => {
             btn.addEventListener('click', function() {
                 const row = this.closest('tr');
-                const rowIndex = row.getAttribute('data-form-index');
-                delete formState[rowIndex];
-                row.remove();
+                const formIndex = row.getAttribute('data-form-index');
+
+                // If this is an existing item (has an ID), we need to mark it for deletion
+                const idField = row.querySelector('input[name$="-id"]');
+                if (idField && idField.value) {
+                    // Create a hidden DELETE field if it doesn't exist
+                    let deleteField = row.querySelector('input[name$="-DELETE"]');
+                    if (!deleteField) {
+                        deleteField = document.createElement('input');
+                        deleteField.type = 'hidden';
+                        deleteField.name = `items-${formIndex}-DELETE`;
+                        deleteField.value = 'on';
+                        row.appendChild(deleteField);
+                    } else {
+                        deleteField.value = 'on';
+                    }
+                    // Hide the row instead of removing it
+                    row.style.display = 'none';
+                } else {
+                    // For new items, just remove the row
+                    row.remove();
+                }
+
                 updateTotals();
             });
         });
 
-        // Initialize transport fees for existing transport items
-        document.querySelectorAll('.item-row').forEach(row => {
-            const categorySelect = row.querySelector('select[name$="-category"]');
-            if (categorySelect && categorySelect.value === 'transport') {
-                const routeSelect = row.querySelector('select[name$="-transport_route"]');
-                if (routeSelect && routeSelect.value) {
-                    updateTransportFee(routeSelect);
-                }
-            }
-        });
-
         // Initial totals calculation
+        updateTotals();
+
+        // Calculate initial totals from existing values
+        document.querySelectorAll('.item-row').forEach(row => {
+            updateRowTotals(row);
+        });
         updateTotals();
     });
 
     function initCategoryChange(select) {
         const row = select.closest('tr');
-        const formIndex = row.getAttribute('data-form-index');
         const routeCell = row.querySelector('.transport-route-cell');
         const tripCell = row.querySelector('.transport-trip-cell');
         const amountInput = row.querySelector('input[name$="-amount"]');
-        const preview = row.querySelector('.fee-preview');
-
-        // Update state
-        formState[formIndex].category = select.value;
+        const formIndex = row.getAttribute('data-form-index');
 
         if (select.value === 'transport') {
-            // Show transport fields
             if (routeCell) routeCell.style.display = 'table-cell';
             if (tripCell) tripCell.style.display = 'table-cell';
 
-            // Auto-select first trip type if none selected
+            // Make amount field read-only for transport items
+            if (amountInput) {
+                amountInput.readOnly = true;
+                amountInput.classList.add('readonly-amount');
+            }
+
+            // Auto-select full trip type if none selected
             const tripSelect = row.querySelector('select[name$="-transport_trip_type"]');
             if (tripSelect && !tripSelect.value) {
                 tripSelect.value = 'full';
-                formState[formIndex].transportTrip = 'full';
             }
 
-            // Clear amount field for transport items (will be auto-filled when route selected)
-            if (amountInput && !amountInput.value) {
-                amountInput.value = '0.00';
-            }
-
-            // Clear preview
-            if (preview) {
-                preview.textContent = 'Select route and trip type';
-                preview.className = 'fee-preview text-muted';
+            // If route is already selected, update the amount
+            const routeSelect = row.querySelector('select[name$="-transport_route"]');
+            if (routeSelect && routeSelect.value) {
+                updateTransportAmount(routeSelect);
+                updateTransportFeePreview(routeSelect);
             }
         } else {
-            // Hide transport fields
             if (routeCell) routeCell.style.display = 'none';
             if (tripCell) tripCell.style.display = 'none';
 
-            // Clear any transport selections
-            const routeSelect = row.querySelector('select[name$="-transport_route"]');
-            const tripSelect = row.querySelector('select[name$="-transport_trip_type"]');
-
-            if (routeSelect) {
-                routeSelect.value = '';
-                formState[formIndex].transportRoute = '';
-            }
-            if (tripSelect) {
-                tripSelect.value = '';
-                formState[formIndex].transportTrip = '';
+            // Make amount field editable for non-transport items
+            if (amountInput) {
+                amountInput.readOnly = false;
+                amountInput.classList.remove('readonly-amount');
             }
 
-            // Clear preview for non-transport items
-            if (preview) {
-                preview.textContent = '';
+            // Clear any auto-populated tracking
+            autoPopulatedFields.delete(`amount-${formIndex}`);
+        }
+
+        updateRowTotals(row);
+    }
+
+    function updateTransportAmount(routeSelect) {
+        if (!routeSelect) return;
+
+        const row = routeSelect.closest('tr');
+        const tripSelect = row.querySelector('select[name$="-transport_trip_type"]');
+        const amountInput = row.querySelector('input[name$="-amount"]');
+        const formIndex = row.getAttribute('data-form-index');
+
+        if (routeSelect.value && feeMap[routeSelect.value] && tripSelect && amountInput) {
+            const tripType = tripSelect.value || 'full';
+            const fee = feeMap[routeSelect.value][tripType];
+
+            if (fee !== undefined) {
+                // Only auto-populate if field is empty OR it was previously auto-populated
+                if (!amountInput.value || autoPopulatedFields.has(`amount-${formIndex}`)) {
+                    amountInput.value = fee;
+                    autoPopulatedFields.add(`amount-${formIndex}`);
+                    updateRowTotals(row);
+                    updateTotals();
+                }
             }
         }
     }
 
-    function updateTransportFee(routeSelect) {
+    function updateTransportFeePreview(routeSelect) {
         if (!routeSelect) return;
 
         const row = routeSelect.closest('tr');
         const formIndex = row.getAttribute('data-form-index');
         const tripSelect = row.querySelector('select[name$="-transport_trip_type"]');
-        const amountInput = row.querySelector('input[name$="-amount"]');
-        const preview = row.querySelector('.fee-preview');
+        const preview = document.getElementById(`fee-preview-${formIndex}`);
 
-        // Update state
-        formState[formIndex].transportRoute = routeSelect.value;
-
-        if (tripSelect) {
-            formState[formIndex].transportTrip = tripSelect.value || 'full';
-        }
-
-        if (routeSelect.value && feeMap[routeSelect.value]) {
-            // Get trip type (default to full if not selected)
-            const tripType = tripSelect ? (tripSelect.value || 'full') : 'full';
-
-            // Get fee amount
+        if (routeSelect.value && feeMap[routeSelect.value] && tripSelect) {
+            const tripType = tripSelect.value || 'full';
             const fee = feeMap[routeSelect.value][tripType];
 
             if (fee !== undefined) {
-                // Update amount field
-                if (amountInput) {
-                    amountInput.value = fee.toFixed(2);
-                    formState[formIndex].amount = fee.toFixed(2);
-                }
-
-                // Update preview
-                if (preview) {
-                    preview.textContent = `Auto-filled: KES ${fee.toFixed(2)}`;
-                    preview.className = 'fee-preview text-success';
-                }
-
-                // Update row and totals
-                updateRowTotals(row);
-                updateTotals();
+                preview.textContent = `Auto-calculated: KES ${fee}`;
+                preview.className = 'fee-preview text-success';
             }
         } else {
-            // No fee configured for this route
-            if (amountInput) {
-                amountInput.value = '0.00';
-                formState[formIndex].amount = '0.00';
-            }
-
-            if (preview) {
-                preview.textContent = 'No fee configured for this route';
-                preview.className = 'fee-preview text-danger';
-            }
+            preview.textContent = '';
         }
     }
 
     function updateRowTotals(row) {
         const formIndex = row.getAttribute('data-form-index');
-        const amountInput = row.querySelector('input[name$="-amount"]');
-        const discountInput = row.querySelector('input[name$="-discount_applied"]');
-        const preview = row.querySelector('.fee-preview');
+        const amountInput = row.querySelector(`input[name$="-amount"]`);
+        const discountInput = row.querySelector(`input[name$="-discount_applied"]`);
 
         const amount = parseFloat(amountInput?.value) || 0;
         const discount = parseFloat(discountInput?.value) || 0;
         const net = amount - discount;
 
-        // Update state
-        if (formState[formIndex]) {
-            formState[formIndex].amount = amount;
-        }
-
-        // Update preview if not showing transport fee
-        if (preview && !preview.textContent.includes('Auto-filled:') && !preview.textContent.includes('No fee configured')) {
-            preview.textContent = `Net: KES ${net.toFixed(2)}`;
-            preview.className = 'fee-preview text-info';
+        const preview = document.getElementById(`fee-preview-${formIndex}`);
+        if (preview && !preview.textContent.includes('Auto-calculated:')) {
+            if (amount > 0 || discount > 0) {
+                preview.textContent = `Net: KES ${net.toFixed(2)}`;
+                preview.className = 'fee-preview text-info';
+            } else {
+                preview.textContent = '';
+            }
         }
     }
 
@@ -565,21 +577,21 @@
         let subtotal = 0;
         let totalDiscount = 0;
 
-        // Calculate from all visible rows
         document.querySelectorAll('.item-row').forEach(row => {
-            const amountInput = row.querySelector('input[name$="-amount"]');
-            const discountInput = row.querySelector('input[name$="-discount_applied"]');
+            if (row.style.display !== 'none') {
+                const amountInput = row.querySelector('input[name$="-amount"]');
+                const discountInput = row.querySelector('input[name$="-discount_applied"]');
 
-            const amount = parseFloat(amountInput?.value) || 0;
-            const discount = parseFloat(discountInput?.value) || 0;
+                const amount = parseFloat(amountInput?.value) || 0;
+                const discount = parseFloat(discountInput?.value) || 0;
 
-            subtotal += amount;
-            totalDiscount += discount;
+                subtotal += amount;
+                totalDiscount += discount;
+            }
         });
 
         const total = subtotal - totalDiscount;
 
-        // Update display
         document.getElementById('subtotal-display').textContent = `KES ${subtotal.toFixed(2)}`;
         document.getElementById('discount-display').textContent = `KES ${totalDiscount.toFixed(2)}`;
         document.getElementById('total-display').textContent = `KES ${total.toFixed(2)}`;
