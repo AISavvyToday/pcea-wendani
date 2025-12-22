@@ -56,25 +56,7 @@
           <label class="form-label">Term</label>
           {{ form.term }}
         </div>
-        <div class="col-md-2">
-          <label class="form-label">Class</label>
-          {{ form.student_class }}
-        </div>
-        <div class="col-md-1">
-          <label class="form-label">Include Zero</label>
-          <div class="mt-2">{{ form.show_zero_balances }}</div>
-        </div>
-
-        <div class="col-md-2 mt-2">
-          <label class="form-label">Balance Filter</label>
-          {{ form.balance_operator }}
-        </div>
-        <div class="col-md-2 mt-2">
-          <label class="form-label">Amount</label>
-          {{ form.balance_amount }}
-        </div>
-
-        <div class="col-12 d-flex gap-2 mt-2">
+                <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Run</button>
           <a href="{% url 'reports:outstanding_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>

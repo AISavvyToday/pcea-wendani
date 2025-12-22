@@ -151,14 +151,17 @@
                 </td>
                 <td class="text-center">
                   {% if row.total_billed > 0 %}
-                    {% with percentage=row.collected|default:0|divide:row.total_billed|multiply:100 %}
+                    {% with row.collected|default:0 as collected_amount %}
+                    {% with row.total_billed as billed_amount %}
+                      {% widthratio collected_amount billed_amount 100 as percentage %}
                       {% if percentage >= 100 %}
-                        <span class="badge bg-success">{{ percentage|floatformat:0 }}%</span>
+                        <span class="badge bg-success">{{ percentage }}%</span>
                       {% elif percentage >= 50 %}
-                        <span class="badge bg-warning">{{ percentage|floatformat:0 }}%</span>
+                        <span class="badge bg-warning">{{ percentage }}%</span>
                       {% else %}
-                        <span class="badge bg-danger">{{ percentage|floatformat:0 }}%</span>
+                        <span class="badge bg-danger">{{ percentage }}%</span>
                       {% endif %}
+                    {% endwith %}
                     {% endwith %}
                   {% else %}
                     <span class="badge bg-secondary">N/A</span>
@@ -190,10 +193,13 @@
                 </th>
                 <th class="text-center">
                   {% if totals.billed > 0 %}
-                    {% with percentage=totals.collected|default:0|divide:totals.billed|multiply:100 %}
-                      <span class="badge {% if percentage >= 100 %}bg-success{% elif percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
-                        {{ percentage|floatformat:0 }}%
+                    {% with totals.collected|default:0 as total_collected %}
+                    {% with totals.billed as total_billed %}
+                      {% widthratio total_collected total_billed 100 as total_percentage %}
+                      <span class="badge {% if total_percentage >= 100 %}bg-success{% elif total_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+                        {{ total_percentage }}%
                       </span>
+                    {% endwith %}
                     {% endwith %}
                   {% endif %}
                 </th>
@@ -226,19 +232,4 @@
     </div>
   {% endif %}
 </div>
-
-<!-- Template filters for calculations -->
-{% comment %}
-Note: You'll need to create a custom template filter for division.
-Add this to your templatetags directory:
-from django import template
-register = template.Library()
-
-@register.filter
-def divide(value, arg):
-    try:
-        return float(value) / float(arg)
-    except (ValueError, ZeroDivisionError):
-        return 0
-{% endcomment %}
 {% endblock %}
