@@ -691,11 +691,12 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
         grouped_qs = invoices.values(
             'student__pk',
             'student__admission_number',
-            'student__first_name',  # Changed from student__full_name
-            'student__middle_name',  # Added
-            'student__last_name',  # Added
+            'student__first_name',
+            'student__middle_name',
+            'student__last_name',
             'student__current_class',
-            'student__contacts',
+            'student__emergency_contact_phone',  # Changed from 'student__contacts'
+            'student__emergency_contact_name',  # Added emergency contact name
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -728,7 +729,8 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
                 title += f" Term {term}"
         add_common_header(ws, title)
 
-        headers = ['Year', 'Admission No', 'Name', 'Class', 'Contacts', 'Balance B/F', 'Prepayment', 'Total Billed',
+        headers = ['Year', 'Admission No', 'Name', 'Class', 'Emergency Contact', 'Balance B/F', 'Prepayment',
+                   'Total Billed',
                    'Paid', 'Balance']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
@@ -743,12 +745,23 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             middle = r.get('student__middle_name', '')
             last = r.get('student__last_name', '')
             full_name = f"{first} {middle} {last}".strip()
-            # Clean up extra spaces
             full_name = ' '.join(full_name.split())
             ws.cell(row=row_num, column=3, value=full_name)
 
             ws.cell(row=row_num, column=4, value=r.get('student__current_class'))
-            ws.cell(row=row_num, column=5, value=r.get('student__contacts') or "")
+
+            # Build emergency contact info
+            contact_name = r.get('student__emergency_contact_name', '')
+            contact_phone = r.get('student__emergency_contact_phone', '')
+            if contact_name and contact_phone:
+                contact_info = f"{contact_name} ({contact_phone})"
+            elif contact_name:
+                contact_info = contact_name
+            elif contact_phone:
+                contact_info = contact_phone
+            else:
+                contact_info = ""
+            ws.cell(row=row_num, column=5, value=contact_info)
 
             # Money columns
             money_columns = [6, 7, 8, 9, 10]
@@ -837,11 +850,12 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
         grouped_qs = invoices.values(
             'student__pk',
             'student__admission_number',
-            'student__first_name',  # Changed from student__full_name
-            'student__middle_name',  # Added
-            'student__last_name',  # Added
+            'student__first_name',
+            'student__middle_name',
+            'student__last_name',
             'student__current_class',
-            'student__contacts',
+            'student__emergency_contact_phone',  # Changed from 'student__contacts'
+            'student__emergency_contact_name',  # Added
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -868,7 +882,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'total_balance': sum((r['total_balance'] or Decimal('0.00')) for r in rows),
         }
 
-        # Process rows to include full_name
+        # Process rows to include full_name and contact_info
         processed_rows = []
         for r in rows:
             # Build full name
@@ -878,15 +892,27 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             full_name = f"{first} {middle} {last}".strip()
             full_name = ' '.join(full_name.split())
 
+            # Build emergency contact info
+            contact_name = r.get('student__emergency_contact_name', '')
+            contact_phone = r.get('student__emergency_contact_phone', '')
+            if contact_name and contact_phone:
+                contact_info = f"{contact_name} ({contact_phone})"
+            elif contact_name:
+                contact_info = contact_name
+            elif contact_phone:
+                contact_info = contact_phone
+            else:
+                contact_info = ""
+
             processed_rows.append({
                 'term__academic_year__year': r.get('term__academic_year__year'),
                 'student__admission_number': r.get('student__admission_number'),
-                'student__full_name': full_name,  # Add full_name
+                'student__full_name': full_name,
                 'student__first_name': first,
                 'student__middle_name': middle,
                 'student__last_name': last,
                 'student__current_class': r.get('student__current_class'),
-                'student__contacts': r.get('student__contacts'),
+                'student__emergency_contact': contact_info,  # Changed from student__contacts
                 'total_balance_bf': r.get('total_balance_bf'),
                 'total_prepayment': r.get('total_prepayment'),
                 'total_billed': r.get('total_billed'),
