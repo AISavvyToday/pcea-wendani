@@ -54,29 +54,6 @@
                 <div class="card-body">
                     <form method="post" id="invoice-edit-form">
                         {% csrf_token %}
-
-                        <!-- Invoice Header Fields -->
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Due Date</label>
-                                    {{ form.due_date }}
-                                    {% if form.due_date.errors %}
-                                        <div class="text-danger small">{{ form.due_date.errors }}</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Notes</label>
-                                    {{ form.notes }}
-                                    {% if form.notes.errors %}
-                                        <div class="text-danger small">{{ form.notes.errors }}</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Invoice Items Formset -->
                         {{ formset.management_form }}
 
