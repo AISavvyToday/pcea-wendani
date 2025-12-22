@@ -6,6 +6,22 @@
 <title>{{ SCHOOL_NAME }} - Invoice Summary Report</title>
 
 <style>
+    .report-center {
+  text-align: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.report-title {
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.report-period {
+  font-size: 9.5pt;
+  color: #666;
+}
+
 @page {
   size: A4;
   margin: 0;
@@ -239,10 +255,11 @@ body {
         {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo">{% endif %}
       </div>
 
-      <div class="text-center">
-        <div class="report-title">Invoice Summary Report</div>
-        <div class="report-period">{{ academic_year.year }} – {{ term|title }}</div>
-      </div>
+      <div class="report-center">
+  <div class="report-title">Invoice Summary Report</div>
+  <div class="report-period">{{ academic_year.year }} – {{ term|title }}</div>
+</div>
+
     </div>
 
 
