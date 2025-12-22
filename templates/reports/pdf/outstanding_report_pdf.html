@@ -38,14 +38,18 @@ body {
 /* ===== LETTERHEAD ===== */
 .letterhead {
   border-bottom: 2px solid #000;
-  padding-bottom: 6px;
-  margin-bottom: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+}
+
+.logo {
+  max-height: 55px;
 }
 
 .school-info {
@@ -54,7 +58,7 @@ body {
 }
 
 .school-name {
-  font-size: 15pt;
+  font-size: 17pt;
   font-weight: bold;
   margin: 0;
 }
@@ -64,8 +68,14 @@ body {
   color: #555;
 }
 
+.report-center {
+  text-align: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
 .report-title {
-  font-size: 12pt;
+  font-size: 13pt;
   font-weight: bold;
   margin-top: 5px;
 }
@@ -125,14 +135,14 @@ body {
 /* ===== SUMMARY BOX ===== */
 .summary-box {
   border: 1px solid #ddd;
-  padding: 6px;
+  padding: 8px;
   margin-bottom: 10px;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 6px;
 }
 
 .summary-item {
@@ -447,13 +457,15 @@ body {
     <!-- LETTERHEAD -->
     <div class="letterhead">
       <div class="header-content">
+        {% if SCHOOL_LOGO_URL %}<img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">{% endif %}
         <div class="school-info">
           <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
           <div class="school-details">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
         </div>
+        {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
       </div>
 
-      <div class="text-center">
+      <div class="report-center">
         <div class="report-title">Outstanding Balances Report</div>
         <div class="report-period">
           {% if filters.academic_year %}{{ filters.academic_year.year }}{% endif %}
@@ -611,48 +623,24 @@ body {
       {% endif %}
     </div>
 
-    <!-- FOOTER WITH NOTES -->
-    <div class="document-footer keep-together">
-      <div class="footer-content">
-        <div class="notes-section">
-          <div class="notes-title">Notes:</div>
-          <div>
-            • Balance B/F: Balance brought forward from previous term<br>
-            • Prepayment: Credit carried forward from previous term<br>
-          </div>
-
-          <div class="balance-legend">
-            <div class="legend-item">
-              <div class="indicator-dot dot-high"></div>
-              <span>Balance > 10,000</span>
-            </div>
-            <div class="legend-item">
-              <div class="indicator-dot dot-medium"></div>
-              <span>5,000 - 10,000</span>
-            </div>
-            <div class="legend-item">
-              <div class="indicator-dot dot-low"></div>
-              <span>1 - 5,000</span>
-            </div>
-            <div class="legend-item">
-              <div class="indicator-dot dot-zero"></div>
-              <span>Paid/Zero</span>
-            </div>
-          </div>
+    <!-- FOOTER -->
+    <div class="document-footer">
+      <div class="balance-legend">
+        <div class="legend-item">
+          <div class="indicator-dot dot-high"></div>
+          <span>Balance > 10,000</span>
         </div>
-
-        <div class="notes-section">
-          {% if BANK_DETAILS %}
-          <div class="notes-title">Payment Options:</div>
-          <div style="font-size:7.5pt;">
-            {% if BANK_DETAILS.equity %}
-            <strong>{{ BANK_DETAILS.equity.name }}:</strong> {{ BANK_DETAILS.equity.account_no }}<br>
-            {% endif %}
-            {% if BANK_DETAILS.coop %}
-            <strong>{{ BANK_DETAILS.coop.name }}:</strong> {{ BANK_DETAILS.coop.account_no }}
-            {% endif %}
-          </div>
-          {% endif %}
+        <div class="legend-item">
+          <div class="indicator-dot dot-medium"></div>
+          <span>5,000 - 10,000</span>
+        </div>
+        <div class="legend-item">
+          <div class="indicator-dot dot-low"></div>
+          <span>1 - 5,000</span>
+        </div>
+        <div class="legend-item">
+          <div class="indicator-dot dot-zero"></div>
+          <span>Paid/Zero</span>
         </div>
       </div>
     </div>
