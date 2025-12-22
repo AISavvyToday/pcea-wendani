@@ -22,6 +22,10 @@
     .item-row:hover {
         background-color: #f8f9fa;
     }
+    .empty-row {
+        color: #999;
+        font-style: italic;
+    }
 </style>
 {% endblock %}
 
@@ -86,7 +90,6 @@
                                         <th style="width: 10%;">Discount</th>
                                         <th style="width: 15%;">Transport Route</th>
                                         <th style="width: 8%;">Trip Type</th>
-                                        <th style="width: 5%;" class="text-center">Remove</th>
                                     </tr>
                                 </thead>
                                 <tbody id="formset-container">
@@ -107,11 +110,6 @@
                                         </td>
                                         <td class="transport-trip-cell" style="display: none;">
                                             {{ form.transport_trip_type }}
-                                        </td>
-                                        <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-outline-danger remove-row">
-                                                <i class="mdi mdi-close"></i>
-                                            </button>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -187,6 +185,12 @@
                             <small class="text-muted">
                                 <i class="mdi mdi-information text-primary me-1"></i>
                                 Click "Add Item" to add more fee items
+                            </small>
+                        </li>
+                        <li class="mb-2">
+                            <small class="text-muted">
+                                <i class="mdi mdi-information text-primary me-1"></i>
+                                Existing items cannot be deleted, but you can edit them
                             </small>
                         </li>
                     </ul>
@@ -381,37 +385,6 @@
                 });
             }
 
-            const removeButton = template.querySelector('.remove-row');
-            if (removeButton) {
-                removeButton.addEventListener('click', function() {
-                    const row = this.closest('tr');
-                    const formIndex = row.getAttribute('data-form-index');
-
-                    // If this is an existing item (has an ID), we need to mark it for deletion
-                    const idField = row.querySelector('input[name$="-id"]');
-                    if (idField && idField.value) {
-                        // Create a hidden DELETE field if it doesn't exist
-                        let deleteField = row.querySelector('input[name$="-DELETE"]');
-                        if (!deleteField) {
-                            deleteField = document.createElement('input');
-                            deleteField.type = 'hidden';
-                            deleteField.name = `items-${formIndex}-DELETE`;
-                            deleteField.value = 'on';
-                            row.appendChild(deleteField);
-                        } else {
-                            deleteField.value = 'on';
-                        }
-                        // Hide the row instead of removing it
-                        row.style.display = 'none';
-                    } else {
-                        // For new items, just remove the row
-                        row.remove();
-                    }
-
-                    updateTotals();
-                });
-            }
-
             // Update form count
             const totalForms = document.getElementById('id_items-TOTAL_FORMS');
             totalForms.value = parseInt(totalForms.value) + 1;
@@ -419,37 +392,6 @@
             // Add to container
             container.appendChild(template);
             formCount++;
-        });
-
-        // Remove row handlers for existing rows
-        document.querySelectorAll('.remove-row').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const row = this.closest('tr');
-                const formIndex = row.getAttribute('data-form-index');
-
-                // If this is an existing item (has an ID), we need to mark it for deletion
-                const idField = row.querySelector('input[name$="-id"]');
-                if (idField && idField.value) {
-                    // Create a hidden DELETE field if it doesn't exist
-                    let deleteField = row.querySelector('input[name$="-DELETE"]');
-                    if (!deleteField) {
-                        deleteField = document.createElement('input');
-                        deleteField.type = 'hidden';
-                        deleteField.name = `items-${formIndex}-DELETE`;
-                        deleteField.value = 'on';
-                        row.appendChild(deleteField);
-                    } else {
-                        deleteField.value = 'on';
-                    }
-                    // Hide the row instead of removing it
-                    row.style.display = 'none';
-                } else {
-                    // For new items, just remove the row
-                    row.remove();
-                }
-
-                updateTotals();
-            });
         });
 
         // Initial totals calculation
@@ -578,16 +520,14 @@
         let totalDiscount = 0;
 
         document.querySelectorAll('.item-row').forEach(row => {
-            if (row.style.display !== 'none') {
-                const amountInput = row.querySelector('input[name$="-amount"]');
-                const discountInput = row.querySelector('input[name$="-discount_applied"]');
+            const amountInput = row.querySelector('input[name$="-amount"]');
+            const discountInput = row.querySelector('input[name$="-discount_applied"]');
 
-                const amount = parseFloat(amountInput?.value) || 0;
-                const discount = parseFloat(discountInput?.value) || 0;
+            const amount = parseFloat(amountInput?.value) || 0;
+            const discount = parseFloat(discountInput?.value) || 0;
 
-                subtotal += amount;
-                totalDiscount += discount;
-            }
+            subtotal += amount;
+            totalDiscount += discount;
         });
 
         const total = subtotal - totalDiscount;
