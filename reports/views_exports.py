@@ -695,8 +695,6 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             'student__middle_name',
             'student__last_name',
             'student__current_class',
-            'student__emergency_contact_phone',  # Changed from 'student__contacts'
-            'student__emergency_contact_name',  # Added emergency contact name
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -854,8 +852,6 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'student__middle_name',
             'student__last_name',
             'student__current_class',
-            'student__emergency_contact_phone',  # Changed from 'student__contacts'
-            'student__emergency_contact_name',  # Added
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -907,12 +903,10 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             processed_rows.append({
                 'term__academic_year__year': r.get('term__academic_year__year'),
                 'student__admission_number': r.get('student__admission_number'),
-                'student__full_name': full_name,
                 'student__first_name': first,
                 'student__middle_name': middle,
                 'student__last_name': last,
                 'student__current_class': r.get('student__current_class'),
-                'student__emergency_contact': contact_info,  # Changed from student__contacts
                 'total_balance_bf': r.get('total_balance_bf'),
                 'total_prepayment': r.get('total_prepayment'),
                 'total_billed': r.get('total_billed'),
