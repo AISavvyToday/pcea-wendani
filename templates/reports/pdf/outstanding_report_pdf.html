@@ -586,7 +586,6 @@ body {
             <td><strong>{{ r.student__admission_number|default:"—" }}</strong></td>
             <td>{{ r.student__full_name|default:"—" }}</td>
             <td>{{ r.student__current_class|default:"—" }}</td>
-            <td>{{ r.student__contacts|default:"—"|truncatechars:20 }}</td>
 
             <!-- Prepayment -->
             <td class="text-right amount-cell {% if r.total_prepayment > 0 %}amount-low{% else %}amount-zero{% endif %}">
