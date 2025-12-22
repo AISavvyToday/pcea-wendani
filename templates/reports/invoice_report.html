@@ -5,262 +5,168 @@
 
 {% block extra_head %}
 <style>
-/* ===============================
-   RECEIPT-STYLE PRINT LAYOUT
-   =============================== */
-
 body {
   font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
   color: #222;
-  font-size: 12px;
-  margin: 0;
-  padding: 0;
 }
 
-.page {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 12mm;
-  box-sizing: border-box;
-  background: #fff;
-  margin: 0 auto;
-}
-
-.receipt {
-  border: 1px solid #ccc;
-  padding: 12px;
-}
-
-/* ===== Header ===== */
-.header {
+/* ===== Action Bar ===== */
+.action-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 15px;
 }
 
-.header .logos {
-  width: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo {
-  height: 60px;
-  width: auto;
-}
-
-.school-title {
-  flex: 1;
-  text-align: center;
-}
-
-.school-title h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.school-title h4 {
-  margin: 2px 0 0 0;
-  font-size: 14px;
+.action-bar a {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 4px;
+  text-decoration: none;
   font-weight: 600;
 }
 
-.small {
-  font-size: 11px;
-  color: #444;
+.btn-pdf {
+  background: #d9534f;
+  color: #fff;
+}
+
+.btn-excel {
+  background: #5cb85c;
+  color: #fff;
+}
+
+/* ===== Report Container ===== */
+.report-box {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 15px;
 }
 
 /* ===== Meta ===== */
 .meta {
-  margin-top: 8px;
   text-align: center;
   font-size: 12px;
-  color: #444;
+  color: #555;
+  margin-bottom: 12px;
 }
 
-/* ===== Tables ===== */
+/* ===== Table ===== */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 th, td {
-  padding: 6px 8px;
-  border: 1px solid #e6e6e6;
-  vertical-align: middle;
+  border: 1px solid #e5e5e5;
+  padding: 8px 10px;
 }
 
 th {
   background: #f7f7f7;
-  font-weight: 600;
-}
-
-.text-right {
-  text-align: right;
-}
-
-.text-center {
-  text-align: center;
-}
-
-/* ===== Totals ===== */
-.totals-row th {
-  background: #eee;
   font-weight: 700;
 }
 
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
 /* ===== Footer ===== */
 .footer {
-  margin-top: 14px;
-  font-size: 11px;
-  color: #333;
-  border-top: 1px dashed #ddd;
+  margin-top: 15px;
+  font-size: 12px;
+  border-top: 1px dashed #ccc;
   padding-top: 8px;
-}
-
-.bank-list {
-  margin: 6px 0 0 0;
-  padding-left: 16px;
+  color: #444;
 }
 
 /* ===== Print ===== */
 @media print {
-  .no-print {
+  .action-bar {
     display: none !important;
-  }
-
-  .page {
-    margin: 0;
-    box-shadow: none;
   }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page">
-  <div class="receipt">
 
-    <!-- ===== HEADER ===== -->
-    <div class="header">
-      <div class="logos">
-        {% if SCHOOL_LOGO_URL %}
-          <img src="{{ SCHOOL_LOGO_URL }}" class="logo">
-        {% endif %}
-      </div>
+<!-- ===== ACTION BUTTONS ===== -->
+<div class="action-bar no-print">
+  <a href="{% url 'reports:invoice_report_pdf' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+     class="btn-pdf">
+     ⬇ Download PDF
+  </a>
 
-      <div class="school-title">
-        <h2>{{ SCHOOL_NAME }}</h2>
-        {% if SCHOOL_ADDRESS or SCHOOL_CONTACT %}
-          <div class="small">
-            {{ SCHOOL_ADDRESS }}
-            {% if SCHOOL_ADDRESS and SCHOOL_CONTACT %} • {% endif %}
-            {{ SCHOOL_CONTACT }}
-          </div>
-        {% endif %}
-        <h4>Invoice Summary Report</h4>
-        {% if academic_year and term %}
-          <div class="small">
-            <strong>{{ academic_year.year }} – Term {{ term }}</strong>
-          </div>
-        {% endif %}
-      </div>
+  <a href="{% url 'reports:invoice_report_excel' %}?academic_year={{ academic_year.id }}&term={{ term }}"
+     class="btn-excel">
+     ⬇ Export Excel
+  </a>
+</div>
 
-      <div class="logos">
-        {% if SPONSOR_LOGO_URL %}
-          <img src="{{ SPONSOR_LOGO_URL }}" class="logo">
-        {% endif %}
-      </div>
-    </div>
+<div class="report-box">
 
-    <!-- ===== META ===== -->
-    <div class="meta">
-      Printed: {{ now|date:"d M Y H:i" }}
-      &nbsp;|&nbsp;
-        By: {{ request.user.get_full_name|default:request.user.email }}
+  <h3 class="text-center">Invoice Summary Report</h3>
 
-    </div>
-
-    <!-- ===== SUMMARY TABLE ===== -->
-    <table>
-      <thead>
-        <tr>
-          <th style="width:40%" class="text-center">Fee Category</th>
-          <th style="width:20%" class="text-right">Billed (KES)</th>
-          <th style="width:20%" class="text-right">Collected (KES)</th>
-          <th style="width:20%" class="text-right">Balance (KES)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in report_rows %}
-        <tr>
-          <td>{{ row.category }}</td>
-          <td class="text-right">{{ row.billed|intcomma }}</td>
-          <td class="text-right">{{ row.collected|intcomma }}</td>
-          <td class="text-right">
-            {% if row.balance < 0 %}
-              <span style="color:#d9534f;">{{ row.balance|intcomma }}</span>
-            {% elif row.balance > 0 %}
-              <span style="color:#f0ad4e;">{{ row.balance|intcomma }}</span>
-            {% else %}
-              <span style="color:#5cb85c;">0</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="4" class="text-center small">
-            No invoice data available.
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-
-      {% if totals %}
-      <tfoot>
-        <tr class="totals-row">
-          <th class="text-right">TOTAL</th>
-          <th class="text-right">{{ totals.billed|intcomma }}</th>
-          <th class="text-right">{{ totals.collected|intcomma }}</th>
-          <th class="text-right">{{ totals.balance|intcomma }}</th>
-        </tr>
-      </tfoot>
-      {% endif %}
-    </table>
-
-    <!-- ===== FOOTER ===== -->
-    <div class="footer">
-      <strong>Banking & Payment Details</strong>
-      <ul class="bank-list">
-        {% if BANK_DETAILS.equity %}
-          <li>
-            <strong>{{ BANK_DETAILS.equity.name }}</strong> —
-            {{ BANK_DETAILS.equity.account_name }} •
-            {{ BANK_DETAILS.equity.account_no }}
-          </li>
-        {% endif %}
-        {% if BANK_DETAILS.coop %}
-          <li>
-            <strong>{{ BANK_DETAILS.coop.name }}</strong> —
-            {{ BANK_DETAILS.coop.account_name }} •
-            {{ BANK_DETAILS.coop.account_no }}
-          </li>
-        {% endif %}
-        {% for p in BANK_DETAILS.paybills %}
-          <li>
-            <strong>{{ p.label }}</strong> — {{ p.acc_format }}
-          </li>
-        {% endfor %}
-      </ul>
-
-      <div class="small" style="margin-top:6px;">
-        This report was generated electronically and is valid without signature.
-      </div>
-    </div>
-
+  <div class="meta">
+    Academic Year: <strong>{{ academic_year.year }}</strong> |
+    Term: <strong>{{ term }}</strong> |
+    Generated: {{ now|date:"d M Y H:i" }} |
+    By:
+    {% if request.user.get_full_name %}
+      {{ request.user.get_full_name }}
+    {% else %}
+      {{ request.user.email }}
+    {% endif %}
   </div>
+
+  <!-- ===== TABLE ===== -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40%">Fee Category</th>
+        <th class="text-right">Billed (KES)</th>
+        <th class="text-right">Collected (KES)</th>
+        <th class="text-right">Balance (KES)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in report_rows %}
+      <tr>
+        <td>{{ row.category }}</td>
+        <td class="text-right">{{ row.billed|intcomma }}</td>
+        <td class="text-right">{{ row.collected|intcomma }}</td>
+        <td class="text-right">
+          {% if row.balance > 0 %}
+            <span style="color:#c00">{{ row.balance|intcomma }}</span>
+          {% else %}
+            <span style="color:#080">{{ row.balance|intcomma }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4" class="text-center">No data available</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+
+    {% if totals %}
+    <tfoot>
+      <tr>
+        <th class="text-right">TOTAL</th>
+        <th class="text-right">{{ totals.billed|intcomma }}</th>
+        <th class="text-right">{{ totals.collected|intcomma }}</th>
+        <th class="text-right">{{ totals.balance|intcomma }}</th>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+
+  <div class="footer">
+    Report generated electronically. This screen view does not require a signature.
+  </div>
+
 </div>
 {% endblock %}
