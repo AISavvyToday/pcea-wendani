@@ -245,12 +245,7 @@ body {
       </div>
     </div>
 
-    <!-- META -->
-    <div class="meta-info">
-      Generated: {{ generated_on|date:"d M Y H:i" }} |
-      By: {{ generated_by }} |
-      Report ID: INV-{{ generated_on|date:"Ymd-His" }}
-    </div>
+
 
     <!-- SUMMARY -->
     {% if totals %}
@@ -322,20 +317,7 @@ body {
     </div>
 
 <div class="notes-section">
-          {% if BANK_DETAILS %}
-          <div class="notes-title">Payment Options:</div>
-          <div style="font-size:7.5pt;">
-            {% if BANK_DETAILS.equity %}
-            <strong>{{ BANK_DETAILS.equity.name }}:</strong> {{ BANK_DETAILS.equity.account_no }}<br>
-            {% endif %}
-            {% if BANK_DETAILS.coop %}
-            <strong>{{ BANK_DETAILS.coop.name }}:</strong> {{ BANK_DETAILS.coop.account_no }}
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-
-    <div class="page-number">Page 1 of 1</div>
+             <div class="page-number">Page 1 of 1</div>
 
   </div>
 </div>
