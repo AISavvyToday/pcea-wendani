@@ -54,7 +54,7 @@
           <label class="form-label">Term</label>
           {{ form.term }}
         </div>
-               <div class="col-12 d-flex gap-2 mt-2">
+        <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Generate Report</button>
           <a href="{% url 'reports:invoice_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>
@@ -70,18 +70,14 @@
       </div>
     </div>
   {% else %}
-    <!-- Letterhead -->
+    <!-- Letterhead without logo -->
     <div class="report-letterhead">
-      {% if SCHOOL_LOGO_URL %}
-        <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="logo">
-      {% endif %}
       <div class="report-title">
         <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
         <h5 style="margin-top:8px">Invoice Summary Report</h5>
         <small class="text-muted">
           {{ academic_year.year }} • Term {{ term|title }}
-          {% if form.cleaned_data and not form.cleaned_data.show_zero_rows %} • Excluding zero-billed categories {% endif %}
         </small>
       </div>
     </div>
