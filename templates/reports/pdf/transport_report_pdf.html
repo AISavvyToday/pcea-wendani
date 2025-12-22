@@ -68,19 +68,20 @@ body {
   color: #555;
 }
 
+.report-center {
+  text-align: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
 .report-title {
   font-size: 13pt;
   font-weight: bold;
-  margin-top: 6px;
 }
 
 .report-period {
   font-size: 9.5pt;
   color: #666;
-}
-
-.text-center {
-  text-align: center;
 }
 
 /* ===== META INFO ===== */
@@ -160,50 +161,7 @@ body {
   font-family: "Courier New", monospace;
 }
 
-.summary-value.positive {
-  color: #27ae60;
-}
-
-.summary-value.negative {
-  color: #c0392b;
-}
-
-.summary-value.neutral {
-  color: #7f8c8d;
-}
-
-/* ===== ROUTE SUMMARY ===== */
-.route-summary {
-  margin-bottom: 12px;
-}
-
-.route-stats {
-  display: flex;
-  justify-content: space-around;
-  background: #f0f7ff;
-  border: 1px solid #cce5ff;
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 10px;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-label {
-  font-size: 8.5pt;
-  color: #0066cc;
-  margin-bottom: 2px;
-}
-
-.stat-value {
-  font-size: 11pt;
-  font-weight: bold;
-  color: #004085;
-}
-
-/* ===== MAIN TABLE ===== */
+/* ===== TABLE ===== */
 .table-container {
   margin-top: 12px;
 }
@@ -219,183 +177,12 @@ body {
 .report-table td {
   border: 1px solid #444;
   padding: 7px 6px;
-  vertical-align: middle;
 }
 
 .report-table thead th {
   background: #2c3e50;
   color: #fff;
-  font-size: 9.2pt;
   font-weight: bold;
-  text-align: left;
-}
-
-/* Column widths */
-.report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 22%; } /* Student Name */
-.report-table th:nth-child(2),
-.report-table td:nth-child(2) { width: 12%; } /* Admission # */
-.report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 12%; } /* Class */
-.report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 18%; } /* Route */
-.report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 12%; } /* Transport Amount */
-.report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 12%; } /* Paid */
-.report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 12%; } /* Balance */
-
-.report-table tbody tr:nth-child(even) {
-  background: #f8f8f8;
-}
-
-.report-table tbody tr.route-break {
-  background: #e8f4fc !important;
-  font-weight: bold;
-}
-
-.text-right {
-  text-align: right;
-  font-family: "Courier New", monospace;
-}
-
-.text-center {
-  text-align: center;
-}
-
-/* ===== AMOUNT STYLES ===== */
-.amount-cell {
-  font-weight: 600;
-}
-
-.amount-billed {
-  color: #2980b9;
-}
-
-.amount-collected {
-  color: #27ae60;
-}
-
-.amount-balance {
-  font-weight: bold;
-}
-
-.amount-balance.positive {
-  color: #27ae60;
-}
-
-.amount-balance.negative {
-  color: #c0392b;
-}
-
-.amount-balance.zero {
-  color: #7f8c8d;
-}
-
-/* ===== PAYMENT STATUS ===== */
-.payment-status {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: 8pt;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.status-paid {
-  background: #d5f4e6;
-  color: #27ae60;
-  border: 1px solid #82e0aa;
-}
-
-.status-partial {
-  background: #fdebd0;
-  color: #e67e22;
-  border: 1px solid #f8c471;
-}
-
-.status-unpaid {
-  background: #fadbd8;
-  color: #c0392b;
-  border: 1px solid #f5b7b1;
-}
-
-.status-exempt {
-  background: #f4f4f4;
-  color: #7f8c8d;
-  border: 1px solid #ddd;
-}
-
-/* ===== ROUTE GROUPING ===== */
-.route-group-header {
-  background: #e8f4fc !important;
-  border-left: 4px solid #2980b9 !important;
-  font-weight: bold;
-  color: #004085;
-}
-
-.route-group-footer {
-  background: #d4edda !important;
-  font-weight: bold;
-  border-top: 2px solid #155724 !important;
-}
-
-/* ===== TOTAL ROW ===== */
-.report-table tfoot th,
-.report-table tfoot td {
-  background: #eaeaea;
-  font-weight: bold;
-  border-top: 2px solid #222;
-}
-
-/* ===== NO DATA ===== */
-.no-data {
-  text-align: center;
-  padding: 25px;
-  border: 2px dashed #bbb;
-  font-size: 10pt;
-  margin: 15px 0;
-}
-
-.no-data-icon {
-  font-size: 24pt;
-  color: #bbb;
-  margin-bottom: 10px;
-}
-
-/* ===== LEGEND ===== */
-.legend {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  margin-top: 10px;
-  font-size: 8.5pt;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.color-paid {
-  background: #27ae60;
-}
-
-.color-partial {
-  background: #f39c12;
-}
-
-.color-unpaid {
-  background: #e74c3c;
 }
 
 /* ===== FOOTER ===== */
@@ -405,35 +192,7 @@ body {
   padding-top: 8px;
   font-size: 8.5pt;
   color: #666;
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.notes-section {
-  flex: 1;
-}
-
-.notes-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: #444;
-}
-
-.route-info {
-  font-size: 8.2pt;
-  line-height: 1.4;
-}
-
-.disclaimer {
   text-align: center;
-  font-style: italic;
-  margin-top: 8px;
-  font-size: 8pt;
-  color: #777;
 }
 
 /* ===== PAGE NUMBER ===== */
@@ -443,37 +202,6 @@ body {
   right: 12mm;
   font-size: 8.5pt;
   color: #777;
-}
-
-/* ===== PRINT UTILITIES ===== */
-.keep-together {
-  page-break-inside: avoid;
-}
-
-@media print {
-  .no-print {
-    display: none !important;
-  }
-
-  body {
-    -webkit-print-color-adjust: exact;
-  }
-
-  .report-table thead th {
-    background: #2c3e50 !important;
-    -webkit-print-color-adjust: exact;
-  }
-}
-
-/* ===== ROW HIGHLIGHTS ===== */
-.highlight-row {
-  background-color: #fff8e1 !important;
-  border-left: 4px solid #f39c12 !important;
-}
-
-.fully-paid {
-  background-color: #f0f9eb !important;
-  border-left: 4px solid #27ae60 !important;
 }
 </style>
 </head>
@@ -485,20 +213,28 @@ body {
     <!-- LETTERHEAD -->
     <div class="letterhead">
       <div class="header-content">
-        {% if SCHOOL_LOGO_URL %}<img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">{% endif %}
+        {% if SCHOOL_LOGO_URL %}
+          <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">
+        {% endif %}
+
         <div class="school-info">
           <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
-          <div class="school-details">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
+          <div class="school-details">
+            {{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}
+          </div>
         </div>
-        {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
+
+        {% if SPONSOR_LOGO_URL %}
+          <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">
+        {% endif %}
       </div>
 
-      <div class="text-center">
+      <div class="report-center">
         <div class="report-title">Transport Report</div>
         <div class="report-period">
           {% if filters.academic_year %}{{ filters.academic_year.year }}{% endif %}
-          {% if filters.term %} • Term {{ filters.term|title }}{% endif %}
-          {% if filters.route %} • Route: {{ filters.route.name }}{% endif %}
+          {% if filters.term %} – {{ filters.term|title }}{% endif %}
+          {% if filters.route %} • {{ filters.route.name }}{% endif %}
         </div>
       </div>
     </div>
@@ -506,105 +242,7 @@ body {
     <!-- META INFO -->
     <div class="meta-info">
       Generated: {{ generated_on|date:"d M Y H:i" }} |
-      By: {{ generated_by }} |
-      Report ID: TRN-{{ generated_on|date:"Ymd-His" }} |
-      {% if filters.show_zero %}Including zero rows{% else %}Excluding zero rows{% endif %}
-    </div>
-
-    <!-- FILTERS SUMMARY -->
-    {% if filters %}
-    <div class="filters-summary">
-      <div class="filters-grid">
-        {% if filters.academic_year %}
-        <div class="filter-item">
-          <span class="filter-label">Academic Year:</span>
-          <span class="filter-value">{{ filters.academic_year.year }}</span>
-        </div>
-        {% endif %}
-
-        {% if filters.term %}
-        <div class="filter-item">
-          <span class="filter-label">Term:</span>
-          <span class="filter-value">{{ filters.term|title }}</span>
-        </div>
-        {% endif %}
-
-        {% if filters.route %}
-        <div class="filter-item">
-          <span class="filter-label">Route:</span>
-          <span class="filter-value">{{ filters.route.name }}</span>
-        </div>
-        {% else %}
-        <div class="filter-item">
-          <span class="filter-label">Route:</span>
-          <span class="filter-value">All Routes</span>
-        </div>
-        {% endif %}
-
-        {% if filters.student_class %}
-        <div class="filter-item">
-          <span class="filter-label">Class:</span>
-          <span class="filter-value">{{ filters.student_class }}</span>
-        </div>
-        {% else %}
-        <div class="filter-item">
-          <span class="filter-label">Class:</span>
-          <span class="filter-value">All Classes</span>
-        </div>
-        {% endif %}
-
-        {% if filters.start_date %}
-        <div class="filter-item">
-          <span class="filter-label">From Date:</span>
-          <span class="filter-value">{{ filters.start_date|date:"d M Y" }}</span>
-        </div>
-        {% endif %}
-
-        {% if filters.end_date %}
-        <div class="filter-item">
-          <span class="filter-label">To Date:</span>
-          <span class="filter-value">{{ filters.end_date|date:"d M Y" }}</span>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- SUMMARY BOX -->
-    <div class="summary-box">
-      <div class="summary-grid">
-        <div class="summary-item">
-          <div class="summary-label">Students on Transport</div>
-          <div class="summary-value neutral">{{ rows|length }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Total Transport Fee</div>
-          <div class="summary-value">KES {{ totals.billed|floatformat:2|default:"0.00" }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Net Outstanding</div>
-          <div class="summary-value {% if totals.balance > 0 %}negative{% else %}positive{% endif %}">
-            KES {{ totals.balance|floatformat:2|default:"0.00" }}
-          </div>
-        </div>
-      </div>
-
-      {% if totals.billed and totals.billed > 0 %}
-      <div class="route-stats">
-        <div class="stat-item">
-          <div class="stat-label">Collection Rate</div>
-          <div class="stat-value">{{ totals.collected|default:0|floatformat:0 }}%</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Amount Collected</div>
-          <div class="stat-value">KES {{ totals.collected|floatformat:2|default:"0.00" }}</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Outstanding Amount</div>
-          <div class="stat-value">KES {{ totals.balance|floatformat:2|default:"0.00" }}</div>
-        </div>
-      </div>
-      {% endif %}
+      By: {{ generated_by }}
     </div>
 
     <!-- MAIN TABLE -->
@@ -615,152 +253,37 @@ body {
           <tr>
             <th>Student Name</th>
             <th>Admission #</th>
-            <th>Class/Grade</th>
-            <th>Route/Destination</th>
-            <th class="text-right">Transport Amount</th>
+            <th>Class</th>
+            <th>Route</th>
+            <th class="text-right">Amount</th>
             <th class="text-right">Paid</th>
             <th class="text-right">Balance</th>
           </tr>
         </thead>
         <tbody>
-          {% regroup rows by route_name as route_list %}
-          {% for route in route_list %}
-            {% if not filters.route %}
-            <tr class="route-group-header">
-              <td colspan="7">
-                <i class="fas fa-route"></i> Route: {{ route.grouper|default:"Unassigned" }}
-                {% with route_totals=route.list|calculate_route_totals %}
-                • Students: {{ route.list|length }} • Total: KES {{ route_totals.billed|floatformat:2 }}
-                • Collected: KES {{ route_totals.collected|floatformat:2 }}
-                • Balance: KES {{ route_totals.balance|floatformat:2 }}
-                {% endwith %}
-              </td>
-            </tr>
-            {% endif %}
-
-            {% for r in route.list %}
-            {% with balance=r.balance|default:0 %}
-            <tr class="{% if balance == 0 %}fully-paid{% elif balance > 0 %}highlight-row{% endif %}">
-              <td>{{ r.student_name|default:"—" }}</td>
-              <td><strong>{{ r.admission|default:"—" }}</strong></td>
-              <td>{{ r.student_class|default:"—" }}</td>
-              <td>{{ r.route_name|default:"—" }}</td>
-
-              <!-- Transport Amount -->
-              <td class="text-right amount-cell amount-billed">
-                {{ r.billed|floatformat:2|default:"0.00" }}
-              </td>
-
-              <!-- Amount Paid -->
-              <td class="text-right amount-cell amount-collected">
-                {{ r.collected|floatformat:2|default:"0.00" }}
-              </td>
-
-              <!-- Balance -->
-              <td class="text-right amount-cell amount-balance
-                {% if balance > 0 %}negative
-                {% elif balance < 0 %}positive
-                {% else %}zero{% endif %}">
-                {{ balance|floatformat:2 }}
-                {% if r.billed > 0 %}
-                <div style="font-size: 7.5pt; margin-top: 2px; color: #666;">
-                  {% with percentage=r.collected|default:0|divide:r.billed|multiply:100 %}
-                  {{ percentage|floatformat:0 }}%
-                  {% endwith %}
-                </div>
-                {% endif %}
-              </td>
-            </tr>
-            {% endwith %}
-            {% endfor %}
-
-            {% if not filters.route and not forloop.last %}
-            <tr class="route-break">
-              <td colspan="7" style="border: none; height: 5px;"></td>
-            </tr>
-            {% endif %}
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.student_name }}</td>
+            <td>{{ r.admission }}</td>
+            <td>{{ r.student_class }}</td>
+            <td>{{ r.route_name }}</td>
+            <td class="text-right">{{ r.billed|floatformat:2 }}</td>
+            <td class="text-right">{{ r.collected|floatformat:2 }}</td>
+            <td class="text-right">{{ r.balance|floatformat:2 }}</td>
+          </tr>
           {% endfor %}
         </tbody>
-        <tfoot>
-          <tr>
-            <th colspan="4" class="text-right">GRAND TOTALS</th>
-            <th class="text-right">KES {{ totals.billed|floatformat:2|default:"0.00" }}</th>
-            <th class="text-right">KES {{ totals.collected|floatformat:2|default:"0.00" }}</th>
-            <th class="text-right">KES {{ totals.balance|floatformat:2|default:"0.00" }}</th>
-          </tr>
-        </tfoot>
       </table>
       {% else %}
       <div class="no-data">
-        <div class="no-data-icon">🚌</div>
         <h3>No Transport Data Available</h3>
-        <p>No transport records found for the selected filters.</p>
       </div>
       {% endif %}
-    </div>
-
-    <!-- LEGEND -->
-    {% if rows %}
-    <div class="legend">
-      <div class="legend-item">
-        <div class="legend-color color-paid"></div>
-        <span>Fully Paid</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color color-partial"></div>
-        <span>Partially Paid</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color color-unpaid"></div>
-        <span>Outstanding Balance</span>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- FOOTER -->
-    <div class="document-footer keep-together">
-      <div class="footer-content">
-        <div class="notes-section">
-          <div class="notes-title">Notes:</div>
-          <div class="route-info">
-            • Transport fees are billed per term based on selected routes<br>
-            • Payments are allocated proportionally to transport items<br>
-            • Negative balance indicates overpayment/credit<br>
-            • Collection rate shows percentage of transport fees collected
-          </div>
-        </div>
-
-        <div class="notes-section">
-          <div class="notes-title">Payment Information:</div>
-          <div style="font-size: 8.2pt;">
-            Please ensure transport fees are paid by the due date.<br>
-            Payments can be made via bank transfer or mobile payment.<br>
-            Use Admission Number as reference when making payments.
-          </div>
-        </div>
-      </div>
-
-      <div class="disclaimer">
-        This is a computer-generated transport report. Route assignments and fees are subject to change.
-      </div>
     </div>
 
     <div class="page-number">Page 1 of 1</div>
 
   </div>
 </div>
-
-<!-- Template Filters for Calculations -->
-{% comment %}
-Django template filters for calculations (these would be defined in your template tags)
-{% endcomment %}
-{% with %}
-  {% comment %}
-  Note: In production, these calculations should be done in the view
-  For template demonstration, we're showing the logic
-  {% endcomment %}
-  {% load custom_filters %}
-{% endwith %}
-
 </body>
 </html>

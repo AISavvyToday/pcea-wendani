@@ -5,8 +5,7 @@
 
 {% block extra_head %}
 <style>
-  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
-  .report-letterhead img.logo { max-height: 70px; }
+  .report-letterhead { margin-bottom:12px; }
   .report-title { text-align:center; width:100%; }
   .report-table { width:100%; border-collapse: collapse; }
   .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
@@ -72,9 +71,6 @@
     </div>
   {% else %}
     <div class="report-letterhead">
-      {% if SCHOOL_LOGO_URL %}
-        <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="logo">
-      {% endif %}
       <div class="report-title">
         <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>

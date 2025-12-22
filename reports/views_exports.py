@@ -1263,26 +1263,8 @@ class TransportReportPDFView(LoginRequiredMixin, View):
                 'show_zero': show_zero,
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
-            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
-            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
-            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
-                'equity': {
-                    'name': 'EQUITY BANK',
-                    'account_name': 'P.C.E.A Wendani Academy',
-                    'account_no': '1130280029105'
-                },
-                'coop': {
-                    'name': 'CO-OPERATIVE BANK',
-                    'account_name': 'P.C.E.A Wendani Academy',
-                    'account_no': '01129158350600'
-                },
-                'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
-                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
-                ]
-            }),
             'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
