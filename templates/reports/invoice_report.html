@@ -1,4 +1,4 @@
-<!--reports/invoice_report.html-->
+<!-- reports/invoice_report.html -->
 
 {% extends "base/base.html" %}
 {% load humanize static %}
@@ -7,10 +7,20 @@
 
 {% block extra_head %}
 <style>
+:root {
+  --primary: #1f3c88;
+  --success: #2e7d32;
+  --danger: #c62828;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --bg-soft: #f9fafb;
+}
+
+/* ===== Base ===== */
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
   font-size: 13px;
-  color: #222;
+  color: #1f2937;
 }
 
 /* ===== Action Bar ===== */
@@ -18,40 +28,57 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 18px;
 }
 
 .action-bar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: 6px;
   text-decoration: none;
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
 
 .btn-pdf {
-  background: #d9534f;
+  background: #dc2626;
   color: #fff;
 }
 
 .btn-excel {
-  background: #5cb85c;
+  background: #16a34a;
   color: #fff;
 }
 
-/* ===== Report Container ===== */
+/* ===== Report Card ===== */
 .report-box {
   background: #fff;
-  border: 1px solid #ddd;
-  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+/* ===== Header ===== */
+.report-box h3 {
+  text-align: center;
+  font-size: 18px;
+  margin-bottom: 6px;
+  color: var(--primary);
 }
 
 /* ===== Meta ===== */
 .meta {
   text-align: center;
   font-size: 12px;
-  color: #555;
-  margin-bottom: 12px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+.meta strong {
+  color: #111827;
 }
 
 /* ===== Table ===== */
@@ -61,32 +88,67 @@ table {
   font-size: 13px;
 }
 
-th, td {
-  border: 1px solid #e5e5e5;
-  padding: 8px 10px;
-}
-
-th {
-  background: #f7f7f7;
+thead th {
+  background: var(--bg-soft);
+  border-bottom: 2px solid var(--border);
+  padding: 10px 12px;
   font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .04em;
 }
 
+tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:nth-child(even) {
+  background: #fcfcfd;
+}
+
+tfoot th {
+  padding: 12px;
+  font-weight: 800;
+  background: #f3f4f6;
+  border-top: 2px solid var(--border);
+}
+
+/* ===== Alignment ===== */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 
+/* ===== Amount Styling ===== */
+.amount-positive {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.amount-negative {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 /* ===== Footer ===== */
 .footer {
-  margin-top: 15px;
+  margin-top: 18px;
+  padding-top: 10px;
   font-size: 12px;
-  border-top: 1px dashed #ccc;
-  padding-top: 8px;
-  color: #444;
+  color: var(--muted);
+  border-top: 1px dashed #d1d5db;
+  text-align: center;
 }
 
 /* ===== Print ===== */
 @media print {
   .action-bar {
     display: none !important;
+  }
+
+  .report-box {
+    border: none;
+    border-radius: 0;
+    padding: 0;
   }
 }
 </style>
@@ -109,18 +171,20 @@ th {
 
 <div class="report-box">
 
-  <h3 class="text-center">Invoice Summary Report</h3>
+  <h3>Invoice Summary Report</h3>
 
   <div class="meta">
-    Academic Year: <strong>{{ academic_year.year }}</strong> |
-    Term: <strong>{{ term }}</strong> |
-    Generated: {{ now|date:"d M Y H:i" }} |
+    Academic Year: <strong>{{ academic_year.year }}</strong> &nbsp;|&nbsp;
+    Term: <strong>{{ term }}</strong> &nbsp;|&nbsp;
+    Generated: {{ now|date:"d M Y H:i" }} &nbsp;|&nbsp;
     By:
-    {% if request.user.get_full_name %}
-      {{ request.user.get_full_name }}
-    {% else %}
-      {{ request.user.email }}
-    {% endif %}
+    <strong>
+      {% if request.user.get_full_name %}
+        {{ request.user.get_full_name }}
+      {% else %}
+        {{ request.user.email }}
+      {% endif %}
+    </strong>
   </div>
 
   <!-- ===== TABLE ===== -->
@@ -133,6 +197,7 @@ th {
         <th class="text-right">Balance (KES)</th>
       </tr>
     </thead>
+
     <tbody>
       {% for row in report_rows %}
       <tr>
@@ -141,9 +206,9 @@ th {
         <td class="text-right">{{ row.collected|intcomma }}</td>
         <td class="text-right">
           {% if row.balance > 0 %}
-            <span style="color:#c00">{{ row.balance|intcomma }}</span>
+            <span class="amount-negative">{{ row.balance|intcomma }}</span>
           {% else %}
-            <span style="color:#080">{{ row.balance|intcomma }}</span>
+            <span class="amount-positive">{{ row.balance|intcomma }}</span>
           {% endif %}
         </td>
       </tr>
@@ -167,7 +232,7 @@ th {
   </table>
 
   <div class="footer">
-    Report generated electronically. This screen view does not require a signature.
+    This report was generated electronically and does not require a signature.
   </div>
 
 </div>
