@@ -6,6 +6,22 @@
 <title>{{ SCHOOL_NAME }} - Transport Report</title>
 
 <style>
+.report-center {
+  text-align: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.report-title {
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.report-period {
+  font-size: 9.5pt;
+  color: #666;
+}
+
 @page {
   size: A4;
   margin: 0;
@@ -68,99 +84,6 @@ body {
   color: #555;
 }
 
-.report-center {
-  text-align: center;
-  width: 100%;
-  margin-top: 6px;
-}
-
-.report-title {
-  font-size: 13pt;
-  font-weight: bold;
-}
-
-.report-period {
-  font-size: 9.5pt;
-  color: #666;
-}
-
-/* ===== META INFO ===== */
-.meta-info {
-  background: #f4f6f8;
-  border: 1px solid #ddd;
-  padding: 6px;
-  margin: 10px 0;
-  font-size: 8.8pt;
-  text-align: center;
-}
-
-/* ===== FILTERS SUMMARY ===== */
-.filters-summary {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
-  font-size: 9pt;
-}
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
-}
-
-.filter-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 3px 0;
-  border-bottom: 1px dotted #ddd;
-}
-
-.filter-label {
-  font-weight: 600;
-  color: #666;
-}
-
-.filter-value {
-  font-weight: 500;
-  color: #222;
-}
-
-/* ===== SUMMARY BOX ===== */
-.summary-box {
-  border: 1px solid #ddd;
-  padding: 8px;
-  margin-bottom: 12px;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-
-.summary-item {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: center;
-  border-radius: 4px;
-}
-
-.summary-label {
-  font-size: 8.5pt;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 3px;
-}
-
-.summary-value {
-  font-size: 12pt;
-  font-weight: bold;
-  font-family: "Courier New", monospace;
-}
-
 /* ===== TABLE ===== */
 .table-container {
   margin-top: 12px;
@@ -185,14 +108,9 @@ body {
   font-weight: bold;
 }
 
-/* ===== FOOTER ===== */
-.document-footer {
-  margin-top: 14px;
-  border-top: 1px solid #aaa;
-  padding-top: 8px;
-  font-size: 8.5pt;
-  color: #666;
-  text-align: center;
+.text-right {
+  text-align: right;
+  font-family: "Courier New", monospace;
 }
 
 /* ===== PAGE NUMBER ===== */
@@ -237,12 +155,6 @@ body {
           {% if filters.route %} • {{ filters.route.name }}{% endif %}
         </div>
       </div>
-    </div>
-
-    <!-- META INFO -->
-    <div class="meta-info">
-      Generated: {{ generated_on|date:"d M Y H:i" }} |
-      By: {{ generated_by }}
     </div>
 
     <!-- MAIN TABLE -->
