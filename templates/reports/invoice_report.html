@@ -180,7 +180,8 @@ th {
     <div class="meta">
       Printed: {{ now|date:"d M Y H:i" }}
       &nbsp;|&nbsp;
-      By: {{ request.user.get_full_name|default:request.user.username }}
+        By: {{ request.user.get_full_name|default:request.user.email }}
+
     </div>
 
     <!-- ===== SUMMARY TABLE ===== -->
