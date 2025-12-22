@@ -959,6 +959,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
 
 
 # ---------- Transport Report Exports ----------
+# ---------- Transport Report Exports ----------
 class TransportReportExcelView(LoginRequiredMixin, View):
     """Exports transport report to Excel."""
 
@@ -1003,7 +1004,9 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             'invoice__student__current_class',  # Added for class display
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+        ).annotate(
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+        ).order_by(
             'invoice__student__first_name',
             'invoice__student__last_name'
         )
@@ -1014,7 +1017,9 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             alloc_qs = PaymentAllocation.objects.filter(invoice_item__in=items_qs).values(
                 'invoice_item__invoice__student__pk',
                 'invoice_item__transport_route__pk'
-            ).annotate(collected=Coalesce(Sum('amount'), Value(0)))
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
             for row in alloc_qs:
                 key = (row.get('invoice_item__invoice__student__pk'), row.get('invoice_item__transport_route__pk'))
                 collected_map[key] = Decimal(row.get('collected') or 0)
@@ -1157,7 +1162,7 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         if end_date:
             items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
-        # FIXED: Use individual name fields instead of full_name
+        # FIXED: Use individual name fields instead of full_name and add output_field
         grouped = items_qs.values(
             'invoice__student__pk',
             'invoice__student__first_name',  # Changed from full_name
@@ -1167,7 +1172,9 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             'invoice__student__current_class',  # Added for class display
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+        ).annotate(
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+        ).order_by(
             'invoice__student__first_name',
             'invoice__student__last_name'
         )
@@ -1178,7 +1185,9 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             alloc_qs = PaymentAllocation.objects.filter(invoice_item__in=items_qs).values(
                 'invoice_item__invoice__student__pk',
                 'invoice_item__transport_route__pk'
-            ).annotate(collected=Coalesce(Sum('amount'), Value(0)))
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
             for row in alloc_qs:
                 key = (row.get('invoice_item__invoice__student__pk'), row.get('invoice_item__transport_route__pk'))
                 collected_map[key] = Decimal(row.get('collected') or 0)
@@ -1205,6 +1214,7 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         total_billed = Decimal('0.00')
         total_collected = Decimal('0.00')
         total_balance = Decimal('0.00')
+
         for g in grouped:
             student_pk = g.get('invoice__student__pk')
             billed = Decimal(g.get('total_billed') or 0)
@@ -1238,7 +1248,11 @@ class TransportReportPDFView(LoginRequiredMixin, View):
 
         context = {
             'rows': rows,
-            'totals': {'billed': total_billed, 'collected': total_collected, 'balance': total_balance},
+            'totals': {
+                'billed': total_billed,
+                'collected': total_collected,
+                'balance': total_balance
+            },
             'filters': {
                 'academic_year': academic_year,
                 'term': term,
@@ -1254,10 +1268,16 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
-                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                           'account_no': '1130280029105'},
-                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                         'account_no': '01129158350600'},
+                'equity': {
+                    'name': 'EQUITY BANK',
+                    'account_name': 'P.C.E.A Wendani Academy',
+                    'account_no': '1130280029105'
+                },
+                'coop': {
+                    'name': 'CO-OPERATIVE BANK',
+                    'account_name': 'P.C.E.A Wendani Academy',
+                    'account_no': '01129158350600'
+                },
                 'paybills': [
                     {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
@@ -1274,3 +1294,5 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+
+

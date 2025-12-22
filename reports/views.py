@@ -567,7 +567,9 @@ class TransportReportView(LoginRequiredMixin, View):
             'invoice__student__current_class',
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+        ).annotate(
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+        ).order_by(
             'invoice__student__first_name',
             'invoice__student__last_name'
         )
@@ -577,10 +579,13 @@ class TransportReportView(LoginRequiredMixin, View):
 
         if PaymentAllocation is not None:
             # Use allocations mapped to invoice items
+            # FIX: Added output_field=DecimalField() to Coalesce
             alloc_qs = PaymentAllocation.objects.filter(invoice_item__in=items_qs).values(
                 'invoice_item__invoice__student__pk',
                 'invoice_item__transport_route__pk'
-            ).annotate(collected=Coalesce(Sum('amount'), Value(0)))
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
 
             for row in alloc_qs:
                 key = (row.get('invoice_item__invoice__student__pk'), row.get('invoice_item__transport_route__pk'))
