@@ -1,24 +1,21 @@
 # reports/views.py
 from django.conf import settings
 from django.utils import timezone
-from .forms import TransportReportFilterForm
-from .forms import InvoiceReportFilterForm
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
-
-from .forms import OutstandingBalancesFilterForm
 from django.shortcuts import render
-from django.views import View
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Sum, F, Value, Case, When, CharField
+from django.db.models import Sum, F, Value, Case, When, CharField, Q
 from django.db.models.functions import TruncDate, Coalesce
-from django.conf import settings
 from decimal import Decimal
-from .forms import FeesCollectionFilterForm
+
+from .forms import (
+    InvoiceReportFilterForm, FeesCollectionFilterForm,
+    OutstandingBalancesFilterForm, TransportReportFilterForm
+)
 from .models import ReportRequest
-from payments.models import Payment
+from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
-from payments.models import PaymentAllocation
+from academics.models import AcademicYear, TransportFee
 
 
 class InvoiceReportView(LoginRequiredMixin, View):
@@ -27,16 +24,27 @@ class InvoiceReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = InvoiceReportFilterForm(request.GET or None)
 
+        # School branding context
         context = {
             'form': form,
             'report_rows': None,
             'totals': None,
             'show_print_button': False,
-            # branding
-            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', ''),
-            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', ''),
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
         }
 
         if form.is_valid():
@@ -134,7 +142,6 @@ class InvoiceReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-
 class FeesCollectionReportView(LoginRequiredMixin, View):
     template_name = 'reports/fees_collection_report.html'
 
@@ -164,15 +171,27 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         # sometimes payment.payment_method or payment.account_name may be used; add fallbacks if needed
         form.fields['bank'].choices = [('', 'All Banks')] + [(b, b) for b in sorted(banks)]
 
+        # School branding context
         context = {
             'form': form,
             'rows': None,
             'summary': None,
             'grouped': None,
-            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', ''),
-            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', ''),
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
         }
 
         if not form.is_valid():
@@ -195,7 +214,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
 
         # Filter by class: we check both Payment.student and Payment.invoice.student
         if selected_class:
-            from django.db.models import Q
             payments_qs = payments_qs.filter(
                 Q(student__current_class=selected_class) |
                 Q(invoice__student__current_class=selected_class)
@@ -203,7 +221,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
 
         # Filter by bank: try multiple fields
         if selected_bank:
-            from django.db.models import Q
             bank_filters = Q()
             if hasattr(Payment, 'bank'):
                 bank_filters |= Q(bank=selected_bank)
@@ -318,14 +335,26 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
             # leave defaults if something goes wrong
             pass
 
+        # School branding context
         context = {
             'form': form,
             'rows': None,
             'totals': None,
-            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', ''),
-            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', ''),
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
         }
 
         if not form.is_valid():
@@ -456,14 +485,26 @@ class TransportReportView(LoginRequiredMixin, View):
             # ignore if access fails
             pass
 
+        # School branding context
         context = {
             'form': form,
             'rows': None,
             'totals': None,
-            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', ''),
-            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', ''),
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
         }
 
         if not form.is_valid():

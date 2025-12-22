@@ -2,100 +2,147 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>{{ SCHOOL_NAME }} - Invoice Report</title>
+    <title>{{ SCHOOL_NAME }} - Invoice Summary Report</title>
     <style>
-        /* Same styling as invoice_print.html */
         body { font-family: Arial, Helvetica, sans-serif; color:#222; font-size:12px; margin:0; padding:0; }
-        .page { width: 210mm; min-height: 297mm; padding: 12mm; box-sizing: border-box; background: white; margin: 0 auto; }
-        .receipt { border: 1px solid #ccc; padding: 12px; margin-bottom: 14px; }
-        .header { display:flex; align-items:center; justify-content:space-between; }
+        .page { width: 210mm; min-height: 297mm; padding: 15mm; box-sizing: border-box; background: white; margin: 0 auto; }
+        .header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 15px; }
         .header .logos { display:flex; align-items:center; gap:12px; }
         .logo { height:60px; width:auto; }
         .school-title { text-align:center; flex:1; }
-        h2, h3 { margin:0; padding:0; }
-        .meta { margin-top:8px; font-size:12px; color:#444; }
-        table { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; }
-        th, td { padding:6px 8px; border:1px solid #e6e6e6; text-align:left; vertical-align: middle; }
-        th { background:#f7f7f7; }
+        h2, h3, h4 { margin:0; padding:0; }
+        .meta { margin-top:8px; font-size:11px; color:#444; text-align:center; background:#f9f9f9; padding:6px; }
+        table { width:100%; border-collapse:collapse; margin-top:15px; font-size:11px; }
+        th, td { padding:8px 10px; border:1px solid #ddd; text-align:left; }
+        th { background:#f7f7f7; font-weight:700; }
         .text-right { text-align:right; }
-        .small { font-size:11px; color:#555; }
-        .footer { margin-top:12px; font-size:11px; color:#333; border-top:1px dashed #ddd; padding-top:8px; }
-        .bank-list { margin:6px 0 0 0; padding-left:16px; }
+        .text-center { text-align:center; }
+        .small { font-size:10px; color:#555; }
+        .footer { margin-top:15px; font-size:10px; color:#333; border-top:1px dashed #ddd; padding-top:10px; }
+        .bank-list { margin:6px 0 0 0; padding-left:16px; list-style-type:none; }
+        .highlight { background:#fffacd; padding:2px 4px; border-radius:2px; }
+        .total-row { background:#e8f4f8 !important; font-weight:bold; }
 
         @media print {
             .page { margin:0; box-shadow:none; }
-            .no-print { display:none !important; }
+            .logo { height:50px; }
         }
     </style>
 </head>
 <body>
     <div class="page">
-        <div class="receipt">
-            <div class="header">
-                <div class="logos">
-                    <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo" />
+        <div class="header">
+            <div class="logos">
+                {% if SCHOOL_LOGO_URL %}
+                    <img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">
+                {% endif %}
+            </div>
+            <div class="school-title">
+                <h2>{{ SCHOOL_NAME }}</h2>
+                {% if SCHOOL_ADDRESS or SCHOOL_CONTACT %}
+                <div class="small">{{ SCHOOL_ADDRESS }}{% if SCHOOL_ADDRESS and SCHOOL_CONTACT %} • {% endif %}{{ SCHOOL_CONTACT }}</div>
+                {% endif %}
+                <h4>Invoice Summary Report</h4>
+                {% if academic_year and term %}
+                <div style="margin-top:5px; font-weight:bold;">{{ academic_year.year }} - Term {{ term }}</div>
+                {% endif %}
+            </div>
+            <div class="logos">
+                {% if SPONSOR_LOGO_URL %}
+                    <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="meta">
+            <strong>Report Period:</strong> {{ academic_year.year }} - Term {{ term }}
+            &nbsp;|&nbsp; <strong>Generated:</strong> {{ generated_on|date:"d M Y H:i" }}
+            &nbsp;|&nbsp; <strong>By:</strong> {{ generated_by }}
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:50%;" class="text-center">FEE CATEGORY</th>
+                    <th class="text-right">Total Billed (KES)</th>
+                    <th class="text-right">Collected (KES)</th>
+                    <th class="text-right">Outstanding (KES)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in report_rows %}
+                <tr>
+                    <td class="text-center"><strong>{{ r.category|upper }}</strong></td>
+                    <td class="text-right">{{ r.total_billed|floatformat:2 }}</td>
+                    <td class="text-right">{{ r.collected|floatformat:2 }}</td>
+                    <td class="text-right">
+                        {% if r.outstanding > 0 %}
+                            <span style="color:#c00">{{ r.outstanding|floatformat:2 }}</span>
+                        {% else %}
+                            <span style="color:#080">{{ r.outstanding|floatformat:2 }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <th class="text-center">TOTAL</th>
+                    <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
+                    <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
+                    <th class="text-right">
+                        {% if totals.outstanding > 0 %}
+                            <span style="color:#c00">{{ totals.outstanding|floatformat:2 }}</span>
+                        {% else %}
+                            <span style="color:#080">{{ totals.outstanding|floatformat:2 }}</span>
+                        {% endif %}
+                    </th>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- Summary -->
+        <div style="margin-top:15px; padding:10px; background:#f9f9f9; border-radius:4px;">
+            <div style="display:flex; justify-content:space-between;">
+                <div>
+                    <strong>Total Billed:</strong> KES {{ totals.billed|floatformat:2 }}
                 </div>
-                <div class="school-title">
-                    <h2>{{ SCHOOL_NAME }}</h2>
-                    <div class="small">{{ SCHOOL_ADDRESS }} • {{ SCHOOL_CONTACT }}</div>
-                    <h3>Invoice Summary Report</h3>
+                <div>
+                    <strong>Collected:</strong> KES {{ totals.collected|floatformat:2 }}
                 </div>
-                <div class="logos">
-                    <img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo" />
+                <div>
+                    <strong>Outstanding:</strong>
+                    {% if totals.outstanding > 0 %}
+                        <span style="color:#c00">KES {{ totals.outstanding|floatformat:2 }}</span>
+                    {% else %}
+                        <span style="color:#080">KES {{ totals.outstanding|floatformat:2 }}</span>
+                    {% endif %}
                 </div>
             </div>
-
-            <div class="meta">
-                <strong>Period:</strong> {{ academic_year.year }} - Term {{ term }}
-                &nbsp;|&nbsp; Generated: {{ generated_on|date:"d M Y H:i" }}
-                &nbsp;|&nbsp; By: {{ generated_by }}
+            {% if totals.billed > 0 %}
+            <div style="margin-top:8px;">
+                <strong>Collection Rate:</strong> {% widthratio totals.collected totals.billed 100 %}%
             </div>
+            {% endif %}
+        </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:50%;">ITEM</th>
-                        <th class="text-right">Total Billed</th>
-                        <th class="text-right">Collected</th>
-                        <th class="text-right">Outstanding</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in report_rows %}
-                    <tr>
-                        <td>{{ r.category|capfirst }}</td>
-                        <td class="text-right">KES {{ r.total_billed|floatformat:2 }}</td>
-                        <td class="text-right">KES {{ r.collected|floatformat:2 }}</td>
-                        <td class="text-right">KES {{ r.outstanding|floatformat:2 }}</td>
-                    </tr>
+        <div class="footer">
+            <div><strong>Banking & Payment Details</strong></div>
+            <ul class="bank-list">
+                {% if BANK_DETAILS.equity %}
+                <li><strong>{{ BANK_DETAILS.equity.name }}</strong> — {{ BANK_DETAILS.equity.account_name }} • Account No: <span class="highlight">{{ BANK_DETAILS.equity.account_no }}</span></li>
+                {% endif %}
+                {% if BANK_DETAILS.coop %}
+                <li><strong>{{ BANK_DETAILS.coop.name }}</strong> — {{ BANK_DETAILS.coop.account_name }} • Account No: <span class="highlight">{{ BANK_DETAILS.coop.account_no }}</span></li>
+                {% endif %}
+                {% if BANK_DETAILS.paybills %}
+                    {% for paybill in BANK_DETAILS.paybills %}
+                    <li><strong>{{ paybill.label }}</strong> — Account No: <span class="highlight">{{ paybill.acc_format }}</span></li>
                     {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <th>Total</th>
-                        <th class="text-right">KES {{ totals.billed|floatformat:2 }}</th>
-                        <th class="text-right">KES {{ totals.collected|floatformat:2 }}</th>
-                        <th class="text-right">KES {{ totals.outstanding|floatformat:2 }}</th>
-                    </tr>
-                </tfoot>
-            </table>
-
-            <div class="footer">
-                <div><strong>Banking Details</strong></div>
-                <ul class="bank-list">
-                    {% if BANK_DETAILS.equity %}
-                    <li>{{ BANK_DETAILS.equity.name }} — {{ BANK_DETAILS.equity.account_name }} Account No: {{ BANK_DETAILS.equity.account_no }}</li>
-                    {% endif %}
-                    {% if BANK_DETAILS.coop %}
-                    <li>{{ BANK_DETAILS.coop.name }} — {{ BANK_DETAILS.coop.account_name }} Account No: {{ BANK_DETAILS.coop.account_no }}</li>
-                    {% endif %}
-                    {% if BANK_DETAILS.paybill_1 %}
-                    <li>{{ BANK_DETAILS.paybill_1.label }} — ACC NO: {{ BANK_DETAILS.paybill_1.acc_format }}</li>
-                    {% endif %}
-                    {% if BANK_DETAILS.paybill_2 %}
-                    <li>{{ BANK_DETAILS.paybill_2.label }} — ACC NO: {{ BANK_DETAILS.paybill_2.acc_format }}</li>
-                    {% endif %}
-                </ul>
+                {% endif %}
+            </ul>
+            <div style="margin-top:8px; font-size:9px; color:#666;">
+                <em>Report generated electronically. For official purposes, this document is valid without signature.</em>
             </div>
         </div>
     </div>
