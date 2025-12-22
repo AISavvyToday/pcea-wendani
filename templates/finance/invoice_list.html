@@ -107,7 +107,7 @@
 
                                 <td style="min-width:220px;">
                                     {% if invoice.student %}
-                                        <a href="{% url 'students:detail' student.pk %}" class="d-block">
+                                        <a href="{% url 'students:detail' invoice.student.pk %}" class="d-block">
                                             {{ invoice.student.full_name|default:"—" }}
                                         </a>
                                         <small class="text-muted">{{ invoice.student.admission_number|default:"—" }}</small>
