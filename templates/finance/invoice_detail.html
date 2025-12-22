@@ -179,15 +179,6 @@
                                             KES {{ item_data.balance|intcomma }}
                                         </span>
                                     </td>
-                                    <td>
-                                        {% if item_data.is_fully_paid %}
-                                            <span class="badge badge-success">Paid</span>
-                                        {% elif item_data.total_allocated > 0 %}
-                                            <span class="badge badge-info">Partial</span>
-                                        {% else %}
-                                            <span class="badge badge-warning">Unpaid</span>
-                                        {% endif %}
-                                    </td>
                                 </tr>
 
                                 <!-- Allocation Details -->
