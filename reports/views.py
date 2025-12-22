@@ -484,6 +484,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         })
 
         return render(request, self.template_name, context)
+
+
 class TransportReportView(LoginRequiredMixin, View):
     template_name = 'reports/transport_report.html'
 
@@ -512,8 +514,10 @@ class TransportReportView(LoginRequiredMixin, View):
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
-                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
-                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                           'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                         'account_no': '01129158350600'},
                 'paybills': [
                     {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
@@ -553,14 +557,20 @@ class TransportReportView(LoginRequiredMixin, View):
             items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
         # Aggregate billed transport per student+route
+        # FIX: Use individual name fields instead of full_name
         grouped = items_qs.values(
             'invoice__student__pk',
-            'invoice__student__full_name',
+            'invoice__student__first_name',  # Changed from full_name
+            'invoice__student__middle_name',  # Added
+            'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
             'invoice__student__current_class',
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by('invoice__student__full_name')
+        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+            'invoice__student__first_name',
+            'invoice__student__last_name'
+        )
 
         # Build a map for collected (paid) amounts per (student_pk, route_pk)
         collected_map = {}
@@ -577,23 +587,17 @@ class TransportReportView(LoginRequiredMixin, View):
                 collected_map[key] = Decimal(row.get('collected') or 0)
         else:
             # Fallback: proportional allocation of invoice.amount_paid across items in that invoice
-            # We will iterate invoices that contain transport items and compute per-item share
             invoice_ids = items_qs.values_list('invoice_id', flat=True).distinct()
             invoices = Invoice.objects.filter(id__in=invoice_ids).select_related('student')
-            # build an invoice -> list of transport items and invoice totals
             for inv in invoices:
                 inv_items = items_qs.filter(invoice=inv)
                 inv_total_transport = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
                 paid = inv.amount_paid or Decimal('0.00')
                 if inv_total_transport <= Decimal('0.00'):
-                    # nothing to allocate from transport side; skip
-                    # we might still want to carry zero allocation
                     for it in inv_items:
                         key = (inv.student.pk, it.transport_route.pk if it.transport_route else None)
                         collected_map[key] = collected_map.get(key, Decimal('0.00'))
                     continue
-                # allocate paid proportionally relative to transport item amounts
-                # Note: if invoice.amount_paid > invoice.total_amount, this still proportionally divides
                 for it in inv_items:
                     proportion = (it.net_amount or Decimal('0.00')) / inv_total_transport
                     alloc_amount = (paid * proportion).quantize(Decimal('0.01'))
@@ -608,7 +612,14 @@ class TransportReportView(LoginRequiredMixin, View):
 
         for g in grouped:
             student_pk = g.get('invoice__student__pk')
-            student_name = g.get('invoice__student__full_name') or ''
+            # Build full name from individual fields
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
+            student_name = f"{first_name} {middle_name} {last_name}".strip()
+            # Clean up extra spaces
+            student_name = ' '.join(student_name.split())
+
             admission = g.get('invoice__student__admission_number') or ''
             student_cls = g.get('invoice__student__current_class') or ''
             route_pk = g.get('transport_route__pk')
@@ -617,7 +628,8 @@ class TransportReportView(LoginRequiredMixin, View):
             collected = collected_map.get((student_pk, route_pk), Decimal('0.00'))
             balance = billed - collected
 
-            if (not show_zero) and billed == Decimal('0.00') and collected == Decimal('0.00') and balance == Decimal('0.00'):
+            if (not show_zero) and billed == Decimal('0.00') and collected == Decimal('0.00') and balance == Decimal(
+                    '0.00'):
                 continue
 
             rows.append({

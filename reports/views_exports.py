@@ -956,6 +956,8 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+
+
 # ---------- Transport Report Exports ----------
 class TransportReportExcelView(LoginRequiredMixin, View):
     """Exports transport report to Excel."""
@@ -983,18 +985,28 @@ class TransportReportExcelView(LoginRequiredMixin, View):
         if route:
             items_qs = items_qs.filter(transport_route=route)
 
+        if student_class:
+            items_qs = items_qs.filter(invoice__student__current_class=student_class)
+
         if start_date:
             items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
         if end_date:
             items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
+        # FIXED: Use individual name fields instead of full_name
         grouped = items_qs.values(
             'invoice__student__pk',
-            'invoice__student__full_name',
+            'invoice__student__first_name',  # Changed from full_name
+            'invoice__student__middle_name',  # Added
+            'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
+            'invoice__student__current_class',  # Added for class display
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by('invoice__student__full_name')
+        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+            'invoice__student__first_name',
+            'invoice__student__last_name'
+        )
 
         # Build collected_map
         collected_map = {}
@@ -1037,11 +1049,22 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             route_pk = g.get('transport_route__pk')
             collected = collected_map.get((student_pk, route_pk), Decimal('0.00'))
             balance = billed - collected
+
+            # Build full name from individual fields
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
+            student_name = f"{first_name} {middle_name} {last_name}".strip()
+            # Clean up extra spaces
+            student_name = ' '.join(student_name.split())
+
             if (not show_zero) and billed == Decimal('0.00') and collected == Decimal('0.00'):
                 continue
+
             rows.append({
-                'student_name': g.get('invoice__student__full_name') or '',
+                'student_name': student_name,
                 'admission': g.get('invoice__student__admission_number') or '',
+                'student_class': g.get('invoice__student__current_class') or '',  # Added class
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,
@@ -1070,7 +1093,7 @@ class TransportReportExcelView(LoginRequiredMixin, View):
         for r in rows:
             ws.cell(row=row_num, column=1, value=r['student_name'])
             ws.cell(row=row_num, column=2, value=r['admission'])
-            ws.cell(row=row_num, column=3, value=r['student_class'])
+            ws.cell(row=row_num, column=3, value=r['student_class'])  # Now available
             ws.cell(row=row_num, column=4, value=r['route_name'])
 
             # Money columns
@@ -1126,18 +1149,28 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         if route:
             items_qs = items_qs.filter(transport_route=route)
 
+        if student_class:
+            items_qs = items_qs.filter(invoice__student__current_class=student_class)
+
         if start_date:
             items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
         if end_date:
             items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
+        # FIXED: Use individual name fields instead of full_name
         grouped = items_qs.values(
             'invoice__student__pk',
-            'invoice__student__full_name',
+            'invoice__student__first_name',  # Changed from full_name
+            'invoice__student__middle_name',  # Added
+            'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
+            'invoice__student__current_class',  # Added for class display
             'transport_route__pk',
             'transport_route__name'
-        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by('invoice__student__full_name')
+        ).annotate(total_billed=Coalesce(Sum('net_amount'), Value(0))).order_by(
+            'invoice__student__first_name',
+            'invoice__student__last_name'
+        )
 
         # Build collected_map
         collected_map = {}
@@ -1178,11 +1211,22 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             route_pk = g.get('transport_route__pk')
             collected = collected_map.get((student_pk, route_pk), Decimal('0.00'))
             balance = billed - collected
+
+            # Build full name from individual fields
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
+            student_name = f"{first_name} {middle_name} {last_name}".strip()
+            # Clean up extra spaces
+            student_name = ' '.join(student_name.split())
+
             if (not show_zero) and billed == Decimal('0.00') and collected == Decimal('0.00'):
                 continue
+
             rows.append({
-                'student_name': g.get('invoice__student__full_name') or '',
+                'student_name': student_name,
                 'admission': g.get('invoice__student__admission_number') or '',
+                'student_class': g.get('invoice__student__current_class') or '',  # Added class
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,
