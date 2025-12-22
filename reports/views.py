@@ -401,11 +401,13 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         grouped_qs = invoices.values(
             'student__pk',
             'student__admission_number',
-            'student__full_name',
+            'student__first_name',  # Changed from student__full_name
+            'student__middle_name',  # Added middle name
+            'student__last_name',    # Added last name
             'student__current_class',
             'student__contacts',  # optional; if not exist, template will handle
             'term__academic_year__year',
-        ).annotate(**annotations).order_by('-total_balance', 'student__full_name')
+        ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')  # Updated order_by
 
         # Apply balance filter on annotated field if requested
         if balance_op != 'any' and balance_amt is not None:
@@ -467,7 +469,6 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         })
 
         return render(request, self.template_name, context)
-
 
 class TransportReportView(LoginRequiredMixin, View):
     template_name = 'reports/transport_report.html'

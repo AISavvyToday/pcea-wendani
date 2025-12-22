@@ -646,6 +646,7 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
+
 # ---------- Outstanding Balances Exports ----------
 class OutstandingBalancesExcelView(LoginRequiredMixin, View):
     """Exports outstanding balances report to Excel."""
@@ -690,11 +691,13 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
         grouped_qs = invoices.values(
             'student__pk',
             'student__admission_number',
-            'student__full_name',
+            'student__first_name',  # Changed from student__full_name
+            'student__middle_name',  # Added
+            'student__last_name',  # Added
             'student__current_class',
             'student__contacts',
             'term__academic_year__year',
-        ).annotate(**annotations).order_by('-total_balance', 'student__full_name')
+        ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
         # balance filter
         if balance_op != 'any' and balance_amt is not None:
@@ -734,7 +737,16 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
         for r in rows:
             ws.cell(row=row_num, column=1, value=r.get('term__academic_year__year'))
             ws.cell(row=row_num, column=2, value=r.get('student__admission_number'))
-            ws.cell(row=row_num, column=3, value=r.get('student__full_name'))
+
+            # Build full name from first, middle, last
+            first = r.get('student__first_name', '')
+            middle = r.get('student__middle_name', '')
+            last = r.get('student__last_name', '')
+            full_name = f"{first} {middle} {last}".strip()
+            # Clean up extra spaces
+            full_name = ' '.join(full_name.split())
+            ws.cell(row=row_num, column=3, value=full_name)
+
             ws.cell(row=row_num, column=4, value=r.get('student__current_class'))
             ws.cell(row=row_num, column=5, value=r.get('student__contacts') or "")
 
@@ -825,11 +837,13 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
         grouped_qs = invoices.values(
             'student__pk',
             'student__admission_number',
-            'student__full_name',
+            'student__first_name',  # Changed from student__full_name
+            'student__middle_name',  # Added
+            'student__last_name',  # Added
             'student__current_class',
             'student__contacts',
             'term__academic_year__year',
-        ).annotate(**annotations).order_by('-total_balance', 'student__full_name')
+        ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
         if balance_op != 'any' and balance_amt is not None:
             lookup = {
@@ -854,8 +868,34 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'total_balance': sum((r['total_balance'] or Decimal('0.00')) for r in rows),
         }
 
+        # Process rows to include full_name
+        processed_rows = []
+        for r in rows:
+            # Build full name
+            first = r.get('student__first_name', '')
+            middle = r.get('student__middle_name', '')
+            last = r.get('student__last_name', '')
+            full_name = f"{first} {middle} {last}".strip()
+            full_name = ' '.join(full_name.split())
+
+            processed_rows.append({
+                'term__academic_year__year': r.get('term__academic_year__year'),
+                'student__admission_number': r.get('student__admission_number'),
+                'student__full_name': full_name,  # Add full_name
+                'student__first_name': first,
+                'student__middle_name': middle,
+                'student__last_name': last,
+                'student__current_class': r.get('student__current_class'),
+                'student__contacts': r.get('student__contacts'),
+                'total_balance_bf': r.get('total_balance_bf'),
+                'total_prepayment': r.get('total_prepayment'),
+                'total_billed': r.get('total_billed'),
+                'total_paid': r.get('total_paid'),
+                'total_balance': r.get('total_balance'),
+            })
+
         context = {
-            'rows': rows,
+            'rows': processed_rows,
             'totals': totals,
             'filters': {
                 'start_date': start_date,
@@ -892,8 +932,6 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-
-
 # ---------- Transport Report Exports ----------
 class TransportReportExcelView(LoginRequiredMixin, View):
     """Exports transport report to Excel."""
