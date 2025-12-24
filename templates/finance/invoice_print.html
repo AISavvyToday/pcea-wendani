@@ -44,8 +44,9 @@
                     <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
                 </div>
                 <div class="school-title">
-                    <h2>{{ school_name }}</h2>
-                    <div class="small">P.O. Box ... • Tel: ... • Email: ...</div>
+                    <h2>PCEA Wendani Academy</h2>
+                    <div class="small">P.O. Box 54 - 00232 Ruiru • Tel: 0722 000 000 • Email: info@pceawendani.ac.ke</div>
+                    <h3 style="margin-top:6px; font-size:14px;">{{ mode|title }}</h3>
                 </div>
                 <div class="logos">
                     <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
@@ -53,10 +54,9 @@
             </div>
 
             <div class="meta">
-                <strong>{{ mode|title }}:</strong> {{ invoice.invoice_number }}
+                <strong>{{ mode|title }} #:</strong> {{ invoice.invoice_number }}
                 &nbsp;|&nbsp; Issue Date: {{ invoice.issue_date|date:"d M Y" }}
                 &nbsp;|&nbsp; Printed: {{ print_datetime|date:"d M Y H:i" }}
-                &nbsp;|&nbsp; By: {{ printed_by }}
             </div>
 
             <div class="two-col">
@@ -72,7 +72,6 @@
                 <div class="col">
                     <strong>Invoice / Term</strong>
                     <div class="small">Term: {{ invoice.term }}</div>
-                    <div class="small">Due Date: {{ invoice.due_date|date:"d M Y" }}</div>
                     {% if invoice.balance_bf and invoice.balance_bf != 0 %}
                     <div class="small">Balance B/F: KES {{ invoice.balance_bf|intcomma }}</div>
                     {% endif %}
@@ -119,12 +118,13 @@
             <div style="margin-top:8px;">
                 <strong>Payments</strong>
                 <table>
-                    <thead><tr><th>Date</th><th>Ref</th><th class="text-right">Amount</th><th class="text-right">Allocated</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Ref</th><th>Method</th><th class="text-right">Amount</th><th class="text-right">Allocated</th></tr></thead>
                     <tbody>
                         {% for ep in enhanced_payments %}
                         <tr>
                             <td>{{ ep.payment.payment_date|date:"d M Y H:i" }}</td>
                             <td>{{ ep.payment.payment_reference }}</td>
+                            <td>{{ ep.payment.get_payment_method_display }}</td>
                             <td class="text-right">KES {{ ep.payment.amount|intcomma }}</td>
                             <td class="text-right">KES {{ ep.allocated_total|intcomma }}</td>
                         </tr>

@@ -383,7 +383,7 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
             ws.cell(row=row_num, column=5, value=student_class or '')  # Now a string
             amount_cell = ws.cell(row=row_num, column=6, value=float(p.amount or 0))
             format_money_cell(amount_cell)
-            ws.cell(row=row_num, column=7, value=getattr(p, 'payment_method', ''))
+            ws.cell(row=row_num, column=7, value=p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''))
             ws.cell(row=row_num, column=8, value=bank_display)
 
             total_amount += Decimal(p.amount or 0)
@@ -476,7 +476,7 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                 'class': student_class or '',
                 'admission': admission or '',
                 'amount': p.amount or Decimal('0.00'),
-                'method': getattr(p, 'payment_method', ''),
+                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
                 'bank': bank_display,
             })
             total_amount += Decimal(p.amount or 0)
@@ -509,7 +509,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
-            'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
 
@@ -602,7 +601,7 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                 'class': student_class or '',  # Now a string
                 'admission': admission or '',
                 'amount': p.amount or Decimal('0.00'),
-                'method': getattr(p, 'payment_method', ''),
+                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
                 'bank': bank_display,
             })
             total_amount += Decimal(p.amount or 0)
@@ -635,7 +634,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
-            'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
 

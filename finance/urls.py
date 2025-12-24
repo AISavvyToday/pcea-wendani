@@ -55,6 +55,8 @@ urlpatterns = [
     path('student/<uuid:student_pk>/statement/', views.StudentStatementView.as_view(), name='student_statement'),
     path('student/<uuid:student_pk>/statement/print/', views.StudentStatementPrintView.as_view(),
          name='student_statement_print'),
+    path('student/<uuid:student_pk>/generate-invoice/', views.SingleStudentInvoiceGenerateView.as_view(),
+         name='student_generate_invoice'),
 
     # Reports
     path('reports/collections/', views.CollectionsReportView.as_view(), name='collections_report'),

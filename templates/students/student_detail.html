@@ -287,9 +287,14 @@
           <!-- Finance Panel -->
           <div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
             <h5 class="mb-3">Finance</h5>
-            <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info ms-2">
-        <i class="mdi mdi-account-card-details"></i> Student Statement
-    </a>
+            <div class="d-flex gap-2 mb-3 flex-wrap">
+              <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info">
+                <i class="mdi mdi-account-card-details"></i> Student Statement
+              </a>
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateInvoiceModal">
+                <i class="mdi mdi-file-document-outline"></i> Generate Invoice
+              </button>
+            </div>
             <!-- Summary -->
             <div class="row mb-3">
               <div class="col-sm-3">
@@ -389,7 +394,7 @@
                         <td>{{ p.payment_reference }}</td>
                         <td>KES {{ p.amount }}</td>
                         <td>{{ p.get_payment_method_display }}</td>
-                          <td>{{ payment.payment_source }}</td>
+                        <td>{{ p.payment_source }}</td>
                         <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
                       </tr>
                     {% endfor %}
@@ -570,6 +575,49 @@
   </div>
 </div>
 
+<!-- Generate Invoice Modal -->
+<div class="modal fade" id="generateInvoiceModal" tabindex="-1" aria-labelledby="generateInvoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="generateInvoiceModalLabel">
+          <i class="mdi mdi-file-document-outline"></i> Generate Invoice
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Generate invoice for <strong>{{ student.get_full_name }}</strong> ({{ student.admission_number }})</p>
+
+        <div id="invoiceTermLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <span class="ms-2">Loading available terms...</span>
+        </div>
+
+        <div id="invoiceTermSelect" class="d-none">
+          <label for="termSelect" class="form-label">Select Term <span class="text-danger">*</span></label>
+          <select id="termSelect" class="form-select">
+            <option value="">-- Select Term --</option>
+          </select>
+          <div id="termWarning" class="alert alert-warning mt-2 d-none">
+            <i class="mdi mdi-alert"></i> An invoice already exists for this term.
+          </div>
+        </div>
+
+        <div id="invoiceError" class="alert alert-danger mt-3 d-none"></div>
+        <div id="invoiceSuccess" class="alert alert-success mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="generateInvoiceBtn" disabled>
+          <i class="mdi mdi-file-document-outline"></i> Generate Invoice
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Tab switching JS: client-side only, no reloads -->
 <script>
 (function () {
@@ -640,6 +688,154 @@
         next.click();
       }
     }
+  });
+})();
+
+// Invoice Generation Modal Logic
+(function() {
+  const modal = document.getElementById('generateInvoiceModal');
+  const termSelect = document.getElementById('termSelect');
+  const termSelectContainer = document.getElementById('invoiceTermSelect');
+  const termLoading = document.getElementById('invoiceTermLoading');
+  const termWarning = document.getElementById('termWarning');
+  const errorDiv = document.getElementById('invoiceError');
+  const successDiv = document.getElementById('invoiceSuccess');
+  const generateBtn = document.getElementById('generateInvoiceBtn');
+  const studentPk = '{{ student.pk }}';
+
+  let termsData = [];
+
+  // Load terms when modal is shown
+  modal.addEventListener('show.bs.modal', function() {
+    // Reset state
+    termSelectContainer.classList.add('d-none');
+    termLoading.classList.remove('d-none');
+    termWarning.classList.add('d-none');
+    errorDiv.classList.add('d-none');
+    successDiv.classList.add('d-none');
+    generateBtn.disabled = true;
+    termSelect.innerHTML = '<option value="">-- Select Term --</option>';
+
+    // Fetch available terms
+    fetch(`{% url 'finance:student_generate_invoice' student.pk %}`, {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      termLoading.classList.add('d-none');
+      if (data.success) {
+        termsData = data.terms;
+        data.terms.forEach(term => {
+          const option = document.createElement('option');
+          option.value = term.id;
+          option.textContent = term.label + (term.has_invoice ? ' (Invoice exists)' : '');
+          option.dataset.hasInvoice = term.has_invoice;
+          termSelect.appendChild(option);
+        });
+        termSelectContainer.classList.remove('d-none');
+      } else {
+        errorDiv.textContent = data.error || 'Failed to load terms.';
+        errorDiv.classList.remove('d-none');
+      }
+    })
+    .catch(err => {
+      termLoading.classList.add('d-none');
+      errorDiv.textContent = 'Error loading terms: ' + err.message;
+      errorDiv.classList.remove('d-none');
+    });
+  });
+
+  // Handle term selection change
+  termSelect.addEventListener('change', function() {
+    const selectedOption = termSelect.options[termSelect.selectedIndex];
+    const hasInvoice = selectedOption.dataset.hasInvoice === 'true';
+
+    if (hasInvoice) {
+      termWarning.classList.remove('d-none');
+      generateBtn.disabled = true;
+    } else {
+      termWarning.classList.add('d-none');
+      generateBtn.disabled = !termSelect.value;
+    }
+    errorDiv.classList.add('d-none');
+    successDiv.classList.add('d-none');
+  });
+
+  // Handle generate button click
+  generateBtn.addEventListener('click', function() {
+    if (!termSelect.value) return;
+
+    // Disable button and show loading
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generating...';
+    errorDiv.classList.add('d-none');
+    successDiv.classList.add('d-none');
+
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                      document.querySelector('meta[name="csrf-token"]')?.content ||
+                      '{{ csrf_token }}';
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('term_id', termSelect.value);
+    formData.append('csrfmiddlewaretoken', csrfToken);
+
+    fetch(`{% url 'finance:student_generate_invoice' student.pk %}`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken,
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      generateBtn.innerHTML = '<i class="mdi mdi-file-document-outline"></i> Generate Invoice';
+
+      if (data.success) {
+        successDiv.innerHTML = `
+          ${data.message}<br>
+          <a href="${data.redirect_url}" class="btn btn-sm btn-outline-success mt-2">
+            <i class="mdi mdi-eye"></i> View Invoice
+          </a>
+        `;
+        successDiv.classList.remove('d-none');
+        generateBtn.disabled = true;
+
+        // Mark the option as having an invoice now
+        const selectedOption = termSelect.options[termSelect.selectedIndex];
+        selectedOption.dataset.hasInvoice = 'true';
+        selectedOption.textContent = selectedOption.textContent.replace(' (Invoice exists)', '') + ' (Invoice exists)';
+
+        // Reload the page after a short delay to show updated finance data
+        setTimeout(() => {
+          window.location.href = window.location.pathname + '?tab=finance';
+        }, 2000);
+      } else {
+        if (data.redirect_url) {
+          errorDiv.innerHTML = `
+            ${data.error}<br>
+            <a href="${data.redirect_url}" class="btn btn-sm btn-outline-primary mt-2">
+              <i class="mdi mdi-eye"></i> View Existing Invoice
+            </a>
+          `;
+        } else {
+          errorDiv.textContent = data.error;
+        }
+        errorDiv.classList.remove('d-none');
+        generateBtn.disabled = !termSelect.value;
+      }
+    })
+    .catch(err => {
+      generateBtn.innerHTML = '<i class="mdi mdi-file-document-outline"></i> Generate Invoice';
+      errorDiv.textContent = 'Error generating invoice: ' + err.message;
+      errorDiv.classList.remove('d-none');
+      generateBtn.disabled = !termSelect.value;
+    });
   });
 })();
 </script>

@@ -278,7 +278,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                 'student': student_name,
                 'class': student_class or '',
                 'amount': p.amount or Decimal('0.00'),
-                'method': getattr(p, 'payment_method', ''),
+                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
                 'bank': bank_display,
             })
             total_collected += p.amount or Decimal('0.00')
