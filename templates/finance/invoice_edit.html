@@ -139,6 +139,7 @@
 
 <script>
 const feeMap = {{ fee_map_json|safe }};
+const studentTransport = {{ student_transport_json|safe }};
 let formCount = {{ formset.total_form_count }};
 
 // Initialize transport behavior for a row
@@ -199,8 +200,14 @@ function handleCategoryChange(e) {
             amountInput.classList.add('readonly-amount');
         }
 
+        // Auto-populate student's transport route if available and not already set
+        if (studentTransport && routeSelect && !routeSelect.value) {
+            routeSelect.value = studentTransport.route_id;
+        }
+
         if (tripSelect && !tripSelect.value) {
-            tripSelect.value = 'full';
+            // Use student's trip type if available, otherwise default to full
+            tripSelect.value = (studentTransport && studentTransport.trip_type) ? studentTransport.trip_type : 'full';
         }
 
         if (routeSelect && routeSelect.value) {

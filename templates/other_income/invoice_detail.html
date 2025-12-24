@@ -52,7 +52,7 @@
                         <td>{{ p.payment_date|date:"d M Y H:i" }}</td>
                         <td>{{ p.payment_reference }}</td>
                         <td class="text-right">KES {{ p.amount|intcomma }}</td>
-                        <td>{{ p.received_by.get_full_name if p.received_by else "-" }}</td>
+                        <td>{% if p.received_by %}{{ p.received_by.get_full_name }}{% else %}-{% endif %}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="4" class="text-center">No payments recorded</td></tr>

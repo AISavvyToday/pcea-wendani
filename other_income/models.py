@@ -23,13 +23,12 @@ class OtherIncomeInvoice(BaseModel):
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     STATUS_CHOICES = [
-        ('draft', 'Draft'),
         ('unpaid', 'Unpaid'),
         ('partially_paid', 'Partially Paid'),
         ('paid', 'Paid'),
         ('cancelled', 'Cancelled'),
     ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unpaid')
 
     issue_date = models.DateField(default=timezone.now)
     due_date = models.DateField(null=True, blank=True)

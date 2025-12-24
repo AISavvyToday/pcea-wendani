@@ -7,8 +7,17 @@ from django.utils import timezone
 from academics.models import AcademicYear, TermChoices
 
 class InvoiceReportFilterForm(forms.Form):
-    academic_year = forms.ModelChoiceField(queryset=AcademicYear.objects.all(), required=True, widget=forms.Select(attrs={'class': 'form-select'}))
-    term = forms.ChoiceField(choices=TermChoices.choices, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(), 
+        required=False, 
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year"
+    )
+    term = forms.ChoiceField(
+        choices=[('', 'Select Term')] + list(TermChoices.choices), 
+        required=False, 
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
     show_zero_rows = forms.BooleanField(required=False, initial=False, label="Show categories with zero billed")
 
 
@@ -120,12 +129,13 @@ class OutstandingBalancesFilterForm(forms.Form):
 class TransportReportFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(
         queryset=AcademicYear.objects.all(),
-        required=True,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year"
     )
     term = forms.ChoiceField(
-        choices=TermChoices.choices,
-        required=True,
+        choices=[('', 'Select Term')] + list(TermChoices.choices),
+        required=False,
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     route = forms.ModelChoiceField(

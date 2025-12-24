@@ -64,7 +64,7 @@ class InvoiceService:
             due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
                 days=30),
             generated_by=generated_by,
-            status='draft'
+            status='overdue'
         )
 
         # Add fee items

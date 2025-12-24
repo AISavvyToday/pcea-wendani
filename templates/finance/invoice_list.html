@@ -134,7 +134,7 @@
                                         <span class="badge bg-info text-dark">{{ invoice.get_status_display }}</span>
                                     {% elif invoice.status == 'overdue' %}
                                         <span class="badge bg-danger">{{ invoice.get_status_display }}</span>
-                                    {% elif invoice.status == 'draft' %}
+                                    {% elif invoice.status == 'cancelled' %}
                                         <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
                                     {% else %}
                                         <span class="badge bg-warning text-dark">{{ invoice.get_status_display }}</span>

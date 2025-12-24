@@ -1652,6 +1652,21 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                 }
 
             context['fee_map_json'] = json.dumps(fee_map)
+            
+            # Add student's transport info for auto-population
+            student = invoice.student
+            if student and student.uses_school_transport and student.transport_route:
+                student_transport_info = {
+                    'route_id': str(student.transport_route.id),
+                    'route_name': student.transport_route.name,
+                    'trip_type': 'full'  # Default to full trip
+                }
+                context['student_transport_json'] = json.dumps(student_transport_info)
+            else:
+                context['student_transport_json'] = json.dumps(None)
+        else:
+            context['fee_map_json'] = json.dumps({})
+            context['student_transport_json'] = json.dumps(None)
 
         # Add initial totals for display
         context['current_subtotal'] = invoice.subtotal or Decimal('0.00')

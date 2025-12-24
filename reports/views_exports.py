@@ -75,9 +75,18 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
         if not form.is_valid():
             return HttpResponseBadRequest("Invalid filters")
 
-        academic_year = form.cleaned_data['academic_year']
-        term = form.cleaned_data['term']
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
         show_zero = form.cleaned_data.get('show_zero_rows', False)
+
+        # If no academic year/term provided, use the most recent
+        if not academic_year:
+            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
+        if not term:
+            term = 'term_1'  # Default to term 1
+        
+        if not academic_year:
+            return HttpResponseBadRequest("No academic year found. Please create one first.")
 
         # Select invoices for the academic year & term
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
@@ -189,9 +198,18 @@ class InvoiceReportPDFView(LoginRequiredMixin, View):
         if not form.is_valid():
             return HttpResponseBadRequest("Invalid filters")
 
-        academic_year = form.cleaned_data['academic_year']
-        term = form.cleaned_data['term']
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
         show_zero = form.cleaned_data.get('show_zero_rows', False)
+
+        # If no academic year/term provided, use the most recent
+        if not academic_year:
+            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
+        if not term:
+            term = 'term_1'  # Default to term 1
+        
+        if not academic_year:
+            return HttpResponseBadRequest("No academic year found. Please create one first.")
 
         # Reuse logic from InvoiceReportExcelView to get data
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
@@ -295,10 +313,9 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         from datetime import datetime as dt
         from django.utils import timezone
 
-        # Initialize form
+        # Initialize form - always valid since all fields are optional
         form = FeesCollectionFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data
 
         # Extract filters
         start_date = form.cleaned_data.get('start_date')
@@ -408,9 +425,9 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
     def get(self, request):
         from .forms import FeesCollectionFilterForm
 
+        # Initialize form - always valid since all fields are optional
         form = FeesCollectionFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data
 
         # Extract filters
         start_date = form.cleaned_data.get('start_date')
@@ -519,131 +536,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-class FeesCollectionPDFView(LoginRequiredMixin, View):
-    """Generates PDF for fees collection report."""
-
-    def get(self, request):
-        from .forms import FeesCollectionFilterForm
-        from datetime import datetime as dt
-        from django.utils import timezone
-
-        form = FeesCollectionFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
-
-        # Extract filters
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        selected_class = form.cleaned_data.get('student_class') or ''
-        selected_bank = form.cleaned_data.get('bank') or ''
-        group_by = form.cleaned_data.get('group_by') or 'none'
-
-        # Base queryset
-        payments_qs = Payment.objects.all()
-
-        # Fix datetime warnings
-        if start_date:
-            start_datetime = timezone.make_aware(dt.combine(start_date, dt.min.time()))
-            payments_qs = payments_qs.filter(payment_date__gte=start_datetime)
-        if end_date:
-            end_datetime = timezone.make_aware(dt.combine(end_date, dt.max.time()))
-            payments_qs = payments_qs.filter(payment_date__lte=end_datetime)
-
-        if selected_class:
-            payments_qs = payments_qs.filter(
-                Q(student__current_class=selected_class) |
-                Q(invoice__student__current_class=selected_class)
-            )
-
-        if selected_bank:
-            bank_filters = Q()
-            if hasattr(Payment, 'bank'):
-                bank_filters |= Q(bank=selected_bank)
-            if hasattr(Payment, 'payment_source'):
-                bank_filters |= Q(payment_source=selected_bank)
-            if hasattr(Payment, 'payment_method'):
-                bank_filters |= Q(payment_method__icontains=selected_bank)
-            payments_qs = payments_qs.filter(bank_filters)
-
-        # Build rows for template
-        rows = []
-        total_amount = Decimal('0.00')
-
-        payments_list = payments_qs.select_related('student', 'invoice').order_by('payment_date')
-        for p in payments_list:
-            # Get student details
-            student_name = None
-            student_class_obj = None  # Keep as object first
-            admission = None
-
-            if hasattr(p, 'student') and p.student:
-                student_name = getattr(p.student, 'full_name', '')
-                student_class_obj = getattr(p.student, 'current_class', '')
-                admission = getattr(p.student, 'admission_number', '')
-            elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
-                st = p.invoice.student
-                student_name = getattr(st, 'full_name', '')
-                student_class_obj = getattr(st, 'current_class', '')
-                admission = getattr(st, 'admission_number', '')
-            else:
-                student_name = getattr(p, 'payer_name', '') or getattr(p, 'payment_source', '') or '—'
-
-            # Convert Class object to string
-            student_class = str(student_class_obj) if student_class_obj else ''
-
-            bank_display = getattr(p, 'bank', '') or getattr(p, 'payment_source', '') or getattr(p, 'payment_method',
-                                                                                                 '')
-
-            rows.append({
-                'date': p.payment_date,
-                'reference': getattr(p, 'receipt_number', getattr(p, 'payment_reference', '')),
-                'student': student_name,
-                'class': student_class or '',  # Now a string
-                'admission': admission or '',
-                'amount': p.amount or Decimal('0.00'),
-                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
-                'bank': bank_display,
-            })
-            total_amount += Decimal(p.amount or 0)
-
-        context = {
-            'rows': rows,
-            'summary': {
-                'total_collected': total_amount,
-                'count': len(rows)
-            },
-            'filters': {
-                'start_date': start_date,
-                'end_date': end_date,
-                'student_class': selected_class,
-                'bank': selected_bank,
-                'group_by': group_by,
-            },
-            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
-            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
-            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
-            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
-                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                           'account_no': '1130280029105'},
-                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                         'account_no': '01129158350600'},
-                'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
-                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
-                ]
-            }),
-            'generated_on': datetime.now(),
-        }
-
-        html_string = render_to_string('reports/pdf/fees_collection_report_pdf.html', context)
-        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
-        pdf_bytes = html.write_pdf()
-        filename = f"fees-collections-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
 
 
 # ---------- Outstanding Balances Exports ----------
@@ -653,8 +545,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
     def get(self, request):
         from .forms import OutstandingBalancesFilterForm
         form = OutstandingBalancesFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data - all fields are optional
 
         # extract filters
         start_date = form.cleaned_data.get('start_date')
@@ -813,8 +704,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
     def get(self, request):
         from .forms import OutstandingBalancesFilterForm
         form = OutstandingBalancesFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data - all fields are optional
 
         # Use the same queryset logic as Excel view
         start_date = form.cleaned_data.get('start_date')
@@ -964,11 +854,19 @@ class TransportReportExcelView(LoginRequiredMixin, View):
     def get(self, request):
         from .forms import TransportReportFilterForm
         form = TransportReportFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data['academic_year']
-        term = form.cleaned_data['term']
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
+        
+        # If no academic year/term provided, use the most recent
+        if not academic_year:
+            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
+        if not term:
+            term = 'term_1'  # Default to term 1
+        
+        if not academic_year:
+            return HttpResponseBadRequest("No academic year found. Please create one first.")
         route = form.cleaned_data.get('route')
         student_class = form.cleaned_data.get('student_class') or ''
         start_date = form.cleaned_data.get('start_date')
@@ -1132,11 +1030,19 @@ class TransportReportPDFView(LoginRequiredMixin, View):
     def get(self, request):
         from .forms import TransportReportFilterForm
         form = TransportReportFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data['academic_year']
-        term = form.cleaned_data['term']
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
+        
+        # If no academic year/term provided, use the most recent
+        if not academic_year:
+            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
+        if not term:
+            term = 'term_1'  # Default to term 1
+        
+        if not academic_year:
+            return HttpResponseBadRequest("No academic year found. Please create one first.")
         route = form.cleaned_data.get('route')
         student_class = form.cleaned_data.get('student_class') or ''
         start_date = form.cleaned_data.get('start_date')

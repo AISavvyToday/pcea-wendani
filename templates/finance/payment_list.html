@@ -15,9 +15,6 @@
             <a href="{% url 'finance:payment_record' %}" class="btn btn-primary">
                 <i class="mdi mdi-plus"></i> Record Payment
             </a>
-            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}export=csv" class="btn btn-outline-secondary">
-                <i class="mdi mdi-download"></i> Export CSV
-            </a>
         </div>
     </div>
 
