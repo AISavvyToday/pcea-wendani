@@ -93,6 +93,9 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailV
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         invoice = self.object
+        # #region agent log
+        import logging; _dbg = logging.getLogger('debug'); _dbg.info(f"[DEBUG] OtherIncomeInvoicePrintView: invoice={invoice}")
+        # #endregion
 
         # notes & copies
         notes = self.request.GET.get('notes', '')
@@ -112,6 +115,7 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailV
             'copies_range': copies_range,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
+            'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
             'school_logo_url': getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png'),
             'sponsor_logo_url': getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png'),
             'bank_details': getattr(settings, 'SCHOOL_BANK_DETAILS', {}),

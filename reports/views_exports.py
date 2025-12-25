@@ -71,13 +71,14 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import InvoiceReportFilterForm
-        form = InvoiceReportFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form = InvoiceReportFilterForm(request.GET)
+        form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
-        show_zero = form.cleaned_data.get('show_zero_rows', False)
+        # Use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
+        show_zero = cleaned.get('show_zero_rows', False)
 
         # If no academic year/term provided, use the most recent
         if not academic_year:
@@ -194,13 +195,14 @@ class InvoiceReportPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import InvoiceReportFilterForm
-        form = InvoiceReportFilterForm(request.GET or None)
-        if not form.is_valid():
-            return HttpResponseBadRequest("Invalid filters")
+        form = InvoiceReportFilterForm(request.GET)
+        form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
-        show_zero = form.cleaned_data.get('show_zero_rows', False)
+        # Use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
+        show_zero = cleaned.get('show_zero_rows', False)
 
         # If no academic year/term provided, use the most recent
         if not academic_year:
@@ -313,16 +315,17 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         from datetime import datetime as dt
         from django.utils import timezone
 
-        # Initialize form - always valid since all fields are optional
-        form = FeesCollectionFilterForm(request.GET or None)
+        # Always pass request.GET (even if empty) to create a bound form
+        form = FeesCollectionFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data
 
-        # Extract filters
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        selected_class = form.cleaned_data.get('student_class') or ''
-        selected_bank = form.cleaned_data.get('bank') or ''
-        group_by = form.cleaned_data.get('group_by') or 'none'
+        # Extract filters - use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        selected_class = cleaned.get('student_class') or ''
+        selected_bank = cleaned.get('bank') or ''
+        group_by = cleaned.get('group_by') or 'none'
 
         # Base queryset
         payments_qs = Payment.objects.all()
@@ -424,17 +427,24 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import FeesCollectionFilterForm
+        # #region agent log
+        import logging; _dbg = logging.getLogger('debug'); _dbg.info(f"[DEBUG] FeesCollectionPDFView: request.GET={dict(request.GET)}")
+        # #endregion
 
-        # Initialize form - always valid since all fields are optional
-        form = FeesCollectionFilterForm(request.GET or None)
-        form.is_valid()  # Populate cleaned_data
+        # Always pass request.GET (even if empty) to create a bound form
+        form = FeesCollectionFilterForm(request.GET)
+        is_valid = form.is_valid()  # Populate cleaned_data
+        # #region agent log
+        _dbg.info(f"[DEBUG] FeesCollectionPDFView: form.is_valid()={is_valid}, has_cleaned_data={hasattr(form, 'cleaned_data')}")
+        # #endregion
 
-        # Extract filters
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        selected_class = form.cleaned_data.get('student_class') or ''
-        selected_bank = form.cleaned_data.get('bank') or ''
-        group_by = form.cleaned_data.get('group_by') or 'none'
+        # Extract filters - use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        selected_class = cleaned.get('student_class') or ''
+        selected_bank = cleaned.get('bank') or ''
+        group_by = cleaned.get('group_by') or 'none'
 
         # Base queryset
         payments_qs = Payment.objects.all()
@@ -544,18 +554,19 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import OutstandingBalancesFilterForm
-        form = OutstandingBalancesFilterForm(request.GET or None)
+        form = OutstandingBalancesFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data - all fields are optional
 
-        # extract filters
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
-        student_class = form.cleaned_data.get('student_class')
-        balance_op = form.cleaned_data.get('balance_operator') or 'any'
-        balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
-        include_zero = form.cleaned_data.get('show_zero_balances')
+        # extract filters - use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
+        student_class = cleaned.get('student_class')
+        balance_op = cleaned.get('balance_operator') or 'any'
+        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
+        include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
 
@@ -703,18 +714,19 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import OutstandingBalancesFilterForm
-        form = OutstandingBalancesFilterForm(request.GET or None)
+        form = OutstandingBalancesFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data - all fields are optional
 
-        # Use the same queryset logic as Excel view
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
-        student_class = form.cleaned_data.get('student_class')
-        balance_op = form.cleaned_data.get('balance_operator') or 'any'
-        balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
-        include_zero = form.cleaned_data.get('show_zero_balances')
+        # Use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
+        student_class = cleaned.get('student_class')
+        balance_op = cleaned.get('balance_operator') or 'any'
+        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
+        include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
         if academic_year:
@@ -847,17 +859,18 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
 
 
 # ---------- Transport Report Exports ----------
-# ---------- Transport Report Exports ----------
 class TransportReportExcelView(LoginRequiredMixin, View):
     """Exports transport report to Excel."""
 
     def get(self, request):
         from .forms import TransportReportFilterForm
-        form = TransportReportFilterForm(request.GET or None)
+        form = TransportReportFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
+        # Use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
         
         # If no academic year/term provided, use the most recent
         if not academic_year:
@@ -867,11 +880,11 @@ class TransportReportExcelView(LoginRequiredMixin, View):
         
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
-        route = form.cleaned_data.get('route')
-        student_class = form.cleaned_data.get('student_class') or ''
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        show_zero = form.cleaned_data.get('show_zero_rows', False)
+        route = cleaned.get('route')
+        student_class = cleaned.get('student_class') or ''
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        show_zero = cleaned.get('show_zero_rows', False)
 
         items_qs = InvoiceItem.objects.filter(
             invoice__term__academic_year=academic_year,
@@ -1029,11 +1042,13 @@ class TransportReportPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import TransportReportFilterForm
-        form = TransportReportFilterForm(request.GET or None)
+        form = TransportReportFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data
 
-        academic_year = form.cleaned_data.get('academic_year')
-        term = form.cleaned_data.get('term')
+        # Use getattr with empty dict fallback for safety
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        term = cleaned.get('term')
         
         # If no academic year/term provided, use the most recent
         if not academic_year:
@@ -1043,11 +1058,11 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
-        route = form.cleaned_data.get('route')
-        student_class = form.cleaned_data.get('student_class') or ''
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        show_zero = form.cleaned_data.get('show_zero_rows', False)
+        route = cleaned.get('route')
+        student_class = cleaned.get('student_class') or ''
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        show_zero = cleaned.get('show_zero_rows', False)
 
         items_qs = InvoiceItem.objects.filter(
             invoice__term__academic_year=academic_year,
