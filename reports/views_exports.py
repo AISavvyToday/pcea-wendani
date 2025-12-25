@@ -427,16 +427,10 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import FeesCollectionFilterForm
-        # #region agent log
-        import logging; _dbg = logging.getLogger('debug'); _dbg.info(f"[DEBUG] FeesCollectionPDFView: request.GET={dict(request.GET)}")
-        # #endregion
 
         # Always pass request.GET (even if empty) to create a bound form
         form = FeesCollectionFilterForm(request.GET)
-        is_valid = form.is_valid()  # Populate cleaned_data
-        # #region agent log
-        _dbg.info(f"[DEBUG] FeesCollectionPDFView: form.is_valid()={is_valid}, has_cleaned_data={hasattr(form, 'cleaned_data')}")
-        # #endregion
+        form.is_valid()  # Populate cleaned_data
 
         # Extract filters - use getattr with empty dict fallback for safety
         cleaned = getattr(form, 'cleaned_data', {})

@@ -891,6 +891,88 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return self.render_to_response(context)
 
 
+class SingleStudentInvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, View):
+    """
+    Generate invoice for a single student.
+    GET: Returns available terms (AJAX)
+    POST: Generates invoice for the student and term
+    """
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get(self, request, student_pk):
+        """Return available terms for invoice generation (AJAX)."""
+        try:
+            student = get_object_or_404(Student, pk=student_pk)
+
+            # Get terms with existing invoice status
+            terms = Term.objects.filter(is_active=True).order_by('-academic_year__year', '-term')
+
+            terms_data = []
+            for term in terms:
+                has_invoice = Invoice.objects.filter(student=student, term=term).exists()
+                terms_data.append({
+                    'id': str(term.pk),
+                    'label': str(term),
+                    'has_invoice': has_invoice
+                })
+
+            return JsonResponse({
+                'success': True,
+                'student_name': student.full_name,
+                'terms': terms_data
+            })
+        except Exception as e:
+            logger.exception("Error loading terms for single student invoice")
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+    def post(self, request, student_pk):
+        """Generate invoice for single student."""
+        try:
+            student = get_object_or_404(Student, pk=student_pk)
+            term_id = request.POST.get('term_id')
+
+            if not term_id:
+                return JsonResponse({'success': False, 'error': 'Term is required'}, status=400)
+
+            term = get_object_or_404(Term, pk=term_id)
+
+            # Check if invoice already exists
+            existing_invoice = Invoice.objects.filter(student=student, term=term).first()
+            if existing_invoice:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Invoice already exists for {student.full_name} in {term}',
+                    'invoice_id': str(existing_invoice.pk)
+                }, status=400)
+
+            # Generate invoice using the service
+            from .services import InvoiceService
+            invoice, created = InvoiceService.generate_invoice(
+                student=student,
+                term=term,
+                generated_by=request.user
+            )
+
+            if created:
+                logger.info(f"Invoice {invoice.invoice_number} created for {student.full_name}")
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Invoice {invoice.invoice_number} generated successfully',
+                    'invoice_id': str(invoice.pk),
+                    'invoice_number': invoice.invoice_number
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invoice already exists',
+                    'invoice_id': str(invoice.pk)
+                }, status=400)
+
+        except Exception as e:
+            logger.exception("Error generating single student invoice")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """Print-friendly invoice/receipt view."""
 
@@ -1652,6 +1734,20 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                 }
 
             context['fee_map_json'] = json.dumps(fee_map)
+
+            # Add student transport info for auto-population
+            student = invoice.student
+            student_transport = {}
+            if student and student.uses_school_transport and student.transport_route:
+                student_transport = {
+                    'route_id': str(student.transport_route.id),
+                    'route_name': student.transport_route.name,
+                    'trip_type': 'full'  # Default to full, can be overridden
+                }
+            context['student_transport_json'] = json.dumps(student_transport)
+        else:
+            context['fee_map_json'] = '{}'
+            context['student_transport_json'] = '{}'
 
         # Add initial totals for display
         context['current_subtotal'] = invoice.subtotal or Decimal('0.00')

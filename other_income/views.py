@@ -15,19 +15,40 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 
 
-class OtherIncomeListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
-    model = OtherIncomeInvoice
+class OtherIncomeListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = 'other_income/invoice_list.html'
-    context_object_name = 'invoices'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
-    paginate_by = 25
 
-    def get_queryset(self):
-        qs = OtherIncomeInvoice.objects.filter(is_active=True)
-        q = self.request.GET.get('q')
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get active tab from query param
+        active_tab = self.request.GET.get('tab', 'invoices')
+        context['active_tab'] = active_tab
+        
+        # Search query
+        q = self.request.GET.get('q', '')
+        context['search_query'] = q
+        
+        # Get invoices
+        invoices = OtherIncomeInvoice.objects.filter(is_active=True)
         if q:
-            qs = qs.filter(client_name__icontains=q)
-        return qs.order_by('-issue_date')
+            invoices = invoices.filter(client_name__icontains=q)
+        context['invoices'] = invoices.order_by('-issue_date')[:50]
+        
+        # Get payments
+        payments = OtherIncomePayment.objects.filter(is_active=True).select_related('invoice')
+        if q:
+            payments = payments.filter(
+                invoice__client_name__icontains=q
+            ) | payments.filter(
+                payer_name__icontains=q
+            ) | payments.filter(
+                payment_reference__icontains=q
+            )
+        context['payments'] = payments.order_by('-payment_date')[:50]
+        
+        return context
 
 
 class OtherIncomeCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
@@ -93,9 +114,6 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailV
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         invoice = self.object
-        # #region agent log
-        import logging; _dbg = logging.getLogger('debug'); _dbg.info(f"[DEBUG] OtherIncomeInvoicePrintView: invoice={invoice}")
-        # #endregion
 
         # notes & copies
         notes = self.request.GET.get('notes', '')

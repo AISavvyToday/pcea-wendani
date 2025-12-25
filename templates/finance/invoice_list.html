@@ -93,7 +93,6 @@
                             <th class="text-end">Total</th>
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
-                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -127,20 +126,7 @@
                                     KES {{ invoice.balance|floatformat:2|intcomma }}
                                 </td>
 
-                                <td>
-                                    {% if invoice.status == 'paid' %}
-                                        <span class="badge bg-success">{{ invoice.get_status_display }}</span>
-                                    {% elif invoice.status == 'partial' or invoice.status == 'partially_paid' %}
-                                        <span class="badge bg-info text-dark">{{ invoice.get_status_display }}</span>
-                                    {% elif invoice.status == 'overdue' %}
-                                        <span class="badge bg-danger">{{ invoice.get_status_display }}</span>
-                                    {% elif invoice.status == 'cancelled' %}
-                                        <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark">{{ invoice.get_status_display }}</span>
-                                    {% endif %}
-                                </td>
-
+                                
                                 <td class="text-nowrap">
                                     <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" title="View">
                                         <i class="mdi mdi-eye"></i>

@@ -417,12 +417,7 @@ body {
         </div>
         {% endif %}
 
-        {% if filters.bank %}
-        <div class="filter-item">
-          <span class="filter-label">Bank/Source:</span>
-          <span class="filter-value">{{ filters.bank }}</span>
-        </div>
-        {% endif %}
+        
 
         {% if filters.group_by and filters.group_by != 'none' %}
         <div class="filter-item">
@@ -484,7 +479,6 @@ body {
             <th>Class</th>
             <th class="text-right">Amount (KES)</th>
             <th>Method</th>
-            <th>Bank/Source</th>
           </tr>
         </thead>
         <tbody>
@@ -497,7 +491,6 @@ body {
             <td>{{ row.class|default:"—" }}</td>
             <td class="text-right amount-cell">{{ row.amount|floatformat:2 }}</td>
             <td>{{ row.method|default:"—" }}</td>
-            <td>{{ row.bank|default:"—" }}</td>
           </tr>
           {% endfor %}
         </tbody>
