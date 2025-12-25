@@ -68,44 +68,44 @@
         </a>
     </div>
 
-    <div class="card">
+            <div class="card">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="mdi mdi-file-document-edit"></i> Invoice Items</h5>
-        </div>
-        <div class="card-body">
-            <form method="post" id="invoice-edit-form" novalidate>
-                {% csrf_token %}
+                </div>
+                <div class="card-body">
+                    <form method="post" id="invoice-edit-form" novalidate>
+                        {% csrf_token %}
 
                 <!-- Invoice Notes & Due Date -->
-                <div class="row mb-4">
+                        <div class="row mb-4">
                     <div class="col-md-8">
                         <label for="id_notes" class="form-label">Notes:</label>
                         <textarea name="notes" id="id_notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes...">{{ form.notes.value|default:'' }}</textarea>
-                    </div>
+                                </div>
                     <div class="col-md-4">
                         <label for="id_due_date" class="form-label">Due Date:</label>
                         <input type="date" name="due_date" id="id_due_date" class="form-control form-control-sm"
-                               value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
-                    </div>
-                </div>
+                                           value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                            </div>
+                        </div>
 
-                {{ formset.management_form }}
+                        {{ formset.management_form }}
 
-                <div class="table-responsive">
+                        <div class="table-responsive">
                     <table class="table table-bordered table-hover" id="invoice-items-table">
-                        <thead class="table-light">
-                            <tr>
+                                <thead class="table-light">
+                                    <tr>
                                 <th style="width: 140px;">Category</th>
                                 <th>Description</th>
                                 <th style="width: 140px;">Amount (KES)</th>
                                 <th style="width: 50px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="formset-container">
+                                    </tr>
+                                </thead>
+                                <tbody id="formset-container">
                             {% for item_form in formset.forms %}
                             <tr class="item-row {% if item_form.instance.category == 'transport' %}is-transport{% endif %}"
-                                data-form-index="{{ forloop.counter0 }}">
-                                <td>
+                                        data-form-index="{{ forloop.counter0 }}">
+                                        <td>
                                     {{ item_form.id }}
                                     <select name="{{ item_form.category.html_name }}" 
                                             id="{{ item_form.category.id_for_label }}"
@@ -114,9 +114,9 @@
                                         <option value="{{ value }}" {% if item_form.category.value == value %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
-                                </td>
-                                <td>
-                                    <div class="description-only">
+                                        </td>
+                                        <td>
+                                    <div class="description-only {% if item_form.instance.category == 'transport' %}hidden{% endif %}">
                                         <input type="text" 
                                                name="{{ item_form.description.html_name }}"
                                                id="{{ item_form.description.id_for_label }}"
@@ -149,8 +149,8 @@
                                             </select>
                                         </div>
                                     </div>
-                                </td>
-                                <td>
+                                        </td>
+                                        <td>
                                     <input type="number" 
                                            name="{{ item_form.amount.html_name }}"
                                            id="{{ item_form.amount.id_for_label }}"
@@ -161,30 +161,30 @@
                                     <input type="hidden" 
                                            name="{{ item_form.discount_applied.html_name }}"
                                            value="0.00">
-                                </td>
-                                <td class="text-center">
+                                        </td>
+                                        <td class="text-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
-                                        <i class="mdi mdi-delete"></i>
-                                    </button>
-                                </td>
-                            </tr>
+                                                <i class="mdi mdi-delete"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
                             {% empty %}
                             <tr id="empty-row">
                                 <td colspan="4" class="text-center text-muted py-4">
                                     <i class="mdi mdi-information-outline"></i> No items. Click "Add Item" to add invoice items.
                                 </td>
                             </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
 
                 <!-- Totals Summary -->
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-btn">
-                        <i class="mdi mdi-plus"></i> Add Item
-                    </button>
-                </div>
+                                <i class="mdi mdi-plus"></i> Add Item
+                            </button>
+                        </div>
 
                 <div class="row mt-3">
                     <div class="col-md-6"></div>
@@ -198,15 +198,15 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-4 border-top pt-3">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="mdi mdi-content-save"></i> Save Changes
-                    </button>
-                    <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
-                        Cancel
-                    </a>
-                </div>
-            </form>
+                        <div class="d-flex gap-2 mt-4 border-top pt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="mdi mdi-content-save"></i> Save Changes
+                            </button>
+                            <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
         </div>
     </div>
 </div>
@@ -229,11 +229,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize existing rows
     document.querySelectorAll('.item-row').forEach(initRow);
-    
+
     // Add Item button
-    document.getElementById('add-item-btn').addEventListener('click', function() {
-        addNewRow();
-    });
+    const addBtn = document.getElementById('add-item-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            addNewRow();
+        });
+    }
     
     // Event delegation for remove buttons
     container.addEventListener('click', function(e) {
@@ -242,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
             removeRow(removeBtn.closest('.item-row'));
         }
     });
-    
+
     // Event delegation for category changes
     container.addEventListener('change', function(e) {
         if (e.target.classList.contains('category-select')) {
@@ -264,7 +268,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function initRow(row) {
         const categorySelect = row.querySelector('.category-select');
-        setTransportVisibility(row, categorySelect && categorySelect.value === 'transport');
+        const isTransport = categorySelect && categorySelect.value === 'transport';
+        setTransportVisibility(row, isTransport);
+        if (isTransport) {
+            // Ensure amount is set correctly when loading existing rows
+            updateTransportAmount(row);
+        }
     }
     
     function handleCategoryChange(select) {
@@ -275,22 +284,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isTransport) {
             const routeSelect = row.querySelector('.route-select');
             const tripSelect = row.querySelector('.trip-select');
-            // Auto-populate student's transport route if available
+
+            // Auto-populate student's route if available
             if (studentTransport && studentTransport.route_id && routeSelect && !routeSelect.value) {
                 routeSelect.value = studentTransport.route_id;
             }
-            // Default to full trip
+
+            // Default trip type
             if (tripSelect && !tripSelect.value) {
-                tripSelect.value = studentTransport.trip_type || 'full';
+                tripSelect.value = (studentTransport && studentTransport.trip_type) ? studentTransport.trip_type : 'full';
             }
-            setTimeout(() => updateTransportAmount(row), 50);
+
+            updateTransportAmount(row);
         }
     }
 
     function setTransportVisibility(row, isTransport) {
         const amountInput = row.querySelector('.amount-input');
         const descWrap = row.querySelector('.description-only');
+        const descInput = row.querySelector('.description-input');
         const transportWrap = row.querySelector('.transport-inline');
+        const routeSelect = row.querySelector('.route-select');
+        const tripSelect = row.querySelector('.trip-select');
 
         if (isTransport) {
             row.classList.add('is-transport');
@@ -300,6 +315,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (descWrap) descWrap.classList.add('hidden');
             if (transportWrap) transportWrap.classList.remove('hidden');
+            // For transport, description text field is not used
+            if (descInput) descInput.value = '';
         } else {
             row.classList.remove('is-transport');
             if (amountInput) {
@@ -308,32 +325,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (descWrap) descWrap.classList.remove('hidden');
             if (transportWrap) transportWrap.classList.add('hidden');
+            // Clear transport selectors so non-transport rows don't keep hidden transport values
+            if (routeSelect) routeSelect.value = '';
+            if (tripSelect) tripSelect.value = 'full';
         }
     }
-    
+
     function updateTransportAmount(row) {
         const routeSelect = row.querySelector('.route-select');
         const tripSelect = row.querySelector('.trip-select');
         const amountInput = row.querySelector('.amount-input');
-        const descInput = row.querySelector('.description-input');
-        
+        const isTransport = row.classList.contains('is-transport');
+
+        if (!isTransport) return;
         if (!routeSelect || !tripSelect || !amountInput) return;
-        
+
         const routeId = routeSelect.value;
         const tripType = tripSelect.value || 'full';
-        
+
         if (routeId && feeMap[routeId]) {
             const amount = feeMap[routeId][tripType];
             if (amount !== undefined) {
-                amountInput.value = amount.toFixed(2);
-                
-                // Auto-fill description if empty
-                if (descInput && !descInput.value.trim()) {
-                    const routeName = routeSelect.options[routeSelect.selectedIndex].text;
-                    const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
-                    descInput.value = `Transport - ${routeName} (${tripLabel})`;
-                }
-                
+                amountInput.value = Number(amount).toFixed(2);
                 updateTotals();
             }
         }
@@ -343,9 +356,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove empty row placeholder if exists
         const emptyRow = document.getElementById('empty-row');
         if (emptyRow) emptyRow.remove();
-        
+
         const currentCount = parseInt(totalFormsInput.value);
-        
+
         // Create new row
         const newRow = document.createElement('tr');
         newRow.className = 'item-row';
@@ -392,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
         `;
         
-        container.appendChild(newRow);
+    container.appendChild(newRow);
         totalFormsInput.value = currentCount + 1;
         
         // Focus on the category select of the new row
@@ -403,9 +416,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function removeRow(row) {
-        const idInput = row.querySelector('input[name$="-id"]');
-        
-        if (idInput && idInput.value) {
+    const idInput = row.querySelector('input[name$="-id"]');
+
+    if (idInput && idInput.value) {
             // Existing item: mark for deletion
             const deleteInput = document.createElement('input');
             deleteInput.type = 'hidden';
@@ -413,23 +426,23 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteInput.value = 'on';
             row.appendChild(deleteInput);
             row.classList.add('deleted-row');
-        } else {
+    } else {
             // New item: just remove from DOM
-            row.remove();
+        row.remove();
             reindexRows();
         }
         
         updateTotals();
     }
-    
+
     function reindexRows() {
         const rows = container.querySelectorAll('.item-row:not(.deleted-row)');
         rows.forEach((row, index) => {
             row.setAttribute('data-form-index', index);
             row.querySelectorAll('[name]').forEach(field => {
                 const name = field.getAttribute('name');
-                const newName = name.replace(/form-\d+-/, `form-${index}-`);
-                field.setAttribute('name', newName);
+                    const newName = name.replace(/form-\d+-/, `form-${index}-`);
+                    field.setAttribute('name', newName);
                 
                 const id = field.getAttribute('id');
                 if (id) {
@@ -450,13 +463,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('display-total').textContent = 'KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2});
-    }
-    
+}
+
     // Form validation before submit
     document.getElementById('invoice-edit-form').addEventListener('submit', function(e) {
-        let isValid = true;
-        const errors = [];
-        
+    let isValid = true;
+    const errors = [];
+
         document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
             row.classList.remove('invalid');
             
@@ -475,12 +488,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const amount = parseFloat(amountInput?.value);
             if (isNaN(amount) || amount < 0) {
                 row.classList.add('invalid');
-                isValid = false;
+            isValid = false;
                 errors.push('Amount must be a valid positive number');
-            }
-        });
-        
-        if (!isValid) {
+        }
+    });
+
+    if (!isValid) {
             e.preventDefault();
             alert('Please fix the following errors:\n\n• ' + [...new Set(errors)].join('\n• '));
             return false;
