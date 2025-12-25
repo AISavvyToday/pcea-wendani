@@ -214,15 +214,7 @@
                                             KES {{ total_balance|intcomma }}
                                         </span>
                                     </th>
-                                    <th>
-                                        {% if total_balance <= 0 %}
-                                            <span class="badge badge-success">Fully Paid</span>
-                                        {% elif total_paid > 0 %}
-                                            <span class="badge badge-info">Partially Paid</span>
-                                        {% else %}
-                                            <span class="badge badge-warning">Unpaid</span>
-                                        {% endif %}
-                                    </th>
+                                    
                                 </tr>
                             </tfoot>
                         </table>

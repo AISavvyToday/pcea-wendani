@@ -35,6 +35,9 @@
     .form-select-sm, .form-control-sm {
         font-size: 0.875rem;
     }
+    .hidden {
+        display: none !important;
+    }
     /* Transport fields are inline within the description cell for transport rows */
     .transport-inline {
         display: none;
@@ -68,9 +71,6 @@
     <div class="card">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="mdi mdi-file-document-edit"></i> Invoice Items</h5>
-            <button type="button" class="btn btn-primary btn-sm" id="add-item-btn">
-                <i class="mdi mdi-plus"></i> Add Item
-            </button>
         </div>
         <div class="card-body">
             <form method="post" id="invoice-edit-form" novalidate>
@@ -116,13 +116,14 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <input type="text" 
-                                           name="{{ item_form.description.html_name }}"
-                                           id="{{ item_form.description.id_for_label }}"
-                                           value="{{ item_form.description.value|default:'' }}"
-                                           class="form-control form-control-sm description-input"
-                                           placeholder="Description">
-                                    
+                                    <div class="description-only">
+                                        <input type="text" 
+                                               name="{{ item_form.description.html_name }}"
+                                               id="{{ item_form.description.id_for_label }}"
+                                               value="{{ item_form.description.value|default:'' }}"
+                                               class="form-control form-control-sm description-input"
+                                               placeholder="Description">
+                                    </div>
                                     <!-- Transport fields (shown only for transport category) -->
                                     <div class="transport-inline">
                                         <div class="flex-grow-1">
@@ -138,7 +139,7 @@
                                                 {% endfor %}
                                             </select>
                                         </div>
-                                        <div style="width: 100px;">
+                                        <div style="width: 120px;">
                                             <label class="form-label small mb-1">Trip:</label>
                                             <select name="{{ item_form.transport_trip_type.html_name }}"
                                                     id="{{ item_form.transport_trip_type.id_for_label }}"
@@ -179,6 +180,12 @@
                 </div>
 
                 <!-- Totals Summary -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-btn">
+                        <i class="mdi mdi-plus"></i> Add Item
+                    </button>
+                </div>
+
                 <div class="row mt-3">
                     <div class="col-md-6"></div>
                     <div class="col-md-6">
@@ -207,9 +214,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Fee map from backend: { route_id: { full: amount, half: amount } }
-    const feeMap = {{ fee_map_json|safe }};
+    const feeMap = JSON.parse('{{ fee_map_json|escapejs }}');
     // Student's default transport info
-    const studentTransport = {{ student_transport_json|safe }};
+    const studentTransport = JSON.parse('{{ student_transport_json|escapejs }}');
     
     const container = document.getElementById('formset-container');
     const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
@@ -257,47 +264,50 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function initRow(row) {
         const categorySelect = row.querySelector('.category-select');
-        if (categorySelect && categorySelect.value === 'transport') {
-            row.classList.add('is-transport');
-            const amountInput = row.querySelector('.amount-input');
-            if (amountInput) {
-                amountInput.readOnly = true;
-                amountInput.classList.add('readonly-amount');
-            }
-        }
+        setTransportVisibility(row, categorySelect && categorySelect.value === 'transport');
     }
     
     function handleCategoryChange(select) {
         const row = select.closest('.item-row');
+        const isTransport = select.value === 'transport';
+        setTransportVisibility(row, isTransport);
+
+        if (isTransport) {
+            const routeSelect = row.querySelector('.route-select');
+            const tripSelect = row.querySelector('.trip-select');
+            // Auto-populate student's transport route if available
+            if (studentTransport && studentTransport.route_id && routeSelect && !routeSelect.value) {
+                routeSelect.value = studentTransport.route_id;
+            }
+            // Default to full trip
+            if (tripSelect && !tripSelect.value) {
+                tripSelect.value = studentTransport.trip_type || 'full';
+            }
+            setTimeout(() => updateTransportAmount(row), 50);
+        }
+    }
+
+    function setTransportVisibility(row, isTransport) {
         const amountInput = row.querySelector('.amount-input');
-        const routeSelect = row.querySelector('.route-select');
-        const tripSelect = row.querySelector('.trip-select');
-        
-        if (select.value === 'transport') {
+        const descWrap = row.querySelector('.description-only');
+        const transportWrap = row.querySelector('.transport-inline');
+
+        if (isTransport) {
             row.classList.add('is-transport');
             if (amountInput) {
                 amountInput.readOnly = true;
                 amountInput.classList.add('readonly-amount');
             }
-            
-            // Auto-populate student's transport route if available
-            if (studentTransport && studentTransport.route_id && routeSelect && !routeSelect.value) {
-                routeSelect.value = studentTransport.route_id;
-            }
-            
-            // Default to full trip
-            if (tripSelect && !tripSelect.value) {
-                tripSelect.value = studentTransport.trip_type || 'full';
-            }
-            
-            // Update amount
-            setTimeout(() => updateTransportAmount(row), 50);
+            if (descWrap) descWrap.classList.add('hidden');
+            if (transportWrap) transportWrap.classList.remove('hidden');
         } else {
             row.classList.remove('is-transport');
             if (amountInput) {
                 amountInput.readOnly = false;
                 amountInput.classList.remove('readonly-amount');
             }
+            if (descWrap) descWrap.classList.remove('hidden');
+            if (transportWrap) transportWrap.classList.add('hidden');
         }
     }
     
@@ -349,17 +359,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 </select>
             </td>
             <td>
-                <input type="text" name="form-${currentCount}-description" id="id_form-${currentCount}-description" 
-                       class="form-control form-control-sm description-input" placeholder="Description">
+                <div class="description-only">
+                    <input type="text" name="form-${currentCount}-description" id="id_form-${currentCount}-description" 
+                           class="form-control form-control-sm description-input" placeholder="Description">
+                </div>
                 
-                <div class="transport-inline">
+                <div class="transport-inline hidden">
                     <div class="flex-grow-1">
                         <label class="form-label small mb-1">Route:</label>
                         <select name="form-${currentCount}-transport_route" id="id_form-${currentCount}-transport_route" class="form-select form-select-sm route-select">
                             ${routeOptionsHtml}
                         </select>
                     </div>
-                    <div style="width: 100px;">
+                    <div style="width: 120px;">
                         <label class="form-label small mb-1">Trip:</label>
                         <select name="form-${currentCount}-transport_trip_type" id="id_form-${currentCount}-transport_trip_type" class="form-select form-select-sm trip-select">
                             <option value="full">Full</option>
@@ -386,6 +398,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Focus on the category select of the new row
         const categorySelect = newRow.querySelector('.category-select');
         if (categorySelect) categorySelect.focus();
+        // Ensure correct visibility on new row
+        setTransportVisibility(newRow, categorySelect && categorySelect.value === 'transport');
     }
     
     function removeRow(row) {
