@@ -121,9 +121,17 @@ class Student(BaseModel):
         ('suspended', 'Suspended'),
         ('expelled', 'Expelled'),
         ('withdrawn', 'Withdrawn'),
+        ('inactive', 'Inactive'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-
+    status_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Date when the status was last changed"
+    )
+    status_reason = models.TextField(
+        blank=True,
+        help_text="Reason for status change"
+    )
     
     # Special needs
     has_special_needs = models.BooleanField(default=False)
@@ -132,11 +140,30 @@ class Student(BaseModel):
     # Transport
     uses_school_transport = models.BooleanField(default=False)
     transport_route = models.ForeignKey(
-        'academics.TransportRoute',  # Updated reference
+        'academics.TransportRoute',
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='students',
-
+    )
+    transport_pickup_person = models.CharField(
+        max_length=100, blank=True,
+        help_text="Person authorized to pick up the student from the bus"
+    )
+    
+    # Government/School Identifiers
+    upi_number = models.CharField(
+        max_length=30, blank=True,
+        help_text="Unique Pupil Identifier (NEMIS/Ministry of Education)"
+    )
+    assessment_number = models.CharField(
+        max_length=30, blank=True,
+        help_text="Assessment/Examination number"
+    )
+    
+    # Residence
+    residence = models.CharField(
+        max_length=100, blank=True,
+        help_text="Student's residence area/estate"
     )
     
     credit_balance = models.DecimalField(

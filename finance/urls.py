@@ -43,6 +43,7 @@ urlpatterns = [
     # Payments
     path('payments/', views.PaymentListView.as_view(), name='payment_list'),
     path('payments/record/', views.PaymentRecordView.as_view(), name='payment_record'),
+    path('payments/family/', views.FamilyPaymentView.as_view(), name='family_payment'),
     path('payments/<uuid:pk>/', views.PaymentDetailView.as_view(), name='payment_detail'),
     path('payments/<uuid:pk>/receipt/', views.PaymentReceiptView.as_view(), name='payment_receipt'),
 

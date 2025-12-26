@@ -20,11 +20,24 @@
                 <div class="card-body">
                     <h5>Details</h5>
                     <p><strong>Academic Year:</strong> {{ fee_structure.academic_year }}</p>
+                    <p><strong>Term:</strong> {{ fee_structure.get_term_display|default:fee_structure.term }}</p>
+                    <p><strong>Grade Levels:</strong><br>
+                        {% if fee_structure.grade_levels %}
+                            {% for g in fee_structure.grade_levels %}
+                                <span class="badge bg-light text-dark me-1 mb-1">{{ g|capfirst }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">All Grades</span>
+                        {% endif %}
+                    </p>
                     <p><strong>Status:</strong>
                         <span class="badge badge-{% if fee_structure.is_active %}success{% else %}secondary{% endif %}">
                             {% if fee_structure.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
                     </p>
+                    {% if fee_structure.description %}
+                    <p><strong>Description:</strong><br>{{ fee_structure.description }}</p>
+                    {% endif %}
                     <hr>
                     <h4 class="text-primary">Total: KES {{ fee_structure.total_amount|intcomma }}</h4>
                 </div>

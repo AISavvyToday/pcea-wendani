@@ -93,7 +93,8 @@
                 <th>Student Name</th>
                 <th>Admission #</th>
                 <th>Class/Grade</th>
-                <th>Route/Destination</th>
+                <th>Route/Zone</th>
+                <th>Trip Type</th>
                 <th class="text-right">Transport Amount</th>
                 <th class="text-right">Paid</th>
                 <th class="text-right">Balance</th>
@@ -105,19 +106,25 @@
                 <td>{{ r.student_name }}</td>
                 <td>{{ r.admission }}</td>
                 <td>{{ r.student_class }}</td>
-                <td>{{ r.route_name }}</td>
+                <td>
+                  <strong>{{ r.route_name }}</strong>
+                  {% if r.destination %}
+                    <div class="small text-muted">{{ r.destination }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ r.trip_type|default:"Full Trip" }}</td>
                 <td class="text-right">KES {{ r.billed|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.collected|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ r.balance|floatformat:2|intcomma }}</td>
+                <td class="text-right {% if r.balance > 0 %}text-danger{% endif %}">KES {{ r.balance|floatformat:2|intcomma }}</td>
               </tr>
               {% endfor %}
             </tbody>
             <tfoot>
-              <tr>
-                <th colspan="4">Totals</th>
+              <tr class="table-light">
+                <th colspan="5">TOTALS</th>
                 <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.balance|floatformat:2|intcomma }}</th>
+                <th class="text-right {% if totals.balance > 0 %}text-danger{% endif %}">KES {{ totals.balance|floatformat:2|intcomma }}</th>
               </tr>
             </tfoot>
           </table>

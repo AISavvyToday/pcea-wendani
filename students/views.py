@@ -8,7 +8,7 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import ListView, CreateView, UpdateView, DetailView, FormView
+from django.views.generic import ListView, CreateView, UpdateView, DetailView, FormView, View
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.views.generic import DeleteView
@@ -141,7 +141,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
 
 
 class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
-    """Edit existing student"""
+    """Edit existing student - preserves financial records on status change"""
 
     model = Student
     form_class = StudentForm
@@ -156,9 +156,32 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         context['title'] = f'Edit Student: {self.object.get_full_name()}'
         context['button_text'] = 'Update Student'
         context['is_edit'] = True
+        context['original_status'] = self.object.status
         return context
 
     def form_valid(self, form):
+        # Track status changes
+        original_status = self.get_object().status
+        new_status = form.cleaned_data.get('status')
+        
+        if original_status != new_status:
+            # Status is changing - update status_date
+            form.instance.status_date = timezone.now()
+            
+            # Add a note about who changed the status
+            current_reason = form.instance.status_reason or ''
+            change_note = f"Status changed from {original_status} to {new_status} by {self.request.user.get_full_name()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+            if current_reason:
+                form.instance.status_reason = f"{change_note}\n---\n{current_reason}"
+            else:
+                form.instance.status_reason = change_note
+            
+            messages.info(
+                self.request,
+                f'Student status changed from "{original_status}" to "{new_status}". '
+                f'Financial records have been preserved.'
+            )
+        
         messages.success(self.request, 'Student updated successfully!')
         return super().form_valid(form)
 
@@ -538,3 +561,50 @@ class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         context['title'] = 'Delete Parent/Guardian'
         context['children'] = self.object.children.all()
         return context
+
+
+class ParentChildrenAPIView(LoginRequiredMixin, View):
+    """API endpoint to get parent's children with their outstanding balances."""
+
+    def get(self, request, pk):
+        from django.http import JsonResponse
+        from django.db.models import Sum
+        from finance.models import Invoice
+
+        try:
+            parent = Parent.objects.get(pk=pk)
+        except Parent.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Parent not found'}, status=404)
+
+        # Get all children linked to this parent
+        student_parents = StudentParent.objects.filter(parent=parent).select_related(
+            'student', 'student__current_class'
+        )
+
+        children_data = []
+        for sp in student_parents:
+            student = sp.student
+            if student.status != 'active':
+                continue
+
+            # Calculate outstanding balance
+            outstanding = Invoice.objects.filter(
+                student=student,
+                is_active=True,
+                balance__gt=0
+            ).aggregate(total=Sum('balance'))['total'] or 0
+
+            children_data.append({
+                'id': str(student.pk),
+                'name': student.full_name,
+                'admission_number': student.admission_number,
+                'current_class': str(student.current_class) if student.current_class else None,
+                'outstanding': float(outstanding),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'parent_name': parent.full_name,
+            'parent_phone': parent.phone_primary,
+            'children': children_data,
+        })

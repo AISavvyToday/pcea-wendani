@@ -179,3 +179,41 @@ class OtherIncomeRecordPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormVi
         except Exception as e:
             messages.error(self.request, f"Error recording payment: {e}")
             return self.render_to_response(self.get_context_data(form=form))
+
+
+class OtherIncomePaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+    """Print-friendly receipt for other income payments."""
+    model = OtherIncomePayment
+    template_name = 'other_income/payment_receipt.html'
+    context_object_name = 'payment'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        payment = self.object
+
+        # notes & copies
+        notes = self.request.GET.get('notes', '')
+        try:
+            copies = int(self.request.GET.get('copies', '2'))
+        except Exception:
+            copies = 2
+        copies = max(1, min(copies, 4))
+        copies_range = range(copies)
+
+        printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
+        print_datetime = timezone.now()
+
+        context.update({
+            'invoice': payment.invoice,
+            'notes': notes,
+            'copies': copies,
+            'copies_range': copies_range,
+            'printed_by': printed_by,
+            'print_datetime': print_datetime,
+            'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
+            'school_logo_url': getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png'),
+            'sponsor_logo_url': getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png'),
+            'bank_details': getattr(settings, 'SCHOOL_BANK_DETAILS', {}),
+        })
+        return context

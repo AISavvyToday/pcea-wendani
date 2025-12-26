@@ -12,7 +12,7 @@ from django.forms import inlineformset_factory
 
 from .models import FeeStructure, FeeItem, Discount, StudentDiscount, Invoice, InvoiceItem
 from academics.models import AcademicYear, Term, TransportRoute, TransportFee
-from students.models import Student
+from students.models import Student, Parent
 from core.models import FeeCategory, GradeLevel, TermChoices
 
 
@@ -295,11 +295,24 @@ class PaymentRecordForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if student_id:
+            # Set initial student value
+            try:
+                self.fields['student'].initial = student_id
+            except Exception:
+                pass
+
+            # Filter invoices for this student
             self.fields['invoice'].queryset = Invoice.objects.filter(
                 student_id=student_id,
                 is_active=True,
                 balance__gt=0
             ).order_by('-issue_date')
+
+        if invoice_id:
+            try:
+                self.fields['invoice'].initial = invoice_id
+            except Exception:
+                pass
 
 
 class BankTransactionMatchForm(forms.Form):
@@ -479,3 +492,71 @@ InvoiceItemFormSet = inlineformset_factory(
     Invoice, InvoiceItem, form=InvoiceItemForm,
     extra=1, can_delete=True, min_num=1, validate_min=False
 )
+
+
+class FamilyPaymentForm(forms.Form):
+    """Form for recording a single payment for a parent with multiple children."""
+
+    parent = forms.ModelChoiceField(
+        queryset=Parent.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control select2'}),
+        help_text="Select parent/guardian making the payment"
+    )
+
+    amount = forms.DecimalField(
+        min_value=Decimal('0.01'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+        help_text="Total payment amount to distribute across children"
+    )
+
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('cheque', 'Cheque'),
+        ('mpesa', 'M-Pesa'),
+    ]
+    payment_method = forms.ChoiceField(
+        choices=PAYMENT_METHOD_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    PAYMENT_SOURCE_CHOICES = [
+        ('equity_bank', 'Equity Bank'),
+        ('coop_bank', 'Co-operative Bank'),
+        ('mpesa', 'Mpesa'),
+        ('cash_office', 'Cash Office'),
+    ]
+    payment_source = forms.ChoiceField(
+        choices=PAYMENT_SOURCE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    payment_date = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+        help_text="Date and time of payment"
+    )
+
+    transaction_reference = forms.CharField(
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., M-PESA code'}),
+        help_text="External reference (M-PESA code, cheque number, etc.)"
+    )
+
+    payer_name = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Name of person making payment"
+    )
+
+    payer_phone = forms.CharField(
+        max_length=15,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0712345678'})
+    )
+
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )

@@ -6,31 +6,47 @@
     <meta charset="utf-8" />
     <title>{{ school_name }} - {{ mode|title }} {{ invoice.invoice_number }}</title>
     <style>
-        /* Page/reset */
-        body { font-family: Arial, Helvetica, sans-serif; color:#222; font-size:12px; margin:0; padding:0; }
-        .page { width: 210mm; min-height: 297mm; padding: 12mm; box-sizing: border-box; background: white; margin: 0 auto; }
-        .receipt { border: 1px solid #ccc; padding: 12px; margin-bottom: 14px; }
+        /* Page/reset - Enhanced font sizes for better print quality */
+        body { 
+            font-family: Arial, Helvetica, sans-serif; 
+            color: #000; 
+            font-size: 13px; 
+            line-height: 1.4;
+            margin: 0; 
+            padding: 0; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .page { width: 210mm; min-height: 297mm; padding: 10mm; box-sizing: border-box; background: white; margin: 0 auto; }
+        .receipt { border: 1px solid #333; padding: 12px; margin-bottom: 10px; }
         .header { display:flex; align-items:center; justify-content:space-between; }
         .header .logos { display:flex; align-items:center; gap:12px; }
-        .logo { height:60px; width:auto; }
+        .logo { height:55px; width:auto; }
         .school-title { text-align:center; flex:1; }
-        h2, h3 { margin:0; padding:0; }
-        .meta { margin-top:8px; font-size:12px; color:#444; }
-        .two-col { display:flex; gap:12px; margin-top:12px; }
+        h2 { margin:0; padding:0; font-size: 18px; font-weight: bold; }
+        h3 { margin:0; padding:0; font-size: 15px; font-weight: bold; }
+        .meta { margin-top:8px; font-size:13px; color:#333; font-weight: 500; }
+        .two-col { display:flex; gap:12px; margin-top:10px; }
         .col { flex:1; }
-        table { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; }
-        th, td { padding:6px 8px; border:1px solid #e6e6e6; text-align:left; vertical-align: middle; }
-        th { background:#f7f7f7; }
+        table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
+        th, td { padding:5px 6px; border:1px solid #666; text-align:left; vertical-align: middle; }
+        th { background:#e8e8e8; font-weight: bold; }
         .text-right { text-align:right; }
-        .small { font-size:11px; color:#555; }
-        .notes { margin-top:10px; padding:8px; border:1px dashed #ddd; background:#fafafa; min-height:36px; }
-        .footer { margin-top:12px; font-size:11px; color:#333; border-top:1px dashed #ddd; padding-top:8px; }
-        .bank-list { margin:6px 0 0 0; padding-left:16px; }
-        .copy-sep { border-top:1px dashed #999; margin-top:12px; }
+        .small { font-size:12px; color:#333; }
+        .notes { margin-top:8px; padding:6px; border:1px dashed #999; background:#fafafa; min-height:28px; font-size: 12px; }
+        .footer { margin-top:10px; font-size:11px; color:#333; border-top:1px dashed #999; padding-top:8px; }
+        .bank-list { margin:4px 0 0 0; padding-left:16px; font-size: 11px; }
+        .copy-sep { border-top:2px dashed #666; margin:8px 0; padding-top: 8px; }
+        .signature-section { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 8px; }
+        .signature-box { width: 45%; text-align: center; }
+        .signature-line { border-bottom: 1px solid #333; margin-bottom: 4px; height: 30px; }
+        .signature-label { font-size: 11px; color: #333; }
         /* Print */
         @media print {
             .page { margin:0; box-shadow:none; }
             .no-print { display:none; }
+            body { font-size: 12px; }
+            .receipt { page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -84,11 +100,13 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width:18%;">Category</th>
+                        <th style="width:16%;">Category</th>
                         <th>Description</th>
-                        <th style="width:15%;" class="text-right">Amount</th>
-                        <th style="width:15%;" class="text-right">Paid</th>
-                        <th style="width:15%;" class="text-right">Balance</th>
+                        <th style="width:12%;" class="text-right">Gross</th>
+                        <th style="width:10%;" class="text-right">Discount</th>
+                        <th style="width:12%;" class="text-right">Net</th>
+                        <th style="width:12%;" class="text-right">Paid</th>
+                        <th style="width:12%;" class="text-right">Balance</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -97,6 +115,8 @@
                     <tr>
                         <td>{{ item.get_category_display }}</td>
                         <td>{{ item.description }}</td>
+                        <td class="text-right">KES {{ item.amount|intcomma }}</td>
+                        <td class="text-right">{% if item.discount_applied > 0 %}<span style="color:#080">-KES {{ item.discount_applied|intcomma }}</span>{% else %}-{% endif %}</td>
                         <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
                         <td class="text-right">KES {{ it.total_allocated|intcomma }}</td>
                         <td class="text-right">{% if it.balance > 0 %}<span style="color:#c00">KES {{ it.balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ it.balance|intcomma }}</span>{% endif %}</td>
@@ -107,6 +127,8 @@
                 <tfoot>
                     <tr>
                         <th colspan="2">Totals</th>
+                        <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
+                        <th class="text-right">{% if invoice.discount_amount > 0 %}<span style="color:#080">-KES {{ invoice.discount_amount|intcomma }}</span>{% else %}-{% endif %}</th>
                         <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
                         <th class="text-right">KES {{ total_paid|intcomma }}</th>
                         <th class="text-right">{% if total_balance > 0 %}<span style="color:#c00">KES {{ total_balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ total_balance|intcomma }}</span>{% endif %}</th>
@@ -134,25 +156,52 @@
             </div>
             {% endif %}
 
+            {% if notes %}
             <div class="notes">
                 <strong>Notes:</strong>
-                <div>{{ notes|default:"-" }}</div>
+                <div>{{ notes }}</div>
             </div>
+            {% endif %}
 
+            {% if mode == 'invoice' %}
+            <!-- Show payment terms only for invoices, not receipts -->
             <div class="footer">
-                <div><strong>Payment terms / Mode of Payment</strong></div>
-                <ol>
-                    <li>All the above payments should be received on or before the first day of the term by way of Banker's cheque or direct deposit to the school's bank account.</li>
-                    <li>Cash payments and Personal cheques are not acceptable.</li>
-                    <li>School bank accounts:</li>
-                </ol>
-                <ul class="bank-list">
-                    <li>{{ bank_details.equity.name }} — {{ bank_details.equity.account_name }} Account No: {{ bank_details.equity.account_no }}</li>
-                    <li>{{ bank_details.coop.name }} — {{ bank_details.coop.account_name }} Account No: {{ bank_details.coop.account_no }}</li>
-                    <li>{{ bank_details.paybill_1.label }} — ACC NO: {{ bank_details.paybill_1.acc_format }}</li>
-                    <li>{{ bank_details.paybill_2.label }} — ACC NO: {{ bank_details.paybill_2.acc_format }}</li>
+                <div><strong>Mode of Payment</strong></div>
+                <ul class="bank-list" style="margin-top:4px;">
+                    <li>{{ bank_details.equity.name }} — A/C: <strong>{{ bank_details.equity.account_no }}</strong></li>
+                    <li>{{ bank_details.coop.name }} — A/C: <strong>{{ bank_details.coop.account_no }}</strong></li>
+                    <li>M-PESA Paybill <strong>{{ bank_details.paybill_1.number|default:"247247" }}</strong> — Account: {{ bank_details.paybill_1.acc_format }}</li>
+                    <li>M-PESA Paybill <strong>{{ bank_details.paybill_2.number|default:"400222" }}</strong> — Account: {{ bank_details.paybill_2.acc_format }}</li>
                 </ul>
             </div>
+            {% else %}
+            <!-- Receipt footer with served by and signature -->
+            <div class="footer">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <div>
+                        <strong>Served by:</strong> {{ printed_by|default:"School Bursar" }}
+                    </div>
+                    <div>
+                        <strong>Date:</strong> {{ print_datetime|date:"d M Y H:i" }}
+                    </div>
+                </div>
+                
+                <div class="signature-section">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Cashier's Signature</div>
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Parent/Guardian Signature</div>
+                    </div>
+                </div>
+                
+                <div style="text-align:center; margin-top:8px; font-size:10px; color:#666; font-style:italic;">
+                    This is a computer-generated receipt. For queries, contact the school bursar.
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {% if not forloop.last %}

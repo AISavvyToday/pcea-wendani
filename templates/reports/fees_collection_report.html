@@ -158,6 +158,15 @@
             <tr><td colspan="7" class="text-center text-muted">No payments found for selected filters.</td></tr>
             {% endfor %}
           </tbody>
+          {% if rows %}
+          <tfoot>
+            <tr class="table-light">
+              <th colspan="4">TOTALS</th>
+              <th class="text-right">KES {{ summary.total_collected|floatformat:2|intcomma }}</th>
+              <th colspan="2">{{ summary.count }} payments</th>
+            </tr>
+          </tfoot>
+          {% endif %}
         </table>
       </div>
 

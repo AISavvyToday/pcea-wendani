@@ -128,8 +128,18 @@
                                     <td class="text-muted">Issue Date:</td>
                                     <td>{{ invoice.issue_date|date:"d M Y" }}</td>
                                 </tr>
-
-
+                                {% if invoice.balance_bf and invoice.balance_bf > 0 %}
+                                <tr>
+                                    <td class="text-muted">Balance B/F:</td>
+                                    <td><span class="badge bg-warning text-dark">KES {{ invoice.balance_bf|intcomma }}</span></td>
+                                </tr>
+                                {% endif %}
+                                {% if invoice.prepayment and invoice.prepayment > 0 %}
+                                <tr>
+                                    <td class="text-muted">Prepayment:</td>
+                                    <td><span class="badge bg-success">KES {{ invoice.prepayment|intcomma }}</span></td>
+                                </tr>
+                                {% endif %}
                             </table>
                         </div>
                     </div>
@@ -142,7 +152,9 @@
                                 <tr>
                                     <th>Category</th>
                                     <th>Description</th>
-                                    <th class="text-right">Amount</th>
+                                    <th class="text-right">Gross</th>
+                                    <th class="text-right">Discount</th>
+                                    <th class="text-right">Net</th>
                                     <th class="text-right">Paid</th>
                                     <th class="text-right">Balance</th>
                                 </tr>
@@ -172,14 +184,21 @@
       </div>
     {% endif %}
 </td>
-                                    <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
+                                    <td class="text-right">KES {{ item.amount|intcomma }}</td>
+                                    <td class="text-right">
+                                        {% if item.discount_applied > 0 %}
+                                            <span class="text-success">-KES {{ item.discount_applied|intcomma }}</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right"><strong>KES {{ item.net_amount|intcomma }}</strong></td>
                                     <td class="text-right text-success">KES {{ item_data.total_allocated|intcomma }}</td>
                                     <td class="text-right">
                                         <span class="{% if item_data.balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                             KES {{ item_data.balance|intcomma }}
                                         </span>
                                     </td>
-
                                 </tr>
 
                                 <!-- Allocation Details -->
@@ -207,14 +226,21 @@
                             <tfoot class="table-secondary">
                                 <tr>
                                     <th colspan="2">TOTALS</th>
-                                    <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
+                                    <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
+                                    <th class="text-right">
+                                        {% if invoice.discount_amount > 0 %}
+                                            <span class="text-success">-KES {{ invoice.discount_amount|intcomma }}</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </th>
+                                    <th class="text-right"><strong>KES {{ total_invoiced|intcomma }}</strong></th>
                                     <th class="text-right">KES {{ total_paid|intcomma }}</th>
                                     <th class="text-right">
                                         <span class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                             KES {{ total_balance|intcomma }}
                                         </span>
                                     </th>
-                                    
                                 </tr>
                             </tfoot>
                         </table>
@@ -224,29 +250,51 @@
                     <div class="mt-4">
                         <h5 class="mb-3">Payment Summary</h5>
                         <div class="row text-center">
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Total Invoiced</h7>
-                                        <h6 class="text-primary">KES {{ total_invoiced|intcomma }}</h6>
+                                    <div class="card-body py-2">
+                                        <small class="text-muted">Term Fees</small>
+                                        <h6 class="text-primary mb-0">KES {{ total_invoiced|intcomma }}</h6>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="col-md-4 mb-3">
+                            {% if invoice.balance_bf and invoice.balance_bf > 0 %}
+                            <div class="col-md-2 mb-3">
+                                <div class="card bg-warning bg-opacity-25">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted">Balance B/F</small>
+                                        <h6 class="text-warning mb-0">KES {{ invoice.balance_bf|intcomma }}</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if invoice.prepayment and invoice.prepayment > 0 %}
+                            <div class="col-md-2 mb-3">
+                                <div class="card bg-success bg-opacity-25">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted">Prepayment</small>
+                                        <h6 class="text-success mb-0">-KES {{ invoice.prepayment|intcomma }}</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="col-md-3 mb-3">
                                 <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Total Paid</h7>
-                                        <h6 class="text-success">KES {{ total_paid|intcomma }}</h6>
+                                    <div class="card-body py-2">
+                                        <small class="text-muted">Total Paid</small>
+                                        <h6 class="text-success mb-0">KES {{ total_paid|intcomma }}</h6>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="col-md-4 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h7>Balance Due</h7>
-                                        <h6 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                            <div class="col-md-2 mb-3">
+                                <div class="card {% if total_balance > 0 %}bg-danger{% else %}bg-success{% endif %} bg-opacity-25">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted">Balance Due</small>
+                                        <h6 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %} mb-0">
                                             KES {{ total_balance|intcomma }}
                                         </h6>
                                     </div>

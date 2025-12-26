@@ -384,10 +384,15 @@ def dashboard_admin(request):
     year_collected = Decimal(str(year_stats["collected"] or 0))
     year_rate = (year_collected / year_billed * 100) if year_billed > 0 else Decimal("0")
 
+    # Dashboard cards arranged in logical order:
+    # Row 1: Core counts (Students, Staff)
+    # Row 2: Financial summary (Billed, Collected, Outstanding)
+    # Row 3: Financial details (Prepayments, Bal B/F, Bank Txns)
     context = {
         "current_term": term,
         "current_academic_year": academic_year,
         "stat_cards": [
+            # Row 1: Core Counts
             {
                 "title": "Total Students",
                 "value": f"{total_students:,}",
@@ -396,21 +401,29 @@ def dashboard_admin(request):
                 "url": _safe_reverse("students:list"),
                 "helper": "Active/enrolled students",
             },
-
+            {
+                "title": "Staff Members",
+                "value": f"{staff_count:,}",
+                "icon": "mdi-account-tie",
+                "bg": "bg-gradient-secondary",
+                "helper": "Teachers & admin staff",
+            },
+            # Row 2: Financial Summary
             {
                 "title": "Billed (This Term)",
                 "value": _fmt_kes(billed),
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
-
+                "helper": "Total invoiced amount",
             },
             {
                 "title": "Collected (This Term)",
                 "value": _fmt_kes(collected),
-                "icon": "mdi-cash",
+                "icon": "mdi-cash-check",
                 "bg": "bg-gradient-success",
                 "url": payments_url,
+                "helper": f"{rate:.1f}% collection rate",
             },
             {
                 "title": "Outstanding (This Term)",
@@ -418,26 +431,30 @@ def dashboard_admin(request):
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
                 "url": outstanding_term_url,
+                "helper": "Unpaid balance",
             },
+            # Row 3: Financial Details
             {
-                "title": "Total Prepayments",
+                "title": "Prepayments",
                 "value": _fmt_kes(prepayments),
-                "icon": "mdi-cash",
+                "icon": "mdi-cash-plus",
                 "bg": "bg-gradient-success",
+                "helper": "Advance payments",
             },
             {
-                "title": "Total Bal B/f",
+                "title": "Balance B/F",
                 "value": _fmt_kes(balances_bf),
-                "icon": "mdi-alert-circle",
+                "icon": "mdi-history",
                 "bg": "bg-gradient-warning",
+                "helper": "Previous term balances",
             },
             {
-                "title": "Bank Txns",
+                "title": "Unmatched Bank Txns",
                 "value": f"{kpis['unmatched_bank_transactions']:,}",
-                "icon": "mdi-bank",
+                "icon": "mdi-bank-transfer",
                 "bg": "bg-gradient-danger",
                 "url": bank_url,
-                "helper": "Not linked to payment/student",
+                "helper": "Needs reconciliation",
             },
         ],
     }

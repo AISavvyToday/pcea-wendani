@@ -10,4 +10,5 @@ urlpatterns = [
     path('<uuid:pk>/', views.OtherIncomeDetailView.as_view(), name='invoice_detail'),
     path('<uuid:pk>/print/', views.OtherIncomeInvoicePrintView.as_view(), name='invoice_print'),
     path('<uuid:pk>/payments/record/', views.OtherIncomeRecordPaymentView.as_view(), name='invoice_record_payment'),
+    path('payment/<uuid:pk>/receipt/', views.OtherIncomePaymentReceiptView.as_view(), name='payment_receipt'),
 ]

@@ -111,5 +111,48 @@
             </div>
         </div>
     </div>
+
+    <!-- Payment Info Card -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5><i class="mdi mdi-cash-multiple"></i> Payment Options</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="alert alert-info mb-3">
+                        <strong><i class="mdi mdi-cellphone"></i> M-PESA Paybill</strong>
+                        <div class="mt-2">
+                            <div class="mb-2">
+                                <span class="text-muted">Paybill Number:</span> <strong class="fs-5">247247</strong><br>
+                                <span class="text-muted">Account No:</span> <strong>80029#{{ student.admission_number }}</strong>
+                            </div>
+                            <div>
+                                <span class="text-muted">Paybill Number:</span> <strong class="fs-5">400222</strong><br>
+                                <span class="text-muted">Account No:</span> <strong>393939#{{ student.admission_number }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-secondary mb-3">
+                        <strong><i class="mdi mdi-bank"></i> Bank Deposits</strong>
+                        <div class="mt-2">
+                            <div class="mb-2">
+                                <strong>EQUITY BANK</strong><br>
+                                <span class="text-muted">A/C:</span> <strong>1130280029105</strong>
+                            </div>
+                            <div>
+                                <strong>CO-OPERATIVE BANK</strong><br>
+                                <span class="text-muted">A/C:</span> <strong>01129158350600</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-muted small mb-0">
+                <i class="mdi mdi-information-outline"></i> 
+                This statement is computer-generated. For any queries, contact the school bursar.
+            </p>
+        </div>
+    </div>
 </div>
 {% endblock %}

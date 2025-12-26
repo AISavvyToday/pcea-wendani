@@ -15,9 +15,16 @@
             <a href="{% url 'finance:invoice_generate' %}" class="btn btn-primary">
                 <i class="mdi mdi-plus"></i> Generate Invoices
             </a>
-            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}export=csv" class="btn btn-outline-secondary">
-                <i class="mdi mdi-download"></i> Export CSV
-            </a>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="mdi mdi-download"></i> Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}export=csv">CSV</a></li>
+                    <li><a class="dropdown-item" href="{% url 'reports:invoice_xlsx' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Excel (.xlsx)</a></li>
+                    <li><a class="dropdown-item" href="{% url 'reports:invoice_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" target="_blank">PDF</a></li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -91,6 +98,8 @@
                             <th>Student</th>
                             <th>Term</th>
                             <th class="text-end">Total</th>
+                            <th class="text-end">Bal B/F</th>
+                            <th class="text-end">Prepay</th>
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
                             <th>Actions</th>
@@ -120,22 +129,39 @@
                                 </td>
 
                                 <td class="text-end">KES {{ invoice.total_amount|floatformat:2|intcomma }}</td>
+                                <td class="text-end {% if invoice.balance_bf > 0 %}text-warning{% endif %}">
+                                    {% if invoice.balance_bf > 0 %}KES {{ invoice.balance_bf|floatformat:2|intcomma }}{% else %}-{% endif %}
+                                </td>
+                                <td class="text-end {% if invoice.prepayment > 0 %}text-success{% endif %}">
+                                    {% if invoice.prepayment > 0 %}KES {{ invoice.prepayment|floatformat:2|intcomma }}{% else %}-{% endif %}
+                                </td>
                                 <td class="text-end">KES {{ invoice.amount_paid|floatformat:2|intcomma }}</td>
-
                                 <td class="text-end {% if invoice.balance|default:0 > 0 %}text-danger{% endif %}">
                                     KES {{ invoice.balance|floatformat:2|intcomma }}
                                 </td>
 
-                                
                                 <td class="text-nowrap">
-                                    <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" title="View">
-                                        <i class="mdi mdi-eye"></i>
-                                    </a>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary" title="View">
+                                            <i class="mdi mdi-eye"></i>
+                                        </a>
+                                        <a href="{% url 'finance:invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning" title="Edit">
+                                            <i class="mdi mdi-pencil"></i>
+                                        </a>
+                                        {% if invoice.amount_paid == 0 %}
+                                        <form action="{% url 'finance:invoice_cancel' invoice.pk %}" method="post" class="d-inline" onsubmit="return confirm('Cancel invoice {{ invoice.invoice_number }}? This cannot be undone.');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel Invoice">
+                                                <i class="mdi mdi-close"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                         {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No invoices found</td>
+                                <td colspan="10" class="text-center text-muted py-4">No invoices found</td>
                             </tr>
                         {% endfor %}
                     </tbody>

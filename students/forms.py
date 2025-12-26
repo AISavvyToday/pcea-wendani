@@ -30,12 +30,18 @@ class StudentForm(forms.ModelForm):
             'previous_school',
             'previous_class',
             'status',
-
+            'status_reason',
             'has_special_needs',
             'special_needs_details',
+            # Transport
             'uses_school_transport',
             'transport_route',
-
+            'transport_pickup_person',
+            # Government/School Identifiers
+            'upi_number',
+            'assessment_number',
+            # Residence
+            'residence',
         ]
         widgets = {
             'admission_number': forms.TextInput(attrs={
@@ -98,14 +104,10 @@ class StudentForm(forms.ModelForm):
                 'placeholder': 'e.g., Grade 8'
             }),
             'status': forms.Select(attrs={'class': 'form-control'}),
-            'status_date': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date'
-            }),
             'status_reason': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 2,
-                'placeholder': 'Reason for status change'
+                'placeholder': 'Reason for status change (required if changing from Active)'
             }),
             'has_special_needs': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
@@ -119,6 +121,22 @@ class StudentForm(forms.ModelForm):
                 'class': 'form-check-input'
             }),
             'transport_route': forms.Select(attrs={'class': 'form-control'}),
+            'transport_pickup_person': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Person authorized to pick up from bus'
+            }),
+            'upi_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Unique Pupil Identifier'
+            }),
+            'assessment_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Assessment/Exam Number'
+            }),
+            'residence': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Residence area/estate'
+            }),
             'is_boarder': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             }),

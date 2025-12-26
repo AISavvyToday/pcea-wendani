@@ -42,8 +42,10 @@ from .models import (
 )
 from .forms import (
     FeeStructureForm, FeeItemFormSet, DiscountForm, StudentDiscountForm,
-    InvoiceGenerateForm, PaymentRecordForm, BankTransactionMatchForm, DateRangeFilterForm
+    InvoiceGenerateForm, PaymentRecordForm, BankTransactionMatchForm, DateRangeFilterForm,
+    FamilyPaymentForm
 )
+from decimal import InvalidOperation
 from .services import (
     FeeStructureService, DiscountService, InvoiceService, FinanceReportService
 )
@@ -1256,6 +1258,96 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_list')
 
 
+class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+    """Record a payment from a parent with multiple children.
+    
+    Allows distributing a single payment across multiple students' invoices.
+    """
+    template_name = 'finance/family_payment.html'
+    form_class = FamilyPaymentForm
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Record Family Payment'
+        return context
+
+    def form_valid(self, form):
+        from students.models import Parent, StudentParent
+        
+        cd = form.cleaned_data
+        parent = cd['parent']
+        total_amount = cd['amount']
+        payment_method = cd['payment_method']
+        payment_source = cd['payment_source']
+        payment_date = cd.get('payment_date') or timezone.now()
+        transaction_reference = cd.get('transaction_reference') or ''
+        payer_name = cd.get('payer_name') or parent.full_name
+        payer_phone = cd.get('payer_phone') or parent.phone_primary
+        notes = cd.get('notes') or ''
+
+        # Get all children of this parent
+        student_parents = StudentParent.objects.filter(parent=parent).select_related('student')
+        children = [sp.student for sp in student_parents if sp.student.status == 'active']
+
+        if not children:
+            messages.error(self.request, 'No active students found for this parent.')
+            return self.form_invalid(form)
+
+        # Get allocations from POST data (child_<student_id> = amount)
+        allocations = {}
+        remaining = total_amount
+        for key, value in self.request.POST.items():
+            if key.startswith('child_') and value:
+                try:
+                    student_id = key.replace('child_', '')
+                    amount = Decimal(value)
+                    if amount > 0:
+                        allocations[student_id] = amount
+                        remaining -= amount
+                except (ValueError, InvalidOperation):
+                    pass
+
+        # If no specific allocations, distribute evenly
+        if not allocations:
+            per_child = total_amount / len(children)
+            for child in children:
+                allocations[str(child.pk)] = per_child
+
+        # Create payments for each child
+        created_payments = []
+        base_notes = f"Family payment from parent: {parent.full_name}. {notes}"
+        
+        for student_id, amount in allocations.items():
+            try:
+                student = Student.objects.get(pk=student_id)
+                payment = PaymentsPaymentService.create_manual_payment(
+                    student=student,
+                    amount=amount,
+                    payment_method=payment_method,
+                    payment_source=payment_source,
+                    received_by=self.request.user,
+                    payment_date=payment_date,
+                    payer_name=payer_name,
+                    payer_phone=payer_phone,
+                    notes=base_notes,
+                    transaction_reference=transaction_reference,
+                )
+                created_payments.append(payment)
+            except Student.DoesNotExist:
+                continue
+
+        if created_payments:
+            messages.success(
+                self.request, 
+                f'Family payment of KES {total_amount:,.2f} recorded successfully across {len(created_payments)} student(s).'
+            )
+        else:
+            messages.error(self.request, 'Failed to create payments.')
+
+        return redirect('finance:payment_list')
+
+
 class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """Print-friendly payment receipt."""
 
@@ -1286,11 +1378,20 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
     def get_queryset(self):
         queryset = BankTransaction.objects.filter(is_active=True)
 
-        status = self.request.GET.get('status', 'unmatched')
-        if status == 'unmatched':
-            queryset = queryset.filter(payment__isnull=True)
+        status = self.request.GET.get('status', '')
+        if status == 'received':
+            # Unmatched/unreconciled transactions
+            queryset = queryset.filter(payment__isnull=True, processing_status='received')
         elif status == 'matched':
             queryset = queryset.filter(payment__isnull=False)
+        elif status == 'failed':
+            queryset = queryset.filter(processing_status='failed')
+        elif status == 'duplicate':
+            queryset = queryset.filter(processing_status='duplicate')
+        elif status == 'unmatched':
+            # Legacy filter - unmatched transactions
+            queryset = queryset.filter(payment__isnull=True)
+        # If no status filter, show all
 
         return queryset.order_by('-callback_received_at')
 
@@ -1591,6 +1692,10 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
         sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
         school_name = getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy')
 
+        # Statement footnote from settings
+        statement_footnote = getattr(settings, 'SCHOOL_STATEMENT_FOOTNOTE', 
+            'This statement is computer-generated and is valid without signature. For any queries, contact the school bursar.')
+
         # Put everything in context
         context.update({
             'statement': statement,
@@ -1604,6 +1709,7 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,
             'school_name': school_name,
+            'statement_footnote': statement_footnote,
         })
 
         return context

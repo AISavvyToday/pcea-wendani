@@ -17,8 +17,29 @@
 
     <div class="card mb-3">
         <div class="card-body">
-            <div class="mb-2"><strong>Client:</strong> {{ invoice.client_name }} — {{ invoice.client_contact }}</div>
-            <div><strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }} &nbsp; <strong>Due:</strong> {{ invoice.due_date|date:"d M Y" }}</div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2"><strong>Income Type:</strong> {{ invoice.get_income_type_display }}</div>
+                    <div class="mb-2"><strong>Client/Payer:</strong> {{ invoice.payer_name|default:"-" }} {% if invoice.payer_organization %}({{ invoice.payer_organization }}){% endif %}</div>
+                    <div><strong>Contact:</strong> {{ invoice.payer_phone|default:"-" }} {% if invoice.payer_email %} | {{ invoice.payer_email }}{% endif %}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-2"><strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }}</div>
+                    <div class="mb-2"><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y" }}</div>
+                    <div><strong>Status:</strong> 
+                        {% if invoice.balance <= 0 %}
+                            <span class="badge bg-success">Fully Paid</span>
+                        {% elif invoice.amount_paid > 0 %}
+                            <span class="badge bg-warning">Partially Paid</span>
+                        {% else %}
+                            <span class="badge bg-danger">Unpaid</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if invoice.description %}
+            <div class="mt-2"><strong>Description:</strong> {{ invoice.description }}</div>
+            {% endif %}
         </div>
     </div>
 
@@ -45,17 +66,23 @@
         <div class="card-body">
             <h5>Payments</h5>
             <table class="table table-sm">
-                <thead><tr><th>Date</th><th>Ref</th><th class="text-right">Amount</th><th>Received By</th></tr></thead>
+                <thead><tr><th>Date</th><th>Ref</th><th>Method</th><th class="text-right">Amount</th><th>Received By</th><th class="text-center">Actions</th></tr></thead>
                 <tbody>
                     {% for p in payments %}
                     <tr>
                         <td>{{ p.payment_date|date:"d M Y H:i" }}</td>
                         <td>{{ p.payment_reference }}</td>
+                        <td>{{ p.get_payment_method_display }}</td>
                         <td class="text-right">KES {{ p.amount|intcomma }}</td>
                         <td>{% if p.received_by %}{{ p.received_by.get_full_name }}{% else %}-{% endif %}</td>
+                        <td class="text-center">
+                            <a href="{% url 'other_income:payment_receipt' p.pk %}?copies=2" target="_blank" class="btn btn-outline-secondary btn-sm" title="Print Receipt">
+                                <i class="mdi mdi-printer"></i>
+                            </a>
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="4" class="text-center">No payments recorded</td></tr>
+                    <tr><td colspan="6" class="text-center">No payments recorded</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

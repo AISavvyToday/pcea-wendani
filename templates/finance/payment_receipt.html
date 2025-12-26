@@ -1,0 +1,314 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Payment Receipt - {{ payment.payment_reference }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #222;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 8mm;
+            box-sizing: border-box;
+            background: white;
+            margin: 0 auto;
+        }
+        .receipt {
+            border: 1px solid #ccc;
+            padding: 12px;
+            margin-bottom: 14px;
+            page-break-inside: avoid;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .header .logos {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo {
+            height: 55px;
+            width: auto;
+        }
+        .school-title {
+            text-align: center;
+            flex: 1;
+        }
+        .school-title h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+        .school-title h3 {
+            margin: 4px 0 0;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid #ddd;
+            padding: 8px;
+            background: #f9f9f9;
+            margin-bottom: 12px;
+        }
+        .meta-info .col {
+            flex: 1;
+        }
+        .meta-info .col strong {
+            display: block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .amount-box {
+            border: 2px solid #333;
+            padding: 12px;
+            text-align: center;
+            margin: 12px 0;
+        }
+        .amount-box .label {
+            font-size: 11px;
+            color: #666;
+        }
+        .amount-box .value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+        th, td {
+            padding: 6px 8px;
+            border: 1px solid #e6e6e6;
+            text-align: left;
+        }
+        th {
+            background: #f7f7f7;
+            font-weight: bold;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .signature-area {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .signature-area .sig-box {
+            width: 45%;
+            text-align: center;
+        }
+        .signature-area .sig-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 4px;
+        }
+        .footer {
+            margin-top: 12px;
+            font-size: 10px;
+            color: #555;
+            text-align: center;
+            border-top: 1px dashed #ddd;
+            padding-top: 8px;
+        }
+        .notes {
+            padding: 6px;
+            border: 1px dashed #ddd;
+            background: #fafafa;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+        .copy-sep {
+            border-top: 1px dashed #999;
+            margin: 14px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .small {
+            font-size: 10px;
+            color: #666;
+        }
+        @media print {
+            .page {
+                margin: 0;
+                box-shadow: none;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% with copies=request.GET.copies|default:"2" %}
+    <div class="page">
+        {% for _ in "12"|make_list|slice:copies %}
+        <div class="receipt">
+            <!-- Header -->
+            <div class="header">
+                <div class="logos">
+                    <img src="/static/assets/images/logo.jpeg" class="logo" alt="School Logo" />
+                </div>
+                <div class="school-title">
+                    <h2>{{ school_name }}</h2>
+                    <div class="small">P.O. Box 54 - 00232 Ruiru • Tel: 0722 000 000</div>
+                    <h3>OFFICIAL PAYMENT RECEIPT</h3>
+                </div>
+                <div class="logos">
+                    <img src="/static/assets/images/logo2.jpeg" class="logo" alt="Sponsor Logo" />
+                </div>
+            </div>
+
+            <!-- Receipt Meta Info -->
+            <div class="meta-info">
+                <div class="col">
+                    <strong>Receipt No.</strong>
+                    {{ payment.payment_reference }}
+                </div>
+                <div class="col">
+                    <strong>Payment Date</strong>
+                    {{ payment.payment_date|date:"d M Y H:i" }}
+                </div>
+                <div class="col">
+                    <strong>Payment Method</strong>
+                    {{ payment.get_payment_method_display }}
+                </div>
+                <div class="col">
+                    <strong>Status</strong>
+                    <span class="badge badge-success">{{ payment.get_status_display }}</span>
+                </div>
+            </div>
+
+            <!-- Student Information -->
+            {% if payment.student %}
+            <div class="meta-info">
+                <div class="col">
+                    <strong>Student Name</strong>
+                    {{ payment.student.full_name }}
+                </div>
+                <div class="col">
+                    <strong>Admission No.</strong>
+                    {{ payment.student.admission_number }}
+                </div>
+                <div class="col">
+                    <strong>Class</strong>
+                    {{ payment.student.current_class|default:"-" }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Payer Information -->
+            <div class="meta-info">
+                <div class="col">
+                    <strong>Payer Name</strong>
+                    {{ payment.payer_name|default:"-" }}
+                </div>
+                <div class="col">
+                    <strong>Payer Phone</strong>
+                    {{ payment.payer_phone|default:"-" }}
+                </div>
+                <div class="col">
+                    <strong>Transaction Ref</strong>
+                    {{ payment.transaction_reference|default:"-" }}
+                </div>
+            </div>
+
+            <!-- Payment Amount Box -->
+            <div class="amount-box">
+                <div class="label">AMOUNT RECEIVED</div>
+                <div class="value">KES {{ payment.amount|intcomma }}</div>
+            </div>
+
+            <!-- Allocations -->
+            {% if payment.allocations.exists %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Invoice</th>
+                        <th>Category</th>
+                        <th class="text-right">Allocated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alloc in payment.allocations.all %}
+                    <tr>
+                        <td>{{ alloc.invoice_item.invoice.invoice_number }}</td>
+                        <td>{{ alloc.invoice_item.get_category_display }}</td>
+                        <td class="text-right">KES {{ alloc.amount|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if payment.notes %}
+            <div class="notes">
+                <strong>Notes:</strong> {{ payment.notes }}
+            </div>
+            {% endif %}
+
+            <!-- Signature Area -->
+            <div class="signature-area">
+                <div class="sig-box">
+                    <div class="sig-line">Received By: {{ payment.received_by.get_full_name|default:"-" }}</div>
+                </div>
+                <div class="sig-box">
+                    <div class="sig-line">Signature / Stamp</div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <p>This is a computer-generated receipt.</p>
+            </div>
+        </div>
+
+        {% if not forloop.last %}
+        <div class="copy-sep"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endwith %}
+
+    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer;">
+            🖨️ Print Receipt
+        </button>
+    </div>
+</body>
+</html>
+

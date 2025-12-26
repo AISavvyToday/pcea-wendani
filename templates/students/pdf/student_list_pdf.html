@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student List Report - {{ SCHOOL_NAME }}</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: #333;
+    }
+
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #1a5276;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+
+    .header-logo {
+      width: 70px;
+      height: auto;
+    }
+
+    .header-center {
+      text-align: center;
+      flex: 1;
+      padding: 0 15px;
+    }
+
+    .school-name {
+      font-size: 18pt;
+      font-weight: bold;
+      color: #1a5276;
+      margin-bottom: 2px;
+    }
+
+    .report-title {
+      font-size: 12pt;
+      font-weight: 600;
+      color: #555;
+    }
+
+    .report-meta {
+      font-size: 9pt;
+      color: #777;
+      margin-top: 4px;
+    }
+
+    /* Filter info */
+    .filter-info {
+      background: #f4f6f8;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 9pt;
+      margin-bottom: 10px;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #1a5276;
+      color: white;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 8pt;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+
+    tbody tr:hover {
+      background: #eef5fb;
+    }
+
+    .status-active {
+      color: #27ae60;
+      font-weight: 600;
+    }
+
+    .status-inactive {
+      color: #e74c3c;
+      font-weight: 600;
+    }
+
+    .status-other {
+      color: #f39c12;
+      font-weight: 600;
+    }
+
+    /* Summary */
+    .summary {
+      margin-top: 15px;
+      padding: 10px;
+      background: #eef5fb;
+      border-radius: 4px;
+      font-size: 10pt;
+    }
+
+    .summary strong {
+      color: #1a5276;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      font-size: 8pt;
+      color: #777;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 30px;
+      color: #777;
+      font-style: italic;
+    }
+
+    /* Print adjustments */
+    @media print {
+      .container {
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      {% if SCHOOL_LOGO_URL %}
+        <img src="{{ SCHOOL_LOGO_URL }}" alt="School Logo" class="header-logo">
+      {% else %}
+        <div style="width: 70px;"></div>
+      {% endif %}
+
+      <div class="header-center">
+        <div class="school-name">{{ SCHOOL_NAME }}</div>
+        <div class="report-title">Student List Report</div>
+        <div class="report-meta">
+          Generated on {{ generated_on|date:"d M Y, H:i" }}
+          {% if generated_by %} by {{ generated_by }}{% endif %}
+        </div>
+      </div>
+
+      {% if SPONSOR_LOGO_URL %}
+        <img src="{{ SPONSOR_LOGO_URL }}" alt="Sponsor Logo" class="header-logo">
+      {% else %}
+        <div style="width: 70px;"></div>
+      {% endif %}
+    </div>
+
+    <!-- Filter Info -->
+    {% if filters_applied and filters_applied != 'None' %}
+      <div class="filter-info">
+        <strong>Filters Applied:</strong> {{ filters_applied }}
+      </div>
+    {% endif %}
+
+    <!-- Students Table -->
+    {% if students %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%;">#</th>
+            <th style="width: 12%;">Adm No.</th>
+            <th style="width: 18%;">Full Name</th>
+            <th style="width: 6%;">Gender</th>
+            <th style="width: 10%;">DOB</th>
+            <th style="width: 12%;">Class</th>
+            <th style="width: 8%;">Status</th>
+            <th style="width: 14%;">Primary Parent</th>
+            <th style="width: 12%;">Parent Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in students %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><strong>{{ student.admission_number }}</strong></td>
+              <td>{{ student.full_name }}</td>
+              <td>{{ student.get_gender_display }}</td>
+              <td>{{ student.date_of_birth|date:"d/m/Y" }}</td>
+              <td>{{ student.current_class|default:"Not Assigned" }}</td>
+              <td class="{% if student.status == 'active' %}status-active{% elif student.status == 'inactive' %}status-inactive{% else %}status-other{% endif %}">
+                {{ student.get_status_display }}
+              </td>
+              <td>
+                {% if student.primary_parent %}
+                  {{ student.primary_parent.full_name }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                {% if student.primary_parent %}
+                  {{ student.primary_parent.phone_primary }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Summary -->
+      <div class="summary">
+        <strong>Total Students:</strong> {{ total_students }}
+      </div>
+    {% else %}
+      <div class="no-data">
+        No students found matching the selected criteria.
+      </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+      <div>
+        {% if SCHOOL_ADDRESS %}{{ SCHOOL_ADDRESS }}{% endif %}
+        {% if SCHOOL_CONTACT %} | {{ SCHOOL_CONTACT }}{% endif %}
+      </div>
+      <div>
+        Page 1 | Confidential - For Official Use Only
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+

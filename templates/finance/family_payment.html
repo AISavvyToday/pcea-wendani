@@ -1,0 +1,253 @@
+{% extends 'base/base.html' %}
+{% load static humanize %}
+
+{% block title %}Family Payment - Multiple Children{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="page-title mb-0">{{ title }}</h3>
+            <small class="text-muted">Record a single payment for a parent with multiple children</small>
+        </div>
+        <div>
+            <a href="{% url 'finance:payment_record' %}" class="btn btn-outline-secondary me-2">
+                Single Student Payment
+            </a>
+            <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary">
+                <i class="mdi mdi-arrow-left"></i> Back to Payments
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="mdi mdi-account-group text-primary"></i> Payment Details
+                    </h5>
+
+                    <form method="post" id="familyPaymentForm">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_parent" class="form-label">Parent/Guardian <span class="text-danger">*</span></label>
+                                {{ form.parent }}
+                                {% if form.parent.errors %}
+                                    <div class="text-danger small">{{ form.parent.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_amount" class="form-label">Total Amount <span class="text-danger">*</span></label>
+                                {{ form.amount }}
+                                {% if form.amount.errors %}
+                                    <div class="text-danger small">{{ form.amount.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_payment_method" class="form-label">Payment Method <span class="text-danger">*</span></label>
+                                {{ form.payment_method }}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_payment_source" class="form-label">Payment Source <span class="text-danger">*</span></label>
+                                {{ form.payment_source }}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_payment_date" class="form-label">Payment Date <span class="text-danger">*</span></label>
+                                {{ form.payment_date }}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_transaction_reference" class="form-label">Transaction Reference</label>
+                                {{ form.transaction_reference }}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_payer_name" class="form-label">Payer Name</label>
+                                {{ form.payer_name }}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_payer_phone" class="form-label">Payer Phone</label>
+                                {{ form.payer_phone }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_notes" class="form-label">Notes</label>
+                            {{ form.notes }}
+                        </div>
+
+                        <!-- Child Allocation Section -->
+                        <div id="childAllocationSection" class="d-none">
+                            <hr class="my-4">
+                            <h5><i class="mdi mdi-account-multiple-outline"></i> Allocate to Children</h5>
+                            <p class="text-muted small">Specify how much to allocate to each child. Leave blank for auto-distribution.</p>
+                            
+                            <div id="childrenList"></div>
+                            
+                            <div class="alert alert-info mt-3" id="allocationSummary">
+                                <strong>Total Amount:</strong> <span id="totalAmount">KES 0.00</span><br>
+                                <strong>Allocated:</strong> <span id="allocatedAmount">KES 0.00</span><br>
+                                <strong>Remaining:</strong> <span id="remainingAmount">KES 0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                                <i class="mdi mdi-check"></i> Record Family Payment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <!-- Info Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h6><i class="mdi mdi-information-outline text-info"></i> How It Works</h6>
+                    <ul class="small text-muted mb-0">
+                        <li>Select a parent/guardian from the dropdown</li>
+                        <li>Enter the total payment amount received</li>
+                        <li>The system will show all children linked to this parent</li>
+                        <li>You can specify how much to allocate to each child</li>
+                        <li>If left blank, amount will be distributed equally</li>
+                        <li>Payments are allocated to oldest unpaid invoices first</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Parent Details (JS populated) -->
+            <div id="parentDetailsCard" class="card shadow-sm d-none">
+                <div class="card-body">
+                    <h6><i class="mdi mdi-account"></i> Parent Details</h6>
+                    <div id="parentInfo"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const parentSelect = document.getElementById('id_parent');
+    const amountInput = document.getElementById('id_amount');
+    const childAllocationSection = document.getElementById('childAllocationSection');
+    const childrenList = document.getElementById('childrenList');
+    const submitBtn = document.getElementById('submitBtn');
+    const parentDetailsCard = document.getElementById('parentDetailsCard');
+    const parentInfo = document.getElementById('parentInfo');
+
+    function updateSummary() {
+        const totalAmount = parseFloat(amountInput.value) || 0;
+        let allocated = 0;
+        
+        document.querySelectorAll('.child-amount').forEach(input => {
+            allocated += parseFloat(input.value) || 0;
+        });
+        
+        const remaining = totalAmount - allocated;
+        
+        document.getElementById('totalAmount').textContent = 'KES ' + totalAmount.toLocaleString('en-KE', {minimumFractionDigits: 2});
+        document.getElementById('allocatedAmount').textContent = 'KES ' + allocated.toLocaleString('en-KE', {minimumFractionDigits: 2});
+        document.getElementById('remainingAmount').textContent = 'KES ' + remaining.toLocaleString('en-KE', {minimumFractionDigits: 2});
+        
+        if (remaining < 0) {
+            document.getElementById('remainingAmount').classList.add('text-danger');
+        } else {
+            document.getElementById('remainingAmount').classList.remove('text-danger');
+        }
+    }
+
+    if (parentSelect) {
+        parentSelect.addEventListener('change', function() {
+            const parentId = this.value;
+            if (!parentId) {
+                childAllocationSection.classList.add('d-none');
+                parentDetailsCard.classList.add('d-none');
+                childrenList.innerHTML = '';
+                submitBtn.disabled = true;
+                return;
+            }
+
+            // Fetch parent's children via API
+            fetch(`/students/api/parents/${parentId}/children/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.children.length > 0) {
+                        parentInfo.innerHTML = `
+                            <p class="mb-1"><strong>${data.parent_name}</strong></p>
+                            <p class="small text-muted mb-0">${data.parent_phone}</p>
+                            <p class="small text-muted">${data.children.length} child(ren)</p>
+                        `;
+                        parentDetailsCard.classList.remove('d-none');
+
+                        let html = '<div class="table-responsive"><table class="table table-sm">';
+                        html += '<thead><tr><th>Student</th><th>Class</th><th>Outstanding</th><th>Amount</th></tr></thead><tbody>';
+                        
+                        data.children.forEach(child => {
+                            html += `
+                                <tr>
+                                    <td>
+                                        <strong>${child.name}</strong><br>
+                                        <small class="text-muted">${child.admission_number}</small>
+                                    </td>
+                                    <td>${child.current_class || 'N/A'}</td>
+                                    <td class="text-danger">KES ${parseFloat(child.outstanding).toLocaleString('en-KE', {minimumFractionDigits: 2})}</td>
+                                    <td style="width:120px;">
+                                        <input type="number" name="child_${child.id}" 
+                                               class="form-control form-control-sm child-amount" 
+                                               step="0.01" min="0" 
+                                               placeholder="0.00"
+                                               data-outstanding="${child.outstanding}">
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += '</tbody></table></div>';
+                        childrenList.innerHTML = html;
+                        childAllocationSection.classList.remove('d-none');
+                        submitBtn.disabled = false;
+
+                        // Add event listeners to allocation inputs
+                        document.querySelectorAll('.child-amount').forEach(input => {
+                            input.addEventListener('input', updateSummary);
+                        });
+                        updateSummary();
+                    } else {
+                        childrenList.innerHTML = '<div class="alert alert-warning">No active children found for this parent.</div>';
+                        childAllocationSection.classList.remove('d-none');
+                        submitBtn.disabled = true;
+                    }
+                })
+                .catch(err => {
+                    childrenList.innerHTML = '<div class="alert alert-danger">Error loading children: ' + err.message + '</div>';
+                    childAllocationSection.classList.remove('d-none');
+                    submitBtn.disabled = true;
+                });
+        });
+    }
+
+    if (amountInput) {
+        amountInput.addEventListener('input', updateSummary);
+    }
+});
+</script>
+{% endblock %}
+

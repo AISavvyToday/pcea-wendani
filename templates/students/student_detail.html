@@ -140,10 +140,39 @@
               <div class="info-val">{{ student.current_class|default:"Not Assigned" }}</div>
             </div>
 
+            {% if student.upi_number %}
             <div class="mb-2">
-              <div class="info-key">Transport Route:</div>
-              <div class="info-val"></div>
+              <div class="info-key">UPI Number</div>
+              <div class="info-val">{{ student.upi_number }}</div>
             </div>
+            {% endif %}
+
+            {% if student.assessment_number %}
+            <div class="mb-2">
+              <div class="info-key">Assessment No.</div>
+              <div class="info-val">{{ student.assessment_number }}</div>
+            </div>
+            {% endif %}
+
+            {% if student.residence %}
+            <div class="mb-2">
+              <div class="info-key">Residence</div>
+              <div class="info-val">{{ student.residence }}</div>
+            </div>
+            {% endif %}
+
+            {% if student.uses_school_transport %}
+            <div class="mb-2">
+              <div class="info-key">Transport Route</div>
+              <div class="info-val">{{ student.transport_route|default:"Not Assigned" }}</div>
+            </div>
+            {% if student.transport_pickup_person %}
+            <div class="mb-2">
+              <div class="info-key">Pick-up Person</div>
+              <div class="info-val">{{ student.transport_pickup_person }}</div>
+            </div>
+            {% endif %}
+            {% endif %}
           </div>
         </div>
       </div>
@@ -196,26 +225,41 @@
           <div id="panel-overview" class="panel {% if active_tab == 'overview' %}active{% endif %}">
             <div class="row">
               <div class="col-12">
-                <h5 class="mb-3">Personal & Contact</h5>
+                <h5 class="mb-3">Personal Information</h5>
                 <div class="row">
                   <div class="col-sm-6">
                     <table class="table table-borderless table-sm mb-0">
-                      <tr>
-                        <td class="info-key">Full name</td>
-                        <td class="info-val">{{ student.first_name }} {{ student.middle_name }} {{ student.last_name }}</td>
-                      </tr>
-
-
+                      <tr><td class="info-key">Full name</td><td class="info-val">{{ student.full_name }}</td></tr>
+                      <tr><td class="info-key">Gender</td><td class="info-val">{{ student.get_gender_display }}</td></tr>
+                      <tr><td class="info-key">DOB</td><td class="info-val">{{ student.date_of_birth|date:"d M Y" }} ({{ student.age }} yrs)</td></tr>
+                      <tr><td class="info-key">Residence</td><td class="info-val">{{ student.residence|default:"—" }}</td></tr>
+                    </table>
+                  </div>
+                  <div class="col-sm-6">
+                    <table class="table table-borderless table-sm mb-0">
+                      <tr><td class="info-key">Admission No.</td><td class="info-val">{{ student.admission_number }}</td></tr>
+                      <tr><td class="info-key">UPI Number</td><td class="info-val">{{ student.upi_number|default:"—" }}</td></tr>
+                      <tr><td class="info-key">Assessment No.</td><td class="info-val">{{ student.assessment_number|default:"—" }}</td></tr>
                     </table>
                   </div>
                 </div>
-
                 <hr class="my-3">
-
-                <div class="col-12 col-md-6">
-                  <h6 class="mb-2">Academic</h6>
-                  <div class="small-muted mt-2">Current class</div>
-                  <div><strong>{{ student.current_class|default:"Not Assigned" }}</strong></div>
+                <div class="row">
+                  <div class="col-12 col-md-6">
+                    <h6 class="mb-2">Academic</h6>
+                    <table class="table table-borderless table-sm mb-0">
+                      <tr><td class="info-key">Class</td><td class="info-val">{{ student.current_class|default:"Not Assigned" }}</td></tr>
+                      <tr><td class="info-key">Status</td><td class="info-val">{{ student.get_status_display }}</td></tr>
+                    </table>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <h6 class="mb-2">Transport</h6>
+                    <table class="table table-borderless table-sm mb-0">
+                      <tr><td class="info-key">Uses Transport</td><td class="info-val">{% if student.uses_school_transport %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td></tr>
+                      {% if student.uses_school_transport %}<tr><td class="info-key">Route</td><td class="info-val">{{ student.transport_route|default:"—" }}</td></tr>
+                      <tr><td class="info-key">Pick-up Person</td><td class="info-val">{{ student.transport_pickup_person|default:"—" }}</td></tr>{% endif %}
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -288,12 +332,18 @@
           <div id="panel-finance" class="panel {% if active_tab == 'finance' %}active{% endif %}">
             <h5 class="mb-3">Finance</h5>
             <div class="d-flex gap-2 mb-3 flex-wrap">
-              <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info">
-        <i class="mdi mdi-account-card-details"></i> Student Statement
-    </a>
-              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateInvoiceModal">
+              <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info btn-sm">
+                <i class="mdi mdi-account-card-details"></i> Student Statement
+              </a>
+              <a href="{% url 'finance:student_statement_print' student.pk %}?copies=2" target="_blank" class="btn btn-outline-info btn-sm">
+                <i class="mdi mdi-printer"></i> Print Statement
+              </a>
+              <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#generateInvoiceModal">
                 <i class="mdi mdi-file-document-outline"></i> Generate Invoice
               </button>
+              <a href="{% url 'finance:payment_record' %}?student={{ student.pk }}" class="btn btn-success btn-sm">
+                <i class="mdi mdi-cash-plus"></i> Record Payment
+              </a>
             </div>
             <!-- Summary -->
             <div class="row mb-3">
@@ -340,13 +390,12 @@
                     <tr>
                       <th>Invoice</th>
                       <th>Term</th>
-                      <th>Credit/Prepayment</th>
-                      <th>Bal B/f</th>
-                      <th>Invoice Amount</th>
-                      <th>Paid</th>
-                      <th>Outstanding Amount</th>
+                      <th class="text-end">Bal B/f</th>
+                      <th class="text-end">Amount</th>
+                      <th class="text-end">Paid</th>
+                      <th class="text-end">Balance</th>
                       <th>Status</th>
-                      <th>Issued</th>
+                      <th class="text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -358,13 +407,26 @@
                           </a>
                         </td>
                         <td>{{ inv.term }}</td>
-                        <td>KES {{ inv.prepayment }}</td>
-                        <td>KES {{ inv.balance_bf }}</td>
-                        <td>KES {{ inv.total_amount }}</td>
-                        <td>KES {{ inv.amount_paid }}</td>
-                        <td class="{% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ inv.balance }}</td>
+                        <td class="text-end">{{ inv.balance_bf }}</td>
+                        <td class="text-end">{{ inv.total_amount }}</td>
+                        <td class="text-end">{{ inv.amount_paid }}</td>
+                        <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">{{ inv.balance }}</td>
                         <td>{{ inv.get_status_display }}</td>
-                        <td class="small-muted">{{ inv.issue_date|date:"d M Y" }}</td>
+                        <td class="text-center">
+                          <div class="btn-group btn-group-sm">
+                            <a href="{% url 'finance:invoice_detail' inv.pk %}" class="btn btn-outline-secondary" title="View Details">
+                              <i class="mdi mdi-eye"></i>
+                            </a>
+                            <a href="{% url 'finance:invoice_print' inv.pk %}?mode=invoice&copies=2" target="_blank" class="btn btn-outline-primary" title="Print Invoice">
+                              <i class="mdi mdi-file-document"></i>
+                            </a>
+                            {% if inv.amount_paid > 0 %}
+                            <a href="{% url 'finance:invoice_print' inv.pk %}?mode=receipt&copies=2" target="_blank" class="btn btn-outline-success" title="Print Receipt">
+                              <i class="mdi mdi-receipt"></i>
+                            </a>
+                            {% endif %}
+                          </div>
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -382,20 +444,26 @@
                   <thead>
                     <tr>
                       <th>Ref</th>
-                      <th>Amount</th>
+                      <th class="text-end">Amount</th>
                       <th>Method</th>
-                        <th>Source</th>
+                      <th>Source</th>
                       <th>Date</th>
+                      <th class="text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for p in payments|slice:":8" %}
                       <tr>
                         <td>{{ p.payment_reference }}</td>
-                        <td>KES {{ p.amount }}</td>
+                        <td class="text-end">KES {{ p.amount }}</td>
                         <td>{{ p.get_payment_method_display }}</td>
-                        <td>{{ p.payment_source }}</td>
+                        <td>{{ p.payment_source|default:"-" }}</td>
                         <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
+                        <td class="text-center">
+                          <a href="{% url 'finance:payment_receipt' p.pk %}?copies=2" target="_blank" class="btn btn-outline-secondary btn-sm" title="Print Receipt">
+                            <i class="mdi mdi-printer"></i>
+                          </a>
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>

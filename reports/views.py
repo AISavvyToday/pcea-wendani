@@ -128,13 +128,21 @@ class InvoiceReportView(LoginRequiredMixin, View):
                 total_collected += collected
                 total_outstanding += outstanding
 
+            # Calculate balance_bf and prepayment totals from invoices
+            balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+            prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+            invoice_count = invoices.count()
+
             context.update({
                 'report_rows': rows,
                 'totals': {
                     'billed': total_billed,
                     'collected': total_collected,
-                    'outstanding': total_outstanding
+                    'outstanding': total_outstanding,
+                    'balance_bf': balance_bf_total,
+                    'prepayment': prepayment_total,
                 },
+                'invoice_count': invoice_count,
                 'academic_year': academic_year,
                 'term': term,
                 'show_print_button': True,
@@ -556,7 +564,7 @@ class TransportReportView(LoginRequiredMixin, View):
         if end_date:
             items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
-        # Aggregate billed transport per student+route
+        # Aggregate billed transport per student+route+trip_type
         # FIX: Use individual name fields instead of full_name
         grouped = items_qs.values(
             'invoice__student__pk',
@@ -565,8 +573,10 @@ class TransportReportView(LoginRequiredMixin, View):
             'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
             'invoice__student__current_class',
+            'invoice__student__residence',  # Added for destination
             'transport_route__pk',
-            'transport_route__name'
+            'transport_route__name',
+            'transport_trip_type',  # Added for trip type
         ).annotate(
             total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
@@ -637,6 +647,14 @@ class TransportReportView(LoginRequiredMixin, View):
                     '0.00'):
                 continue
 
+            # Get trip type display
+            trip_type_raw = g.get('transport_trip_type') or ''
+            trip_type_map = {'full': 'Full Trip', 'half': 'Half Trip'}
+            trip_type = trip_type_map.get(trip_type_raw, 'Full Trip')
+            
+            # Get destination from student residence
+            destination = g.get('invoice__student__residence') or ''
+
             rows.append({
                 'student_pk': student_pk,
                 'student_name': student_name,
@@ -644,6 +662,8 @@ class TransportReportView(LoginRequiredMixin, View):
                 'student_class': student_cls,
                 'route_pk': route_pk,
                 'route_name': route_name,
+                'trip_type': trip_type,
+                'destination': destination,
                 'billed': billed,
                 'collected': collected,
                 'balance': balance

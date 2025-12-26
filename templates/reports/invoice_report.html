@@ -173,10 +173,47 @@
           </table>
         </div>
 
+        <!-- Summary Cards -->
         <div class="mt-4">
           <div class="row">
-
-
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Invoices</div>
+                <div class="summary-value">{{ invoice_count|intcomma }}</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Balance B/F</div>
+                <div class="summary-value {% if totals.balance_bf > 0 %}text-warning{% endif %}">
+                  KES {{ totals.balance_bf|floatformat:2|intcomma }}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Prepayments</div>
+                <div class="summary-value text-success">
+                  KES {{ totals.prepayment|floatformat:2|intcomma }}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Collection Rate</div>
+                <div class="summary-value">
+                  {% if totals.billed > 0 %}
+                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as rate %}
+                      <span class="{% if rate >= 100 %}text-success{% elif rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ rate|floatformat:1 }}%
+                      </span>
+                    {% endwith %}
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -54,17 +54,24 @@
 
               <div class="col-md-9">
                 <div class="row">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label>Admission Number</label>
                     {{ form.admission_number }}
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label>Admission Date</label>
                     {{ form.admission_date }}
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label>Status</label>
                     {{ form.status }}
+                    {% if is_edit %}
+                    <small class="text-muted">Financial records are preserved</small>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-3">
+                    <label>Status Reason</label>
+                    {{ form.status_reason }}
                   </div>
                 </div>
 
@@ -106,16 +113,78 @@
           <!-- ================================================= -->
           <div class="tab-pane fade" id="academic-info">
             <div class="row">
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <label>Current Class</label>
                 {{ form.current_class }}
               </div>
+              <div class="col-md-4">
+                <label>UPI Number</label>
+                {{ form.upi_number }}
+                <small class="text-muted">NEMIS/Ministry of Education ID</small>
+              </div>
+              <div class="col-md-4">
+                <label>Assessment Number</label>
+                {{ form.assessment_number }}
+                <small class="text-muted">Exam/Assessment ID</small>
+              </div>
+            </div>
+
+            <div class="row mt-3">
               <div class="col-md-6">
                 <label>Previous School</label>
                 {{ form.previous_school }}
               </div>
+              <div class="col-md-6">
+                <label>Residence</label>
+                {{ form.residence }}
+                <small class="text-muted">Area/Estate where student lives</small>
+              </div>
             </div>
 
+            <hr class="my-4">
+
+            <h6 class="fw-bold mb-3">Transport</h6>
+            <div class="row">
+              <div class="col-md-3">
+                <div class="form-check">
+                  {{ form.uses_school_transport }}
+                  <label class="form-check-label" for="{{ form.uses_school_transport.id_for_label }}">
+                    Uses School Transport
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label>Transport Route/Destination</label>
+                {{ form.transport_route }}
+              </div>
+              <div class="col-md-5">
+                <label>Pick-up Person</label>
+                {{ form.transport_pickup_person }}
+                <small class="text-muted">Authorized person to pick up from bus</small>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h6 class="fw-bold mb-3">Special Needs</h6>
+            <div class="row">
+              <div class="col-md-3">
+                <div class="form-check">
+                  {{ form.has_special_needs }}
+                  <label class="form-check-label" for="{{ form.has_special_needs.id_for_label }}">
+                    Has Special Needs
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-9">
+                <label>Special Needs Details</label>
+                {{ form.special_needs_details }}
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h6 class="fw-bold mb-3">Medical</h6>
             <div class="mt-3">
               <label>Medical Conditions</label>
               {{ form.medical_conditions }}
