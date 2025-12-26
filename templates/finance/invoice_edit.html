@@ -1,495 +1,497 @@
 <!-- templates/finance/invoice_edit.html -->
-{% extends 'base/base.html' %}
-{% load static humanize %}
-{% block title %}Edit Invoice - {{ invoice.invoice_number }}{% endblock %}
+  {% extends 'base/base.html' %}
+  {% load static humanize %}
+  {% block title %}Edit Invoice - {{ invoice.invoice_number }}{% endblock %}
 
-{% block extra_head %}
-<style>
-    .readonly-amount {
-        background-color: #e9ecef !important;
-        cursor: not-allowed;
-    }
-    .item-row.invalid {
-        background-color: #fff5f5;
-        border-left: 4px solid #dc3545;
-    }
-    .remove-btn {
-        width: 32px;
-        height: 32px;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-    #invoice-items-table th,
-    #invoice-items-table td {
-        vertical-align: middle;
-        padding: 0.5rem;
-    }
-    #invoice-items-table select,
-    #invoice-items-table input {
-        min-width: 80px;
-    }
-    .deleted-row {
-        display: none !important;
-    }
-    .form-select-sm, .form-control-sm {
-        font-size: 0.875rem;
-    }
-    .hidden {
-        display: none !important;
-    }
-    /* Transport fields are inline within the description cell for transport rows */
-    .transport-inline {
-        display: none;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px dashed #dee2e6;
-    }
-    .item-row.is-transport .transport-inline {
-        display: flex;
-        gap: 8px;
-    }
-</style>
-{% endblock %}
+  {% block extra_head %}
+  <style>
+      .readonly-amount {
+          background-color: #e9ecef !important;
+          cursor: not-allowed;
+      }
+      .item-row.invalid {
+          background-color: #fff5f5;
+          border-left: 4px solid #dc3545;
+      }
+      .remove-btn {
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+      }
+      #invoice-items-table th,
+      #invoice-items-table td {
+          vertical-align: middle;
+          padding: 0.5rem;
+      }
+      #invoice-items-table select,
+      #invoice-items-table input {
+          min-width: 80px;
+      }
+      .deleted-row {
+          display: none !important;
+      }
+      .form-select-sm, .form-control-sm {
+          font-size: 0.875rem;
+      }
 
-{% block content %}
-<div class="content-wrapper">
-    <div class="page-header d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="page-title mb-0">Edit Invoice {{ invoice.invoice_number }}</h3>
-            <small class="text-muted d-block">
-                Student: <strong>{{ invoice.student.full_name }}</strong> &bull; 
-                Term: <strong>{{ invoice.term }}</strong> &bull;
-                Balance: <strong class="{% if invoice.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ invoice.balance|intcomma }}</strong>
-            </small>
-        </div>
-        <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
-            <i class="mdi mdi-arrow-left"></i> Back to Invoice
-        </a>
-    </div>
+      /* Description field visibility - show by default, hide when transport */
+      .description-only {
+          display: block;
+      }
+      .item-row.is-transport .description-only {
+          display: none;
+      }
 
-            <div class="card">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="mdi mdi-file-document-edit"></i> Invoice Items</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post" id="invoice-edit-form" novalidate>
-                        {% csrf_token %}
+      /* Transport fields visibility - hide by default, show when transport */
+      .transport-inline {
+          display: none;
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px dashed #dee2e6;
+      }
+      .item-row.is-transport .transport-inline {
+          display: flex;
+          gap: 8px;
+      }
+  </style>
+  {% endblock %}
 
-                <!-- Invoice Notes & Due Date -->
-                        <div class="row mb-4">
-                    <div class="col-md-8">
-                        <label for="id_notes" class="form-label">Notes:</label>
-                        <textarea name="notes" id="id_notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes...">{{ form.notes.value|default:'' }}</textarea>
-                                </div>
-                    <div class="col-md-4">
-                        <label for="id_due_date" class="form-label">Due Date:</label>
-                        <input type="date" name="due_date" id="id_due_date" class="form-control form-control-sm"
-                                           value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
-                            </div>
-                        </div>
+  {% block content %}
+  <div class="content-wrapper">
+      <div class="page-header d-flex justify-content-between align-items-center mb-4">
+          <div>
+              <h3 class="page-title mb-0">Edit Invoice {{ invoice.invoice_number }}</h3>
+              <small class="text-muted d-block">
+                  Student: <strong>{{ invoice.student.full_name }}</strong> &bull;
+                  Term: <strong>{{ invoice.term }}</strong> &bull;
+                  Balance: <strong class="{% if invoice.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ invoice.balance|intcomma }}</strong>
+              </small>
+          </div>
+          <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
+              <i class="mdi mdi-arrow-left"></i> Back to Invoice
+          </a>
+      </div>
 
-                        {{ formset.management_form }}
+      <div class="card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="mdi mdi-file-document-edit"></i> Invoice Items</h5>
+          </div>
+          <div class="card-body">
+              <form method="post" id="invoice-edit-form" novalidate>
+                  {% csrf_token %}
 
-                        <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="invoice-items-table">
-                                <thead class="table-light">
-                                    <tr>
-                                <th style="width: 140px;">Category</th>
-                                <th>Description</th>
-                                <th style="width: 140px;">Amount (KES)</th>
-                                <th style="width: 50px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="formset-container">
-                            {% for item_form in formset.forms %}
-                            <tr class="item-row {% if item_form.instance.category == 'transport' %}is-transport{% endif %}"
-                                        data-form-index="{{ forloop.counter0 }}">
-                                        <td>
-                                    {{ item_form.id }}
-                                    <select name="{{ item_form.category.html_name }}" 
-                                            id="{{ item_form.category.id_for_label }}"
-                                            class="form-select form-select-sm category-select">
-                                        {% for value, label in item_form.category.field.choices %}
-                                        <option value="{{ value }}" {% if item_form.category.value == value %}selected{% endif %}>{{ label }}</option>
-                                        {% endfor %}
-                                    </select>
-                                        </td>
-                                        <td>
-                                    <div class="description-only">
-                                        <input type="text" 
-                                               name="{{ item_form.description.html_name }}"
-                                               id="{{ item_form.description.id_for_label }}"
-                                               value="{{ item_form.description.value|default:'' }}"
-                                               class="form-control form-control-sm description-input"
-                                               placeholder="Description">
-                                    </div>
-                                    <!-- Transport fields (shown only for transport category) -->
-                                    <div class="transport-inline">
-                                        <div class="flex-grow-1">
-                                            <label class="form-label small mb-1">Route:</label>
-                                            <select name="{{ item_form.transport_route.html_name }}"
-                                                    id="{{ item_form.transport_route.id_for_label }}"
-                                                    class="form-select form-select-sm route-select">
-                                                <option value="">-- Select Route --</option>
-                                                {% for value, label in item_form.transport_route.field.choices %}
-                                                {% if value %}
-                                                <option value="{{ value }}" {% if item_form.transport_route.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
-                                                {% endif %}
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div style="width: 120px;">
-                                            <label class="form-label small mb-1">Trip:</label>
-                                            <select name="{{ item_form.transport_trip_type.html_name }}"
-                                                    id="{{ item_form.transport_trip_type.id_for_label }}"
-                                                    class="form-select form-select-sm trip-select">
-                                                <option value="full" {% if item_form.transport_trip_type.value == 'full' %}selected{% endif %}>Full</option>
-                                                <option value="half" {% if item_form.transport_trip_type.value == 'half' %}selected{% endif %}>Half</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                        </td>
-                                        <td>
-                                    <input type="number" 
-                                           name="{{ item_form.amount.html_name }}"
-                                           id="{{ item_form.amount.id_for_label }}"
-                                           value="{{ item_form.amount.value|default:'0.00' }}"
-                                           class="form-control form-control-sm amount-input"
-                                           step="0.01" min="0">
-                                    <!-- Hidden discount field with 0 value -->
-                                    <input type="hidden" 
-                                           name="{{ item_form.discount_applied.html_name }}"
-                                           value="0.00">
-                                        </td>
-                                        <td class="text-center">
-                                    <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
-                                                <i class="mdi mdi-delete"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                            {% empty %}
-                            <tr id="empty-row">
-                                <td colspan="4" class="text-center text-muted py-4">
-                                    <i class="mdi mdi-information-outline"></i> No items. Click "Add Item" to add invoice items.
-                                </td>
-                            </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                  <!-- Invoice Notes & Due Date -->
+                  <div class="row mb-4">
+                      <div class="col-md-8">
+                          <label for="id_notes" class="form-label">Notes:</label>
+                          <textarea name="notes" id="id_notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes...">{{ form.notes.value|default:'' }}</textarea>
+                      </div>
+                      <div class="col-md-4">
+                          <label for="id_due_date" class="form-label">Due Date:</label>
+                          <input type="date" name="due_date" id="id_due_date" class="form-control form-control-sm"
+                                 value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                      </div>
+                  </div>
 
-                <!-- Totals Summary -->
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-btn">
-                                <i class="mdi mdi-plus"></i> Add Item
-                            </button>
-                        </div>
+                  {{ formset.management_form }}
 
-                <div class="row mt-3">
-                    <div class="col-md-6"></div>
-                    <div class="col-md-6">
-                        <table class="table table-sm">
-                            <tr class="table-light">
-                                <td class="text-end"><strong>Total Amount:</strong></td>
-                                <td class="text-end" style="width: 150px;"><strong id="display-total">KES {{ current_total|intcomma }}</strong></td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
+                  <div class="table-responsive">
+                      <table class="table table-bordered table-hover" id="invoice-items-table">
+                          <thead class="table-light">
+                              <tr>
+                                  <th style="width: 140px;">Category</th>
+                                  <th>Description</th>
+                                  <th style="width: 140px;">Amount (KES)</th>
+                                  <th style="width: 50px;"></th>
+                              </tr>
+                          </thead>
+                          <tbody id="formset-container">
+                              {% for item_form in formset.forms %}
+                              <tr class="item-row {% if item_form.instance.category == 'transport' %}is-transport{% endif %}"
+                                  data-form-index="{{ forloop.counter0 }}">
+                                  <td>
+                                      {{ item_form.id }}
+                                      <select name="{{ item_form.category.html_name }}"
+                                              id="{{ item_form.category.id_for_label }}"
+                                              class="form-select form-select-sm category-select">
+                                          {% for value, label in item_form.category.field.choices %}
+                                          <option value="{{ value }}" {% if item_form.category.value == value %}selected{% endif %}>{{ label }}</option>
+                                          {% endfor %}
+                                      </select>
+                                  </td>
+                                  <td>
+                                      <!-- Regular description field (shown for non-transport) -->
+                                      <div class="description-only">
+                                          <input type="text"
+                                                 name="{{ item_form.description.html_name }}"
+                                                 id="{{ item_form.description.id_for_label }}"
+                                                 value="{{ item_form.description.value|default:'' }}"
+                                                 class="form-control form-control-sm description-input"
+                                                 placeholder="Description">
+                                      </div>
 
-                        <div class="d-flex gap-2 mt-4 border-top pt-3">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="mdi mdi-content-save"></i> Save Changes
-                            </button>
-                            <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
-                                Cancel
-                            </a>
-                        </div>
-                    </form>
-        </div>
-    </div>
-</div>
+                                      <!-- Transport fields (shown only for transport category) -->
+                                      <div class="transport-inline">
+                                          <div class="flex-grow-1">
+                                              <label class="form-label small mb-1">Route:</label>
+                                              <select name="{{ item_form.transport_route.html_name }}"
+                                                      id="{{ item_form.transport_route.id_for_label }}"
+                                                      class="form-select form-select-sm route-select">
+                                                  <option value="">-- Select Route --</option>
+                                                  {% for value, label in item_form.transport_route.field.choices %}
+                                                  {% if value %}
+                                                  <option value="{{ value }}" {% if item_form.transport_route.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                                  {% endif %}
+                                                  {% endfor %}
+                                              </select>
+                                          </div>
+                                          <div style="width: 120px;">
+                                              <label class="form-label small mb-1">Trip:</label>
+                                              <select name="{{ item_form.transport_trip_type.html_name }}"
+                                                      id="{{ item_form.transport_trip_type.id_for_label }}"
+                                                      class="form-select form-select-sm trip-select">
+                                                  <option value="full" {% if item_form.transport_trip_type.value == 'full' %}selected{% endif %}>Full</option>
+                                                  <option value="half" {% if item_form.transport_trip_type.value == 'half' %}selected{% endif %}>Half</option>
+                                              </select>
+                                          </div>
+                                      </div>
+                                  </td>
+                                  <td>
+                                      <input type="number"
+                                             name="{{ item_form.amount.html_name }}"
+                                             id="{{ item_form.amount.id_for_label }}"
+                                             value="{{ item_form.amount.value|default:'0.00' }}"
+                                             class="form-control form-control-sm amount-input"
+                                             step="0.01" min="0">
+                                      <!-- Hidden discount field with 0 value -->
+                                      <input type="hidden"
+                                             name="{{ item_form.discount_applied.html_name }}"
+                                             value="0.00">
+                                  </td>
+                                  <td class="text-center">
+                                      <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
+                                          <i class="mdi mdi-delete"></i>
+                                      </button>
+                                  </td>
+                              </tr>
+                              {% empty %}
+                              <tr id="empty-row">
+                                  <td colspan="4" class="text-center text-muted py-4">
+                                      <i class="mdi mdi-information-outline"></i> No items. Click "Add Item" to add invoice items.
+                                  </td>
+                              </tr>
+                              {% endfor %}
+                          </tbody>
+                      </table>
+                  </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Fee map from backend: { route_id: { full: amount, half: amount } }
-    const feeMap = JSON.parse('{{ fee_map_json|escapejs }}');
-    // Student's default transport info
-    const studentTransport = JSON.parse('{{ student_transport_json|escapejs }}');
-    
-    const container = document.getElementById('formset-container');
-    const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
-    
-    // Get route options HTML for new rows
-    const routeOptionsHtml = `<option value="">-- Select Route --</option>{% for value, label in formset.empty_form.transport_route.field.choices %}{% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}`;
-    
-    // Get category options HTML for new rows
-    const categoryOptionsHtml = `{% for value, label in formset.empty_form.category.field.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}`;
-    
-    // Initialize existing rows
-    document.querySelectorAll('.item-row').forEach(initRow);
-    
-    // Add Item button
-    document.getElementById('add-item-btn').addEventListener('click', function() {
-        addNewRow();
-    });
-    
-    // Event delegation for remove buttons
-    container.addEventListener('click', function(e) {
-        const removeBtn = e.target.closest('.remove-btn');
-        if (removeBtn) {
-            removeRow(removeBtn.closest('.item-row'));
-        }
-    });
+                  <!-- Totals Summary -->
+                  <div class="d-flex justify-content-between align-items-center mt-3">
+                      <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-btn">
+                          <i class="mdi mdi-plus"></i> Add Item
+                      </button>
+                  </div>
 
-    // Event delegation for category changes
-    container.addEventListener('change', function(e) {
-        if (e.target.classList.contains('category-select')) {
-            handleCategoryChange(e.target);
-        }
-        if (e.target.classList.contains('route-select') || e.target.classList.contains('trip-select')) {
-            updateTransportAmount(e.target.closest('.item-row'));
-        }
-        // Update totals on any change
-        updateTotals();
-    });
-    
-    // Update totals on input
-    container.addEventListener('input', function(e) {
-        if (e.target.classList.contains('amount-input')) {
-            updateTotals();
-        }
-    });
-    
-    function initRow(row) {
-        const categorySelect = row.querySelector('.category-select');
-        setTransportVisibility(row, categorySelect && categorySelect.value === 'transport');
-        }
-    
-    function handleCategoryChange(select) {
-        const row = select.closest('.item-row');
-        const isTransport = select.value === 'transport';
-        setTransportVisibility(row, isTransport);
+                  <div class="row mt-3">
+                      <div class="col-md-6"></div>
+                      <div class="col-md-6">
+                          <table class="table table-sm">
+                              <tr class="table-light">
+                                  <td class="text-end"><strong>Total Amount:</strong></td>
+                                  <td class="text-end" style="width: 150px;"><strong id="display-total">KES {{ current_total|intcomma }}</strong></td>
+                              </tr>
+                          </table>
+                      </div>
+                  </div>
 
-        if (isTransport) {
-            const routeSelect = row.querySelector('.route-select');
-            const tripSelect = row.querySelector('.trip-select');
-            // Auto-populate student's transport route if available
-            if (studentTransport && studentTransport.route_id && routeSelect && !routeSelect.value) {
-                routeSelect.value = studentTransport.route_id;
-    }
-            // Default to full trip
-            if (tripSelect && !tripSelect.value) {
-                tripSelect.value = studentTransport.trip_type || 'full';
-            }
-            setTimeout(() => updateTransportAmount(row), 50);
-    }
-}
+                  <div class="d-flex gap-2 mt-4 border-top pt-3">
+                      <button type="submit" class="btn btn-primary">
+                          <i class="mdi mdi-content-save"></i> Save Changes
+                      </button>
+                      <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
+                          Cancel
+                      </a>
+                  </div>
+              </form>
+          </div>
+      </div>
+  </div>
 
-    function setTransportVisibility(row, isTransport) {
-        const amountInput = row.querySelector('.amount-input');
-        const descWrap = row.querySelector('.description-only');
-        const transportWrap = row.querySelector('.transport-inline');
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+      // Fee map from backend: { route_id: { full: amount, half: amount } }
+      const feeMap = JSON.parse('{{ fee_map_json|escapejs }}');
+      // Student's default transport info
+      const studentTransport = JSON.parse('{{ student_transport_json|escapejs }}');
 
-        if (isTransport) {
-            row.classList.add('is-transport');
-        if (amountInput) {
-            amountInput.readOnly = true;
-            amountInput.classList.add('readonly-amount');
-        }
-            if (descWrap) descWrap.classList.add('hidden');
-            if (transportWrap) transportWrap.classList.remove('hidden');
-    } else {
-            row.classList.remove('is-transport');
-        if (amountInput) {
-            amountInput.readOnly = false;
-            amountInput.classList.remove('readonly-amount');
-        }
-            if (descWrap) descWrap.classList.remove('hidden');
-            if (transportWrap) transportWrap.classList.add('hidden');
-    }
-}
+      const container = document.getElementById('formset-container');
+      const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
 
-function updateTransportAmount(row) {
-        const routeSelect = row.querySelector('.route-select');
-        const tripSelect = row.querySelector('.trip-select');
-        const amountInput = row.querySelector('.amount-input');
-        const descInput = row.querySelector('.description-input');
+      // Get route options HTML for new rows
+      const routeOptionsHtml = `<option value="">-- Select Route --</option>{% for value, label in formset.empty_form.transport_route.field.choices %}{% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}`;
 
-    if (!routeSelect || !tripSelect || !amountInput) return;
+      // Get category options HTML for new rows
+      const categoryOptionsHtml = `{% for value, label in formset.empty_form.category.field.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}`;
 
-    const routeId = routeSelect.value;
-    const tripType = tripSelect.value || 'full';
+      // Initialize existing rows
+      document.querySelectorAll('.item-row').forEach(initRow);
 
-        if (routeId && feeMap[routeId]) {
-        const amount = feeMap[routeId][tripType];
-            if (amount !== undefined) {
-        amountInput.value = amount.toFixed(2);
+      // Add Item button
+      document.getElementById('add-item-btn').addEventListener('click', function() {
+          addNewRow();
+      });
 
-                // Auto-fill description if empty
-                if (descInput && !descInput.value.trim()) {
-                    const routeName = routeSelect.options[routeSelect.selectedIndex].text;
-                    const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
-                    descInput.value = `Transport - ${routeName} (${tripLabel})`;
-        }
-                
-                updateTotals();
-    }
-}
-    }
-    
-    function addNewRow() {
-        // Remove empty row placeholder if exists
-        const emptyRow = document.getElementById('empty-row');
-        if (emptyRow) emptyRow.remove();
+      // Event delegation for remove buttons
+      container.addEventListener('click', function(e) {
+          const removeBtn = e.target.closest('.remove-btn');
+          if (removeBtn) {
+              removeRow(removeBtn.closest('.item-row'));
+          }
+      });
 
-        const currentCount = parseInt(totalFormsInput.value);
+      // Event delegation for category changes
+      container.addEventListener('change', function(e) {
+          if (e.target.classList.contains('category-select')) {
+              handleCategoryChange(e.target);
+          }
+          if (e.target.classList.contains('route-select') || e.target.classList.contains('trip-select')) {
+              updateTransportAmount(e.target.closest('.item-row'));
+          }
+          // Update totals on any change
+          updateTotals();
+      });
 
-        // Create new row
-        const newRow = document.createElement('tr');
-        newRow.className = 'item-row';
-        newRow.setAttribute('data-form-index', currentCount);
-        
-        newRow.innerHTML = `
-            <td>
-                <input type="hidden" name="form-${currentCount}-id" id="id_form-${currentCount}-id" value="">
-                <select name="form-${currentCount}-category" id="id_form-${currentCount}-category" class="form-select form-select-sm category-select">
-                    ${categoryOptionsHtml}
-                </select>
-            </td>
-            <td>
-                <div class="description-only">
-                    <input type="text" name="form-${currentCount}-description" id="id_form-${currentCount}-description" 
-                           class="form-control form-control-sm description-input" placeholder="Description">
-                </div>
-                
-                <div class="transport-inline hidden">
-                    <div class="flex-grow-1">
-                        <label class="form-label small mb-1">Route:</label>
-                        <select name="form-${currentCount}-transport_route" id="id_form-${currentCount}-transport_route" class="form-select form-select-sm route-select">
-                            ${routeOptionsHtml}
-                        </select>
-                    </div>
-                    <div style="width: 120px;">
-                        <label class="form-label small mb-1">Trip:</label>
-                        <select name="form-${currentCount}-transport_trip_type" id="id_form-${currentCount}-transport_trip_type" class="form-select form-select-sm trip-select">
-                            <option value="full">Full</option>
-                            <option value="half">Half</option>
-                        </select>
-                    </div>
-                </div>
-            </td>
-            <td>
-                <input type="number" name="form-${currentCount}-amount" id="id_form-${currentCount}-amount" 
-                       class="form-control form-control-sm amount-input" step="0.01" min="0" value="0.00">
-                <input type="hidden" name="form-${currentCount}-discount_applied" value="0.00">
-            </td>
-            <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
-                    <i class="mdi mdi-delete"></i>
-                </button>
-            </td>
-        `;
-        
-    container.appendChild(newRow);
-        totalFormsInput.value = currentCount + 1;
-        
-        // Focus on the category select of the new row
-        const categorySelect = newRow.querySelector('.category-select');
-        if (categorySelect) categorySelect.focus();
-        // Ensure correct visibility on new row
-        setTransportVisibility(newRow, categorySelect && categorySelect.value === 'transport');
-    }
-    
-    function removeRow(row) {
-    const idInput = row.querySelector('input[name$="-id"]');
+      // Update totals on input
+      container.addEventListener('input', function(e) {
+          if (e.target.classList.contains('amount-input')) {
+              updateTotals();
+          }
+      });
 
-    if (idInput && idInput.value) {
-            // Existing item: mark for deletion
-            const deleteInput = document.createElement('input');
-            deleteInput.type = 'hidden';
-            deleteInput.name = idInput.name.replace('-id', '-DELETE');
-            deleteInput.value = 'on';
-            row.appendChild(deleteInput);
-            row.classList.add('deleted-row');
-    } else {
-            // New item: just remove from DOM
-        row.remove();
-            reindexRows();
-        }
-        
-        updateTotals();
-    }
+      function initRow(row) {
+          const categorySelect = row.querySelector('.category-select');
+          setTransportVisibility(row, categorySelect && categorySelect.value === 'transport');
+      }
 
-    function reindexRows() {
-        const rows = container.querySelectorAll('.item-row:not(.deleted-row)');
-        rows.forEach((row, index) => {
-            row.setAttribute('data-form-index', index);
-            row.querySelectorAll('[name]').forEach(field => {
-                const name = field.getAttribute('name');
-                    const newName = name.replace(/form-\d+-/, `form-${index}-`);
-                    field.setAttribute('name', newName);
-                
-                const id = field.getAttribute('id');
-                if (id) {
-                    field.setAttribute('id', id.replace(/form-\d+-/, `form-${index}-`));
-                }
-            });
-        });
-        totalFormsInput.value = rows.length;
-    }
-    
-    function updateTotals() {
-        let total = 0;
-        
-        document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
-            const amountInput = row.querySelector('.amount-input');
-            const amount = parseFloat(amountInput?.value) || 0;
-            total += amount;
-        });
-        
-        document.getElementById('display-total').textContent = 'KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2});
-}
+      function handleCategoryChange(select) {
+          const row = select.closest('.item-row');
+          const isTransport = select.value === 'transport';
+          setTransportVisibility(row, isTransport);
 
-    // Form validation before submit
-    document.getElementById('invoice-edit-form').addEventListener('submit', function(e) {
-    let isValid = true;
-    const errors = [];
+          if (isTransport) {
+              const routeSelect = row.querySelector('.route-select');
+              const tripSelect = row.querySelector('.trip-select');
+              // Auto-populate student's transport route if available
+              if (studentTransport && studentTransport.route_id && routeSelect && !routeSelect.value) {
+                  routeSelect.value = studentTransport.route_id;
+              }
+              // Default to full trip
+              if (tripSelect && !tripSelect.value) {
+                  tripSelect.value = studentTransport.trip_type || 'full';
+              }
+              setTimeout(() => updateTransportAmount(row), 50);
+          }
+      }
 
-        document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
-            row.classList.remove('invalid');
-            
-            const categorySelect = row.querySelector('.category-select');
-            const amountInput = row.querySelector('.amount-input');
-            const routeSelect = row.querySelector('.route-select');
-            
-            // Validate transport items have a route
-            if (categorySelect?.value === 'transport' && (!routeSelect?.value)) {
-                row.classList.add('invalid');
-                isValid = false;
-                errors.push('Transport items must have a route selected');
-            }
-            
-            // Validate amount is a positive number
-            const amount = parseFloat(amountInput?.value);
-            if (isNaN(amount) || amount < 0) {
-                row.classList.add('invalid');
-            isValid = false;
-                errors.push('Amount must be a valid positive number');
-        }
-    });
+      function setTransportVisibility(row, isTransport) {
+          const amountInput = row.querySelector('.amount-input');
 
-    if (!isValid) {
-            e.preventDefault();
-            alert('Please fix the following errors:\n\n• ' + [...new Set(errors)].join('\n• '));
-            return false;
-        }
-    });
-    
-    // Initial totals calculation
-    updateTotals();
-});
-</script>
-{% endblock %}
+          if (isTransport) {
+              // Add is-transport class - CSS handles showing/hiding fields
+              row.classList.add('is-transport');
+              if (amountInput) {
+                  amountInput.readOnly = true;
+                  amountInput.classList.add('readonly-amount');
+              }
+          } else {
+              // Remove is-transport class - CSS handles showing/hiding fields
+              row.classList.remove('is-transport');
+              if (amountInput) {
+                  amountInput.readOnly = false;
+                  amountInput.classList.remove('readonly-amount');
+              }
+          }
+      }
+
+      function updateTransportAmount(row) {
+          const routeSelect = row.querySelector('.route-select');
+          const tripSelect = row.querySelector('.trip-select');
+          const amountInput = row.querySelector('.amount-input');
+          const descInput = row.querySelector('.description-input');
+
+          if (!routeSelect || !tripSelect || !amountInput) return;
+
+          const routeId = routeSelect.value;
+          const tripType = tripSelect.value || 'full';
+
+          if (routeId && feeMap[routeId]) {
+              const amount = feeMap[routeId][tripType];
+              if (amount !== undefined) {
+                  amountInput.value = amount.toFixed(2);
+
+                  // Auto-fill description if empty
+                  if (descInput && !descInput.value.trim()) {
+                      const routeName = routeSelect.options[routeSelect.selectedIndex].text;
+                      const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
+                      descInput.value = `Transport - ${routeName} (${tripLabel})`;
+                  }
+
+                  updateTotals();
+              }
+          }
+      }
+
+      function addNewRow() {
+          // Remove empty row placeholder if exists
+          const emptyRow = document.getElementById('empty-row');
+          if (emptyRow) emptyRow.remove();
+
+          const currentCount = parseInt(totalFormsInput.value);
+
+          // Create new row
+          const newRow = document.createElement('tr');
+          newRow.className = 'item-row';
+          newRow.setAttribute('data-form-index', currentCount);
+
+          newRow.innerHTML = `
+              <td>
+                  <input type="hidden" name="form-${currentCount}-id" id="id_form-${currentCount}-id" value="">
+                  <select name="form-${currentCount}-category" id="id_form-${currentCount}-category" class="form-select form-select-sm category-select">
+                      ${categoryOptionsHtml}
+                  </select>
+              </td>
+              <td>
+                  <div class="description-only">
+                      <input type="text" name="form-${currentCount}-description" id="id_form-${currentCount}-description"
+                             class="form-control form-control-sm description-input" placeholder="Description">
+                  </div>
+
+                  <div class="transport-inline">
+                      <div class="flex-grow-1">
+                          <label class="form-label small mb-1">Route:</label>
+                          <select name="form-${currentCount}-transport_route" id="id_form-${currentCount}-transport_route" class="form-select form-select-sm route-select">
+                              ${routeOptionsHtml}
+                          </select>
+                      </div>
+                      <div style="width: 120px;">
+                          <label class="form-label small mb-1">Trip:</label>
+                          <select name="form-${currentCount}-transport_trip_type" id="id_form-${currentCount}-transport_trip_type" class="form-select form-select-sm trip-select">
+                              <option value="full">Full</option>
+                              <option value="half">Half</option>
+                          </select>
+                      </div>
+                  </div>
+              </td>
+              <td>
+                  <input type="number" name="form-${currentCount}-amount" id="id_form-${currentCount}-amount"
+                         class="form-control form-control-sm amount-input" step="0.01" min="0" value="0.00">
+                  <input type="hidden" name="form-${currentCount}-discount_applied" value="0.00">
+              </td>
+              <td class="text-center">
+                  <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
+                      <i class="mdi mdi-delete"></i>
+                  </button>
+              </td>
+          `;
+
+          container.appendChild(newRow);
+          totalFormsInput.value = currentCount + 1;
+
+          // Focus on the category select of the new row
+          const categorySelect = newRow.querySelector('.category-select');
+          if (categorySelect) categorySelect.focus();
+      }
+
+      function removeRow(row) {
+          const idInput = row.querySelector('input[name$="-id"]');
+
+          if (idInput && idInput.value) {
+              // Existing item: mark for deletion
+              const deleteInput = document.createElement('input');
+              deleteInput.type = 'hidden';
+              deleteInput.name = idInput.name.replace('-id', '-DELETE');
+              deleteInput.value = 'on';
+              row.appendChild(deleteInput);
+              row.classList.add('deleted-row');
+          } else {
+              // New item: just remove from DOM
+              row.remove();
+              reindexRows();
+          }
+
+          updateTotals();
+      }
+
+      function reindexRows() {
+          const rows = container.querySelectorAll('.item-row:not(.deleted-row)');
+          rows.forEach((row, index) => {
+              row.setAttribute('data-form-index', index);
+              row.querySelectorAll('[name]').forEach(field => {
+                  const name = field.getAttribute('name');
+                  const newName = name.replace(/form-\d+-/, `form-${index}-`);
+                  field.setAttribute('name', newName);
+
+                  const id = field.getAttribute('id');
+                  if (id) {
+                      field.setAttribute('id', id.replace(/form-\d+-/, `form-${index}-`));
+                  }
+              });
+          });
+          totalFormsInput.value = rows.length;
+      }
+
+      function updateTotals() {
+          let total = 0;
+
+          document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
+              const amountInput = row.querySelector('.amount-input');
+              const amount = parseFloat(amountInput?.value) || 0;
+              total += amount;
+          });
+
+          document.getElementById('display-total').textContent = 'KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2});
+      }
+
+      // Form validation before submit
+      document.getElementById('invoice-edit-form').addEventListener('submit', function(e) {
+          let isValid = true;
+          const errors = [];
+
+          document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
+              row.classList.remove('invalid');
+
+              const categorySelect = row.querySelector('.category-select');
+              const amountInput = row.querySelector('.amount-input');
+              const routeSelect = row.querySelector('.route-select');
+
+              // Validate transport items have a route
+              if (categorySelect?.value === 'transport' && (!routeSelect?.value)) {
+                  row.classList.add('invalid');
+                  isValid = false;
+                  errors.push('Transport items must have a route selected');
+              }
+
+              // Validate amount is a positive number
+              const amount = parseFloat(amountInput?.value);
+              if (isNaN(amount) || amount < 0) {
+                  row.classList.add('invalid');
+                  isValid = false;
+                  errors.push('Amount must be a valid positive number');
+              }
+          });
+
+          if (!isValid) {
+              e.preventDefault();
+              alert('Please fix the following errors:\n\n• ' + [...new Set(errors)].join('\n• '));
+              return false;
+          }
+      });
+
+      // Initial totals calculation
+      updateTotals();
+  });
+  </script>
+  {% endblock %}
