@@ -217,7 +217,18 @@
       const studentTransport = JSON.parse('{{ student_transport_json|escapejs }}');
 
       const container = document.getElementById('formset-container');
-      const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
+      // Find the TOTAL_FORMS input - Django formsets use different prefixes
+      let totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+      
+      if (!totalFormsInput) {
+          console.error('Could not find TOTAL_FORMS input field');
+          return;
+      }
+      
+      // Extract the prefix from the TOTAL_FORMS field name (e.g., "form" or "invoiceitem_set")
+      const totalFormsName = totalFormsInput.name;
+      const prefixMatch = totalFormsName.match(/^(.+?)-TOTAL_FORMS$/);
+      const formsetPrefix = prefixMatch ? prefixMatch[1] : 'form';
 
       // Get route options HTML for new rows
       const routeOptionsHtml = `<option value="">-- Select Route --</option>{% for value, label in formset.empty_form.transport_route.field.choices %}{% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}`;
@@ -257,7 +268,7 @@
 
       // Update totals on input
       container.addEventListener('input', function(e) {
-          if (e.target.classList.contains('amount-input')) {
+          if (e.target && e.target.classList && e.target.classList.contains('amount-input')) {
               updateTotals();
           }
       });
@@ -362,11 +373,16 @@
       }
 
       function addNewRow() {
+          if (!totalFormsInput) {
+              console.error('Cannot add row: TOTAL_FORMS input not found');
+              return;
+          }
+          
           // Remove empty row placeholder if exists
           const emptyRow = document.getElementById('empty-row');
           if (emptyRow) emptyRow.remove();
 
-          const currentCount = parseInt(totalFormsInput.value);
+          const currentCount = parseInt(totalFormsInput.value) || 0;
 
           // Create new row
           const newRow = document.createElement('tr');
@@ -375,27 +391,27 @@
 
           newRow.innerHTML = `
               <td>
-                  <input type="hidden" name="form-${currentCount}-id" id="id_form-${currentCount}-id" value="">
-                  <select name="form-${currentCount}-category" id="id_form-${currentCount}-category" class="form-select form-select-sm category-select">
+                  <input type="hidden" name="${formsetPrefix}-${currentCount}-id" id="id_${formsetPrefix}-${currentCount}-id" value="">
+                  <select name="${formsetPrefix}-${currentCount}-category" id="id_${formsetPrefix}-${currentCount}-category" class="form-select form-select-sm category-select">
                       ${categoryOptionsHtml}
                   </select>
               </td>
               <td>
                   <div class="description-only">
-                      <input type="text" name="form-${currentCount}-description" id="id_form-${currentCount}-description"
+                      <input type="text" name="${formsetPrefix}-${currentCount}-description" id="id_${formsetPrefix}-${currentCount}-description"
                              class="form-control form-control-sm description-input" placeholder="Description">
                   </div>
 
                   <div class="transport-inline" style="display: none;">
                       <div class="flex-grow-1">
                           <label class="form-label small mb-1">Route:</label>
-                          <select name="form-${currentCount}-transport_route" id="id_form-${currentCount}-transport_route" class="form-select form-select-sm route-select">
+                          <select name="${formsetPrefix}-${currentCount}-transport_route" id="id_${formsetPrefix}-${currentCount}-transport_route" class="form-select form-select-sm route-select">
                               ${routeOptionsHtml}
                           </select>
                       </div>
                       <div style="width: 120px;">
                           <label class="form-label small mb-1">Trip:</label>
-                          <select name="form-${currentCount}-transport_trip_type" id="id_form-${currentCount}-transport_trip_type" class="form-select form-select-sm trip-select">
+                          <select name="${formsetPrefix}-${currentCount}-transport_trip_type" id="id_${formsetPrefix}-${currentCount}-transport_trip_type" class="form-select form-select-sm trip-select">
                               <option value="full">Full</option>
                               <option value="half">Half</option>
                           </select>
@@ -403,9 +419,9 @@
                   </div>
               </td>
               <td>
-                  <input type="number" name="form-${currentCount}-amount" id="id_form-${currentCount}-amount"
+                  <input type="number" name="${formsetPrefix}-${currentCount}-amount" id="id_${formsetPrefix}-${currentCount}-amount"
                          class="form-control form-control-sm amount-input" step="0.01" min="0" value="0.00">
-                  <input type="hidden" name="form-${currentCount}-discount_applied" value="0.00">
+                  <input type="hidden" name="${formsetPrefix}-${currentCount}-discount_applied" value="0.00">
               </td>
               <td class="text-center">
                   <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
@@ -446,20 +462,25 @@
       }
 
       function reindexRows() {
+          if (!totalFormsInput) return;
+          
           const rows = container.querySelectorAll('.item-row:not(.deleted-row)');
+          
           rows.forEach((row, index) => {
               row.setAttribute('data-form-index', index);
               row.querySelectorAll('[name]').forEach(field => {
                   const name = field.getAttribute('name');
-                  const newName = name.replace(/form-\d+-/, `form-${index}-`);
+                  // Match pattern: {prefix}-{number}-fieldname and replace number
+                  const newName = name.replace(new RegExp(`^${formsetPrefix}-\\d+-`), `${formsetPrefix}-${index}-`);
                   field.setAttribute('name', newName);
 
                   const id = field.getAttribute('id');
                   if (id) {
-                      field.setAttribute('id', id.replace(/form-\d+-/, `form-${index}-`));
+                      field.setAttribute('id', id.replace(new RegExp(`^id_${formsetPrefix}-\\d+-`), `id_${formsetPrefix}-${index}-`));
                   }
               });
           });
+          
           totalFormsInput.value = rows.length;
       }
 
