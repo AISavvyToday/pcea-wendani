@@ -244,64 +244,8 @@
                                 </tr>
                             </tfoot>
                         </table>
-                    </div>
+                    </div>                           
 
-                    <!-- Payment Summary Cards -->
-                    <div class="mt-4">
-                        <h5 class="mb-3">Payment Summary</h5>
-                        <div class="row text-center">
-                            <div class="col-md-3 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body py-2">
-                                        <small class="text-muted">Term Fees</small>
-                                        <h6 class="text-primary mb-0">KES {{ total_invoiced|intcomma }}</h6>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {% if invoice.balance_bf and invoice.balance_bf > 0 %}
-                            <div class="col-md-2 mb-3">
-                                <div class="card bg-warning bg-opacity-25">
-                                    <div class="card-body py-2">
-                                        <small class="text-muted">Balance B/F</small>
-                                        <h6 class="text-warning mb-0">KES {{ invoice.balance_bf|intcomma }}</h6>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-
-                            {% if invoice.prepayment and invoice.prepayment > 0 %}
-                            <div class="col-md-2 mb-3">
-                                <div class="card bg-success bg-opacity-25">
-                                    <div class="card-body py-2">
-                                        <small class="text-muted">Prepayment</small>
-                                        <h6 class="text-success mb-0">-KES {{ invoice.prepayment|intcomma }}</h6>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-
-                            <div class="col-md-3 mb-3">
-                                <div class="card bg-light">
-                                    <div class="card-body py-2">
-                                        <small class="text-muted">Total Paid</small>
-                                        <h6 class="text-success mb-0">KES {{ total_paid|intcomma }}</h6>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-2 mb-3">
-                                <div class="card {% if total_balance > 0 %}bg-danger{% else %}bg-success{% endif %} bg-opacity-25">
-                                    <div class="card-body py-2">
-                                        <small class="text-muted">Balance Due</small>
-                                        <h6 class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %} mb-0">
-                                            KES {{ total_balance|intcomma }}
-                                        </h6>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
