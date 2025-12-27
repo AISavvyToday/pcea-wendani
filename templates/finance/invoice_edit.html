@@ -83,18 +83,7 @@
               <form method="post" id="invoice-edit-form" novalidate>
                   {% csrf_token %}
 
-                  <!-- Invoice Notes & Due Date -->
-                  <div class="row mb-4">
-                      <div class="col-md-8">
-                          <label for="id_notes" class="form-label">Notes:</label>
-                          <textarea name="notes" id="id_notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes...">{{ form.notes.value|default:'' }}</textarea>
-                      </div>
-                      <div class="col-md-4">
-                          <label for="id_due_date" class="form-label">Due Date:</label>
-                          <input type="date" name="due_date" id="id_due_date" class="form-control form-control-sm"
-                                 value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
-                      </div>
-                  </div>
+                
 
                   {{ formset.management_form }}
 

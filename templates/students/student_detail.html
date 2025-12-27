@@ -335,9 +335,7 @@
               <a href="{% url 'finance:student_statement' student.pk %}" class="btn btn-info btn-sm">
                 <i class="mdi mdi-account-card-details"></i> Student Statement
               </a>
-              <a href="{% url 'finance:student_statement_print' student.pk %}?copies=2" target="_blank" class="btn btn-outline-info btn-sm">
-                <i class="mdi mdi-printer"></i> Print Statement
-              </a>
+              
               <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#generateInvoiceModal">
                 <i class="mdi mdi-file-document-outline"></i> Generate Invoice
               </button>

@@ -78,7 +78,6 @@
                             <th>Student</th>
                             <th class="text-end">Amount</th>
                             <th>Method</th>
-                            <th>Source</th>
                             <th>Reference</th>
                             <th>Status</th>
                         </tr>
@@ -112,9 +111,7 @@
                                 <td>
                                     {{ payment.get_payment_method_display|default:"—" }}
                                 </td>
-                                <td>
-                                    {{ payment.payment_source }}
-                                </td>
+                            
 
                                 <td class="text-wrap" style="max-width:160px;">
                                     {{ payment.transaction_reference|default:"-" }}
