@@ -16,30 +16,7 @@
     </div>
 
     <div class="text-end d-flex gap-2 justify-content-end flex-wrap">
-      <!-- Export Buttons -->
-      <div class="btn-group" role="group">
-        <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="mdi mdi-download"></i> Export
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li>
-            <a class="dropdown-item" href="{% url 'students:export_excel' %}?{{ request.GET.urlencode }}">
-              <i class="mdi mdi-file-excel text-success me-2"></i> Download Excel
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="{% url 'students:export_pdf' %}?{{ request.GET.urlencode }}">
-              <i class="mdi mdi-file-pdf-box text-danger me-2"></i> Download PDF
-            </a>
-          </li>
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <a class="dropdown-item" href="javascript:window.print()">
-              <i class="mdi mdi-printer text-info me-2"></i> Print Page
-            </a>
-          </li>
-        </ul>
-      </div>
+      
 
       <a href="{% url 'students:create' %}" class="btn btn-gradient-success btn-sm">
         <i class="mdi mdi-plus"></i> New Student
