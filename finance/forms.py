@@ -490,7 +490,7 @@ class InvoiceItemForm(forms.ModelForm):
 
 InvoiceItemFormSet = inlineformset_factory(
     Invoice, InvoiceItem, form=InvoiceItemForm,
-    extra=1, can_delete=True, min_num=1, validate_min=False
+    extra=0, can_delete=True, min_num=0, validate_min=False
 )
 
 

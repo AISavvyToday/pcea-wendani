@@ -1811,12 +1811,14 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
             context['formset'] = InvoiceItemFormSet(
                 self.request.POST,
                 instance=self.object,
-                form_kwargs={'invoice': invoice}
+                form_kwargs={'invoice': invoice},
+                queryset=invoice.items.filter(is_active=True)
             )
         else:
             context['formset'] = InvoiceItemFormSet(
                 instance=self.object,
-                form_kwargs={'invoice': invoice}
+                form_kwargs={'invoice': invoice},
+                queryset=invoice.items.filter(is_active=True)
             )
 
         # Add fee map for JavaScript
@@ -1867,7 +1869,8 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         formset = InvoiceItemFormSet(
             self.request.POST,
             instance=invoice,
-            form_kwargs={'invoice': invoice}
+            form_kwargs={'invoice': invoice},
+            queryset=invoice.items.filter(is_active=True)
         )
 
         if not formset.is_valid():

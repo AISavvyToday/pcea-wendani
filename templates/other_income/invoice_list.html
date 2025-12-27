@@ -1,169 +1,36 @@
 {% extends 'base/base.html' %}
 {% load humanize %}
-{% block title %}Other Income{% endblock %}
+{% block title %}Other Income Invoices{% endblock %}
 {% block content %}
 <div class="content-wrapper">
-    <div class="page-header d-flex justify-content-between align-items-center mb-4">
-        <h3 class="page-title mb-0">Other Income</h3>
-        <a href="{% url 'other_income:invoice_create' %}" class="btn btn-primary">
-            <i class="mdi mdi-plus"></i> Create Invoice
-        </a>
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <h3 class="page-title">Other Income</h3>
+        <a href="{% url 'other_income:invoice_create' %}" class="btn btn-primary">Create Invoice</a>
     </div>
 
-    <!-- Search -->
-    <div class="card mb-3">
-        <div class="card-body py-2">
-            <form method="get" class="d-flex gap-2">
-                <input type="hidden" name="tab" value="{{ active_tab }}">
-                <input type="text" name="q" class="form-control form-control-sm" 
-                       placeholder="Search by client/payer name..." value="{{ search_query }}">
-                <button type="submit" class="btn btn-sm btn-outline-primary">
-                    <i class="mdi mdi-magnify"></i> Search
-                </button>
-                {% if search_query %}
-                <a href="?tab={{ active_tab }}" class="btn btn-sm btn-outline-secondary">Clear</a>
-                {% endif %}
-            </form>
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-sm">
+                <thead><tr><th>Invoice #</th><th>Client</th><th>Total</th><th>Paid</th><th>Balance</th><th>Issue Date</th><th></th></tr></thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td>{{ inv.invoice_number }}</td>
+                        <td>{{ inv.client_name }}</td>
+                        <td>KES {{ inv.total_amount|intcomma }}</td>
+                        <td>KES {{ inv.amount_paid|intcomma }}</td>
+                        <td>KES {{ inv.balance|intcomma }}</td>
+                        <td>{{ inv.issue_date|date:"d M Y" }}</td>
+                        <td>
+                            <a href="{% url 'other_income:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center">No invoices yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </div>
-
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item">
-            <a class="nav-link {% if active_tab == 'invoices' %}active{% endif %}" 
-               href="?tab=invoices{% if search_query %}&q={{ search_query }}{% endif %}">
-                <i class="mdi mdi-file-document-outline"></i> Invoices
-                <span class="badge bg-primary ms-1">{{ invoices|length }}</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link {% if active_tab == 'payments' %}active{% endif %}" 
-               href="?tab=payments{% if search_query %}&q={{ search_query }}{% endif %}">
-                <i class="mdi mdi-cash-multiple"></i> Payments
-                <span class="badge bg-success ms-1">{{ payments|length }}</span>
-            </a>
-        </li>
-    </ul>
-
-    <!-- Tab Content -->
-    <div class="tab-content">
-        {% if active_tab == 'invoices' %}
-        <!-- Invoices Tab -->
-        <div class="card">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Invoice #</th>
-                                <th>Client</th>
-                                <th>Description</th>
-                                <th class="text-end">Total</th>
-                                <th class="text-end">Paid</th>
-                                <th class="text-end">Balance</th>
-                                <th>Status</th>
-                                <th>Issue Date</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for inv in invoices %}
-                            <tr>
-                                <td><strong>{{ inv.invoice_number }}</strong></td>
-                                <td>{{ inv.client_name }}</td>
-                                <td class="text-muted">{{ inv.description|truncatechars:30 }}</td>
-                                <td class="text-end">KES {{ inv.total_amount|intcomma }}</td>
-                                <td class="text-end text-success">KES {{ inv.amount_paid|intcomma }}</td>
-                                <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                                    KES {{ inv.balance|intcomma }}
-                                </td>
-                                <td>
-                                    {% if inv.status == 'paid' %}
-                                    <span class="badge bg-success">Paid</span>
-                                    {% elif inv.status == 'partial' %}
-                                    <span class="badge bg-warning text-dark">Partial</span>
-                                    {% else %}
-                                    <span class="badge bg-danger">Unpaid</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ inv.issue_date|date:"d M Y" }}</td>
-                                <td>
-                                    <a href="{% url 'other_income:invoice_detail' inv.pk %}" 
-                                       class="btn btn-sm btn-outline-primary">View</a>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">
-                                    <i class="mdi mdi-file-document-outline mdi-48px"></i>
-                                    <p class="mb-0">No invoices found</p>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <!-- Payments Tab -->
-        <div class="card">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Reference</th>
-                                <th>Invoice</th>
-                                <th>Client</th>
-                                <th>Payer</th>
-                                <th class="text-end">Amount</th>
-                                <th>Method</th>
-                                <th>Date</th>
-                                <th>Received By</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for payment in payments %}
-                            <tr>
-                                <td><strong>{{ payment.payment_reference }}</strong></td>
-                                <td>
-                                    <a href="{% url 'other_income:invoice_detail' payment.invoice.pk %}">
-                                        {{ payment.invoice.invoice_number }}
-                                    </a>
-                                </td>
-                                <td>{{ payment.invoice.client_name }}</td>
-                                <td>{{ payment.payer_name|default:"-" }}</td>
-                                <td class="text-end text-success">KES {{ payment.amount|intcomma }}</td>
-                                <td>{{ payment.payment_method|default:"-" }}</td>
-                                <td>{{ payment.payment_date|date:"d M Y H:i" }}</td>
-                                <td>
-                                    {% if payment.received_by %}
-                                        {{ payment.received_by.get_full_name }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{% url 'other_income:invoice_detail' payment.invoice.pk %}" 
-                                       class="btn btn-sm btn-outline-primary">View Invoice</a>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">
-                                    <i class="mdi mdi-cash-multiple mdi-48px"></i>
-                                    <p class="mb-0">No payments found</p>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

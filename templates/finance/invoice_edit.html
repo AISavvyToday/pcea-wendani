@@ -42,18 +42,18 @@
           display: block;
       }
       .item-row.is-transport .description-only {
-          display: none;
+          display: none !important;
       }
 
-      /* Transport fields visibility - hide by default, show when transport */
+      /* Transport fields visibility - hide by default, show only when transport */
       .transport-inline {
-          display: none;
+          display: none !important;
           margin-top: 8px;
           padding-top: 8px;
           border-top: 1px dashed #dee2e6;
       }
       .item-row.is-transport .transport-inline {
-          display: flex;
+          display: flex !important;
           gap: 8px;
       }
   </style>
@@ -155,10 +155,10 @@
                                              value="{{ item_form.amount.value|default:'0.00' }}"
                                              class="form-control form-control-sm amount-input"
                                              step="0.01" min="0">
-                                      <!-- Hidden discount field with 0 value -->
+                                      <!-- Hidden discount field -->
                                       <input type="hidden"
                                              name="{{ item_form.discount_applied.html_name }}"
-                                             value="0.00">
+                                             value="{{ item_form.discount_applied.value|default:'0.00' }}">
                                   </td>
                                   <td class="text-center">
                                       <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
@@ -225,8 +225,10 @@
       // Get category options HTML for new rows
       const categoryOptionsHtml = `{% for value, label in formset.empty_form.category.field.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}`;
 
-      // Initialize existing rows
-      document.querySelectorAll('.item-row').forEach(initRow);
+      // Initialize existing rows - ensure proper visibility
+      document.querySelectorAll('.item-row').forEach(row => {
+          initRow(row);
+      });
 
       // Add Item button
       document.getElementById('add-item-btn').addEventListener('click', function() {
@@ -262,7 +264,13 @@
 
       function initRow(row) {
           const categorySelect = row.querySelector('.category-select');
-          setTransportVisibility(row, categorySelect && categorySelect.value === 'transport');
+          const isTransport = categorySelect && categorySelect.value === 'transport';
+          setTransportVisibility(row, isTransport);
+          
+          // If it's a transport row and has route/trip, initialize the amount
+          if (isTransport) {
+              setTimeout(() => updateTransportAmount(row), 100);
+          }
       }
 
       function handleCategoryChange(select) {
@@ -287,6 +295,8 @@
 
       function setTransportVisibility(row, isTransport) {
           const amountInput = row.querySelector('.amount-input');
+          const descOnly = row.querySelector('.description-only');
+          const transportInline = row.querySelector('.transport-inline');
 
           if (isTransport) {
               // Add is-transport class - CSS handles showing/hiding fields
@@ -295,6 +305,9 @@
                   amountInput.readOnly = true;
                   amountInput.classList.add('readonly-amount');
               }
+              // Explicitly hide/show for reliability
+              if (descOnly) descOnly.style.display = 'none';
+              if (transportInline) transportInline.style.display = 'flex';
           } else {
               // Remove is-transport class - CSS handles showing/hiding fields
               row.classList.remove('is-transport');
@@ -302,6 +315,9 @@
                   amountInput.readOnly = false;
                   amountInput.classList.remove('readonly-amount');
               }
+              // Explicitly hide/show for reliability
+              if (descOnly) descOnly.style.display = 'block';
+              if (transportInline) transportInline.style.display = 'none';
           }
       }
 
@@ -321,15 +337,27 @@
               if (amount !== undefined) {
                   amountInput.value = amount.toFixed(2);
 
-                  // Auto-fill description if empty
-                  if (descInput && !descInput.value.trim()) {
-                      const routeName = routeSelect.options[routeSelect.selectedIndex].text;
-                      const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
+                  // Auto-fill description - extract route name from option text
+                  const selectedOption = routeSelect.options[routeSelect.selectedIndex];
+                  let routeName = selectedOption ? selectedOption.text : '';
+                  // Remove fee info from route name if present (format: "Route Name (Full: KES X | Half: KES Y)")
+                  if (routeName.includes('(')) {
+                      routeName = routeName.split('(')[0].trim();
+                  }
+                  const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
+                  
+                  // Update description field (even if hidden, we want it for backend)
+                  if (descInput) {
                       descInput.value = `Transport - ${routeName} (${tripLabel})`;
                   }
 
                   updateTotals();
               }
+          } else if (!routeId) {
+              // No route selected, clear amount
+              amountInput.value = '0.00';
+              if (descInput) descInput.value = '';
+              updateTotals();
           }
       }
 
@@ -358,7 +386,7 @@
                              class="form-control form-control-sm description-input" placeholder="Description">
                   </div>
 
-                  <div class="transport-inline">
+                  <div class="transport-inline" style="display: none;">
                       <div class="flex-grow-1">
                           <label class="form-label small mb-1">Route:</label>
                           <select name="form-${currentCount}-transport_route" id="id_form-${currentCount}-transport_route" class="form-select form-select-sm route-select">
@@ -388,6 +416,9 @@
 
           container.appendChild(newRow);
           totalFormsInput.value = currentCount + 1;
+
+          // Initialize the new row (this will set proper visibility)
+          initRow(newRow);
 
           // Focus on the category select of the new row
           const categorySelect = newRow.querySelector('.category-select');
