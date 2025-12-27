@@ -206,25 +206,21 @@
                     <strong>Payment Date</strong>
                     {{ payment.payment_date|date:"d M Y" }}
                 </div>
-                <div class="col">
-                    <strong>Invoice Type</strong>
-                    {{ invoice.get_income_type_display }}
-                </div>
             </div>
 
             <!-- Payer Information -->
             <div class="meta-info">
                 <div class="col">
-                    <strong>Payer Name</strong>
-                    {{ invoice.payer_name|default:invoice.payer_organization|default:"-" }}
+                    <strong>Client Name</strong>
+                    {{ invoice.client_name }}
                 </div>
                 <div class="col">
-                    <strong>Organization</strong>
-                    {{ invoice.payer_organization|default:"-" }}
+                    <strong>Payer Name</strong>
+                    {{ payment.payer_name|default:invoice.client_name|default:"-" }}
                 </div>
                 <div class="col">
                     <strong>Contact</strong>
-                    {{ invoice.payer_phone|default:"-" }}
+                    {{ payment.payer_contact|default:invoice.client_contact|default:"-" }}
                 </div>
             </div>
 
@@ -259,7 +255,7 @@
                 <div class="label">AMOUNT RECEIVED</div>
                 <div class="value">KES {{ payment.amount|intcomma }}</div>
                 <div class="small" style="margin-top: 4px;">
-                    Payment Method: {{ payment.get_payment_method_display }}
+                    Payment Method: {{ payment.payment_method|default:"—" }}
                     {% if payment.transaction_reference %} • Ref: {{ payment.transaction_reference }}{% endif %}
                 </div>
             </div>
