@@ -21,4 +21,8 @@ urlpatterns = [
     path('transport-report/', views.TransportReportView.as_view(), name='transport_report'),
     path('transport-report/export/xlsx/', views_exports.TransportReportExcelView.as_view(), name='transport_report_export_excel'),
     path('transport-report/export/pdf/', views_exports.TransportReportPDFView.as_view(), name='transport_report_export_pdf'),
+
+    # Invoice List Exports (for invoice list page)
+    path('invoice-list/export/xlsx/', views_exports.InvoiceListExcelView.as_view(), name='invoice_xlsx'),
+    path('invoice-list/export/pdf/', views_exports.InvoiceListPDFView.as_view(), name='invoice_pdf'),
 ]

@@ -23,7 +23,8 @@ from weasyprint import HTML
 # Import models used by the reports
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
-from academics.models import TransportRoute, AcademicYear
+from academics.models import TransportRoute, AcademicYear, Term
+from core.models import InvoiceStatus
 
 
 # ---------- Helpers ----------
@@ -1186,6 +1187,184 @@ class TransportReportPDFView(LoginRequiredMixin, View):
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
         filename = f"transport-report-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# ---------- Invoice List Exports ----------
+class InvoiceListExcelView(LoginRequiredMixin, View):
+    """Exports invoice list to Excel with same filters as InvoiceListView."""
+
+    def get_queryset(self):
+        """Apply same filtering logic as InvoiceListView."""
+        queryset = Invoice.objects.filter(
+            is_active=True
+        ).select_related('student', 'term', 'term__academic_year')
+
+        query = self.request.GET.get('query', '')
+        if query:
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=query) |
+                Q(student__admission_number__icontains=query) |
+                Q(student__first_name__icontains=query) |
+                Q(student__last_name__icontains=query)
+            )
+
+        term = self.request.GET.get('term')
+        if term:
+            queryset = queryset.filter(term_id=term)
+
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        grade = self.request.GET.get('grade')
+        if grade:
+            queryset = queryset.filter(student__current_class__grade_level=grade)
+
+        return queryset.order_by('-issue_date', '-created_at')
+
+    def get(self, request):
+        invoices = self.get_queryset()
+
+        # Build workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Invoice List"
+
+        add_common_header(ws, "Invoice List")
+
+        headers = ['Invoice #', 'Issue Date', 'Student Name', 'Admission No', 'Term', 
+                   'Total (KES)', 'Bal B/F (KES)', 'Prepayment (KES)', 'Paid (KES)', 'Balance (KES)', 'Status']
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=5, column=c, value=h).font = Font(bold=True)
+
+        row_num = 6
+        for invoice in invoices:
+            student_name = invoice.student.full_name if invoice.student else '—'
+            admission_no = invoice.student.admission_number if invoice.student else '—'
+            term_str = str(invoice.term) if invoice.term else '—'
+            # Get status display - Django automatically provides get_status_display() for CharField with choices
+            status_str = invoice.get_status_display() if hasattr(invoice, 'get_status_display') else str(invoice.status)
+
+            ws.cell(row=row_num, column=1, value=invoice.invoice_number)
+            ws.cell(row=row_num, column=2, value=invoice.issue_date.strftime('%Y-%m-%d') if invoice.issue_date else '—')
+            ws.cell(row=row_num, column=3, value=student_name)
+            ws.cell(row=row_num, column=4, value=admission_no)
+            ws.cell(row=row_num, column=5, value=term_str)
+            ws.cell(row=row_num, column=6, value=float(invoice.total_amount or 0))
+            format_money_cell(ws.cell(row=row_num, column=6))
+            ws.cell(row=row_num, column=7, value=float(invoice.balance_bf or 0))
+            format_money_cell(ws.cell(row=row_num, column=7))
+            ws.cell(row=row_num, column=8, value=float(invoice.prepayment or 0))
+            format_money_cell(ws.cell(row=row_num, column=8))
+            ws.cell(row=row_num, column=9, value=float(invoice.amount_paid or 0))
+            format_money_cell(ws.cell(row=row_num, column=9))
+            ws.cell(row=row_num, column=10, value=float(invoice.balance or 0))
+            format_money_cell(ws.cell(row=row_num, column=10))
+            ws.cell(row=row_num, column=11, value=status_str)
+            row_num += 1
+
+        # Totals row
+        totals = invoices.aggregate(
+            total_amount=Sum('total_amount'),
+            total_balance_bf=Sum('balance_bf'),
+            total_prepayment=Sum('prepayment'),
+            total_paid=Sum('amount_paid'),
+            total_balance=Sum('balance')
+        )
+        ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
+        ws.cell(row=row_num, column=6, value=float(totals['total_amount'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=6))
+        ws.cell(row=row_num, column=7, value=float(totals['total_balance_bf'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=7))
+        ws.cell(row=row_num, column=8, value=float(totals['total_prepayment'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=8))
+        ws.cell(row=row_num, column=9, value=float(totals['total_paid'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=9))
+        ws.cell(row=row_num, column=10, value=float(totals['total_balance'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=10))
+        ws.cell(row=row_num, column=6).font = Font(bold=True)
+        ws.cell(row=row_num, column=7).font = Font(bold=True)
+        ws.cell(row=row_num, column=8).font = Font(bold=True)
+        ws.cell(row=row_num, column=9).font = Font(bold=True)
+        ws.cell(row=row_num, column=10).font = Font(bold=True)
+
+        # Auto width columns
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 18
+
+        bytes_data = workbook_to_bytes(wb)
+        filename = f"invoice-list-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        return xlsx_response(bytes_data, filename)
+
+
+class InvoiceListPDFView(LoginRequiredMixin, View):
+    """Generates PDF for invoice list."""
+
+    def get_queryset(self):
+        """Apply same filtering logic as InvoiceListView."""
+        queryset = Invoice.objects.filter(
+            is_active=True
+        ).select_related('student', 'term', 'term__academic_year')
+
+        query = self.request.GET.get('query', '')
+        if query:
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=query) |
+                Q(student__admission_number__icontains=query) |
+                Q(student__first_name__icontains=query) |
+                Q(student__last_name__icontains=query)
+            )
+
+        term = self.request.GET.get('term')
+        if term:
+            queryset = queryset.filter(term_id=term)
+
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        grade = self.request.GET.get('grade')
+        if grade:
+            queryset = queryset.filter(student__current_class__grade_level=grade)
+
+        return queryset.order_by('-issue_date', '-created_at')
+
+    def get(self, request):
+        invoices = self.get_queryset()
+        
+        # Calculate totals
+        totals = invoices.aggregate(
+            total_amount=Sum('total_amount'),
+            total_balance_bf=Sum('balance_bf'),
+            total_prepayment=Sum('prepayment'),
+            total_paid=Sum('amount_paid'),
+            total_balance=Sum('balance')
+        )
+
+        context = {
+            'invoices': invoices,
+            'totals': {
+                'total_amount': totals['total_amount'] or Decimal('0.00'),
+                'total_balance_bf': totals['total_balance_bf'] or Decimal('0.00'),
+                'total_prepayment': totals['total_prepayment'] or Decimal('0.00'),
+                'total_paid': totals['total_paid'] or Decimal('0.00'),
+                'total_balance': totals['total_balance'] or Decimal('0.00'),
+            },
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'generated_by': request.user.get_full_name(),
+            'generated_on': datetime.now(),
+        }
+
+        html_string = render_to_string('reports/pdf/invoice_list_pdf.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        pdf_bytes = html.write_pdf()
+        filename = f"invoice-list-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

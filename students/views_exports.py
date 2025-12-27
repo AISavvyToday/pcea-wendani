@@ -245,3 +245,5 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
+
+

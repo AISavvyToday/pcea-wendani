@@ -1,0 +1,372 @@
+<!-- reports/pdf/invoice_list_pdf.html -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ SCHOOL_NAME }} - Invoice List</title>
+
+<style>
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ===== BASE ===== */
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 8.5pt;
+  color: #222;
+  margin: 0;
+  background: #fff;
+  line-height: 1.3;
+}
+
+.page {
+  width: 297mm;
+  min-height: 210mm;
+  page-break-after: always;
+}
+
+.page-content {
+  padding: 15mm 10mm 15mm 10mm;
+}
+
+/* ===== LETTERHEAD ===== */
+.letterhead {
+  border-bottom: 2px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  max-height: 55px;
+}
+
+.school-info {
+  text-align: center;
+  flex: 1;
+}
+
+.school-name {
+  font-size: 17pt;
+  font-weight: bold;
+  margin: 0;
+}
+
+.school-details {
+  font-size: 8pt;
+  color: #555;
+}
+
+.report-title {
+  font-size: 13pt;
+  font-weight: bold;
+  margin-top: 5px;
+}
+
+.report-period {
+  font-size: 8.5pt;
+  color: #666;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* ===== META INFO ===== */
+.meta-info {
+  background: #f4f6f8;
+  border: 1px solid #ddd;
+  padding: 5px;
+  margin: 8px 0;
+  font-size: 8pt;
+  text-align: center;
+}
+
+/* ===== SUMMARY BOX ===== */
+.summary-box {
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.summary-item {
+  border: 1px solid #ddd;
+  padding: 6px;
+  text-align: center;
+}
+
+.summary-label {
+  font-size: 8pt;
+  color: #666;
+}
+
+.summary-value {
+  font-size: 10pt;
+  font-weight: bold;
+  font-family: "Courier New", monospace;
+}
+
+.summary-value.positive { color: #c0392b; }
+.summary-value.negative { color: #27ae60; }
+
+/* ===== TABLE ===== */
+.table-container {
+  margin-top: 10px;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8pt;
+}
+
+.report-table th,
+.report-table td {
+  border: 1px solid #444;
+  padding: 5px 4px;
+}
+
+.report-table thead th {
+  background: #2c3e50;
+  color: #fff;
+  font-size: 8.5pt;
+  font-weight: bold;
+  text-align: center;
+}
+
+.report-table tbody tr:nth-child(even) {
+  background: #f8f8f8;
+}
+
+.text-right {
+  text-align: right;
+  font-family: "Courier New", monospace;
+}
+
+.text-left {
+  text-align: left;
+}
+
+/* Column widths for landscape A4 */
+.report-table th:nth-child(1),
+.report-table td:nth-child(1) { width: 10%; } /* Invoice # */
+.report-table th:nth-child(2),
+.report-table td:nth-child(2) { width: 7%; } /* Issue Date */
+.report-table th:nth-child(3),
+.report-table td:nth-child(3) { width: 18%; } /* Student Name */
+.report-table th:nth-child(4),
+.report-table td:nth-child(4) { width: 8%; } /* Admission No */
+.report-table th:nth-child(5),
+.report-table td:nth-child(5) { width: 12%; } /* Term */
+.report-table th:nth-child(6),
+.report-table td:nth-child(6) { width: 10%; } /* Total */
+.report-table th:nth-child(7),
+.report-table td:nth-child(7) { width: 9%; } /* Bal B/F */
+.report-table th:nth-child(8),
+.report-table td:nth-child(8) { width: 9%; } /* Prepayment */
+.report-table th:nth-child(9),
+.report-table td:nth-child(9) { width: 9%; } /* Paid */
+.report-table th:nth-child(10),
+.report-table td:nth-child(10) { width: 9%; } /* Balance */
+.report-table th:nth-child(11),
+.report-table td:nth-child(11) { width: 9%; } /* Status */
+
+/* ===== AMOUNTS ===== */
+.amount-positive { color: #c0392b; font-weight: bold; }
+.amount-negative { color: #27ae60; font-weight: bold; }
+.amount-zero { color: #7f8c8d; }
+
+/* ===== TOTAL ROW ===== */
+.report-table tfoot th,
+.report-table tfoot td {
+  background: #eaeaea;
+  font-weight: bold;
+}
+
+/* ===== NO DATA ===== */
+.no-data {
+  text-align: center;
+  padding: 25px;
+  border: 2px dashed #bbb;
+  font-size: 10pt;
+}
+
+/* ===== FOOTER ===== */
+.document-footer {
+  margin-top: 14px;
+  border-top: 1px solid #aaa;
+  padding-top: 8px;
+  font-size: 8pt;
+}
+
+.page-number {
+  position: absolute;
+  bottom: 10mm;
+  right: 10mm;
+  font-size: 8pt;
+  color: #777;
+}
+</style>
+</head>
+
+<body>
+<div class="page">
+  <div class="page-content">
+
+    <!-- LETTERHEAD -->
+    <div class="letterhead">
+      <div class="header-content">
+        {% if SCHOOL_LOGO_URL %}<img src="{{ SCHOOL_LOGO_URL }}" class="logo" alt="School Logo">{% endif %}
+        <div class="school-info">
+          <h1 class="school-name">{{ SCHOOL_NAME }}</h1>
+          <div class="school-details">{{ SCHOOL_ADDRESS }} • Tel: {{ SCHOOL_CONTACT }}</div>
+          <div class="report-title" style="margin-top:8px;">Invoice List</div>
+          <div class="report-period">Generated: {{ generated_on|date:"d M Y H:i" }}</div>
+        </div>
+        <div style="width: 55px;"></div>
+      </div>
+    </div>
+
+    <!-- META INFO -->
+    <div class="meta-info">
+      Generated by: {{ generated_by }} | Date: {{ generated_on|date:"d M Y H:i" }}
+    </div>
+
+    <!-- SUMMARY -->
+    {% if totals %}
+    <div class="summary-box">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Invoices</div>
+          <div class="summary-value">{{ invoices|length }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Amount</div>
+          <div class="summary-value">{{ totals.total_amount|floatformat:2 }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Paid</div>
+          <div class="summary-value">{{ totals.total_paid|floatformat:2 }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Balance</div>
+          <div class="summary-value {% if totals.total_balance > 0 %}positive{% else %}negative{% endif %}">
+            {{ totals.total_balance|floatformat:2 }}
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Bal B/F</div>
+          <div class="summary-value">{{ totals.total_balance_bf|floatformat:2 }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- TABLE -->
+    <div class="table-container">
+      {% if invoices %}
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Issue Date</th>
+            <th>Student Name</th>
+            <th>Admission No</th>
+            <th>Term</th>
+            <th class="text-right">Total (KES)</th>
+            <th class="text-right">Bal B/F (KES)</th>
+            <th class="text-right">Prepay (KES)</th>
+            <th class="text-right">Paid (KES)</th>
+            <th class="text-right">Balance (KES)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invoice in invoices %}
+          <tr>
+            <td class="text-left">{{ invoice.invoice_number }}</td>
+            <td class="text-center">{{ invoice.issue_date|date:"Y-m-d"|default:"—" }}</td>
+            <td class="text-left">{{ invoice.student.full_name|default:"—" }}</td>
+            <td class="text-left">{{ invoice.student.admission_number|default:"—" }}</td>
+            <td class="text-left">{{ invoice.term|default:"—" }}</td>
+            <td class="text-right">{{ invoice.total_amount|floatformat:2|default:"0.00" }}</td>
+            <td class="text-right">
+              {% if invoice.balance_bf %}
+                {{ invoice.balance_bf|floatformat:2 }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-right">
+              {% if invoice.prepayment %}
+                <span class="amount-negative">{{ invoice.prepayment|floatformat:2 }}</span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-right">{{ invoice.amount_paid|floatformat:2|default:"0.00" }}</td>
+            <td class="text-right">
+              {% if invoice.balance %}
+                {% if invoice.balance > 0 %}
+                  <span class="amount-positive">{{ invoice.balance|floatformat:2 }}</span>
+                {% elif invoice.balance < 0 %}
+                  <span class="amount-negative">{{ invoice.balance|floatformat:2 }}</span>
+                {% else %}
+                  <span class="amount-zero">{{ invoice.balance|floatformat:2 }}</span>
+                {% endif %}
+              {% else %}
+                0.00
+              {% endif %}
+            </td>
+            <td class="text-center">{{ invoice.get_status_display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5" class="text-right">TOTALS</th>
+            <th class="text-right">{{ totals.total_amount|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_balance_bf|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_prepayment|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_paid|floatformat:2 }}</th>
+            <th class="text-right {% if totals.total_balance > 0 %}amount-positive{% elif totals.total_balance < 0 %}amount-negative{% endif %}">
+              {{ totals.total_balance|floatformat:2 }}
+            </th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+      {% else %}
+      <div class="no-data">
+        <h3>No Data Available</h3>
+        <p>No invoices found matching the selected criteria.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="document-footer">
+      <div class="page-number">Page 1 of 1</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+
