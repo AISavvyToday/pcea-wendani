@@ -84,6 +84,9 @@ def _get_active_students_qs():
     qs = Student.objects.all()
     if _model_has_field(Student, "is_active"):
         qs = qs.filter(is_active=True)
+    # Filter by status='active' to exclude transferred/inactive/graduated students from statistics
+    if _model_has_field(Student, "status"):
+        qs = qs.filter(status='active')
     return qs
 
 
