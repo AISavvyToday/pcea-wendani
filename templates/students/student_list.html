@@ -16,7 +16,28 @@
     </div>
 
     <div class="text-end d-flex gap-2 justify-content-end flex-wrap">
-      
+      <div class="dropdown">
+        <button class="btn btn-gradient-info btn-sm dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="mdi mdi-download"></i> Export / Print
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
+          <li>
+            <a class="dropdown-item" href="{% url 'students:export_excel' %}">
+              <i class="mdi mdi-file-excel text-success me-2"></i>Export to Excel
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="{% url 'students:export_pdf' %}">
+              <i class="mdi mdi-file-pdf text-danger me-2"></i>Export to PDF
+            </a>
+          </li>
+          <li>
+            <button type="button" class="dropdown-item" onclick="window.print();">
+              <i class="mdi mdi-printer me-2"></i>Print
+            </button>
+          </li>
+        </ul>
+      </div>
 
       <a href="{% url 'students:create' %}" class="btn btn-gradient-success btn-sm">
         <i class="mdi mdi-plus"></i> New Student
