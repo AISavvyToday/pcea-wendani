@@ -151,6 +151,10 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
             total_collected += collected
             total_outstanding += outstanding
 
+        # Calculate balance B/F and prepayment totals from invoices
+        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+
         # Build workbook
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -158,7 +162,7 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
 
         add_common_header(ws, f"Invoice Summary Report - {academic_year.year} Term {term}")
 
-        headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)']
+        headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)', 'Bal B/F (KES)', 'Prepayment (KES)']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
@@ -171,6 +175,9 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
             format_money_cell(ws.cell(row=row_num, column=3))
             ws.cell(row=row_num, column=4, value=float(r['outstanding']))
             format_money_cell(ws.cell(row=row_num, column=4))
+            # Balance B/F and Prepayment are invoice-level, so show empty for category rows
+            ws.cell(row=row_num, column=5, value='-')
+            ws.cell(row=row_num, column=6, value='-')
             row_num += 1
 
         # Totals row
@@ -181,6 +188,10 @@ class InvoiceReportExcelView(LoginRequiredMixin, View):
         format_money_cell(ws.cell(row=row_num, column=3))
         ws.cell(row=row_num, column=4, value=float(total_outstanding))
         format_money_cell(ws.cell(row=row_num, column=4))
+        ws.cell(row=row_num, column=5, value=float(balance_bf_total))
+        format_money_cell(ws.cell(row=row_num, column=5))
+        ws.cell(row=row_num, column=6, value=float(prepayment_total))
+        format_money_cell(ws.cell(row=row_num, column=6))
 
         # Auto width columns
         for col in range(1, len(headers) + 1):
@@ -270,12 +281,18 @@ class InvoiceReportPDFView(LoginRequiredMixin, View):
             total_collected += collected
             total_outstanding += outstanding
 
+        # Calculate balance B/F and prepayment totals from invoices
+        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+
         context = {
             'report_rows': rows,
             'totals': {
                 'billed': total_billed,
                 'collected': total_collected,
-                'outstanding': total_outstanding
+                'outstanding': total_outstanding,
+                'balance_bf': balance_bf_total,
+                'prepayment': prepayment_total
             },
             'academic_year': academic_year,
             'term': term,

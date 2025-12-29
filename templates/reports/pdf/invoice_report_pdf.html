@@ -164,14 +164,18 @@ body {
 }
 
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 34%; }
+.report-table td:nth-child(1) { width: 20%; }
 
 .report-table th:nth-child(2),
 .report-table td:nth-child(2),
 .report-table th:nth-child(3),
 .report-table td:nth-child(3),
 .report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 22%; }
+.report-table td:nth-child(4),
+.report-table th:nth-child(5),
+.report-table td:nth-child(5),
+.report-table th:nth-child(6),
+.report-table td:nth-child(6) { width: 16%; }
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -292,6 +296,8 @@ body {
             <th class="text-right">Billed (KES)</th>
             <th class="text-right">Collected (KES)</th>
             <th class="text-right">Outstanding (KES)</th>
+            <th class="text-right">Bal B/F (KES)</th>
+            <th class="text-right">Prepayment (KES)</th>
           </tr>
         </thead>
         <tbody>
@@ -309,6 +315,8 @@ body {
                 <span class="amount-zero">{{ row.outstanding|floatformat:2 }}</span>
               {% endif %}
             </td>
+            <td class="text-right">-</td>
+            <td class="text-right">-</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -318,6 +326,8 @@ body {
             <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
             <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
             <th class="text-right">{{ totals.outstanding|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.balance_bf|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.prepayment|floatformat:2 }}</th>
           </tr>
         </tfoot>
       </table>
