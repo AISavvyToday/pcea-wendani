@@ -387,15 +387,19 @@ def dashboard_admin(request):
     year_collected = Decimal(str(year_stats["collected"] or 0))
     year_rate = (year_collected / year_billed * 100) if year_billed > 0 else Decimal("0")
 
-    # Dashboard cards arranged in logical order:
-    # Row 1: Core counts (Students, Staff)
-    # Row 2: Financial summary (Billed, Collected, Outstanding)
-    # Row 3: Financial details (Prepayments, Bal B/F, Bank Txns)
+    # Dashboard cards arranged in requested order:
+    # 1. Total Students
+    # 2. Bal B/F (Balance Brought Forward)
+    # 3. Total Prepayments
+    # 4. Billed
+    # 5. Expected Collection (same as Billed - total amount expected to be collected)
+    # 6. Collected
+    # 7. Outstanding Bal
+    expected_collection = billed  # Expected collection equals billed amount
     context = {
         "current_term": term,
         "current_academic_year": academic_year,
         "stat_cards": [
-            # Row 1: Core Counts
             {
                 "title": "Total Students",
                 "value": f"{total_students:,}",
@@ -405,15 +409,23 @@ def dashboard_admin(request):
                 "helper": "Active/enrolled students",
             },
             {
-                "title": "Staff Members",
-                "value": f"{staff_count:,}",
-                "icon": "mdi-account-tie",
-                "bg": "bg-gradient-secondary",
-                "helper": "Teachers & admin staff",
+                "title": "Bal B/F",
+                "value": _fmt_kes(balances_bf),
+                "icon": "mdi-history",
+                "bg": "bg-gradient-warning",
+                "url": invoices_term_url,
+                "helper": "Previous term balances",
             },
-            # Row 2: Financial Summary
             {
-                "title": "Billed (This Term)",
+                "title": "Total Prepayments",
+                "value": _fmt_kes(prepayments),
+                "icon": "mdi-cash-plus",
+                "bg": "bg-gradient-success",
+                "url": invoices_term_url,
+                "helper": "Advance payments",
+            },
+            {
+                "title": "Billed",
                 "value": _fmt_kes(billed),
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
@@ -421,7 +433,15 @@ def dashboard_admin(request):
                 "helper": "Total invoiced amount",
             },
             {
-                "title": "Collected (This Term)",
+                "title": "Expected Collection",
+                "value": _fmt_kes(expected_collection),
+                "icon": "mdi-file-chart",
+                "bg": "bg-gradient-info",
+                "url": invoices_term_url,
+                "helper": "Total amount expected",
+            },
+            {
+                "title": "Collected",
                 "value": _fmt_kes(collected),
                 "icon": "mdi-cash-check",
                 "bg": "bg-gradient-success",
@@ -429,35 +449,12 @@ def dashboard_admin(request):
                 "helper": f"{rate:.1f}% collection rate",
             },
             {
-                "title": "Outstanding (This Term)",
+                "title": "Outstanding Bal",
                 "value": _fmt_kes(outstanding),
                 "icon": "mdi-alert-circle",
                 "bg": "bg-gradient-warning",
                 "url": outstanding_term_url,
                 "helper": "Unpaid balance",
-            },
-            # Row 3: Financial Details
-            {
-                "title": "Prepayments",
-                "value": _fmt_kes(prepayments),
-                "icon": "mdi-cash-plus",
-                "bg": "bg-gradient-success",
-                "helper": "Advance payments",
-            },
-            {
-                "title": "Balance B/F",
-                "value": _fmt_kes(balances_bf),
-                "icon": "mdi-history",
-                "bg": "bg-gradient-warning",
-                "helper": "Previous term balances",
-            },
-            {
-                "title": "Unmatched Bank Txns",
-                "value": f"{kpis['unmatched_bank_transactions']:,}",
-                "icon": "mdi-bank-transfer",
-                "bg": "bg-gradient-danger",
-                "url": bank_url,
-                "helper": "Needs reconciliation",
             },
         ],
     }
