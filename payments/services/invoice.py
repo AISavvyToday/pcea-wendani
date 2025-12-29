@@ -66,7 +66,7 @@ class InvoiceService:
 
         today = date_cls.today()
 
-        # REMOVED DRAFT CHECK - Only use the statuses we have
+        # Update invoice status based on balance and payment
         if invoice.balance <= 0:
             invoice.status = InvoiceStatus.PAID
         elif invoice.amount_paid > 0:
