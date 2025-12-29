@@ -415,11 +415,11 @@
                             <a href="{% url 'finance:invoice_detail' inv.pk %}" class="btn btn-outline-secondary" title="View Details">
                               <i class="mdi mdi-eye"></i>
                             </a>
-                            <a href="{% url 'finance:invoice_print' inv.pk %}?mode=invoice&copies=2" target="_blank" class="btn btn-outline-primary" title="Print Invoice">
+                            <a href="{% url 'finance:invoice_receipt_print' inv.pk %}?mode=invoice&copies=2" target="_blank" class="btn btn-outline-primary" title="Print Invoice">
                               <i class="mdi mdi-file-document"></i>
                             </a>
                             {% if inv.amount_paid > 0 %}
-                            <a href="{% url 'finance:invoice_print' inv.pk %}?mode=receipt&copies=2" target="_blank" class="btn btn-outline-success" title="Print Receipt">
+                            <a href="{% url 'finance:invoice_receipt_print' inv.pk %}?mode=receipt&copies=2" target="_blank" class="btn btn-outline-success" title="Print Receipt">
                               <i class="mdi mdi-receipt"></i>
                             </a>
                             {% endif %}
