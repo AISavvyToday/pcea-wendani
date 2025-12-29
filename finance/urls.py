@@ -39,6 +39,7 @@ urlpatterns = [
     path('invoices/<uuid:pk>/', views.InvoiceDetailView.as_view(), name='invoice_detail'),
     path('invoices/<uuid:pk>/receipt/', views.InvoicePrintView.as_view(), name='invoice_receipt_print'),
     path('invoices/<uuid:pk>/cancel/', views.InvoiceCancelView.as_view(), name='invoice_cancel'),
+    path('invoices/<uuid:pk>/delete/', views.InvoiceDeleteView.as_view(), name='invoice_delete'),
 
     # Payments
     path('payments/', views.PaymentListView.as_view(), name='payment_list'),

@@ -1116,6 +1116,36 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('finance:invoice_list')
 
 
+class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+    """Soft delete an invoice (sets is_active=False)."""
+
+    model = Invoice
+    template_name = 'finance/invoice_confirm_delete.html'
+    success_url = reverse_lazy('finance:invoice_list')
+    context_object_name = 'invoice'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # Check if invoice has payments
+        if self.object.amount_paid > 0:
+            messages.error(
+                request,
+                f'Cannot delete invoice {self.object.invoice_number}. It has payments (KES {self.object.amount_paid:,.2f}). '
+                'Please reverse payments first or cancel the invoice instead.'
+            )
+            return redirect('finance:invoice_detail', pk=self.object.pk)
+
+        # Soft delete - set is_active to False
+        invoice_number = self.object.invoice_number
+        self.object.is_active = False
+        self.object.save()
+
+        messages.success(request, f'Invoice {invoice_number} deleted successfully.')
+        return HttpResponseRedirect(self.get_success_url())
+
+
 # =============================================================================
 # Payments
 # =============================================================================

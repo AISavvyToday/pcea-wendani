@@ -1,0 +1,72 @@
+{% extends 'base/base.html' %}
+{% block title %}Delete Invoice{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Delete Invoice</h3>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h5 class="alert-heading">Warning!</h5>
+                <p>You are about to delete invoice <strong>{{ invoice.invoice_number }}</strong>.</p>
+                <hr>
+                <p class="mb-0">This action will permanently remove the invoice from the system. This cannot be undone.</p>
+            </div>
+
+            <div class="mb-4">
+                <h5>Invoice Details</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Invoice Number:</strong></td>
+                        <td>{{ invoice.invoice_number }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Student:</strong></td>
+                        <td>{{ invoice.student.full_name }} ({{ invoice.student.admission_number }})</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Term:</strong></td>
+                        <td>{{ invoice.term }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Amount:</strong></td>
+                        <td>KES {{ invoice.total_amount|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Amount Paid:</strong></td>
+                        <td>KES {{ invoice.amount_paid|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Balance:</strong></td>
+                        <td>KES {{ invoice.balance|floatformat:2 }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {% if invoice.amount_paid > 0 %}
+            <div class="alert alert-danger">
+                <i class="mdi mdi-alert-circle"></i>
+                This invoice has payments (KES {{ invoice.amount_paid|floatformat:2 }}). 
+                You cannot delete it. Please reverse payments first or cancel the invoice instead.
+            </div>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-danger" {% if invoice.amount_paid > 0 %}disabled{% endif %}>
+                        <i class="mdi mdi-delete"></i> Delete Invoice
+                    </button>
+                    <a href="{% url 'finance:invoice_detail' invoice.pk %}" class="btn btn-secondary">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
