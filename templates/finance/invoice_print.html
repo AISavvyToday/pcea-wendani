@@ -198,8 +198,36 @@
                 </ul>
             </div>
             {% else %}
-            <!-- Receipt footer with served by and signature -->
+            <!-- Receipt footer with payment terms and signature -->
             <div class="footer">
+                <div style="margin-bottom:16px;">
+                    <div><strong>PAYMENT TERMS / MODE OF PAYMENT</strong></div>
+                    <ol style="margin:8px 0; padding-left:20px; font-size:13px;">
+                        <li>All the above payments should be received on or before the first day of the term by way of Banker's cheque or direct deposit to the school's bank account.</li>
+                        <li>Cash payments and Personal cheques are not acceptable</li>
+                        <li>School bank accounts:
+                            <ul style="margin:4px 0; padding-left:20px; list-style-type:disc;">
+                                <li><strong>EQUITY BANK</strong><br>
+                                    Account Name: P.C.E.A Wendani Academy<br>
+                                    Account No: {{ bank_details.equity.account_no|default:"1130280029105" }}
+                                </li>
+                                <li><strong>CO-OPERATIVE BANK</strong><br>
+                                    Account Name: P.C.E.A Wendani Academy<br>
+                                    Account No: {{ bank_details.coop.account_no|default:"01129158350600" }}
+                                </li>
+                                <li><strong>PAYBILL:</strong><br>
+                                    B/S NO: {{ bank_details.paybill_1.number|default:"247247" }}<br>
+                                    ACC NO: {{ bank_details.paybill_1.acc_format|default:"80029#admission number" }}
+                                </li>
+                                <li><strong>PAYBILL:</strong><br>
+                                    B/S NO: {{ bank_details.paybill_2.number|default:"400222" }}<br>
+                                    ACC NO: {{ bank_details.paybill_2.acc_format|default:"393939#admission number" }}
+                                </li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+                
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
                     <div>
                         <strong>Served by:</strong> {{ printed_by|default:"School Bursar" }}
@@ -213,10 +241,6 @@
                     <div class="signature-box">
                         <div class="signature-line"></div>
                         <div class="signature-label">Cashier's Signature</div>
-                    </div>
-                    <div class="signature-box">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Parent/Guardian Signature</div>
                     </div>
                 </div>
                 
