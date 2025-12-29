@@ -1253,7 +1253,8 @@ class InvoiceListExcelView(LoginRequiredMixin, View):
         add_common_header(ws, "Invoice List")
 
         headers = ['Invoice #', 'Issue Date', 'Student Name', 'Admission No', 'Term', 
-                   'Total (KES)', 'Bal B/F (KES)', 'Prepayment (KES)', 'Paid (KES)', 'Balance (KES)', 'Status']
+                   'Bal B/F (KES)', 'Prepayment (KES)', 'Billed (KES)', 'Discount (KES)', 
+                   'Total (KES)', 'Paid (KES)', 'Balance (KES)', 'Status']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
@@ -1270,21 +1271,27 @@ class InvoiceListExcelView(LoginRequiredMixin, View):
             ws.cell(row=row_num, column=3, value=student_name)
             ws.cell(row=row_num, column=4, value=admission_no)
             ws.cell(row=row_num, column=5, value=term_str)
-            ws.cell(row=row_num, column=6, value=float(invoice.total_amount or 0))
+            ws.cell(row=row_num, column=6, value=float(invoice.balance_bf or 0))
             format_money_cell(ws.cell(row=row_num, column=6))
-            ws.cell(row=row_num, column=7, value=float(invoice.balance_bf or 0))
+            ws.cell(row=row_num, column=7, value=float(invoice.prepayment or 0))
             format_money_cell(ws.cell(row=row_num, column=7))
-            ws.cell(row=row_num, column=8, value=float(invoice.prepayment or 0))
+            ws.cell(row=row_num, column=8, value=float(invoice.subtotal or invoice.total_amount or 0))
             format_money_cell(ws.cell(row=row_num, column=8))
-            ws.cell(row=row_num, column=9, value=float(invoice.amount_paid or 0))
+            ws.cell(row=row_num, column=9, value=float(invoice.discount_amount or 0))
             format_money_cell(ws.cell(row=row_num, column=9))
-            ws.cell(row=row_num, column=10, value=float(invoice.balance or 0))
+            ws.cell(row=row_num, column=10, value=float(invoice.total_amount or 0))
             format_money_cell(ws.cell(row=row_num, column=10))
-            ws.cell(row=row_num, column=11, value=status_str)
+            ws.cell(row=row_num, column=11, value=float(invoice.amount_paid or 0))
+            format_money_cell(ws.cell(row=row_num, column=11))
+            ws.cell(row=row_num, column=12, value=float(invoice.balance or 0))
+            format_money_cell(ws.cell(row=row_num, column=12))
+            ws.cell(row=row_num, column=13, value=status_str)
             row_num += 1
 
         # Totals row
         totals = invoices.aggregate(
+            total_subtotal=Sum('subtotal'),
+            total_discount=Sum('discount_amount'),
             total_amount=Sum('total_amount'),
             total_balance_bf=Sum('balance_bf'),
             total_prepayment=Sum('prepayment'),
@@ -1292,21 +1299,22 @@ class InvoiceListExcelView(LoginRequiredMixin, View):
             total_balance=Sum('balance')
         )
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
-        ws.cell(row=row_num, column=6, value=float(totals['total_amount'] or 0))
+        ws.cell(row=row_num, column=6, value=float(totals['total_balance_bf'] or 0))
         format_money_cell(ws.cell(row=row_num, column=6))
-        ws.cell(row=row_num, column=7, value=float(totals['total_balance_bf'] or 0))
+        ws.cell(row=row_num, column=7, value=float(totals['total_prepayment'] or 0))
         format_money_cell(ws.cell(row=row_num, column=7))
-        ws.cell(row=row_num, column=8, value=float(totals['total_prepayment'] or 0))
+        ws.cell(row=row_num, column=8, value=float(totals['total_subtotal'] or totals['total_amount'] or 0))
         format_money_cell(ws.cell(row=row_num, column=8))
-        ws.cell(row=row_num, column=9, value=float(totals['total_paid'] or 0))
+        ws.cell(row=row_num, column=9, value=float(totals['total_discount'] or 0))
         format_money_cell(ws.cell(row=row_num, column=9))
-        ws.cell(row=row_num, column=10, value=float(totals['total_balance'] or 0))
+        ws.cell(row=row_num, column=10, value=float(totals['total_amount'] or 0))
         format_money_cell(ws.cell(row=row_num, column=10))
-        ws.cell(row=row_num, column=6).font = Font(bold=True)
-        ws.cell(row=row_num, column=7).font = Font(bold=True)
-        ws.cell(row=row_num, column=8).font = Font(bold=True)
-        ws.cell(row=row_num, column=9).font = Font(bold=True)
-        ws.cell(row=row_num, column=10).font = Font(bold=True)
+        ws.cell(row=row_num, column=11, value=float(totals['total_paid'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=11))
+        ws.cell(row=row_num, column=12, value=float(totals['total_balance'] or 0))
+        format_money_cell(ws.cell(row=row_num, column=12))
+        for col in [6, 7, 8, 9, 10, 11, 12]:
+            ws.cell(row=row_num, column=col).font = Font(bold=True)
 
         # Auto width columns
         for col in range(1, len(headers) + 1):
@@ -1354,6 +1362,8 @@ class InvoiceListPDFView(LoginRequiredMixin, View):
         
         # Calculate totals
         totals = invoices.aggregate(
+            total_subtotal=Sum('subtotal'),
+            total_discount=Sum('discount_amount'),
             total_amount=Sum('total_amount'),
             total_balance_bf=Sum('balance_bf'),
             total_prepayment=Sum('prepayment'),
@@ -1364,6 +1374,8 @@ class InvoiceListPDFView(LoginRequiredMixin, View):
         context = {
             'invoices': invoices,
             'totals': {
+                'total_subtotal': totals['total_subtotal'] or Decimal('0.00'),
+                'total_discount': totals['total_discount'] or Decimal('0.00'),
                 'total_amount': totals['total_amount'] or Decimal('0.00'),
                 'total_balance_bf': totals['total_balance_bf'] or Decimal('0.00'),
                 'total_prepayment': totals['total_prepayment'] or Decimal('0.00'),

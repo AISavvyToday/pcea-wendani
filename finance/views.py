@@ -1991,8 +1991,28 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                 for inst in formset.deleted_objects:
                     inst.delete()
 
+                # Update discount_amount from form if provided
+                discount_amount = form.cleaned_data.get('discount_amount', Decimal('0.00'))
+                if discount_amount is None:
+                    discount_amount = Decimal('0.00')
+                
                 # Recalculate invoice totals from all items
                 self.recalculate_invoice_totals(invoice)
+                
+                # Override discount_amount with form value if provided
+                if discount_amount is not None:
+                    invoice.discount_amount = discount_amount
+                    # Recalculate total_amount with the discount
+                    invoice.total_amount = invoice.subtotal - discount_amount
+                    # Recompute balance
+                    balance_bf = invoice.balance_bf or Decimal('0.00')
+                    prepayment = invoice.prepayment or Decimal('0.00')
+                    amount_paid = invoice.amount_paid or Decimal('0.00')
+                    invoice.balance = (invoice.total_amount + balance_bf - prepayment) - amount_paid
+                    if invoice.balance < Decimal('0.00'):
+                        invoice.prepayment = abs(invoice.balance)
+                        invoice.balance = Decimal('0.00')
+                    invoice.save(update_fields=['discount_amount', 'total_amount', 'balance', 'prepayment'])
 
                 # Update payment status
                 invoice.update_payment_status()

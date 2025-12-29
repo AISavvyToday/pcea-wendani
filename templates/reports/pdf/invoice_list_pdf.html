@@ -167,27 +167,27 @@ body {
 
 /* Column widths for landscape A4 */
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 10%; } /* Invoice # */
+.report-table td:nth-child(1) { width: 9%; } /* Invoice # */
 .report-table th:nth-child(2),
-.report-table td:nth-child(2) { width: 7%; } /* Issue Date */
+.report-table td:nth-child(2) { width: 15%; } /* Student Name */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 18%; } /* Student Name */
+.report-table td:nth-child(3) { width: 10%; } /* Term */
 .report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 8%; } /* Admission No */
+.report-table td:nth-child(4) { width: 8%; } /* Bal B/F */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 12%; } /* Term */
+.report-table td:nth-child(5) { width: 8%; } /* Pre-payment */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 10%; } /* Total */
+.report-table td:nth-child(6) { width: 9%; } /* Billed */
 .report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 9%; } /* Bal B/F */
+.report-table td:nth-child(7) { width: 8%; } /* Discount */
 .report-table th:nth-child(8),
-.report-table td:nth-child(8) { width: 9%; } /* Prepayment */
+.report-table td:nth-child(8) { width: 9%; } /* Total */
 .report-table th:nth-child(9),
 .report-table td:nth-child(9) { width: 9%; } /* Paid */
 .report-table th:nth-child(10),
 .report-table td:nth-child(10) { width: 9%; } /* Balance */
 .report-table th:nth-child(11),
-.report-table td:nth-child(11) { width: 9%; } /* Status */
+.report-table td:nth-child(11) { width: 6%; } /* Status */
 
 /* ===== AMOUNTS ===== */
 .amount-positive { color: #c0392b; font-weight: bold; }
@@ -287,13 +287,13 @@ body {
         <thead>
           <tr>
             <th>Invoice #</th>
-            <th>Issue Date</th>
             <th>Student Name</th>
-            <th>Admission No</th>
             <th>Term</th>
-            <th class="text-right">Total (KES)</th>
             <th class="text-right">Bal B/F (KES)</th>
-            <th class="text-right">Prepay (KES)</th>
+            <th class="text-right">Pre-payment (KES)</th>
+            <th class="text-right">Billed (KES)</th>
+            <th class="text-right">Discount (KES)</th>
+            <th class="text-right">Total (KES)</th>
             <th class="text-right">Paid (KES)</th>
             <th class="text-right">Balance (KES)</th>
             <th>Status</th>
@@ -303,11 +303,8 @@ body {
           {% for invoice in invoices %}
           <tr>
             <td class="text-left">{{ invoice.invoice_number }}</td>
-            <td class="text-center">{{ invoice.issue_date|date:"Y-m-d"|default:"—" }}</td>
-            <td class="text-left">{{ invoice.student.full_name|default:"—" }}</td>
-            <td class="text-left">{{ invoice.student.admission_number|default:"—" }}</td>
+            <td class="text-left">{{ invoice.student.full_name|default:"—" }}<br><small>{{ invoice.student.admission_number|default:"—" }}</small></td>
             <td class="text-left">{{ invoice.term|default:"—" }}</td>
-            <td class="text-right">{{ invoice.total_amount|floatformat:2|default:"0.00" }}</td>
             <td class="text-right">
               {% if invoice.balance_bf %}
                 {{ invoice.balance_bf|floatformat:2 }}
@@ -322,6 +319,15 @@ body {
                 —
               {% endif %}
             </td>
+            <td class="text-right">{{ invoice.subtotal|default:invoice.total_amount|floatformat:2|default:"0.00" }}</td>
+            <td class="text-right">
+              {% if invoice.discount_amount %}
+                {{ invoice.discount_amount|floatformat:2 }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-right">{{ invoice.total_amount|floatformat:2|default:"0.00" }}</td>
             <td class="text-right">{{ invoice.amount_paid|floatformat:2|default:"0.00" }}</td>
             <td class="text-right">
               {% if invoice.balance %}
@@ -342,10 +348,12 @@ body {
         </tbody>
         <tfoot>
           <tr>
-            <th colspan="5" class="text-right">TOTALS</th>
-            <th class="text-right">{{ totals.total_amount|floatformat:2 }}</th>
+            <th colspan="3" class="text-right">TOTALS</th>
             <th class="text-right">{{ totals.total_balance_bf|floatformat:2 }}</th>
             <th class="text-right">{{ totals.total_prepayment|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_subtotal|default:totals.total_amount|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_discount|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.total_amount|floatformat:2 }}</th>
             <th class="text-right">{{ totals.total_paid|floatformat:2 }}</th>
             <th class="text-right {% if totals.total_balance > 0 %}amount-positive{% elif totals.total_balance < 0 %}amount-negative{% endif %}">
               {{ totals.total_balance|floatformat:2 }}

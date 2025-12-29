@@ -185,9 +185,40 @@
                   </div>
 
                   <div class="row mt-3">
-                      <div class="col-md-6"></div>
+                      <div class="col-md-6">
+                          <div class="mb-3">
+                              <label for="{{ form.discount_amount.id_for_label }}" class="form-label">
+                                  <strong>Discount Amount (KES)</strong>
+                              </label>
+                              {{ form.discount_amount }}
+                              {% if form.discount_amount.errors %}
+                                  <div class="text-danger small">{{ form.discount_amount.errors }}</div>
+                              {% endif %}
+                              <small class="text-muted">Enter total discount amount for this invoice</small>
+                          </div>
+                          {% if form.notes %}
+                          <div class="mb-3">
+                              <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                              {{ form.notes }}
+                          </div>
+                          {% endif %}
+                          {% if form.due_date %}
+                          <div class="mb-3">
+                              <label for="{{ form.due_date.id_for_label }}" class="form-label">Due Date</label>
+                              {{ form.due_date }}
+                          </div>
+                          {% endif %}
+                      </div>
                       <div class="col-md-6">
                           <table class="table table-sm">
+                              <tr>
+                                  <td class="text-end"><strong>Subtotal:</strong></td>
+                                  <td class="text-end" style="width: 150px;"><strong id="display-subtotal">KES 0.00</strong></td>
+                              </tr>
+                              <tr>
+                                  <td class="text-end"><strong>Discount:</strong></td>
+                                  <td class="text-end" style="width: 150px;"><strong id="display-discount">KES {{ current_discount|intcomma }}</strong></td>
+                              </tr>
                               <tr class="table-light">
                                   <td class="text-end"><strong>Total Amount:</strong></td>
                                   <td class="text-end" style="width: 150px;"><strong id="display-total">KES {{ current_total|intcomma }}</strong></td>
@@ -273,6 +304,14 @@
           }
       });
 
+      // Update totals when discount amount changes
+      const discountInput = document.getElementById('invoice-discount-amount');
+      if (discountInput) {
+          discountInput.addEventListener('input', function() {
+              updateTotals();
+          });
+      }
+
       function initRow(row) {
           const categorySelect = row.querySelector('.category-select');
           const isTransport = categorySelect && categorySelect.value === 'transport';
@@ -355,7 +394,7 @@
                   if (routeName.includes('(')) {
                       routeName = routeName.split('(')[0].trim();
                   }
-                  const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
+                      const tripLabel = tripType === 'half' ? 'Half Trip' : 'Full Trip';
                   
                   // Update description field (even if hidden, we want it for backend)
                   if (descInput) {
@@ -485,15 +524,45 @@
       }
 
       function updateTotals() {
-          let total = 0;
+          let subtotal = 0;
 
           document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
               const amountInput = row.querySelector('.amount-input');
               const amount = parseFloat(amountInput?.value) || 0;
-              total += amount;
+              subtotal += amount;
           });
 
-          document.getElementById('display-total').textContent = 'KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2});
+          // Get discount amount
+          const discountInput = document.getElementById('invoice-discount-amount');
+          const discount = parseFloat(discountInput?.value) || 0;
+
+          // Calculate total after discount
+          const total = subtotal - discount;
+
+          // Update display elements
+          const subtotalElement = document.getElementById('display-subtotal');
+          if (subtotalElement) {
+              subtotalElement.textContent = 'KES ' + subtotal.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
+          }
+
+          const discountElement = document.getElementById('display-discount');
+          if (discountElement) {
+              discountElement.textContent = 'KES ' + discount.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
+          }
+
+          const totalElement = document.getElementById('display-total');
+          if (totalElement) {
+              totalElement.textContent = 'KES ' + total.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+              });
+          }
       }
 
       // Form validation before submit

@@ -359,9 +359,23 @@ class DateRangeFilterForm(forms.Form):
 
 
 class InvoiceEditForm(forms.ModelForm):
+    discount_amount = forms.DecimalField(
+        required=False,
+        initial=0.00,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0',
+            'id': 'invoice-discount-amount'
+        }),
+        help_text="Total discount amount for this invoice"
+    )
+
     class Meta:
         model = Invoice
-        fields = ['notes', 'due_date']
+        fields = ['notes', 'due_date', 'discount_amount']
         widgets = {
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
@@ -559,4 +573,4 @@ class FamilyPaymentForm(forms.Form):
     notes = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
-    )
+)
