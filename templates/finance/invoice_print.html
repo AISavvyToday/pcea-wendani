@@ -6,11 +6,15 @@
     <meta charset="utf-8" />
     <title>{{ school_name }} - {{ mode|title }} {{ invoice.invoice_number }}</title>
     <style>
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
         /* Page/reset - Enhanced font sizes for better print quality */
         body { 
             font-family: Arial, Helvetica, sans-serif; 
             color: #000; 
-            font-size: 13px; 
+            font-size: 14px; 
             line-height: 1.4;
             margin: 0; 
             padding: 0; 
@@ -18,42 +22,41 @@
             print-color-adjust: exact;
         }
         .page { width: 210mm; min-height: 297mm; padding: 10mm; box-sizing: border-box; background: white; margin: 0 auto; }
-        .receipt { border: 1px solid #333; padding: 12px; margin-bottom: 10px; }
-        .header { display:flex; align-items:center; justify-content:space-between; }
+        .receipt { border: 2px solid #333; padding: 16px; page-break-inside: avoid; }
+        .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; border-bottom:2px solid #333; padding-bottom:12px; }
         .header .logos { display:flex; align-items:center; gap:12px; }
-        .logo { height:55px; width:auto; }
+        .logo { height:60px; width:auto; }
         .school-title { text-align:center; flex:1; }
-        h2 { margin:0; padding:0; font-size: 18px; font-weight: bold; }
-        h3 { margin:0; padding:0; font-size: 15px; font-weight: bold; }
-        .meta { margin-top:8px; font-size:13px; color:#333; font-weight: 500; }
-        .two-col { display:flex; gap:12px; margin-top:10px; }
+        h2 { margin:0; padding:0; font-size: 20px; font-weight: bold; }
+        h3 { margin:0; padding:0; font-size: 16px; font-weight: bold; }
+        h4 { margin:0; padding:0; font-size: 16px; font-weight: bold; }
+        .meta { margin-top:12px; font-size:14px; color:#333; font-weight: 500; padding:10px; background:#f9f9f9; border:1px solid #ddd; }
+        .two-col { display:flex; gap:12px; margin-top:14px; }
         .col { flex:1; }
-        table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
-        th, td { padding:5px 6px; border:1px solid #666; text-align:left; vertical-align: middle; }
-        th { background:#e8e8e8; font-weight: bold; }
+        table { width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; }
+        th, td { padding:10px 12px; border:1px solid #ddd; text-align:left; vertical-align: middle; }
+        th { background:#f0f0f0; font-weight: bold; font-size:14px; }
+        td { font-size:14px; }
         .text-right { text-align:right; }
-        .small { font-size:12px; color:#333; }
-        .notes { margin-top:8px; padding:6px; border:1px dashed #999; background:#fafafa; min-height:28px; font-size: 12px; }
-        .footer { margin-top:10px; font-size:11px; color:#333; border-top:1px dashed #999; padding-top:8px; }
-        .bank-list { margin:4px 0 0 0; padding-left:16px; font-size: 11px; }
-        .copy-sep { border-top:2px dashed #666; margin:8px 0; padding-top: 8px; }
-        .signature-section { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 8px; }
+        .small { font-size:13px; color:#333; }
+        .notes { margin-top:14px; padding:10px; border:1px dashed #999; background:#fafafa; min-height:28px; font-size: 13px; }
+        .footer { margin-top:16px; font-size:12px; color:#333; border-top:1px dashed #999; padding-top:10px; }
+        .bank-list { margin:4px 0 0 0; padding-left:16px; font-size: 12px; }
+        .signature-section { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; }
         .signature-box { width: 45%; text-align: center; }
-        .signature-line { border-bottom: 1px solid #333; margin-bottom: 4px; height: 30px; }
-        .signature-label { font-size: 11px; color: #333; }
+        .signature-line { border-top: 2px solid #333; margin-top: 50px; padding-top: 6px; height: 30px; }
+        .signature-label { font-size: 13px; color: #333; }
         /* Print */
         @media print {
             .page { margin:0; box-shadow:none; }
             .no-print { display:none; }
-            body { font-size: 12px; }
-            .receipt { page-break-inside: avoid; }
+            body { font-size: 14px; }
+            .receipt { page-break-inside: avoid; border:2px solid #000; }
         }
     </style>
 </head>
 <body>
     <div class="page">
-        {% comment %} Render `copies` copies stacked vertically. {% endcomment %}
-        {% for _ in copies_range %}
         <div class="receipt">
             <div class="header">
                 <div class="logos">
@@ -61,8 +64,7 @@
                 </div>
                 <div class="school-title">
                     <h2>PCEA Wendani Academy</h2>
-                    <div class="small">P.O. Box 54 - 00232 Ruiru • Tel: 0722 000 000 • Email: info@pceawendani.ac.ke</div>
-                    <h3 style="margin-top:6px; font-size:14px;">{{ mode|title }}</h3>
+                    <h3 style="margin-top:6px; font-size:16px; font-weight:bold;">{{ mode|title }}</h3>
                 </div>
                 <div class="logos">
                     <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
@@ -137,21 +139,42 @@
             </table>
 
             {% if enhanced_payments %}
-            <div style="margin-top:8px;">
-                <strong>Payments</strong>
+            <div style="margin-top:14px; padding:12px; background:#f9f9f9; border:1px solid #ddd;">
+                <h4 style="margin:0 0 12px 0; font-size:16px; font-weight:bold;">Payment Details</h4>
                 <table>
-                    <thead><tr><th>Date</th><th>Ref</th><th>Method</th><th class="text-right">Amount</th><th class="text-right">Allocated</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Payment Date</th>
+                            <th>Payment Reference</th>
+                            <th>Receipt Number</th>
+                            <th>Payment Method</th>
+                            <th>Payer Name</th>
+                            <th>Transaction Reference</th>
+                            <th class="text-right">Amount</th>
+                            <th class="text-right">Allocated</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% for ep in enhanced_payments %}
                         <tr>
                             <td>{{ ep.payment.payment_date|date:"d M Y H:i" }}</td>
                             <td>{{ ep.payment.payment_reference }}</td>
+                            <td>{{ ep.payment.receipt_number|default:"-" }}</td>
                             <td>{{ ep.payment.get_payment_method_display }}</td>
+                            <td>{{ ep.payment.payer_name|default:"-" }}</td>
+                            <td>{{ ep.payment.transaction_reference|default:"-" }}</td>
                             <td class="text-right">KES {{ ep.payment.amount|intcomma }}</td>
                             <td class="text-right">KES {{ ep.allocated_total|intcomma }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="6" class="text-right">Total Paid:</th>
+                            <th class="text-right">KES {{ total_paid|intcomma }}</th>
+                            <th class="text-right">KES {{ total_paid|intcomma }}</th>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             {% endif %}
@@ -203,11 +226,6 @@
             </div>
             {% endif %}
         </div>
-
-        {% if not forloop.last %}
-        <div class="copy-sep"></div>
-        {% endif %}
-        {% endfor %}
     </div>
 
     <!-- small helper: Print & close if opened in new window -->
