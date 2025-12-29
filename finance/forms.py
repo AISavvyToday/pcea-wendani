@@ -381,6 +381,12 @@ class InvoiceEditForm(forms.ModelForm):
             'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize discount_amount from instance if available
+        if self.instance and self.instance.pk:
+            self.fields['discount_amount'].initial = self.instance.discount_amount or Decimal('0.00')
+
 
 class InvoiceItemForm(forms.ModelForm):
     # show transport fields
