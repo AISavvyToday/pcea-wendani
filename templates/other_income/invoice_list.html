@@ -60,20 +60,20 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for inv in invoices %}
-                                <tr>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
                                     <td>
                                         <a href="{% url 'other_income:invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a>
                                     </td>
-                                    <td>{{ inv.client_name }}</td>
+                        <td>{{ inv.client_name }}</td>
                                     <td class="text-end">KES {{ inv.total_amount|intcomma }}</td>
                                     <td class="text-end">KES {{ inv.amount_paid|intcomma }}</td>
                                     <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
                                         KES {{ inv.balance|intcomma }}
                                     </td>
-                                    <td>{{ inv.issue_date|date:"d M Y" }}</td>
-                                    <td>
+                        <td>{{ inv.issue_date|date:"d M Y" }}</td>
+                        <td>
                                         <a href="{% url 'other_income:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary">
                                             <i class="mdi mdi-eye"></i> View
                                         </a>
@@ -124,15 +124,15 @@
                                            class="btn btn-sm btn-outline-primary" target="_blank">
                                             <i class="mdi mdi-receipt"></i> Receipt
                                         </a>
-                                    </td>
-                                </tr>
-                                {% empty %}
+                        </td>
+                    </tr>
+                    {% empty %}
                                 <tr>
                                     <td colspan="8" class="text-center text-muted py-4">No payments found</td>
                                 </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    {% endfor %}
+                </tbody>
+            </table>
                     </div>
                 </div>
             </div>
