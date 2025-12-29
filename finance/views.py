@@ -1408,9 +1408,9 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
     def get_queryset(self):
         queryset = BankTransaction.objects.filter(is_active=True)
 
-        status = self.request.GET.get('status', '')
+        status = self.request.GET.get('status', 'unmatched')  # Default to unmatched
         if status == 'received':
-            # Unmatched/unreconciled transactions
+            # Unmatched/unreconciled transactions with 'received' status
             queryset = queryset.filter(payment__isnull=True, processing_status='received')
         elif status == 'matched':
             queryset = queryset.filter(payment__isnull=False)
@@ -1419,17 +1419,23 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         elif status == 'duplicate':
             queryset = queryset.filter(processing_status='duplicate')
         elif status == 'unmatched':
-            # Legacy filter - unmatched transactions
-            queryset = queryset.filter(payment__isnull=True)
-        # If no status filter, show all
+            # Unmatched/unreconciled transactions (all processing statuses)
+            queryset = queryset.filter(payment__isnull=True).exclude(
+                processing_status__in=['failed', 'duplicate']
+            )
+        # If status is empty or 'all', show all
 
         return queryset.order_by('-callback_received_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['selected_status'] = self.request.GET.get('status', 'unmatched')
+        # Count unmatched transactions (excluding failed/duplicate)
         context['unmatched_count'] = BankTransaction.objects.filter(
-            is_active=True, payment__isnull=True
+            is_active=True, 
+            payment__isnull=True
+        ).exclude(
+            processing_status__in=['failed', 'duplicate']
         ).count()
         return context
 

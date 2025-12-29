@@ -15,12 +15,12 @@
       {% else %}
         Showing {{ txs|length }} record(s)
       {% endif %}
-      {% if request.GET.status %} · Filter: <strong>{{ request.GET.status|title }}</strong>{% endif %}
+      {% if request.GET.status %} · Filter: <strong>{{ request.GET.status|title }}</strong>{% else %} · Filter: <strong>Unmatched</strong>{% endif %}
     </small>
-    {% if unmatched_count > 0 %}
+    {% if unmatched_count > 0 and not request.GET.status or request.GET.status == 'unmatched' %}
     <div class="mt-1">
-      <span class="badge bg-warning text-dark">
-        <i class="mdi mdi-alert"></i> {{ unmatched_count }} unmatched transaction{{ unmatched_count|pluralize }} pending
+      <span class="badge bg-warning text-dark fs-6">
+        <i class="mdi mdi-alert-circle"></i> {{ unmatched_count }} unmatched transaction{{ unmatched_count|pluralize }} need{{ unmatched_count|pluralize:"s," }} allocation
       </span>
     </div>
     {% endif %}
@@ -30,6 +30,11 @@
     <a href="{% url 'finance:bank_transaction_list' %}"
        class="btn btn-sm {% if not request.GET.status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
       All
+    </a>
+
+    <a href="{% url 'finance:bank_transaction_list' %}?status=unmatched"
+       class="btn btn-sm {% if request.GET.status == 'unmatched' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+      <i class="mdi mdi-alert-circle"></i> Unmatched ({{ unmatched_count }})
     </a>
 
     <a href="{% url 'finance:bank_transaction_list' %}?status=received"
