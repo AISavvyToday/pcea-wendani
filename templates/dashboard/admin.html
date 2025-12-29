@@ -22,7 +22,7 @@
 {% block content %}
 <div class="row">
   {% for card in stat_cards %}
-  <div class="col-md-4 stretch-card grid-margin">
+  <div class="col-lg-4 col-md-6 stretch-card grid-margin">
     <a href="{{ card.url|default:'#' }}" class="text-white text-decoration-none d-block">
       <div class="card {{ card.bg }} card-img-holder text-white">
         <div class="card-body">

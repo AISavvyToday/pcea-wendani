@@ -84,9 +84,6 @@ def _get_active_students_qs():
     qs = Student.objects.all()
     if _model_has_field(Student, "is_active"):
         qs = qs.filter(is_active=True)
-    # Filter by status='active' to exclude transferred/inactive/graduated students from statistics
-    if _model_has_field(Student, "status"):
-        qs = qs.filter(status='active')
     return qs
 
 
@@ -388,14 +385,7 @@ def dashboard_admin(request):
     year_rate = (year_collected / year_billed * 100) if year_billed > 0 else Decimal("0")
 
     # Dashboard cards arranged in requested order:
-    # 1. Total Students
-    # 2. Bal B/F (Balance Brought Forward)
-    # 3. Total Prepayments
-    # 4. Billed
-    # 5. Expected Collection (same as Billed - total amount expected to be collected)
-    # 6. Collected
-    # 7. Outstanding Bal
-    expected_collection = billed  # Expected collection equals billed amount
+    # 1. Total Students -> 2. Bal B/F -> 3. Total Prepayments -> 4. Billed -> 5. Collected -> 6. Outstanding Bal -> 7. Unmatched Bank Txns
     context = {
         "current_term": term,
         "current_academic_year": academic_year,
@@ -433,14 +423,6 @@ def dashboard_admin(request):
                 "helper": "Total invoiced amount",
             },
             {
-                "title": "Expected Collection",
-                "value": _fmt_kes(expected_collection),
-                "icon": "mdi-file-chart",
-                "bg": "bg-gradient-info",
-                "url": invoices_term_url,
-                "helper": "Total amount expected",
-            },
-            {
                 "title": "Collected",
                 "value": _fmt_kes(collected),
                 "icon": "mdi-cash-check",
@@ -455,6 +437,14 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-warning",
                 "url": outstanding_term_url,
                 "helper": "Unpaid balance",
+            },
+            {
+                "title": "Unmatched Bank Txns",
+                "value": f"{kpis['unmatched_bank_transactions']:,}",
+                "icon": "mdi-bank-transfer",
+                "bg": "bg-gradient-danger",
+                "url": bank_url,
+                "helper": "Needs reconciliation",
             },
         ],
     }
