@@ -5,79 +5,245 @@
     <meta charset="utf-8" />
     <title>Other Income - {{ invoice.invoice_number }}</title>
     <style>
-        body { font-family: Arial, Helvetica, sans-serif; color:#222; font-size:12px; margin:0; padding:0; }
-        .page { width:210mm; min-height:297mm; padding:12mm; box-sizing:border-box; }
-        .receipt { border:1px solid #ccc; padding:12px; margin-bottom:14px; }
-        .header { display:flex; align-items:center; justify-content:space-between; }
-        .logo { height:60px; width:auto; }
-        .meta { font-size:12px; color:#444; margin-top:8px; }
-        table { width:100%; border-collapse:collapse; margin-top:10px; }
-        th, td { padding:6px 8px; border:1px solid #e6e6e6; text-align:left; }
-        th { background:#f7f7f7; }
-        .text-right { text-align:right; }
-        .notes { margin-top:10px; padding:8px; border:1px dashed #ddd; background:#fafafa; }
-        .footer { margin-top:12px; font-size:11px; border-top:1px dashed #ddd; padding-top:8px; }
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+        body { 
+            font-family: Arial, Helvetica, sans-serif; 
+            color:#222; 
+            font-size:14px; 
+            margin:0; 
+            padding:0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .page { 
+            width:210mm; 
+            min-height:297mm; 
+            padding:10mm; 
+            box-sizing:border-box; 
+        }
+        .receipt { 
+            border:2px solid #333; 
+            padding:16px; 
+            page-break-inside: avoid;
+        }
+        .header { 
+            display:flex; 
+            align-items:center; 
+            justify-content:space-between; 
+            margin-bottom:16px;
+            border-bottom:2px solid #333;
+            padding-bottom:12px;
+        }
+        .logo { 
+            height:60px; 
+            width:auto; 
+        }
+        .meta { 
+            font-size:14px; 
+            color:#333; 
+            margin-top:12px;
+            padding:10px;
+            background:#f9f9f9;
+            border:1px solid #ddd;
+        }
+        table { 
+            width:100%; 
+            border-collapse:collapse; 
+            margin-top:14px; 
+            font-size:14px;
+        }
+        th, td { 
+            padding:10px 12px; 
+            border:1px solid #ddd; 
+            text-align:left; 
+        }
+        th { 
+            background:#f0f0f0; 
+            font-weight:bold;
+            font-size:14px;
+        }
+        td {
+            font-size:14px;
+        }
+        .text-right { 
+            text-align:right; 
+        }
+        .notes { 
+            margin-top:14px; 
+            padding:10px; 
+            border:1px dashed #ddd; 
+            background:#fafafa; 
+            font-size:13px;
+        }
+        .footer { 
+            margin-top:16px; 
+            font-size:12px; 
+            border-top:1px dashed #ddd; 
+            padding-top:10px; 
+        }
+        .payment-details {
+            margin-top:16px;
+            padding:12px;
+            background:#f9f9f9;
+            border:1px solid #ddd;
+        }
+        .payment-details h4 {
+            margin:0 0 12px 0;
+            font-size:16px;
+            font-weight:bold;
+        }
+        .amount-box {
+            border:3px solid #333;
+            padding:16px;
+            text-align:center;
+            margin:16px 0;
+            background:#f9f9f9;
+        }
+        .amount-box .label {
+            font-size:14px;
+            color:#333;
+            font-weight:bold;
+            margin-bottom:8px;
+        }
+        .amount-box .value {
+            font-size:28px;
+            font-weight:bold;
+            color:#000;
+        }
+        @media print {
+            .page {
+                margin:0;
+                box-shadow:none;
+            }
+            .no-print {
+                display:none;
+            }
+            body {
+                font-size:14px;
+            }
+            .receipt {
+                border:2px solid #000;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="page">
-        {% for _ in copies_range %}
         <div class="receipt">
             <div class="header">
                 <div><img src="{{ school_logo_url }}" class="logo" alt="School Logo" /></div>
                 <div style="text-align:center;">
-                    <h2>{{ school_name }}</h2>
-                    <div>Other Income Receipt / Invoice</div>
+                    <h2 style="margin:0; font-size:20px; font-weight:bold;">{{ school_name }}</h2>
+                    <h3 style="margin:6px 0 0; font-size:16px; font-weight:bold;">Other Income Receipt / Invoice</h3>
                 </div>
                 <div><img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" /></div>
             </div>
 
             <div class="meta">
                 <strong>Invoice:</strong> {{ invoice.invoice_number }} &nbsp; | &nbsp;
-                <strong>Issue:</strong> {{ invoice.issue_date|date:"d M Y" }} &nbsp; | &nbsp;
+                <strong>Issue Date:</strong> {{ invoice.issue_date|date:"d M Y" }} &nbsp; | &nbsp;
+                {% if invoice.due_date %}
+                <strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y" }} &nbsp; | &nbsp;
+                {% endif %}
+                <strong>Status:</strong> {{ invoice.get_status_display }} &nbsp; | &nbsp;
                 <strong>Printed:</strong> {{ print_datetime|date:"d M Y H:i" }} &nbsp; | &nbsp;
                 <strong>By:</strong> {{ printed_by }}
             </div>
 
-            <div style="margin-top:8px;">
-                <strong>Client:</strong> {{ invoice.client_name }} — {{ invoice.client_contact }}
-                {% if invoice.description %}<div>{{ invoice.description }}</div>{% endif %}
+            <div style="margin-top:14px; padding:10px; background:#f9f9f9; border:1px solid #ddd;">
+                <strong style="font-size:14px;">Client Information</strong>
+                <div style="margin-top:6px; font-size:14px;">
+                    <strong>Name:</strong> {{ invoice.client_name }}<br>
+                    {% if invoice.client_contact %}
+                    <strong>Contact:</strong> {{ invoice.client_contact }}<br>
+                    {% endif %}
+                    {% if invoice.description %}
+                    <strong>Description:</strong> {{ invoice.description }}
+                    {% endif %}
+                </div>
             </div>
 
             <table>
-                <thead><tr><th>Description</th><th class="text-right">Amount</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="text-right">Amount</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {% for it in invoice.items.all %}
-                    <tr><td>{{ it.description }}</td><td class="text-right">KES {{ it.amount|intcomma }}</td></tr>
+                    <tr>
+                        <td>{{ it.description }}</td>
+                        <td class="text-right">KES {{ it.amount|intcomma }}</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
-                    <tr><th>Total</th><th class="text-right">KES {{ invoice.total_amount|intcomma }}</th></tr>
-                    <tr><th>Paid</th><th class="text-right">KES {{ invoice.amount_paid|intcomma }}</th></tr>
-                    <tr><th>Balance</th><th class="text-right">KES {{ invoice.balance|intcomma }}</th></tr>
+                    <tr>
+                        <th>Total</th>
+                        <th class="text-right">KES {{ invoice.total_amount|intcomma }}</th>
+                    </tr>
+                    <tr>
+                        <th>Paid</th>
+                        <th class="text-right">KES {{ invoice.amount_paid|intcomma }}</th>
+                    </tr>
+                    <tr>
+                        <th>Balance</th>
+                        <th class="text-right">KES {{ invoice.balance|intcomma }}</th>
+                    </tr>
                 </tfoot>
             </table>
 
+            <!-- Payment Details Section -->
             {% if invoice.payments.exists %}
-            <div style="margin-top:8px;">
-                <strong>Payments</strong>
+            <div class="payment-details">
+                <h4>Payment Details</h4>
                 <table>
-                    <thead><tr><th>Date</th><th>Ref</th><th class="text-right">Amount</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Payment Date</th>
+                            <th>Payment Reference</th>
+                            <th>Receipt Number</th>
+                            <th>Payment Method</th>
+                            <th>Payer Name</th>
+                            <th>Transaction Reference</th>
+                            <th class="text-right">Amount</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% for p in invoice.payments.all %}
-                        <tr><td>{{ p.payment_date|date:"d M Y H:i" }}</td><td>{{ p.payment_reference }}</td><td class="text-right">KES {{ p.amount|intcomma }}</td></tr>
+                        <tr>
+                            <td>{{ p.payment_date|date:"d M Y H:i" }}</td>
+                            <td>{{ p.payment_reference }}</td>
+                            <td>{{ p.receipt_number|default:"-" }}</td>
+                            <td>{{ p.payment_method|default:"-" }}</td>
+                            <td>{{ p.payer_name|default:"-" }}</td>
+                            <td>{{ p.transaction_reference|default:"-" }}</td>
+                            <td class="text-right">KES {{ p.amount|intcomma }}</td>
+                        </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="6" class="text-right">Total Paid:</th>
+                            <th class="text-right">KES {{ invoice.amount_paid|intcomma }}</th>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             {% endif %}
 
+            {% if notes %}
             <div class="notes">
-                <strong>Notes:</strong><div>{{ notes|default:"-" }}</div>
+                <strong>Notes:</strong><div>{{ notes }}</div>
             </div>
+            {% endif %}
 
             <div class="footer">
-                <div><strong>Payment terms / Mode of Payment</strong></div>
+                <div><strong>Payment Terms / Mode of Payment</strong></div>
                 <ol>
                     <li>All payments should be received as stated on the invoice or as agreed.</li>
                 </ol>
@@ -87,8 +253,12 @@
                 </ul>
             </div>
         </div>
-        {% if not forloop.last %}<div style="height:10px;border-top:1px dashed #ddd;margin-bottom:10px;"></div>{% endif %}
-        {% endfor %}
+    </div>
+
+    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer;">
+            🖨️ Print Receipt
+        </button>
     </div>
 </body>
 </html>
