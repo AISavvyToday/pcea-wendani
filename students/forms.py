@@ -161,7 +161,9 @@ class StudentForm(forms.ModelForm):
             # Set a temporary admission_number on instance to avoid validation errors
             # It will be replaced by the actual generated number in save()
             if not self.instance.admission_number:
-                self.instance.admission_number = "TEMP"  # Temporary value for validation
+                # Use a unique temporary placeholder - will be replaced in save() with actual generated number
+                import uuid
+                self.instance.admission_number = f"TEMP_{uuid.uuid4().hex[:8]}"
         
         # Make optional fields not required
         optional_fields = [
@@ -218,17 +220,19 @@ class StudentForm(forms.ModelForm):
         """Override save to auto-generate admission_number for new students."""
         from .services import StudentService
         
+        # Handle admission_number BEFORE calling super().save() to avoid validation errors
+        if not self.instance.pk:
+            # New student - auto-generate admission_number
+            # Replace any temporary placeholder with actual generated number
+            if not self.instance.admission_number or self.instance.admission_number.startswith("TEMP_"):
+                self.instance.admission_number = StudentService.generate_admission_number()
+        
         instance = super().save(commit=False)
         
-        # Handle admission_number
-        if self.instance.pk:
+        # Handle admission_number for editing existing students
+        if instance.pk and 'admission_number' in self.cleaned_data:
             # Editing existing student - admission_number is in form fields
-            if 'admission_number' in self.cleaned_data:
-                instance.admission_number = self.cleaned_data['admission_number']
-        else:
-            # New student - auto-generate admission_number (replace TEMP if set)
-            if not instance.admission_number or instance.admission_number == "TEMP":
-                instance.admission_number = StudentService.generate_admission_number()
+            instance.admission_number = self.cleaned_data['admission_number']
         
         if commit:
             instance.save()

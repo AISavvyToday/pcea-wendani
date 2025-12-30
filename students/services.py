@@ -1,7 +1,16 @@
 # students/services.py
+import re
+import os
+from decimal import Decimal, InvalidOperation
+from datetime import date
+from typing import List, Optional
+
+import pandas as pd
 from django.db import transaction
 from django.db.models import Q
 from .models import Student, Parent, StudentParent
+from academics.models import AcademicYear, Term, Class
+from core.models import TermChoices
 
 
 class StudentService:
@@ -296,16 +305,20 @@ class StudentService:
         Generate the next sequential admission number for a student.
         Finds the highest numeric admission number and increments it.
         Handles formats like "3389", "PWA3389", etc.
+        Ensures minimum starting number is 2245.
 
         Returns:
-            str: Next admission number (numeric only, e.g., "3390")
+            str: Next admission number (numeric only, e.g., "2245")
         """
         import re
+        
+        # Minimum starting admission number
+        MIN_ADMISSION_NUMBER = 2245
         
         # Get all admission numbers
         all_students = Student.objects.all().values_list('admission_number', flat=True)
         
-        max_number = 0
+        max_number = MIN_ADMISSION_NUMBER - 1  # Start from minimum - 1, so first number will be 2245
         
         for admission_num in all_students:
             if not admission_num:
@@ -323,6 +336,341 @@ class StudentService:
                 except ValueError:
                     continue
         
+        # Ensure we don't go below minimum
+        if max_number < MIN_ADMISSION_NUMBER - 1:
+            max_number = MIN_ADMISSION_NUMBER - 1
+        
         # Increment and return as string
         next_number = max_number + 1
         return str(next_number)
+
+    # Helper functions for Excel import
+    @staticmethod
+    def _normalize_class_key(value: str) -> str:
+        """Normalize class name for mapping."""
+        value = (value or "").strip()
+        value = re.sub(r"\s+", " ", value)
+        return value.upper()
+
+    @staticmethod
+    def _to_decimal(value) -> Decimal:
+        """Safe conversion from pandas values to Decimal."""
+        if value is None:
+            return Decimal("0.00")
+
+        try:
+            if pd.isna(value):
+                return Decimal("0.00")
+        except Exception:
+            pass
+
+        s = str(value).strip().replace(",", "")
+        if s == "" or s.lower() == "nan":
+            return Decimal("0.00")
+
+        try:
+            return Decimal(s)
+        except (InvalidOperation, ValueError):
+            return Decimal("0.00")
+
+    @staticmethod
+    def _normalize_ke_phone(digits_only: str) -> Optional[str]:
+        """Convert to +254XXXXXXXXX format."""
+        d = re.sub(r"\D", "", digits_only or "")
+        if not d:
+            return None
+
+        if d.startswith("254") and len(d) >= 12:
+            d = d[:12]
+            return f"+{d}"
+
+        if d.startswith("0") and len(d) >= 10:
+            d = d[:10]
+            return f"+254{d[1:]}"
+
+        if len(d) == 9 and (d.startswith("7") or d.startswith("1")):
+            return f"+254{d}"
+
+        return None
+
+    @staticmethod
+    def _extract_phones(contacts: str) -> List[str]:
+        """Extract Kenyan phone numbers from contact strings."""
+        text = contacts or ""
+        phones: List[str] = []
+        seen = set()
+
+        patterns = [
+            r"\+254\d{9}",
+            r"\b254\d{9}\b",
+            r"\b0\d{9}\b",
+            r"\b[71]\d{8}\b",
+        ]
+        for pat in patterns:
+            for m in re.findall(pat, text):
+                p = StudentService._normalize_ke_phone(m)
+                if p and p not in seen:
+                    phones.append(p)
+                    seen.add(p)
+
+        digits = re.sub(r"\D", "", text)
+        for m in re.findall(r"254\d{9}", digits):
+            p = StudentService._normalize_ke_phone(m)
+            if p and p not in seen:
+                phones.append(p)
+                seen.add(p)
+
+        for m in re.findall(r"0\d{9}", digits):
+            p = StudentService._normalize_ke_phone(m)
+            if p and p not in seen:
+                phones.append(p)
+                seen.add(p)
+
+        return phones
+
+    @staticmethod
+    def _create_classes(academic_year):
+        """Create all classes and return mapping keyed by normalized Excel class names."""
+        STREAM_EAST = "East"
+        class_config = [
+            ("PLAYGROUP", "pp1", STREAM_EAST),
+            ("PP1", "pp1", STREAM_EAST),
+            ("PP2", "pp2", STREAM_EAST),
+            ("GRADE 1", "grade_1", STREAM_EAST),
+            ("GRADE 2", "grade_2", STREAM_EAST),
+            ("GRADE 3", "grade_3", STREAM_EAST),
+            ("GRADE 4", "grade_4", STREAM_EAST),
+            ("GRADE 5", "grade_5", STREAM_EAST),
+            ("GRADE 6", "grade_6", STREAM_EAST),
+            ("GRADE SEVEN-JSS", "grade_7", STREAM_EAST),
+            ("GRADE EIGHT-JSS", "grade_8", STREAM_EAST),
+            ("GRADE NINE-JSS", "grade_9", STREAM_EAST),
+        ]
+
+        mapping = {}
+        for excel_name, grade_level, stream in class_config:
+            key = StudentService._normalize_class_key(excel_name)
+
+            if key == "PLAYGROUP":
+                display_name = "Playgroup"
+            elif "JSS" in key:
+                base = key.replace("-JSS", "").title()
+                display_name = f"{base} (JSS)"
+            else:
+                display_name = key.title()
+
+            class_obj, _ = Class.objects.get_or_create(
+                name=display_name,
+                academic_year=academic_year,
+                defaults={
+                    "grade_level": grade_level,
+                    "stream": stream,
+                    "capacity": 50,
+                },
+            )
+
+            try:
+                if getattr(class_obj, "stream", None) != stream:
+                    class_obj.stream = stream
+                    class_obj.save(update_fields=["stream"])
+            except Exception:
+                pass
+
+            mapping[key] = class_obj
+
+        return mapping
+
+    @staticmethod
+    @transaction.atomic
+    def import_students_from_excel(file_path, dry_run=False, limit=0):
+        """
+        Import students from Excel file.
+        
+        Args:
+            file_path: Path to Excel file
+            dry_run: If True, validate but don't save changes
+            limit: Only import first N rows (0 = all)
+            
+        Returns:
+            dict with stats: students_created, students_updated, parents_created, rows_skipped, errors, error_details
+        """
+        stats = {
+            "students_created": 0,
+            "students_updated": 0,
+            "parents_created": 0,
+            "rows_skipped": 0,
+            "errors": 0,
+            "error_details": [],
+        }
+
+        try:
+            # Read Excel file
+            df = pd.read_excel(file_path)
+            df.columns = [str(c).strip() for c in df.columns]
+
+            # Rename columns
+            df = df.rename(
+                columns={
+                    "Year": "Year",
+                    "#": "Admission_No",
+                    "Name": "Name",
+                    "Class": "Class",
+                    "Contacts": "Contacts",
+                    "Total Balance": "Total_Balance",
+                }
+            )
+
+            required = [
+                "Year",
+                "Admission_No",
+                "Name",
+                "Class",
+                "Contacts",
+                "Total_Balance",
+            ]
+            missing = [c for c in required if c not in df.columns]
+            if missing:
+                raise ValueError(f"Missing expected columns: {missing}. Found: {list(df.columns)}")
+
+            df = df.dropna(subset=["Admission_No"]).copy()
+            df["Admission_No"] = df["Admission_No"].astype(str).str.strip()
+            df["Name"] = df["Name"].astype(str).str.strip()
+            df["Class"] = df["Class"].astype(str).str.strip()
+
+            if limit > 0:
+                df = df.head(limit)
+
+            # Get or create academic year and term
+            academic_year, _ = AcademicYear.objects.get_or_create(
+                year=2025,
+                defaults={
+                    "start_date": date(2025, 1, 6),
+                    "end_date": date(2025, 11, 28),
+                    "is_current": True,
+                },
+            )
+
+            term, _ = Term.objects.get_or_create(
+                academic_year=academic_year,
+                term=TermChoices.TERM_3,
+                defaults={
+                    "start_date": date(2025, 9, 1),
+                    "end_date": date(2025, 11, 28),
+                    "is_current": True,
+                    "fee_deadline": date(2025, 9, 15),
+                },
+            )
+
+            class_mapping = StudentService._create_classes(academic_year)
+
+            # Process each row
+            for idx, row in df.iterrows():
+                try:
+                    StudentService._import_row(row, class_mapping, stats)
+                except Exception as e:
+                    stats["errors"] += 1
+                    adm = str(row.get("Admission_No", "")).strip()
+                    error_msg = f"[{adm}] Import failed: {str(e)}"
+                    stats["error_details"].append(error_msg)
+
+            if dry_run:
+                transaction.set_rollback(True)
+
+        except Exception as e:
+            stats["errors"] += 1
+            stats["error_details"].append(f"File processing error: {str(e)}")
+            if dry_run:
+                transaction.set_rollback(True)
+
+        return stats
+
+    @staticmethod
+    def _import_row(row, class_mapping, stats):
+        """Import a single row from Excel."""
+        admission_no = str(row["Admission_No"]).strip()
+        if not admission_no:
+            stats["rows_skipped"] += 1
+            return
+
+        full_name = str(row["Name"]).strip()
+        class_name = str(row["Class"]).strip()
+        contacts = str(row["Contacts"]).strip() if pd.notna(row["Contacts"]) else ""
+
+        # Name parsing
+        name_parts = full_name.split()
+        if len(name_parts) >= 3:
+            first_name = name_parts[0]
+            last_name = name_parts[-1]
+            middle_name = " ".join(name_parts[1:-1])
+        elif len(name_parts) == 2:
+            first_name, last_name = name_parts
+            middle_name = ""
+        else:
+            first_name = full_name
+            last_name = ""
+            middle_name = ""
+
+        # Class mapping
+        class_key = StudentService._normalize_class_key(class_name)
+        class_obj = class_mapping.get(class_key)
+        if not class_obj:
+            stats["rows_skipped"] += 1
+            return
+
+        credit_balance = StudentService._to_decimal(row["Total_Balance"])
+
+        # Student upsert with credit_balance
+        student, created = Student.objects.update_or_create(
+            admission_number=admission_no,
+            defaults={
+                "first_name": first_name.title(),
+                "middle_name": middle_name.title(),
+                "last_name": last_name.title(),
+                "current_class": class_obj,
+                "credit_balance": credit_balance,
+                "admission_date": date(2025, 1, 6),
+                "date_of_birth": date(2015, 1, 1),  # placeholder
+                "gender": "M",  # placeholder
+                "status": "active",
+            },
+        )
+        if created:
+            stats["students_created"] += 1
+        else:
+            stats["students_updated"] += 1
+
+        # Parent extraction/link
+        if contacts and contacts.strip().lower() not in {"254", "nan"}:
+            StudentService._create_parent_from_contacts(student, contacts, stats)
+
+    @staticmethod
+    def _create_parent_from_contacts(student, contacts, stats):
+        """Create parent from contacts string."""
+        phones = StudentService._extract_phones(contacts)
+        if not phones:
+            return
+
+        primary_phone = phones[0]
+        secondary_phone = phones[1] if len(phones) > 1 else ""
+
+        parent = Parent.objects.filter(phone_primary=primary_phone).first()
+        if not parent:
+            placeholder_first = student.last_name or student.first_name or "Parent"
+            parent = Parent.objects.create(
+                first_name=placeholder_first.title(),
+                last_name="(Parent)",
+                phone_primary=primary_phone,
+                phone_secondary=secondary_phone,
+                relationship="guardian",
+            )
+            stats["parents_created"] += 1
+
+        StudentParent.objects.get_or_create(
+            student=student,
+            parent=parent,
+            defaults={
+                "relationship": "guardian",
+                "is_primary": True,
+                "receives_notifications": True,
+            },
+        )
