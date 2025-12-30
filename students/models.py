@@ -80,7 +80,7 @@ class Student(BaseModel):
     )
     
     # Admission info
-    admission_number = models.CharField(max_length=20, unique=True)
+    admission_number = models.CharField(max_length=20, unique=True, blank=True, null=True)
     admission_date = models.DateField()
     
     # Personal info
@@ -207,6 +207,14 @@ class Student(BaseModel):
 
         sp_any = self.student_parents.select_related("parent").first()
         return sp_any.parent if sp_any else None
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate admission_number if not provided."""
+        # Auto-generate admission_number if not set
+        if not self.admission_number:
+            from .services import StudentService
+            self.admission_number = StudentService.generate_admission_number()
+        super().save(*args, **kwargs)
 
 class StudentParent(models.Model):
     """

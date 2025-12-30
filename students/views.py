@@ -175,13 +175,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         if not parent_1_valid or not parent_2_valid:
             return self.form_invalid(form)
 
-        # Generate admission_number BEFORE saving to avoid validation errors
-        if not form.instance.pk:
-            # New student - generate admission_number
-            if not form.instance.admission_number:
-                form.instance.admission_number = StudentService.generate_admission_number()
-
-        # Save student form (this will auto-generate admission_number via form.save() if not set)
+        # Save student form (admission_number will be auto-generated in model's save() if not set)
         # Use commit=False to get instance without saving, then add parents
         student = form.save(commit=False)
         
@@ -189,11 +183,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         if not student.status:
             student.status = 'active'
         
-        # Ensure admission_number is set (fallback)
-        if not student.admission_number:
-            student.admission_number = StudentService.generate_admission_number()
-        
-        # Save student first
+        # Save student first (admission_number will be auto-generated in model's save() if not provided)
         student.save()
 
         # Prepare parents data

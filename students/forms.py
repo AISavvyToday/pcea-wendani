@@ -158,12 +158,7 @@ class StudentForm(forms.ModelForm):
             self.fields['status'].initial = 'active'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['status_reason'].widget = forms.HiddenInput()
-            # Set a temporary admission_number on instance to avoid validation errors
-            # It will be replaced by the actual generated number in save()
-            if not self.instance.admission_number:
-                # Use a unique temporary placeholder - will be replaced in save() with actual generated number
-                import uuid
-                self.instance.admission_number = f"TEMP_{uuid.uuid4().hex[:8]}"
+            # Admission number will be auto-generated in model's save() method if not provided
         
         # Make optional fields not required
         optional_fields = [
