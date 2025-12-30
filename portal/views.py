@@ -419,10 +419,11 @@ def dashboard_admin(request):
 
     billed = Decimal(str(term_stats["billed"] or 0))
     collected = Decimal(str(term_stats["collected"] or 0))
-    outstanding = Decimal(str(term_stats["outstanding"] or 0))
     prepayments = Decimal(str(term_stats["prepayments"] or 0))
     balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
     total_expected = (balances_bf + billed) - prepayments
+    # Outstanding should be Total Expected - Collected (not just billed - collected)
+    outstanding = total_expected - collected
     rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
     year_billed = Decimal(str(year_stats["billed"] or 0))
