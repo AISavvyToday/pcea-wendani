@@ -51,7 +51,23 @@
 
     <!-- Summary -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-2">
+            <div class="card {% if balance_bf > 0 %}card-warning{% else %}card-secondary{% endif %}">
+                <div class="card-body">
+                    <p class="mb-2">Balance B/F</p>
+                    <h4>KES {{ balance_bf|intcomma }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if prepayment > 0 %}card-success{% else %}card-secondary{% endif %}">
+                <div class="card-body">
+                    <p class="mb-2">Prepayment</p>
+                    <h4>KES {{ prepayment|intcomma }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
             <div class="card card-tale">
                 <div class="card-body">
                     <p class="mb-2">Total Invoiced</p>
@@ -59,7 +75,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card card-dark-blue">
                 <div class="card-body">
                     <p class="mb-2">Total Paid</p>
@@ -67,8 +83,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card card-light-danger">
+        <div class="col-md-3">
+            <div class="card {% if balance > 0 %}card-light-danger{% else %}card-success{% endif %}">
                 <div class="card-body">
                     <p class="mb-2">Balance Due</p>
                     <h4>KES {{ balance|intcomma }}</h4>

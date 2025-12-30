@@ -203,20 +203,61 @@ class InvoiceService:
     @staticmethod
     def get_student_statement(student, term=None):
         """Get student financial statement."""
+        from datetime import date as date_cls
+        from django.db.models import Q
 
+        from core.models import InvoiceStatus
         invoices = Invoice.objects.filter(
             student=student, is_active=True
-        ).exclude(status='cancelled')
-
-        payments = Payment.objects.filter(
-            student=student, is_active=True, status='completed'
-        )
+        ).exclude(status=InvoiceStatus.CANCELLED)
 
         if term:
             invoices = invoices.filter(term=term)
 
+        # Get payments - if term is specified, only get payments allocated to invoices in that term
+        if term:
+            # Get payments that have allocations to invoice items in invoices for this term
+            from payments.models import PaymentAllocation
+            payment_ids = PaymentAllocation.objects.filter(
+                is_active=True,
+                invoice_item__invoice__in=invoices,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values_list('payment_id', flat=True).distinct()
+            
+            payments = Payment.objects.filter(
+                id__in=payment_ids,
+                student=student,
+                is_active=True,
+                status='completed'
+            )
+        else:
+            payments = Payment.objects.filter(
+                student=student, is_active=True, status='completed'
+            )
+
         total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
-        total_paid = payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Calculate total paid from allocations to invoice items in these invoices
+        from payments.models import PaymentAllocation
+        if term:
+            total_paid = PaymentAllocation.objects.filter(
+                is_active=True,
+                invoice_item__invoice__in=invoices,
+                payment__is_active=True,
+                payment__status='completed'
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        else:
+            # For all terms, get payments allocated to any invoice for this student
+            student_invoices = Invoice.objects.filter(
+                student=student, is_active=True
+            ).exclude(status='cancelled')
+            total_paid = PaymentAllocation.objects.filter(
+                is_active=True,
+                invoice_item__invoice__in=student_invoices,
+                payment__is_active=True,
+                payment__status='completed'
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
         # Calculate total balance_bf and prepayment from invoices
         total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
@@ -228,11 +269,14 @@ class InvoiceService:
 
         all_items = []
         for inv in invoices:
+            # Handle None issue_date - use created_at as fallback
+            inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
             all_items.append({
-                'date': inv.issue_date,
+                'date': inv_date,
                 'type': 'invoice',
                 'obj': inv
             })
+        
         for pmt in payments:
             pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
             all_items.append({
@@ -241,14 +285,16 @@ class InvoiceService:
                 'obj': pmt
             })
 
-        all_items.sort(key=lambda x: x['date'])
+        # Sort by date, handling None dates by putting them at the end
+        all_items.sort(key=lambda x: x['date'] if x['date'] is not None else date_cls(9999, 12, 31))
 
         for item in all_items:
             if item['type'] == 'invoice':
                 inv = item['obj']
                 running_balance += inv.total_amount
+                inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
                 transactions.append({
-                    'date': inv.issue_date,
+                    'date': inv_date,
                     'description': f"Invoice {inv.invoice_number}",
                     'reference': inv.invoice_number,
                     'debit': inv.total_amount,
@@ -258,8 +304,9 @@ class InvoiceService:
             else:
                 pmt = item['obj']
                 running_balance -= pmt.amount
+                pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
                 transactions.append({
-                    'date': pmt.payment_date,
+                    'date': pmt_date,
                     'description': f"Payment - {pmt.get_payment_method_display()}",
                     'reference': pmt.receipt_number or pmt.transaction_reference or '-',
                     'debit': None,
