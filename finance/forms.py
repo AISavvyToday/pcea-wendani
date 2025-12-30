@@ -11,7 +11,8 @@ from decimal import Decimal
 from django.forms import inlineformset_factory
 
 from .models import FeeStructure, FeeItem, Discount, StudentDiscount, Invoice, InvoiceItem
-from academics.models import AcademicYear, Term, TransportRoute, TransportFee
+from academics.models import AcademicYear, Term
+from transport.models import TransportRoute, TransportFee
 from students.models import Student, Parent
 from core.models import FeeCategory, GradeLevel, TermChoices
 

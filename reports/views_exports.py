@@ -23,7 +23,8 @@ from weasyprint import HTML
 # Import models used by the reports
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
-from academics.models import TransportRoute, AcademicYear, Term
+from academics.models import AcademicYear, Term
+from transport.models import TransportRoute
 from core.models import InvoiceStatus
 
 

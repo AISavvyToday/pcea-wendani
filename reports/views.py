@@ -16,7 +16,8 @@ from .forms import (
 from .models import ReportRequest
 from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
-from academics.models import AcademicYear, TransportFee
+from academics.models import AcademicYear
+from transport.models import TransportFee
 
 
 class InvoiceReportView(LoginRequiredMixin, View):

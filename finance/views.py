@@ -19,7 +19,7 @@ import logging
 from django.conf import settings
 from .forms import InvoiceEditForm, InvoiceItemFormSet
 from decimal import Decimal
-from academics.models import TransportFee
+from transport.models import TransportFee
 
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
@@ -1859,7 +1859,7 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
 
         # Add fee map for JavaScript
         if invoice and invoice.term:
-            from academics.models import TransportFee
+            from transport.models import TransportFee
             import json
             from decimal import Decimal
 

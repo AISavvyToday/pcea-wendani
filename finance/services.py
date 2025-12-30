@@ -78,7 +78,7 @@ class InvoiceService:
                 if student.uses_school_transport and student.transport_route:
                     try:
                         # Get transport fee for this student's route, term, and academic year
-                        from academics.models import TransportFee
+                        from transport.models import TransportFee
                         transport_fee = TransportFee.objects.get(
                             route=student.transport_route,
                             academic_year=term.academic_year,

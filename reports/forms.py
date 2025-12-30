@@ -1,10 +1,9 @@
 # reports/forms.py
 
-from academics.models import AcademicYear, TermChoices, TransportRoute
-
 from django import forms
 from django.utils import timezone
 from academics.models import AcademicYear, TermChoices
+from transport.models import TransportRoute
 
 class InvoiceReportFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(

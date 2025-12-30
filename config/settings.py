@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "accounts",
     "students",
     "academics",
+    "transport",
     "finance",
     "payments",
     "communications",

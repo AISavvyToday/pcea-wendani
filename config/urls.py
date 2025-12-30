@@ -11,6 +11,7 @@ urlpatterns = [
     path('students/', include('students.urls')),
     path('finance/', include('finance.urls', namespace='finance')),
     path('academics/', include('academics.urls', namespace='academics')),
+    path('transport/', include('transport.urls', namespace='transport')),
     path('other-income/', include('other_income.urls', namespace='other_income')),
     path('reports/', include('reports.urls', namespace='reports')),
 ]
