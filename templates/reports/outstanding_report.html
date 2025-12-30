@@ -50,6 +50,10 @@
           <label class="form-label">Term</label>
           {{ form.term }}
         </div>
+        <div class="col-md-3">
+          <label class="form-label">Class</label>
+          {{ form.student_class }}
+        </div>
         <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Run</button>
           <a href="{% url 'reports:outstanding_report' %}" class="btn btn-outline-secondary">Reset</a>
@@ -85,6 +89,7 @@
                 <th>Year</th>
                 <th>Admission No</th>
                 <th>Student Name</th>
+                <th>Class</th>
                 <th class="text-right">Balance B/F</th>
                 <th class="text-right">Prepayment</th>
                 <th class="text-right">Total Billed</th>
@@ -104,6 +109,7 @@
                     {{ r.student__first_name }} {{ r.student__last_name }}
                   {% endif %}
                 </td>
+                <td>{{ r.student__current_class|default:"—" }}</td>
                 <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
@@ -114,7 +120,7 @@
             </tbody>
             <tfoot>
               <tr>
-                <th colspan="3">Total</th>
+                <th colspan="4">Total</th>
                 <th class="text-right">KES {{ totals.total_balance_bf|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>

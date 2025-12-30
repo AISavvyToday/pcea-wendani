@@ -651,8 +651,12 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             full_name = f"{first} {middle} {last}".strip()
             full_name = ' '.join(full_name.split())
             ws.cell(row=row_num, column=3, value=full_name)
-
-
+            
+            # Class
+            ws.cell(row=row_num, column=4, value=r.get('student__current_class') or '—')
+            
+            # Emergency Contact (placeholder for now)
+            ws.cell(row=row_num, column=5, value='—')
 
             # Money columns
             money_columns = [6, 7, 8, 9, 10]
@@ -727,7 +731,8 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             invoices = invoices.filter(issue_date__gte=start_date)
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
-
+        if student_class:
+            invoices = invoices.filter(student__current_class=student_class)
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -758,6 +763,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'student__first_name',
             'student__middle_name',
             'student__last_name',
+            'student__current_class',
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -802,6 +808,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
                 'student__first_name': first,
                 'student__middle_name': middle,
                 'student__last_name': last,
+                'student__current_class': r.get('student__current_class'),
                 'total_balance_bf': r.get('total_balance_bf'),
                 'total_prepayment': r.get('total_prepayment'),
                 'total_billed': r.get('total_billed'),
