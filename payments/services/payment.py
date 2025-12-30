@@ -19,7 +19,7 @@ from django.db.models import Q
 from payments.models import Payment, BankTransaction
 from students.models import Student
 from finance.models import Invoice
-from core.models import PaymentMethod, PaymentStatus
+from core.models import PaymentMethod, PaymentStatus, PaymentSource
 from payments.exceptions import PaymentProcessingError
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ class PaymentService:
         invoice: Invoice = None,  # kept for compatibility; ignored by allocator
         payer_name: str = "",
         payer_phone: str = "",
+        payment_source=None,
         reconciled_by=None,
     ) -> Payment:
         """
@@ -61,12 +62,25 @@ class PaymentService:
                 bank_tx.gateway,
                 PaymentMethod.BANK_TRANSFER,
             )
+            
+            # Map gateway to payment_source if not provided
+            if payment_source is None:
+                gateway_to_source = {
+                    "equity": PaymentSource.EQUITY_BANK,
+                    "coop": PaymentSource.COOP_BANK,
+                    "mpesa": PaymentSource.MPESA,
+                }
+                payment_source = gateway_to_source.get(
+                    bank_tx.gateway,
+                    PaymentSource.MPESA,  # default fallback
+                )
 
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,  # payment may clear multiple invoices; don't pin to one invoice
                 amount=bank_tx.amount,
                 payment_method=payment_method,
+                payment_source=payment_source,
                 status=PaymentStatus.COMPLETED,
                 payment_date=bank_tx.bank_timestamp or timezone.now(),
                 payer_name=payer_name or bank_tx.payer_name or "",
@@ -113,11 +127,16 @@ class PaymentService:
         Manual payments follow the SAME allocation rules (oldest invoices first).
         """
         try:
+            # Default payment_source if not provided
+            if payment_source is None:
+                payment_source = PaymentSource.MPESA  # default for manual payments
+            
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,
                 amount=amount,
                 payment_method=payment_method,
+                payment_source=payment_source,
                 status=PaymentStatus.COMPLETED,
                 payment_date=payment_date or timezone.now(),
                 payer_name=payer_name or "",
