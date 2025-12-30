@@ -5,7 +5,9 @@ from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db.models import Q, Sum
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -17,7 +19,7 @@ from django.contrib import messages
 from core.mixins import RoleRequiredMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
-from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm
+from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from core.models import UserRole, InvoiceStatus
@@ -149,16 +151,16 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         if not parent_1_valid or not parent_2_valid:
             return self.form_invalid(form)
 
-        # Prepare student data
-        student_data = form.cleaned_data.copy()
-        
-        # Auto-generate admission number if not provided
-        if not student_data.get('admission_number'):
-            student_data['admission_number'] = StudentService.generate_admission_number()
+        # Save student form (this will auto-generate admission_number via form.save())
+        # Use commit=False to get instance without saving, then add parents
+        student = form.save(commit=False)
         
         # Ensure status is set to 'active' for new students
-        if not student_data.get('status'):
-            student_data['status'] = 'active'
+        if not student.status:
+            student.status = 'active'
+        
+        # Save student first
+        student.save()
 
         # Prepare parents data
         parents_data = []
@@ -176,11 +178,55 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
             parents_data.append(parent_2_data)
 
         try:
-            # Use service to create student with parents
-            student = StudentService.create_student_with_parents(
-                student_data=student_data,
-                parents_data=parents_data if parents_data else None
-            )
+            # Add parents to the student using service
+            if parents_data:
+                for parent_data in parents_data:
+                    # Extract parent info and relationship data
+                    parent_info = {}
+                    relationship_data = {}
+                    
+                    # Parent fields
+                    parent_fields = ['first_name', 'last_name', 'gender', 'id_number', 
+                                   'phone_primary', 'phone_secondary', 'email', 'address', 
+                                   'town', 'occupation', 'employer']
+                    
+                    for field in parent_fields:
+                        if field in parent_data:
+                            parent_info[field] = parent_data.pop(field)
+                    
+                    # Relationship fields
+                    relationship_fields = ['relationship', 'is_primary', 'is_emergency_contact', 
+                                         'can_pickup', 'receives_notifications']
+                    for field in relationship_fields:
+                        if field in parent_data:
+                            relationship_data[field] = parent_data.pop(field)
+
+                    # Check if parent already exists by phone or ID
+                    parent = None
+                    if parent_info.get('phone_primary'):
+                        parent = Parent.objects.filter(
+                            phone_primary=parent_info['phone_primary']
+                        ).first()
+
+                    if not parent and parent_info.get('id_number'):
+                        parent = Parent.objects.filter(
+                            id_number=parent_info['id_number']
+                        ).first()
+
+                    # Create parent if doesn't exist
+                    if not parent:
+                        parent = Parent.objects.create(**parent_info)
+
+                    # Create StudentParent relationship
+                    StudentParent.objects.create(
+                        student=student,
+                        parent=parent,
+                        relationship=relationship_data.get('relationship', 'guardian'),
+                        is_primary=relationship_data.get('is_primary', False),
+                        is_emergency_contact=relationship_data.get('is_emergency_contact', False),
+                        can_pickup=relationship_data.get('can_pickup', True),
+                        receives_notifications=relationship_data.get('receives_notifications', True),
+                    )
 
             messages.success(
                 self.request,
@@ -422,7 +468,7 @@ class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         UserRole.SCHOOL_ADMIN,
     ]
 
-    def delete(self, request, *args, **kwargs):
+    def form_valid(self, form):
         """
         Perform soft delete instead of hard delete.
         Changes student status to 'inactive' instead of removing from database.
@@ -433,11 +479,11 @@ class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         # Soft delete - change status to inactive
         self.object.status = 'inactive'
         self.object.status_date = timezone.now()
-        self.object.status_reason = f"Deleted by {request.user.get_full_name()}"
+        self.object.status_reason = f"Deleted by {self.request.user.get_full_name()}"
         self.object.save()
 
         messages.success(
-            request,
+            self.request,
             f'Student {self.object.full_name} ({self.object.admission_number}) has been deactivated successfully.'
         )
 
@@ -594,7 +640,7 @@ class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
     context_object_name = 'parent'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
-    def delete(self, request, *args, **kwargs):
+    def form_valid(self, form):
         self.object = self.get_object()
         success_url = self.get_success_url()
 
@@ -602,7 +648,7 @@ class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         children_count = self.object.children.count()
         if children_count > 0:
             messages.error(
-                request,
+                self.request,
                 f'Cannot delete {self.object.full_name}. They have {children_count} child(ren) linked. Please unlink children first.'
             )
             return redirect('students:parent_detail', pk=self.object.pk)
@@ -612,7 +658,7 @@ class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         self.object.delete()
 
         messages.success(
-            request,
+            self.request,
             f'Parent/Guardian {parent_name} has been deleted successfully.'
         )
 
@@ -670,3 +716,123 @@ class ParentChildrenAPIView(LoginRequiredMixin, View):
             'parent_phone': parent.phone_primary,
             'children': children_data,
         })
+
+
+class StudentImportView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+    """View for importing students from Excel file."""
+    
+    template_name = 'students/student_import.html'
+    form_class = StudentImportForm
+    success_url = reverse_lazy('students:list')
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Import Students from Excel'
+        return context
+    
+    def form_valid(self, form):
+        excel_file = form.cleaned_data['excel_file']
+        
+        # Save uploaded file temporarily
+        file_path = default_storage.save(
+            f'temp_imports/{excel_file.name}',
+            ContentFile(excel_file.read())
+        )
+        
+        try:
+            # Get full path
+            full_path = default_storage.path(file_path)
+            
+            # Import students
+            stats = StudentService.import_students_from_excel(
+                file_path=full_path,
+                dry_run=False
+            )
+            
+            # Clean up temp file
+            try:
+                default_storage.delete(file_path)
+            except Exception:
+                pass
+            
+            # Show results
+            if stats['errors'] > 0:
+                messages.warning(
+                    self.request,
+                    f"Import completed with {stats['errors']} error(s). "
+                    f"Created: {stats['students_created']}, Updated: {stats['students_updated']}, "
+                    f"Parents created: {stats['parents_created']}, Skipped: {stats['rows_skipped']}"
+                )
+                # Show first few errors
+                for error in stats['error_details'][:5]:
+                    messages.error(self.request, error)
+            else:
+                messages.success(
+                    self.request,
+                    f"Successfully imported! Created: {stats['students_created']}, "
+                    f"Updated: {stats['students_updated']}, Parents created: {stats['parents_created']}"
+                )
+            
+            return redirect(self.success_url)
+            
+        except Exception as e:
+            # Clean up temp file on error
+            try:
+                default_storage.delete(file_path)
+            except Exception:
+                pass
+            
+            logger.error(f"Error importing students: {str(e)}")
+            messages.error(self.request, f'Error importing students: {str(e)}')
+            return self.form_invalid(form)
+
+
+class StudentTemplateDownloadView(LoginRequiredMixin, RoleRequiredMixin, View):
+    """Generate and download Excel template for student import."""
+    
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    
+    def get(self, request):
+        import openpyxl
+        from openpyxl.utils import get_column_letter
+        from openpyxl.styles import Font, Alignment
+        from datetime import datetime
+        
+        # Create workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Students"
+        
+        # Header row
+        headers = ['Year', '#', 'Name', 'Class', 'Contacts', 'Total Balance']
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        
+        # Add example row
+        example_data = ['2025', '2245', 'John Doe Mwangi', 'Grade 1', '+254712345678', '0.00']
+        for col, value in enumerate(example_data, start=1):
+            ws.cell(row=2, column=col, value=value)
+        
+        # Auto-adjust column widths
+        for col in range(1, len(headers) + 1):
+            max_length = 0
+            column_letter = get_column_letter(col)
+            for row in range(1, 3):
+                cell_value = ws.cell(row=row, column=col).value
+                if cell_value:
+                    max_length = max(max_length, len(str(cell_value)))
+            adjusted_width = min(max_length + 2, 40)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Generate response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"student_import_template_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb.save(response)
+        return response
