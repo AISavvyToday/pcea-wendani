@@ -20,11 +20,10 @@ Unmatched bank transactions:
 import logging
 from decimal import Decimal
 from decimal import Decimal
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
 from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
@@ -187,8 +186,39 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
-        balances_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
-        prepayments = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
+        # Get balances from invoices
+        balances_bf_from_invoices = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
+        prepayments_from_invoices = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
+
+        # Get balances from students without invoices for current term
+        # This shows imported balances before invoice generation
+        if term:
+            students_without_invoices = Student.objects.filter(
+                status='active'
+            ).exclude(
+                invoices__term=term
+            ).distinct()
+
+            # Bal B/F: Sum of positive credit_balance (debts) from students without invoices
+            balances_bf_from_students = students_without_invoices.aggregate(
+                total=Sum('credit_balance', filter=Q(credit_balance__gt=0))
+            )['total'] or 0
+
+            # Prepayments: Sum of negative credit_balance (prepayments) from students without invoices
+            # Note: credit_balance is negative for prepayments, so we need to make it positive
+            prepayments_from_students_raw = students_without_invoices.aggregate(
+                total=Sum('credit_balance', filter=Q(credit_balance__lt=0))
+            )['total'] or 0
+            # Convert negative to positive (prepayments_from_students_raw is negative)
+            prepayments_from_students = abs(prepayments_from_students_raw) if prepayments_from_students_raw else 0
+
+            # Combine invoice balances + student balances
+            balances_bf = Decimal(str(balances_bf_from_invoices)) + Decimal(str(balances_bf_from_students))
+            prepayments = Decimal(str(prepayments_from_invoices)) + Decimal(str(prepayments_from_students))
+        else:
+            # No term specified, only use invoice balances
+            balances_bf = Decimal(str(balances_bf_from_invoices))
+            prepayments = Decimal(str(prepayments_from_invoices))
 
         invoice_count = invoice_qs.count()
 
