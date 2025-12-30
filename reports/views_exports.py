@@ -343,7 +343,6 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         selected_class = cleaned.get('student_class') or ''
-        selected_bank = cleaned.get('bank') or ''
         group_by = cleaned.get('group_by') or 'none'
 
         # Base queryset
@@ -362,16 +361,6 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
                 Q(student__current_class=selected_class) |
                 Q(invoice__student__current_class=selected_class)
             )
-
-        if selected_bank:
-            bank_filters = Q()
-            if hasattr(Payment, 'bank'):
-                bank_filters |= Q(bank=selected_bank)
-            if hasattr(Payment, 'payment_source'):
-                bank_filters |= Q(payment_source=selected_bank)
-            if hasattr(Payment, 'payment_method'):
-                bank_filters |= Q(payment_method__icontains=selected_bank)
-            payments_qs = payments_qs.filter(bank_filters)
 
         # Build workbook
         wb = openpyxl.Workbook()
@@ -456,7 +445,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         selected_class = cleaned.get('student_class') or ''
-        selected_bank = cleaned.get('bank') or ''
         group_by = cleaned.get('group_by') or 'none'
 
         # Base queryset
@@ -472,16 +460,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                 Q(student__current_class=selected_class) |
                 Q(invoice__student__current_class=selected_class)
             )
-
-        if selected_bank:
-            bank_filters = Q()
-            if hasattr(Payment, 'bank'):
-                bank_filters |= Q(bank=selected_bank)
-            if hasattr(Payment, 'payment_source'):
-                bank_filters |= Q(payment_source=selected_bank)
-            if hasattr(Payment, 'payment_method'):
-                bank_filters |= Q(payment_method__icontains=selected_bank)
-            payments_qs = payments_qs.filter(bank_filters)
 
         # Build rows for template
         rows = []
@@ -531,7 +509,6 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
                 'start_date': start_date,
                 'end_date': end_date,
                 'student_class': selected_class,
-                'bank': selected_bank,
                 'group_by': group_by,
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),

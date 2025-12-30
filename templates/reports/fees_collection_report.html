@@ -51,11 +51,6 @@
           <label class="form-label">End</label>
           {{ form.end_date }}
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Bank</label>
-          {{ form.bank }}
-        </div>
                <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Filter</button>
           <a href="{% url 'reports:fees_collection_report' %}" class="btn btn-outline-secondary">Reset</a>

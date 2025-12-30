@@ -163,23 +163,13 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         # initialize form with GET params
         form = FeesCollectionFilterForm(request.GET or None)
 
-        # populate dynamic choices for class & bank using available Payment records
+        # populate dynamic choices for class using available Payment records
         # classes: collect from payment.student.current_class or payment.invoice.student.current_class
         class_qs = Payment.objects.values_list('student__current_class', flat=True).distinct()
         inv_class_qs = Payment.objects.values_list('invoice__student__current_class', flat=True).distinct()
         raw_classes = set([c for c in class_qs if c]) | set([c for c in inv_class_qs if c])
         class_choices = [('', 'All Classes')] + [(c, c) for c in sorted(raw_classes)]
         form.fields['student_class'].choices = class_choices
-
-        # banks: try Payment.bank, otherwise Payment.payment_source, otherwise distinct payment_source
-        banks = set()
-        # try bank field
-        if hasattr(Payment, 'bank'):
-            banks.update([b for b in Payment.objects.values_list('bank', flat=True).distinct() if b])
-        if hasattr(Payment, 'payment_source'):
-            banks.update([b for b in Payment.objects.values_list('payment_source', flat=True).distinct() if b])
-        # sometimes payment.payment_method or payment.account_name may be used; add fallbacks if needed
-        form.fields['bank'].choices = [('', 'All Banks')] + [(b, b) for b in sorted(banks)]
 
         # School branding context
         context = {
@@ -211,7 +201,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         selected_class = form.cleaned_data.get('student_class') or ''
-        selected_bank = form.cleaned_data.get('bank') or ''
         group_by = form.cleaned_data.get('group_by') or 'none'
 
         # base queryset
@@ -229,18 +218,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                 Q(invoice__student__current_class=selected_class)
             )
 
-        # Filter by bank: try multiple fields
-        if selected_bank:
-            bank_filters = Q()
-            if hasattr(Payment, 'bank'):
-                bank_filters |= Q(bank=selected_bank)
-            if hasattr(Payment, 'payment_source'):
-                bank_filters |= Q(payment_source=selected_bank)
-            # maybe also payment.account_name or payment.payment_method strings; include contains fallback
-            if hasattr(Payment, 'payment_method'):
-                bank_filters |= Q(payment_method__icontains=selected_bank)
-            payments_qs = payments_qs.filter(bank_filters)
-
         # Optionally record the request (non-blocking)
         try:
             ReportRequest.objects.create(
@@ -252,7 +229,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                     'start_date': str(start_date) if start_date else None,
                     'end_date': str(end_date) if end_date else None,
                     'class': selected_class,
-                    'bank': selected_bank,
                     'group_by': group_by
                 }
             )
@@ -319,7 +295,6 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                 'start_date': start_date,
                 'end_date': end_date,
                 'student_class': selected_class,
-                'bank': selected_bank,
                 'group_by': group_by,
             },
             'form': form,

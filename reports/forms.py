@@ -40,11 +40,6 @@ class FeesCollectionFilterForm(forms.Form):
         choices=[('', 'All Classes')],
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    bank = forms.ChoiceField(
-        required=False,
-        choices=[('', 'All Banks')],
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
     GROUP_BY_CHOICES = [
         ('none', 'List (no grouping)'),
         ('class', 'Group by Class'),
