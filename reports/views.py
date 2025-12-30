@@ -244,16 +244,19 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         for p in payments_list_qs:
             # get student name and class (try multiple paths)
             student_name = None
-            student_class = None
+            student_class_obj = None
             if hasattr(p, 'student') and p.student:
                 student_name = getattr(p.student, 'full_name', None) or getattr(p.student, 'name', None) or str(p.student)
-                student_class = getattr(p.student, 'current_class', None)
+                student_class_obj = getattr(p.student, 'current_class', None)
             elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
                 st = p.invoice.student
                 student_name = getattr(st, 'full_name', None) or getattr(st, 'name', None) or str(st)
-                student_class = getattr(st, 'current_class', None)
+                student_class_obj = getattr(st, 'current_class', None)
             else:
                 student_name = getattr(p, 'payer_name', None) or getattr(p, 'payment_source', None) or '—'
+
+            # Convert Class object to string (like in student_list template)
+            student_class = str(student_class_obj) if student_class_obj else ''
 
             bank_display = getattr(p, 'bank', None) or getattr(p, 'payment_source', None) or getattr(p, 'payment_method', None) or ''
 
@@ -261,7 +264,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                 'date': p.payment_date,
                 'reference': getattr(p, 'payment_reference', ''),
                 'student': student_name,
-                'class': student_class or '',
+                'class': student_class,
                 'amount': p.amount or Decimal('0.00'),
                 'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
                 'bank': bank_display,
