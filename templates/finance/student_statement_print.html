@@ -54,12 +54,8 @@
             <div class="two-col">
                 <div class="col">
                     <strong>Summary</strong>
-                    {% if statement.balance_bf and statement.balance_bf != 0 %}
-                    <div class="small">Balance B/F: <strong class="text-warning">KES {{ statement.balance_bf|intcomma }}</strong></div>
-                    {% endif %}
-                    {% if statement.prepayment and statement.prepayment != 0 %}
-                    <div class="small">Prepayment: <strong class="text-success">KES {{ statement.prepayment|intcomma }}</strong></div>
-                    {% endif %}
+                    <div class="small">Balance B/F: <strong class="{% if statement.balance_bf > 0 %}text-warning{% else %}text-muted{% endif %}">KES {{ statement.balance_bf|intcomma }}</strong></div>
+                    <div class="small">Prepayment: <strong class="{% if statement.prepayment > 0 %}text-success{% else %}text-muted{% endif %}">KES {{ statement.prepayment|intcomma }}</strong></div>
                     <div class="small">Total Invoiced: <strong>KES {{ statement.total_invoiced|intcomma }}</strong></div>
                     <div class="small">Total Paid: <strong class="text-success">KES {{ statement.total_paid|intcomma }}</strong></div>
                     <div class="small">Balance Due: <strong class="{% if statement.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ statement.balance|intcomma }}</strong></div>
