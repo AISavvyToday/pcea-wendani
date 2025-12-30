@@ -1,0 +1,117 @@
+<!-- reports/admitted_students_report.html -->
+{% extends "base/base.html" %}
+{% load humanize static custom_filters %}
+
+{% block title %}Admitted Students Report{% endblock %}
+
+{% block extra_head %}
+<style>
+  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+  .report-title { text-align:center; width:100%; }
+  .report-table { width:100%; border-collapse: collapse; }
+  .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
+  .report-table thead th { background: #f2f2f2; font-weight:700; }
+  .no-print { margin-bottom: 10px; }
+  @media print { .no-print { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <h3 class="page-title">Admitted Students Report</h3>
+  </div>
+
+  <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
+    <a class="btn btn-success" target="_blank"
+       href="{% url 'reports:admitted_students_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
+    </a>
+    <a class="btn btn-outline-secondary" target="_blank"
+       href="{% url 'reports:admitted_students_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
+    </a>
+  </div>
+
+  <div class="card mb-3 no-print">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Admission Date From</label>
+          {{ form.start_date }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Admission Date To</label>
+          {{ form.end_date }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Class/Grade</label>
+          {{ form.student_class }}
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary" type="submit">Generate Report</button>
+          <a href="{% url 'reports:admitted_students_report' %}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if rows is none %}
+    <div class="card">
+      <div class="card-body text-muted">
+        Use the controls above to generate the admitted students report.
+        Select filters to view the report.
+      </div>
+    </div>
+  {% else %}
+    <!-- Letterhead -->
+    <div class="report-letterhead">
+      <div class="report-title">
+        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+        <h5 style="margin-top:8px">Admitted Students Report</h5>
+        {% if filters.start_date and filters.end_date %}
+        <small class="text-muted">
+          {{ filters.start_date }} to {{ filters.end_date }}
+        </small>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="report-table table table-sm">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Admission Number</th>
+                <th>Admission Date</th>
+                <th>Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.admission_number }}</td>
+                <td>{{ row.admission_date|date:"Y-m-d" }}</td>
+                <td>{{ row.grade }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                  <i class="mdi mdi-information-outline me-1"></i>
+                  No admitted students found for the selected filters.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+

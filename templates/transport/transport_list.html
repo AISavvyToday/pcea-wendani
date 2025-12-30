@@ -1,5 +1,5 @@
 {% extends 'base/base.html' %}
-{% load static humanize %}
+{% load static humanize custom_filters %}
 {% block title %}Transport Routes & Fees{% endblock %}
 
 {% block extra_head %}
@@ -104,6 +104,25 @@
         font-size: 0.9rem;
         line-height: 1.6;
     }
+    .route-points-list {
+        list-style: none;
+        padding-left: 0;
+        margin: 0.5rem 0 0 0;
+    }
+    .route-points-list li {
+        padding: 0.35rem 0.5rem;
+        margin: 0.25rem 0;
+        background: #f8f9fa;
+        border-left: 3px solid #007bff;
+        border-radius: 3px;
+        color: #495057;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    .route-points-list li:before {
+        content: "📍 ";
+        margin-right: 0.25rem;
+    }
 </style>
 {% endblock %}
 
@@ -168,7 +187,11 @@
                                         <div class="col-md-6">
                                             <div class="route-info-section">
                                                 <strong><i class="mdi mdi-map-marker"></i> Pickup Points</strong>
-                                                <div style="white-space: pre-line;">{{ route.pickup_points }}</div>
+                                                <ul class="route-points-list">
+                                                    {% for point in route.pickup_points|split_lines %}
+                                                    <li>{{ point }}</li>
+                                                    {% endfor %}
+                                                </ul>
                                             </div>
                                         </div>
                                         {% endif %}
@@ -176,7 +199,11 @@
                                         <div class="col-md-6">
                                             <div class="route-info-section">
                                                 <strong><i class="mdi mdi-map-marker-check"></i> Drop-off Points</strong>
-                                                <div style="white-space: pre-line;">{{ route.dropoff_points }}</div>
+                                                <ul class="route-points-list">
+                                                    {% for point in route.dropoff_points|split_lines %}
+                                                    <li>{{ point }}</li>
+                                                    {% endfor %}
+                                                </ul>
                                             </div>
                                         </div>
                                         {% endif %}

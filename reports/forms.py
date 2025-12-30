@@ -159,3 +159,50 @@ class TransportReportFilterForm(forms.Form):
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
     show_zero_rows = forms.BooleanField(required=False, initial=False, label='Include zero rows')
+
+
+class TransferredStudentsFilterForm(forms.Form):
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year",
+        label='Academic Year'
+    )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Transfer Date From'
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Transfer Date To'
+    )
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Class/Grade'
+    )
+
+
+class AdmittedStudentsFilterForm(forms.Form):
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Admission Date From',
+        initial=lambda: timezone.now().replace(month=1, day=1).date()
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Admission Date To',
+        initial=lambda: timezone.now().date()
+    )
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Class/Grade'
+    )

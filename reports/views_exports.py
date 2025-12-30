@@ -26,6 +26,8 @@ from payments.models import Payment, PaymentAllocation
 from academics.models import AcademicYear, Term
 from transport.models import TransportRoute
 from core.models import InvoiceStatus
+from students.models import Student
+from students.models import Student
 
 
 # ---------- Helpers ----------
@@ -1394,6 +1396,273 @@ class InvoiceListPDFView(LoginRequiredMixin, View):
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
         filename = f"invoice-list-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# ---------- Transferred Students Report Exports ----------
+class TransferredStudentsExcelView(LoginRequiredMixin, View):
+    """Exports transferred students report to Excel."""
+
+    def get(self, request):
+        from .forms import TransferredStudentsFilterForm
+        form = TransferredStudentsFilterForm(request.GET)
+        form.is_valid()
+
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        student_class = cleaned.get('student_class')
+
+        # Base queryset: transferred students
+        students_qs = Student.objects.filter(status='transferred').select_related('current_class')
+
+        if academic_year:
+            students_qs = students_qs.filter(status_date__year=academic_year.year)
+        if start_date:
+            students_qs = students_qs.filter(status_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(status_date__lte=end_date)
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        # Build workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Transferred Students"
+
+        title = "Transferred Students Report"
+        if academic_year:
+            title += f" - {academic_year.year}"
+        add_common_header(ws, title)
+
+        headers = ['Name', 'Admission Number', 'Grade']
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=5, column=c, value=h).font = Font(bold=True)
+
+        row_num = 6
+        for student in students_qs.order_by('first_name', 'last_name'):
+            ws.cell(row=row_num, column=1, value=student.full_name)
+            ws.cell(row=row_num, column=2, value=student.admission_number or 'N/A')
+            ws.cell(row=row_num, column=3, value=student.current_class.name if student.current_class else 'Not assigned')
+            row_num += 1
+
+        # Auto width columns
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 25
+
+        bytes_data = workbook_to_bytes(wb)
+        filename = f"transferred-students-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        return xlsx_response(bytes_data, filename)
+
+
+class TransferredStudentsPDFView(LoginRequiredMixin, View):
+    """Generates PDF for transferred students report."""
+
+    def get(self, request):
+        from .forms import TransferredStudentsFilterForm
+        form = TransferredStudentsFilterForm(request.GET)
+        form.is_valid()
+
+        cleaned = getattr(form, 'cleaned_data', {})
+        academic_year = cleaned.get('academic_year')
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        student_class = cleaned.get('student_class')
+
+        # Base queryset: transferred students
+        students_qs = Student.objects.filter(status='transferred').select_related('current_class')
+
+        if academic_year:
+            students_qs = students_qs.filter(status_date__year=academic_year.year)
+        if start_date:
+            students_qs = students_qs.filter(status_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(status_date__lte=end_date)
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        rows = []
+        for student in students_qs.order_by('first_name', 'last_name'):
+            rows.append({
+                'name': student.full_name,
+                'admission_number': student.admission_number or 'N/A',
+                'grade': student.current_class.name if student.current_class else 'Not assigned',
+            })
+
+        context = {
+            'rows': rows,
+            'filters': {
+                'academic_year': academic_year,
+                'start_date': start_date,
+                'end_date': end_date,
+                'student_class': student_class,
+            },
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                           'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                         'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'generated_by': request.user.get_full_name(),
+            'generated_on': datetime.now(),
+        }
+
+        html_string = render_to_string('reports/pdf/transferred_students_report_pdf.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        pdf_bytes = html.write_pdf()
+        filename = f"transferred-students-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# ---------- Admitted Students Report Exports ----------
+class AdmittedStudentsExcelView(LoginRequiredMixin, View):
+    """Exports admitted students report to Excel."""
+
+    def get(self, request):
+        from .forms import AdmittedStudentsFilterForm
+        from django.utils import timezone as tz
+        form = AdmittedStudentsFilterForm(request.GET)
+        form.is_valid()
+
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        student_class = cleaned.get('student_class')
+
+        # Default to current year if no dates provided
+        if not start_date:
+            start_date = tz.now().replace(month=1, day=1).date()
+        if not end_date:
+            end_date = tz.now().date()
+
+        # Base queryset: students with admission_date
+        students_qs = Student.objects.filter(
+            admission_date__isnull=False
+        ).select_related('current_class')
+
+        if start_date:
+            students_qs = students_qs.filter(admission_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(admission_date__lte=end_date)
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        # Build workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Admitted Students"
+
+        title = "Admitted Students Report"
+        if start_date and end_date:
+            title += f" ({start_date} to {end_date})"
+        add_common_header(ws, title)
+
+        headers = ['Name', 'Admission Number', 'Admission Date', 'Grade']
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=5, column=c, value=h).font = Font(bold=True)
+
+        row_num = 6
+        for student in students_qs.order_by('admission_date', 'first_name', 'last_name'):
+            ws.cell(row=row_num, column=1, value=student.full_name)
+            ws.cell(row=row_num, column=2, value=student.admission_number or 'N/A')
+            ws.cell(row=row_num, column=3, value=student.admission_date.strftime('%Y-%m-%d') if student.admission_date else '')
+            ws.cell(row=row_num, column=4, value=student.current_class.name if student.current_class else 'Not assigned')
+            row_num += 1
+
+        # Auto width columns
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 25
+
+        bytes_data = workbook_to_bytes(wb)
+        filename = f"admitted-students-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        return xlsx_response(bytes_data, filename)
+
+
+class AdmittedStudentsPDFView(LoginRequiredMixin, View):
+    """Generates PDF for admitted students report."""
+
+    def get(self, request):
+        from .forms import AdmittedStudentsFilterForm
+        from django.utils import timezone as tz
+        form = AdmittedStudentsFilterForm(request.GET)
+        form.is_valid()
+
+        cleaned = getattr(form, 'cleaned_data', {})
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        student_class = cleaned.get('student_class')
+
+        # Default to current year if no dates provided
+        if not start_date:
+            start_date = tz.now().replace(month=1, day=1).date()
+        if not end_date:
+            end_date = tz.now().date()
+
+        # Base queryset: students with admission_date
+        students_qs = Student.objects.filter(
+            admission_date__isnull=False
+        ).select_related('current_class')
+
+        if start_date:
+            students_qs = students_qs.filter(admission_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(admission_date__lte=end_date)
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        rows = []
+        for student in students_qs.order_by('admission_date', 'first_name', 'last_name'):
+            rows.append({
+                'name': student.full_name,
+                'admission_number': student.admission_number or 'N/A',
+                'admission_date': student.admission_date,
+                'grade': student.current_class.name if student.current_class else 'Not assigned',
+            })
+
+        context = {
+            'rows': rows,
+            'filters': {
+                'start_date': start_date,
+                'end_date': end_date,
+                'student_class': student_class,
+            },
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                           'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                         'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'generated_by': request.user.get_full_name(),
+            'generated_on': datetime.now(),
+        }
+
+        html_string = render_to_string('reports/pdf/admitted_students_report_pdf.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        pdf_bytes = html.write_pdf()
+        filename = f"admitted-students-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

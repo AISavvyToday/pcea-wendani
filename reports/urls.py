@@ -25,4 +25,14 @@ urlpatterns = [
     # Invoice List Exports (for invoice list page)
     path('invoice-list/export/xlsx/', views_exports.InvoiceListExcelView.as_view(), name='invoice_xlsx'),
     path('invoice-list/export/pdf/', views_exports.InvoiceListPDFView.as_view(), name='invoice_pdf'),
+
+    # Transferred Students Report
+    path('transferred-students/', views.TransferredStudentsReportView.as_view(), name='transferred_students_report'),
+    path('transferred-students/export/xlsx/', views_exports.TransferredStudentsExcelView.as_view(), name='transferred_students_export_excel'),
+    path('transferred-students/export/pdf/', views_exports.TransferredStudentsPDFView.as_view(), name='transferred_students_export_pdf'),
+
+    # Admitted Students Report
+    path('admitted-students/', views.AdmittedStudentsReportView.as_view(), name='admitted_students_report'),
+    path('admitted-students/export/xlsx/', views_exports.AdmittedStudentsExcelView.as_view(), name='admitted_students_export_excel'),
+    path('admitted-students/export/pdf/', views_exports.AdmittedStudentsPDFView.as_view(), name='admitted_students_export_pdf'),
 ]

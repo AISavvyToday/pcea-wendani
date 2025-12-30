@@ -11,13 +11,15 @@ from decimal import Decimal
 from django.db.models import ExpressionWrapper, DecimalField
 from .forms import (
     InvoiceReportFilterForm, FeesCollectionFilterForm,
-    OutstandingBalancesFilterForm, TransportReportFilterForm
+    OutstandingBalancesFilterForm, TransportReportFilterForm,
+    TransferredStudentsFilterForm, AdmittedStudentsFilterForm
 )
 from .models import ReportRequest
 from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
 from academics.models import AcademicYear
 from transport.models import TransportFee
+from students.models import Student
 
 
 class InvoiceReportView(LoginRequiredMixin, View):
@@ -693,6 +695,224 @@ class TransportReportView(LoginRequiredMixin, View):
                     'student_class': student_class,
                     'start_date': str(start_date) if start_date else None,
                     'end_date': str(end_date) if end_date else None
+                }
+            )
+        except Exception:
+            pass
+
+        return render(request, self.template_name, context)
+
+
+class TransferredStudentsReportView(LoginRequiredMixin, View):
+    template_name = 'reports/transferred_students_report.html'
+
+    def get(self, request):
+        form = TransferredStudentsFilterForm(request.GET or None)
+
+        # Populate dynamic class choices from students
+        class_choices = [('', 'All Classes')]
+        try:
+            raw_classes = Student.objects.filter(
+                current_class__isnull=False
+            ).values_list('current_class__name', flat=True).distinct()
+            classes = sorted([c for c in raw_classes if c])
+            class_choices += [(c, c) for c in classes]
+            form.fields['student_class'].choices = class_choices
+        except Exception:
+            pass
+
+        # School branding context
+        context = {
+            'form': form,
+            'rows': None,
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                           'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                         'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
+        }
+
+        if not form.is_valid():
+            return render(request, self.template_name, context)
+
+        # Extract filters
+        academic_year = form.cleaned_data.get('academic_year')
+        start_date = form.cleaned_data.get('start_date')
+        end_date = form.cleaned_data.get('end_date')
+        student_class = form.cleaned_data.get('student_class')
+
+        # Base queryset: transferred students
+        students_qs = Student.objects.filter(status='transferred').select_related('current_class')
+
+        # Filter by academic year (if provided, filter by status_date within that year)
+        if academic_year:
+            students_qs = students_qs.filter(
+                status_date__year=academic_year.year
+            )
+
+        # Filter by date range (status_date)
+        if start_date:
+            students_qs = students_qs.filter(status_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(status_date__lte=end_date)
+
+        # Filter by class
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        # Build rows for display
+        rows = []
+        for student in students_qs.order_by('first_name', 'last_name'):
+            rows.append({
+                'student_pk': student.pk,
+                'name': student.full_name,
+                'admission_number': student.admission_number or 'N/A',
+                'grade': student.current_class.name if student.current_class else 'Not assigned',
+                'transfer_date': student.status_date.date() if student.status_date else None,
+            })
+
+        context.update({
+            'rows': rows,
+            'filters': {
+                'academic_year': academic_year,
+                'start_date': start_date,
+                'end_date': end_date,
+                'student_class': student_class,
+            }
+        })
+
+        # Optionally log the report request
+        try:
+            ReportRequest.objects.create(
+                report_type='transferred_students',
+                created_by=request.user,
+                academic_year=academic_year,
+                term=None,
+                params={
+                    'start_date': str(start_date) if start_date else None,
+                    'end_date': str(end_date) if end_date else None,
+                    'class': student_class,
+                }
+            )
+        except Exception:
+            pass
+
+        return render(request, self.template_name, context)
+
+
+class AdmittedStudentsReportView(LoginRequiredMixin, View):
+    template_name = 'reports/admitted_students_report.html'
+
+    def get(self, request):
+        form = AdmittedStudentsFilterForm(request.GET or None)
+
+        # Populate dynamic class choices from students
+        class_choices = [('', 'All Classes')]
+        try:
+            raw_classes = Student.objects.filter(
+                current_class__isnull=False
+            ).values_list('current_class__name', flat=True).distinct()
+            classes = sorted([c for c in raw_classes if c])
+            class_choices += [(c, c) for c in classes]
+            form.fields['student_class'].choices = class_choices
+        except Exception:
+            pass
+
+        # School branding context
+        context = {
+            'form': form,
+            'rows': None,
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                           'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
+                         'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
+        }
+
+        if not form.is_valid():
+            return render(request, self.template_name, context)
+
+        # Extract filters
+        start_date = form.cleaned_data.get('start_date')
+        end_date = form.cleaned_data.get('end_date')
+        student_class = form.cleaned_data.get('student_class')
+
+        # Default to current year if no dates provided
+        if not start_date:
+            start_date = timezone.now().replace(month=1, day=1).date()
+        if not end_date:
+            end_date = timezone.now().date()
+
+        # Base queryset: students with admission_date
+        students_qs = Student.objects.filter(
+            admission_date__isnull=False
+        ).select_related('current_class')
+
+        # Filter by admission date range
+        if start_date:
+            students_qs = students_qs.filter(admission_date__gte=start_date)
+        if end_date:
+            students_qs = students_qs.filter(admission_date__lte=end_date)
+
+        # Filter by class
+        if student_class:
+            students_qs = students_qs.filter(current_class__name=student_class)
+
+        # Build rows for display
+        rows = []
+        for student in students_qs.order_by('admission_date', 'first_name', 'last_name'):
+            rows.append({
+                'student_pk': student.pk,
+                'name': student.full_name,
+                'admission_number': student.admission_number or 'N/A',
+                'admission_date': student.admission_date,
+                'grade': student.current_class.name if student.current_class else 'Not assigned',
+            })
+
+        context.update({
+            'rows': rows,
+            'filters': {
+                'start_date': start_date,
+                'end_date': end_date,
+                'student_class': student_class,
+            }
+        })
+
+        # Optionally log the report request
+        try:
+            ReportRequest.objects.create(
+                report_type='admitted_students',
+                created_by=request.user,
+                academic_year=None,
+                term=None,
+                params={
+                    'start_date': str(start_date) if start_date else None,
+                    'end_date': str(end_date) if end_date else None,
+                    'class': student_class,
                 }
             )
         except Exception:

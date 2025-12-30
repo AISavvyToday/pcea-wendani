@@ -16,3 +16,10 @@ def multiply(value, arg):
         return float(value) * float(arg)
     except (ValueError, TypeError):
         return 0
+
+@register.filter
+def split_lines(value):
+    """Split a string by newlines and return a list of non-empty lines."""
+    if not value:
+        return []
+    return [line.strip() for line in str(value).splitlines() if line.strip()]
