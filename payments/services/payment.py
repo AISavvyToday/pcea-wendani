@@ -60,7 +60,7 @@ class PaymentService:
         try:
             payment_method = PaymentService.GATEWAY_TO_METHOD.get(
                 bank_tx.gateway,
-                PaymentMethod.BANK_TRANSFER,
+                PaymentMethod.BANK_DEPOSIT,
             )
             
             # Map gateway to payment_source if not provided
