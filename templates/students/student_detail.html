@@ -102,7 +102,7 @@
         <i class="mdi mdi-arrow-left"></i> Back to list
       </a>
 
-      {% if user.role == UserRole.SUPER_ADMIN or user.role == UserRole.SCHOOL_ADMIN %}
+      {% if is_admin %}
         <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-warning me-1">
           <i class="mdi mdi-pencil"></i> Edit
         </a>
