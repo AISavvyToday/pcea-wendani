@@ -465,7 +465,6 @@ class StudentService:
                 defaults={
                     "grade_level": grade_level,
                     "stream": stream,
-                    "capacity": 50,
                 },
             )
 

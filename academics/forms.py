@@ -39,7 +39,7 @@ class SubjectForm(forms.ModelForm):
 class ClassForm(forms.ModelForm):
     class Meta:
         model = Class
-        fields = ['name', 'grade_level', 'stream', 'capacity', 'class_teacher', 'room', 'academic_year']
+        fields = ['name', 'grade_level', 'stream', 'class_teacher', 'room', 'academic_year']
 
 
 class ClassSubjectForm(forms.ModelForm):

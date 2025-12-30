@@ -154,9 +154,6 @@ class Class(BaseModel):
     grade_level = models.CharField(max_length=20, choices=GradeLevel.choices)
     stream = models.CharField(max_length=10, choices=StreamChoices.choices, default=StreamChoices.EAST)
 
-    # Capacity
-    capacity = models.PositiveIntegerField(default=40)
-
     # Class teacher
     class_teacher = models.ForeignKey(
         Staff, on_delete=models.SET_NULL,
@@ -183,10 +180,6 @@ class Class(BaseModel):
     @property
     def student_count(self):
         return self.students.filter(status='active').count()
-
-    @property
-    def is_full(self):
-        return self.student_count >= self.capacity
 
 
 class Subject(BaseModel):

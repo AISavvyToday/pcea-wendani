@@ -79,8 +79,7 @@ class ClassSubjectInline(admin.TabularInline):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('name', 'grade_level', 'stream', 'academic_year', 'class_teacher', 'student_count', 'capacity',
-                    'room')
+    list_display = ('name', 'grade_level', 'stream', 'academic_year', 'class_teacher', 'student_count', 'room')
     list_filter = ('academic_year', 'grade_level')
     search_fields = ('name', 'stream', 'room')
     autocomplete_fields = ['class_teacher', 'academic_year']
@@ -88,11 +87,7 @@ class ClassAdmin(admin.ModelAdmin):
     inlines = [ClassSubjectInline]
 
     def student_count(self, obj):
-        count = obj.student_count
-        capacity = obj.capacity
-        if count >= capacity:
-            return format_html('<span style="color: red;">{}/{}</span>', count, capacity)
-        return f"{count}/{capacity}"
+        return obj.student_count
 
     student_count.short_description = 'Students'
 
