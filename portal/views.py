@@ -358,7 +358,21 @@ def dashboard_admin(request):
     term_stats = kpis["term_stats"]
     year_stats = kpis["year_stats"]
 
-    total_students = _get_active_students_qs().count()
+    # Get active students (status='active')
+    active_students_qs = Student.objects.filter(status='active')
+    total_students = active_students_qs.count()
+    
+    # Calculate new students (registered within current term)
+    new_students = 0
+    if term:
+        new_students = active_students_qs.filter(
+            admission_date__gte=term.start_date,
+            admission_date__lte=term.end_date
+        ).count()
+    
+    # Calculate transferred students (status='transferred')
+    transferred_students = Student.objects.filter(status='transferred').count()
+    
     staff_count = _get_staff_count()
 
     # Finance URLs (REAL from your finance/urls.py)
@@ -391,12 +405,13 @@ def dashboard_admin(request):
         "current_academic_year": academic_year,
         "stat_cards": [
             {
-                "title": "Total Students",
+                "title": "Total Students(Active only)",
                 "value": f"{total_students:,}",
                 "icon": "mdi-account-group",
                 "bg": "bg-gradient-primary",
                 "url": _safe_reverse("students:list"),
-                "helper": "Active/enrolled students",
+                "helper": f"New Students-{new_students}",
+                "helper_extra": f"Transferred-{transferred_students}",
             },
             {
                 "title": "Bal B/F",

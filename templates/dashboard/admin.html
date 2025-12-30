@@ -33,7 +33,14 @@
           </h4>
           <h2 class="mb-2">{{ card.value }}</h2>
           {% if card.helper %}
-            <p class="mb-0 small text-white-50">{{ card.helper }}</p>
+            <p class="mb-0 small text-white-50" style="font-size: 0.75rem; line-height: 1.6; margin-top: 4px;">
+              {% if card.helper_extra %}
+                <span style="display: block; padding-left: 8px;">{{ card.helper }}</span>
+                <span style="display: block; padding-left: 8px;">{{ card.helper_extra }}</span>
+              {% else %}
+                {{ card.helper }}
+              {% endif %}
+            </p>
           {% endif %}
         </div>
       </div>
