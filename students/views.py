@@ -1,4 +1,5 @@
 # students/views.py
+import logging
 from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -12,7 +13,6 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView, F
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.views.generic import DeleteView
-from django.urls import reverse_lazy
 from django.contrib import messages
 from core.mixins import RoleRequiredMixin
 from accounts.models import User
@@ -21,6 +21,8 @@ from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionF
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from core.models import UserRole, InvoiceStatus
+
+logger = logging.getLogger(__name__)
 
 
 class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
@@ -106,25 +108,49 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         parent_form_1 = context['parent_form_1']
         parent_form_2 = context['parent_form_2']
 
+        # Validate parent forms first
+        parent_1_valid = parent_form_1.is_valid() if parent_form_1 else False
+        parent_2_valid = parent_form_2.is_valid() if parent_form_2 else False
+        
+        # Check if at least one parent is provided
+        has_parent_1 = parent_1_valid and parent_form_1.cleaned_data.get('first_name')
+        has_parent_2 = parent_2_valid and parent_form_2.cleaned_data.get('first_name')
+        
+        if not has_parent_1 and not has_parent_2:
+            messages.error(self.request, 'Please provide at least one parent/guardian information.')
+            return self.form_invalid(form)
+        
+        # Show parent form errors if any
+        if not parent_1_valid and parent_form_1:
+            for field, errors in parent_form_1.errors.items():
+                for error in errors:
+                    messages.error(self.request, f'Parent 1 - {field}: {error}')
+        
+        if not parent_2_valid and parent_form_2 and has_parent_2:
+            for field, errors in parent_form_2.errors.items():
+                for error in errors:
+                    messages.error(self.request, f'Parent 2 - {field}: {error}')
+        
+        if not parent_1_valid or (has_parent_2 and not parent_2_valid):
+            return self.form_invalid(form)
+
         # Prepare student data
         student_data = form.cleaned_data.copy()
         
         # Auto-generate admission number if not provided
         if not student_data.get('admission_number'):
-            from datetime import date
-            admission_year = student_data.get('admission_date', date.today()).year
-            student_data['admission_number'] = StudentService.generate_admission_number(year=admission_year)
+            student_data['admission_number'] = StudentService.generate_admission_number()
 
         # Prepare parents data
         parents_data = []
 
-        if parent_form_1.is_valid() and parent_form_1.cleaned_data.get('first_name'):
+        if has_parent_1:
             parent_1_data = parent_form_1.cleaned_data.copy()
             parent_1_data['is_primary'] = True
             parent_1_data['relationship'] = parent_1_data.get('relationship', 'guardian')
             parents_data.append(parent_1_data)
 
-        if parent_form_2.is_valid() and parent_form_2.cleaned_data.get('first_name'):
+        if has_parent_2:
             parent_2_data = parent_form_2.cleaned_data.copy()
             parent_2_data['is_primary'] = False
             parent_2_data['relationship'] = parent_2_data.get('relationship', 'guardian')
@@ -144,7 +170,10 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
             return redirect(self.success_url)
 
         except Exception as e:
-            messages.error(self.request, f'Error registering student: {str(e)}')
+            import traceback
+            error_msg = str(e)
+            logger.error(f"Error registering student: {error_msg}\n{traceback.format_exc()}")
+            messages.error(self.request, f'Error registering student: {error_msg}')
             return self.form_invalid(form)
 
 

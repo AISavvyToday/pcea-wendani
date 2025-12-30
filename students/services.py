@@ -291,31 +291,38 @@ class StudentService:
         }
 
     @staticmethod
-    def generate_admission_number(year=None):
+    def generate_admission_number():
         """
-        Generate the next admission number for a student.
-        Args:
-            year: Year for admission (defaults to current year)
+        Generate the next sequential admission number for a student.
+        Finds the highest numeric admission number and increments it.
+        Handles formats like "3389", "PWA3389", etc.
 
         Returns:
-            str: Next admission number
+            str: Next admission number (numeric only, e.g., "3390")
         """
-        from datetime import date
-
-        if not year:
-            year = date.today().year
-
-        # Get the last admission number for this year
-        prefix = f"{year}"
-        last_student = Student.objects.filter(
-            admission_number__startswith=prefix
-        ).order_by('-admission_number').first()
-
-        if last_student:
-            # Extract sequence number and increment
-            last_sequence = int(last_student.admission_number[-3:])
-            next_sequence = last_sequence + 1
-        else:
-            next_sequence = 1
-
-        return f"{prefix}{next_sequence:03d}"
+        import re
+        
+        # Get all admission numbers
+        all_students = Student.objects.all().values_list('admission_number', flat=True)
+        
+        max_number = 0
+        
+        for admission_num in all_students:
+            if not admission_num:
+                continue
+                
+            # Extract numeric part (handles "PWA3389", "3389", etc.)
+            # Remove any non-digit characters and get the numeric part
+            numeric_part = re.sub(r'\D', '', str(admission_num))
+            
+            if numeric_part:
+                try:
+                    num = int(numeric_part)
+                    if num > max_number:
+                        max_number = num
+                except ValueError:
+                    continue
+        
+        # Increment and return as string
+        next_number = max_number + 1
+        return str(next_number)

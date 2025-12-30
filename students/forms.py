@@ -203,6 +203,15 @@ class ParentForm(forms.ModelForm):
             'employer',
             'relationship',
         ]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make first_name, last_name, phone_primary, and relationship required for new parents
+        if not self.instance.pk:
+            self.fields['first_name'].required = True
+            self.fields['last_name'].required = True
+            self.fields['phone_primary'].required = True
+            self.fields['relationship'].required = True
         widgets = {
             'first_name': forms.TextInput(attrs={
                 'class': 'form-control',
