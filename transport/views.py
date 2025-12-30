@@ -22,10 +22,32 @@ class TransportRouteListView(LoginRequiredMixin, RoleRequiredMixin, View):
         routes = TransportRoute.objects.filter(is_active=True).prefetch_related('fees').order_by('name')
         fees = TransportFee.objects.filter(is_active=True).select_related('route', 'academic_year').order_by('route__name', 'academic_year__year', 'term')
         academic_years = AcademicYear.objects.filter(is_active=True).order_by('-year')
+        
+        # Prepare route-fee combinations for table display
+        route_fee_rows = []
+        for route in routes:
+            active_fees = [f for f in route.fees.all() if f.is_active]
+            if active_fees:
+                for fee in active_fees:
+                    route_fee_rows.append({
+                        'route': route,
+                        'fee': fee,
+                        'is_first_fee': active_fees.index(fee) == 0,
+                        'active_fee_count': len(active_fees),
+                    })
+            else:
+                route_fee_rows.append({
+                    'route': route,
+                    'fee': None,
+                    'is_first_fee': True,
+                    'active_fee_count': 0,
+                })
+        
         return render(request, self.template_name, {
             'routes': routes,
             'fees': fees,
             'academic_years': academic_years,
+            'route_fee_rows': route_fee_rows,
         })
 
 

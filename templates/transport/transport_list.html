@@ -4,28 +4,6 @@
 
 {% block extra_head %}
 <style>
-    .route-card {
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 1.25rem;
-        margin-bottom: 1rem;
-        background: #fff;
-        transition: all 0.3s ease;
-    }
-    .route-card:hover {
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        transform: translateY(-2px);
-    }
-    .fee-badge {
-        display: inline-block;
-        padding: 0.35rem 0.75rem;
-        margin: 0.25rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 6px;
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
     .nav-tabs .nav-link {
         color: #495057;
         font-weight: 500;
@@ -89,40 +67,6 @@
     .alert-icon.info {
         color: #17a2b8;
     }
-    .route-info-section {
-        margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid #e9ecef;
-    }
-    .route-info-section strong {
-        color: #495057;
-        display: block;
-        margin-bottom: 0.5rem;
-    }
-    .route-info-section div {
-        color: #6c757d;
-        font-size: 0.9rem;
-        line-height: 1.6;
-    }
-    .route-points-list {
-        list-style: none;
-        padding-left: 0;
-        margin: 0.5rem 0 0 0;
-    }
-    .route-points-list li {
-        padding: 0.35rem 0.5rem;
-        margin: 0.25rem 0;
-        background: #f8f9fa;
-        border-left: 3px solid #007bff;
-        border-radius: 3px;
-        color: #495057;
-        font-size: 0.875rem;
-        line-height: 1.5;
-    }
-    .route-points-list li:before {
-        content: "📍 ";
-        margin-right: 0.25rem;
-    }
     .route-points-list-compact {
         list-style: none;
         padding-left: 0;
@@ -143,23 +87,33 @@
         margin-right: 0.2rem;
         font-size: 0.7rem;
     }
-    .fee-badge-compact {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        line-height: 1.4;
-        margin-bottom: 0.25rem;
-    }
     .table th {
         vertical-align: middle;
         font-weight: 600;
+        border: 1px solid #dee2e6;
+        padding: 12px 8px;
+        background-color: #f8f9fa;
     }
     .table td {
         vertical-align: middle;
+        border: 1px solid #dee2e6;
+        padding: 10px 8px;
+    }
+    .table-striped > tbody > tr:nth-of-type(odd) > td {
+        background-color: rgba(0,0,0,.02);
+    }
+    .table-hover > tbody > tr:hover > td {
+        background-color: rgba(0,123,255,.075);
+    }
+    .route-fee-row {
+        border-bottom: 1px solid #dee2e6;
+    }
+    .route-separator {
+        border-bottom: 3px solid #007bff !important;
+    }
+    .route-info-cell {
+        border-right: 2px solid #007bff !important;
+        background-color: #f8f9fa;
     }
 </style>
 {% endblock %}
@@ -207,82 +161,127 @@
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-hover table-bordered" id="routes-container">
+                        <table class="table table-hover table-bordered table-striped" id="routes-container">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 15%;"><i class="mdi mdi-bus"></i> Route Name</th>
-                                    <th style="width: 15%;"><i class="mdi mdi-text"></i> Description</th>
-                                    <th style="width: 20%;"><i class="mdi mdi-map-marker"></i> Pickup Points</th>
-                                    <th style="width: 20%;"><i class="mdi mdi-map-marker-check"></i> Drop-off Points</th>
-                                    <th style="width: 15%;"><i class="mdi mdi-cash-multiple"></i> Fees</th>
-                                    <th style="width: 15%;" class="text-center"><i class="mdi mdi-cog"></i> Actions</th>
+                                    <th style="width: 18%;"><i class="mdi mdi-bus"></i> Route Name</th>
+                                    <th style="width: 12%;"><i class="mdi mdi-text"></i> Description</th>
+                                    <th style="width: 18%;"><i class="mdi mdi-map-marker"></i> Pickup Points</th>
+                                    <th style="width: 18%;"><i class="mdi mdi-map-marker-check"></i> Drop-off Points</th>
+                                    <th style="width: 10%;"><i class="mdi mdi-calendar"></i> Academic Year</th>
+                                    <th style="width: 8%;"><i class="mdi mdi-calendar-clock"></i> Term</th>
+                                    <th style="width: 10%;" class="text-end"><i class="mdi mdi-cash"></i> Full Trip</th>
+                                    <th style="width: 10%;" class="text-end"><i class="mdi mdi-cash-multiple"></i> Half Trip</th>
+                                    <th style="width: 12%;" class="text-center"><i class="mdi mdi-cog"></i> Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for route in routes %}
-                                <tr id="route-{{ route.id }}">
-                                    <td>
-                                        <strong>{{ route.name }}</strong>
-                                    </td>
-                                    <td>
-                                        {% if route.description %}
-                                        <span class="text-muted">{{ route.description|truncatewords:15 }}</span>
+                                {% for row in route_fee_rows %}
+                                    {% with route=row.route fee=row.fee %}
+                                        {% if fee %}
+                                            <tr id="route-{{ route.id }}-fee-{{ fee.id }}" class="route-fee-row {% if row.is_first_fee %}route-separator{% endif %}">
+                                                {% if row.is_first_fee %}
+                                                <td rowspan="{{ row.active_fee_count }}" class="route-info-cell">
+                                                    <strong>{{ route.name }}</strong>
+                                                </td>
+                                                <td rowspan="{{ row.active_fee_count }}" class="route-info-cell">
+                                                    {% if route.description %}
+                                                    <span class="text-muted small">{{ route.description|truncatewords:10 }}</span>
+                                                    {% else %}
+                                                    <span class="text-muted">—</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td rowspan="{{ row.active_fee_count }}" class="route-info-cell">
+                                                    {% if route.pickup_points %}
+                                                    <ul class="route-points-list-compact">
+                                                        {% for point in route.pickup_points|split_lines %}
+                                                        <li>{{ point }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                    {% else %}
+                                                    <span class="text-muted">—</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td rowspan="{{ row.active_fee_count }}" class="route-info-cell">
+                                                    {% if route.dropoff_points %}
+                                                    <ul class="route-points-list-compact">
+                                                        {% for point in route.dropoff_points|split_lines %}
+                                                        <li>{{ point }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                    {% else %}
+                                                    <span class="text-muted">—</span>
+                                                    {% endif %}
+                                                </td>
+                                                {% endif %}
+                                                <td><strong>{{ fee.academic_year.year }}</strong></td>
+                                                <td><span class="badge bg-info">{{ fee.get_term_display }}</span></td>
+                                                <td class="text-end"><strong>KES {{ fee.amount|intcomma }}</strong></td>
+                                                <td class="text-end"><strong>KES {% if fee.half_amount %}{{ fee.half_amount|intcomma }}{% else %}{% widthratio fee.amount 2 1 %}{% endif %}</strong></td>
+                                                {% if row.is_first_fee %}
+                                                <td rowspan="{{ row.active_fee_count }}" class="text-center route-info-cell">
+                                                    <div class="action-buttons justify-content-center">
+                                                        <button class="btn btn-sm btn-outline-primary" onclick="editRoute('{{ route.id }}')" title="Edit Route">
+                                                            <i class="mdi mdi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRoute('{{ route.id }}', '{{ route.name }}')" title="Delete Route">
+                                                            <i class="mdi mdi-delete"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                {% endif %}
+                                            </tr>
                                         {% else %}
-                                        <span class="text-muted">—</span>
+                                        <tr id="route-{{ route.id }}" class="route-fee-row route-separator">
+                                            <td><strong>{{ route.name }}</strong></td>
+                                            <td>
+                                                {% if route.description %}
+                                                <span class="text-muted small">{{ route.description|truncatewords:10 }}</span>
+                                                {% else %}
+                                                <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if route.pickup_points %}
+                                                <ul class="route-points-list-compact">
+                                                    {% for point in route.pickup_points|split_lines %}
+                                                    <li>{{ point }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                                {% else %}
+                                                <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if route.dropoff_points %}
+                                                <ul class="route-points-list-compact">
+                                                    {% for point in route.dropoff_points|split_lines %}
+                                                    <li>{{ point }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                                {% else %}
+                                                <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                            <td colspan="4" class="text-center text-muted">
+                                                <i class="mdi mdi-alert-circle"></i> No fees configured
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="action-buttons justify-content-center">
+                                                    <button class="btn btn-sm btn-outline-primary" onclick="editRoute('{{ route.id }}')" title="Edit Route">
+                                                        <i class="mdi mdi-pencil"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRoute('{{ route.id }}', '{{ route.name }}')" title="Delete Route">
+                                                        <i class="mdi mdi-delete"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
                                         {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if route.pickup_points %}
-                                        <ul class="route-points-list-compact">
-                                            {% for point in route.pickup_points|split_lines %}
-                                            <li>{{ point }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                        {% else %}
-                                        <span class="text-muted">—</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if route.dropoff_points %}
-                                        <ul class="route-points-list-compact">
-                                            {% for point in route.dropoff_points|split_lines %}
-                                            <li>{{ point }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                        {% else %}
-                                        <span class="text-muted">—</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if route.fees.all %}
-                                        <div class="d-flex flex-column gap-1">
-                                            {% for fee in route.fees.all %}
-                                            {% if fee.is_active %}
-                                            <small class="fee-badge-compact">
-                                                <i class="mdi mdi-calendar"></i> {{ fee.academic_year.year }} {{ fee.get_term_display }}<br>
-                                                Full: KES {{ fee.amount|intcomma }}{% if fee.half_amount %}<br>Half: KES {{ fee.half_amount|intcomma }}{% endif %}
-                                            </small>
-                                            {% endif %}
-                                            {% endfor %}
-                                        </div>
-                                        {% else %}
-                                        <span class="text-muted"><i class="mdi mdi-alert-circle"></i> No fees</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="action-buttons justify-content-center">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="editRoute('{{ route.id }}')" title="Edit Route">
-                                                <i class="mdi mdi-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteRoute('{{ route.id }}', '{{ route.name }}')" title="Delete Route">
-                                                <i class="mdi mdi-delete"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                    {% endwith %}
                                 {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center">
+                                    <td colspan="9" class="text-center">
                                         <div class="empty-state py-4">
                                             <i class="mdi mdi-bus"></i>
                                             <h5>No Transport Routes</h5>
