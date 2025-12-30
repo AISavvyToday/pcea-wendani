@@ -7,6 +7,72 @@ import django.db.models.deletion
 import uuid
 
 
+def create_tables_if_not_exist(apps, schema_editor):
+    """Create tables only if they don't exist (migrating from academics app)"""
+    db_alias = schema_editor.connection.alias
+    
+    with schema_editor.connection.cursor() as cursor:
+        # Check if transport_routes table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'transport_routes'
+            );
+        """)
+        routes_exists = cursor.fetchone()[0]
+        
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'transport_fees'
+            );
+        """)
+        fees_exists = cursor.fetchone()[0]
+        
+        # If tables don't exist, create them
+        if not routes_exists:
+            cursor.execute("""
+                CREATE TABLE transport_routes (
+                    created_at TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP NOT NULL,
+                    id UUID NOT NULL PRIMARY KEY,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    name VARCHAR(100) NOT NULL DEFAULT 'Route',
+                    description TEXT NOT NULL,
+                    pickup_points TEXT NOT NULL,
+                    dropoff_points TEXT NOT NULL
+                );
+            """)
+        
+        if not fees_exists:
+            cursor.execute("""
+                CREATE TABLE transport_fees (
+                    created_at TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP NOT NULL,
+                    id UUID NOT NULL PRIMARY KEY,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    term VARCHAR(10) NOT NULL,
+                    amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+                    half_amount NUMERIC(10, 2),
+                    academic_year_id UUID NOT NULL,
+                    route_id UUID NOT NULL,
+                    CONSTRAINT transport_fees_academic_year_id_fkey 
+                        FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE CASCADE,
+                    CONSTRAINT transport_fees_route_id_fkey 
+                        FOREIGN KEY (route_id) REFERENCES transport_routes(id) ON DELETE CASCADE,
+                    CONSTRAINT transport_fees_route_id_academic_year_id_term_key 
+                        UNIQUE (route_id, academic_year_id, term)
+                );
+            """)
+
+
+def reverse_func(apps, schema_editor):
+    """Reverse migration - don't drop tables as they may be in use"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     initial = True
@@ -15,11 +81,11 @@ class Migration(migrations.Migration):
         ("academics", "0009_delete_transportfee"),
     ]
 
-    # Since tables already exist (moved from academics app),
-    # we only update Django's state, not the database schema
     operations = [
         migrations.SeparateDatabaseAndState(
-            database_operations=[],  # Tables already exist, no DB changes needed
+            database_operations=[
+                migrations.RunPython(create_tables_if_not_exist, reverse_func),
+            ],
             state_operations=[
                 migrations.CreateModel(
                     name="TransportRoute",
