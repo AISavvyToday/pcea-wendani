@@ -42,8 +42,8 @@ class StudentForm(forms.ModelForm):
             # Residence
             'residence',
         ]
+        exclude = ['admission_number']  # Explicitly exclude - auto-generated for new students
         widgets = {
-            'admission_number': forms.HiddenInput(),  # Hidden for all - auto-generated
             'admission_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
@@ -150,7 +150,11 @@ class StudentForm(forms.ModelForm):
             )
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
-            # For new students, set default status to 'active' and hide it
+            # For new students, ensure admission_number is completely removed
+            # (it's excluded in Meta, but remove it explicitly to be safe)
+            if 'admission_number' in self.fields:
+                del self.fields['admission_number']
+            # Set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['status_reason'].widget = forms.HiddenInput()
@@ -168,16 +172,25 @@ class StudentForm(forms.ModelForm):
                 self.fields[field].required = False
     
     def clean_admission_number(self):
-        """Only validate admission_number if editing (field exists)"""
-        if 'admission_number' not in self.cleaned_data:
-            return None  # Not in form for new students
+        """Only validate admission_number if editing (field exists in form)"""
+        # This method only runs if admission_number field exists in the form
+        # For new students, this field doesn't exist, so this method won't be called
+        if 'admission_number' not in self.fields:
+            # Field doesn't exist in form (new student), skip validation
+            return None
+        
         admission_number = self.cleaned_data.get('admission_number')
-        if admission_number and self.instance.pk:
+        if not admission_number:
+            return None
+            
+        # Only validate uniqueness when editing existing students
+        if self.instance.pk:
             # Check if admission number already exists (excluding current instance)
             qs = Student.objects.filter(admission_number=admission_number)
             qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
                 raise ValidationError('A student with this admission number already exists.')
+        
         return admission_number
 
     def clean(self):
