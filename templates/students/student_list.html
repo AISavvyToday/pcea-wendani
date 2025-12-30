@@ -35,7 +35,6 @@
         </ul>
       </div>
 
-      {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
       <a href="{% url 'students:import_template' %}" class="btn btn-outline-info btn-sm">
         <i class="mdi mdi-download"></i> Download Template
       </a>
@@ -43,13 +42,11 @@
       <a href="{% url 'students:import' %}" class="btn btn-gradient-primary btn-sm">
         <i class="mdi mdi-upload"></i> Import Students
       </a>
-      {% endif %}
 
-      {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
       <a href="{% url 'students:create' %}" class="btn btn-gradient-success btn-sm">
         <i class="mdi mdi-plus"></i> New Student
       </a>
-      {% endif %}
+      
     </div>
   </div>
 
