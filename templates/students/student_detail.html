@@ -409,7 +409,11 @@
                         <td class="text-end">{{ inv.balance_bf|default:"0.00" }}</td>
                         <td class="text-end {% if inv.prepayment and inv.prepayment != 0 %}text-success{% endif %}">
                           {% if inv.prepayment and inv.prepayment != 0 %}
-                            KES {{ inv.prepayment|floatformat:0|abs|intcomma }}
+                            {% if inv.prepayment and inv.prepayment != 0 %}
+                              KES {{ inv.prepayment_abs|floatformat:0|intcomma }}
+                            {% else %}
+                              -
+                            {% endif %}
                           {% else %}
                             -
                           {% endif %}

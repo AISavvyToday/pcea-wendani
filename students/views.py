@@ -330,6 +330,10 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # FINANCE DATA
         # ----------------------------
         invoices = student.invoices.select_related('term').order_by('-issue_date')[:25]
+        # Add prepayment_abs to each invoice for template display
+        for inv in invoices:
+            inv.prepayment_abs = abs(inv.prepayment) if inv.prepayment else Decimal('0.00')
+        
         payments = student.payments.order_by('-payment_date')[:25]
 
         context['invoices'] = invoices

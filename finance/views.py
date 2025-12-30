@@ -625,6 +625,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Account for balance_bf and prepayment (prepayment stored as negative, so adding it reduces the balance)
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
+        prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
         # Use the same formula as invoice model: total_amount + balance_bf + prepayment - amount_paid
         total_balance = total_invoiced + balance_bf + prepayment - total_paid
 
@@ -640,6 +641,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'total_invoiced': total_invoiced,
             'total_paid': total_paid,
             'total_balance': total_balance,
+            'prepayment_abs': prepayment_abs,
             'payment_count': len(enhanced_payments),
             'paid_percentage': paid_percentage,
             'today': timezone.now().date(),
@@ -1065,6 +1067,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Prepayment is stored as negative, so adding it reduces the balance
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
+        prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
         # Correct formula: total_amount + balance_bf + prepayment - amount_paid
         # Since prepayment is negative, adding it reduces the balance
         total_balance = total_invoiced + balance_bf + prepayment - total_paid
@@ -1094,6 +1097,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'total_balance': total_balance,
             'balance_bf': balance_bf,
             'prepayment': prepayment,
+            'prepayment_abs': prepayment_abs,
             'total_paid': total_paid,
             'total_balance': total_balance,
             'bank_details': bank_details,
