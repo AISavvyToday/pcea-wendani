@@ -622,7 +622,11 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Calculate totals for display
         total_invoiced = invoice.total_amount or Decimal('0.00')
         total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
-        total_balance = total_invoiced - total_paid
+        # Account for balance_bf and prepayment (prepayment stored as negative, so adding it reduces the balance)
+        balance_bf = invoice.balance_bf or Decimal('0.00')
+        prepayment = invoice.prepayment or Decimal('0.00')
+        # Use the same formula as invoice model: total_amount + balance_bf + prepayment - amount_paid
+        total_balance = total_invoiced + balance_bf + prepayment - total_paid
 
         # paid percentage
         paid_percentage = 0
@@ -1058,9 +1062,12 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         total_paid = sum(x['total_allocated'] for x in enhanced_items) if enhanced_items else Decimal('0.00')
 
         # Important: follow same formula as Invoice.save/update -- include balance_bf and prepayment
+        # Prepayment is stored as negative, so adding it reduces the balance
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
-        total_balance = (total_invoiced + balance_bf - prepayment) - total_paid
+        # Correct formula: total_amount + balance_bf + prepayment - amount_paid
+        # Since prepayment is negative, adding it reduces the balance
+        total_balance = total_invoiced + balance_bf + prepayment - total_paid
 
         # Bank details & logos from settings (fallback to hardcoded)
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1083,6 +1090,10 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'enhanced_items': enhanced_items,
             'enhanced_payments': enhanced_payments,
             'total_invoiced': total_invoiced,
+            'total_paid': total_paid,
+            'total_balance': total_balance,
+            'balance_bf': balance_bf,
+            'prepayment': prepayment,
             'total_paid': total_paid,
             'total_balance': total_balance,
             'bank_details': bank_details,

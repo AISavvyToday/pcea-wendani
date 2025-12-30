@@ -125,13 +125,29 @@
                     </tr>
                     {% endwith %}
                     {% endfor %}
+                    {% if invoice.prepayment and invoice.prepayment != 0 %}
+                    <tr style="background-color:#e7f3ff;">
+                        <td colspan="2"><strong>Prepayment/Credit Applied</strong></td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">-</td>
+                        <td class="text-right" style="color:#080;"><strong>-KES {{ invoice.prepayment|floatformat:0|abs|intcomma }}</strong></td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
                 <tfoot>
                     <tr>
                         <th colspan="2">Totals</th>
                         <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
                         <th class="text-right">{% if invoice.discount_amount > 0 %}<span style="color:#080">-KES {{ invoice.discount_amount|intcomma }}</span>{% else %}-{% endif %}</th>
-                        <th class="text-right">KES {{ total_invoiced|intcomma }}</th>
+                        <th class="text-right">
+                            {% if invoice.prepayment and invoice.prepayment != 0 %}
+                                KES {{ total_invoiced|add:invoice.prepayment|intcomma }}
+                            {% else %}
+                                KES {{ total_invoiced|intcomma }}
+                            {% endif %}
+                        </th>
                         <th class="text-right">KES {{ total_paid|intcomma }}</th>
                         <th class="text-right">{% if total_balance > 0 %}<span style="color:#c00">KES {{ total_balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ total_balance|intcomma }}</span>{% endif %}</th>
                     </tr>

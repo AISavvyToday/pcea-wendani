@@ -227,6 +227,18 @@
                                 {% endif %}
                                 {% endwith %}
                                 {% endfor %}
+                                {% if invoice.prepayment and invoice.prepayment != 0 %}
+                                <tr class="table-info">
+                                    <td colspan="2"><strong>Prepayment/Credit Applied</strong></td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">
+                                        <span class="text-success">-KES {{ invoice.prepayment|floatformat:0|abs|intcomma }}</span>
+                                    </td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">-</td>
+                                </tr>
+                                {% endif %}
                             </tbody>
                             <tfoot class="table-secondary">
                                 <tr>
@@ -239,7 +251,15 @@
                                             -
                                         {% endif %}
                                     </th>
-                                    <th class="text-right"><strong>KES {{ total_invoiced|intcomma }}</strong></th>
+                                    <th class="text-right">
+                                        <strong>
+                                            {% if invoice.prepayment and invoice.prepayment != 0 %}
+                                                KES {{ total_invoiced|add:invoice.prepayment|intcomma }}
+                                            {% else %}
+                                                KES {{ total_invoiced|intcomma }}
+                                            {% endif %}
+                                        </strong>
+                                    </th>
                                     <th class="text-right">KES {{ total_paid|intcomma }}</th>
                                     <th class="text-right">
                                         <span class="{% if total_balance > 0 %}text-danger{% else %}text-success{% endif %}">

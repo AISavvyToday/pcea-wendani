@@ -389,6 +389,7 @@
                       <th>Invoice</th>
                       <th>Term</th>
                       <th class="text-end">Bal B/f</th>
+                      <th class="text-end">Prepayment</th>
                       <th class="text-end">Amount</th>
                       <th class="text-end">Paid</th>
                       <th class="text-end">Balance</th>
@@ -405,7 +406,14 @@
                           </a>
                         </td>
                         <td>{{ inv.term }}</td>
-                        <td class="text-end">{{ inv.balance_bf }}</td>
+                        <td class="text-end">{{ inv.balance_bf|default:"0.00" }}</td>
+                        <td class="text-end {% if inv.prepayment and inv.prepayment != 0 %}text-success{% endif %}">
+                          {% if inv.prepayment and inv.prepayment != 0 %}
+                            KES {{ inv.prepayment|floatformat:0|abs|intcomma }}
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
                         <td class="text-end">{{ inv.total_amount }}</td>
                         <td class="text-end">{{ inv.amount_paid }}</td>
                         <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">{{ inv.balance }}</td>
