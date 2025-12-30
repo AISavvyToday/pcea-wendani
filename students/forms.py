@@ -306,32 +306,37 @@ class ParentForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make all fields optional - parent info is completely optional
+        # Make fields optional by default - validation will be conditional
         self.fields['first_name'].required = False
         self.fields['last_name'].required = False
         self.fields['phone_primary'].required = False
         self.fields['relationship'].required = False
-        self.fields['gender'].required = False
-        self.fields['id_number'].required = False
-        self.fields['phone_secondary'].required = False
-        self.fields['email'].required = False
-        self.fields['address'].required = False
-        self.fields['town'].required = False
-        self.fields['occupation'].required = False
-        self.fields['employer'].required = False
     
     def clean(self):
         cleaned_data = super().clean()
-        # Parent info is completely optional - no validation required
-        # Only validate phone format if provided (handled in clean_phone_primary)
+        first_name = cleaned_data.get('first_name', '').strip()
+        last_name = cleaned_data.get('last_name', '').strip()
+        phone_primary = cleaned_data.get('phone_primary', '').strip()
+        
+        # If any field is filled, then required fields must be filled
+        has_any_data = bool(first_name or last_name or phone_primary)
+        
+        if has_any_data:
+            if not first_name:
+                self.add_error('first_name', 'First name is required when providing parent information.')
+            if not last_name:
+                self.add_error('last_name', 'Last name is required when providing parent information.')
+            if not phone_primary:
+                self.add_error('phone_primary', 'Primary phone is required when providing parent information.')
+            if not cleaned_data.get('relationship'):
+                self.add_error('relationship', 'Relationship is required when providing parent information.')
+        
         return cleaned_data
 
     def clean_phone_primary(self):
         phone = self.cleaned_data.get('phone_primary')
-        if phone:
-            phone = phone.strip()
-            if phone and not phone.startswith('+254'):
-                raise ValidationError('Phone number must start with +254')
+        if phone and not phone.startswith('+254'):
+            raise ValidationError('Phone number must start with +254')
         return phone
 
 
