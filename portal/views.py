@@ -392,6 +392,7 @@ def dashboard_admin(request):
     outstanding = Decimal(str(term_stats["outstanding"] or 0))
     prepayments = Decimal(str(term_stats["prepayments"] or 0))
     balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
+    total_expected = (balances_bf + billed) - prepayments
     rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
     year_billed = Decimal(str(year_stats["billed"] or 0))
@@ -436,6 +437,14 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
                 "helper": "Total invoiced amount",
+            },
+            {
+                "title": "Total Expected",
+                "value": _fmt_kes(total_expected),
+                "icon": "mdi-calculator",
+                "bg": "bg-gradient-primary",
+                "url": invoices_term_url,
+                "helper": "Bal B/F + Billed - Prepayments",
             },
             {
                 "title": "Collected",
