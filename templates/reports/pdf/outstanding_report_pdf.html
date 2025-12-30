@@ -569,7 +569,7 @@ body {
                 {{ r.student__first_name }} {{ r.student__last_name }}
               {% endif %}
             </td>
-            <td>{{ r.student__current_class|default:"—" }}</td>
+            <td>{{ r.student__current_class__name|default:"—" }}</td>
 
             <!-- Balance B/F -->
             <td class="text-right amount-cell {% if r.total_balance_bf > 0 %}amount-medium{% else %}amount-zero{% endif %}">

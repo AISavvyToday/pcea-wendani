@@ -309,10 +309,14 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = OutstandingBalancesFilterForm(request.GET or None)
 
-        # populate dynamic class choices from invoices/students
+        # populate dynamic class choices from students (get class names)
         class_choices = [('', 'All Classes')]
         try:
-            raw_classes = Invoice.objects.values_list('student__current_class', flat=True).distinct()
+            from students.models import Student
+            # Get distinct class names from students' current_class
+            raw_classes = Student.objects.filter(
+                current_class__isnull=False
+            ).values_list('current_class__name', flat=True).distinct()
             classes = sorted([c for c in raw_classes if c])
             class_choices += [(c, c) for c in classes]
             form.fields['student_class'].choices = class_choices
@@ -368,9 +372,9 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
 
-        # Filter by student class if specified
+        # Filter by student class if specified (match by class name)
         if student_class:
-            invoices = invoices.filter(student__current_class=student_class)
+            invoices = invoices.filter(student__current_class__name=student_class)
 
         # Aggregate per student
         # Use Coalesce to ensure numeric 0 instead of None

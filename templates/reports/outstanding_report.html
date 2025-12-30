@@ -109,7 +109,7 @@
                     {{ r.student__first_name }} {{ r.student__last_name }}
                   {% endif %}
                 </td>
-                <td>{{ r.student__current_class|default:"—" }}</td>
+                <td>{{ r.student__current_class__name|default:"—" }}</td>
                 <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>

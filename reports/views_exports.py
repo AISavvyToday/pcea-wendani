@@ -653,7 +653,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             ws.cell(row=row_num, column=3, value=full_name)
             
             # Class
-            ws.cell(row=row_num, column=4, value=r.get('student__current_class') or '—')
+            ws.cell(row=row_num, column=4, value=r.get('student__current_class__name') or '—')
             
             # Emergency Contact (placeholder for now)
             ws.cell(row=row_num, column=5, value='—')
@@ -808,7 +808,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
                 'student__first_name': first,
                 'student__middle_name': middle,
                 'student__last_name': last,
-                'student__current_class': r.get('student__current_class'),
+                'student__current_class__name': r.get('student__current_class__name'),
                 'total_balance_bf': r.get('total_balance_bf'),
                 'total_prepayment': r.get('total_prepayment'),
                 'total_billed': r.get('total_billed'),
