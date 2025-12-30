@@ -142,10 +142,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
                     for error in errors:
                         messages.error(self.request, f'Parent 2 - {field}: {error}')
         
-        # Check if at least one parent is provided
-        if not parent_1_has_data and not parent_2_has_data:
-            messages.error(self.request, 'Please provide at least one parent/guardian information.')
-            return self.form_invalid(form)
+        # Parent info is optional - no requirement for at least one parent
         
         # If validation failed, return invalid
         if not parent_1_valid or not parent_2_valid:
@@ -211,11 +208,20 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
                         if field in parent_data:
                             relationship_data[field] = parent_data.pop(field)
 
+                    # Only create parent if we have minimum required fields (first_name, last_name, phone_primary)
+                    first_name = parent_info.get('first_name', '').strip()
+                    last_name = parent_info.get('last_name', '').strip()
+                    phone_primary = parent_info.get('phone_primary', '').strip()
+                    
+                    if not (first_name and last_name and phone_primary):
+                        # Skip this parent - don't have required fields
+                        continue
+
                     # Check if parent already exists by phone or ID
                     parent = None
-                    if parent_info.get('phone_primary'):
+                    if phone_primary:
                         parent = Parent.objects.filter(
-                            phone_primary=parent_info['phone_primary']
+                            phone_primary=phone_primary
                         ).first()
 
                     if not parent and parent_info.get('id_number'):
