@@ -574,7 +574,7 @@ function showConfirm(message, callback) {
     const messageEl = document.getElementById('confirmMessage');
     const confirmBtn = document.getElementById('confirmButton');
     
-    messageEl.textContent = message;
+    messageEl.innerHTML = message;
     
     // Remove previous event listeners
     const newConfirmBtn = confirmBtn.cloneNode(true);
