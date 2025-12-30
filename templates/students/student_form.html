@@ -68,34 +68,42 @@
               </div>
 
               <div class="col-md-9">
-                <!-- Hidden admission number field (auto-generated) -->
-                {{ form.admission_number }}
-                
                 <div class="row">
-                  <div class="col-md-6">
+                  {% if is_edit %}
+                  <div class="col-md-3">
+                    <label>Admission Number <span class="text-danger">*</span></label>
+                    {{ form.admission_number }}
+                    {% if form.admission_number.errors %}
+                      <div class="text-danger small">{{ form.admission_number.errors }}</div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                  <div class="col-md-{% if is_edit %}3{% else %}4{% endif %}">
                     <label>Admission Date <span class="text-danger">*</span></label>
                     {{ form.admission_date }}
                     {% if form.admission_date.errors %}
                       <div class="text-danger small">{{ form.admission_date.errors }}</div>
                     {% endif %}
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-{% if is_edit %}3{% else %}4{% endif %}">
                     <label>Current Class</label>
                     {{ form.current_class }}
                     {% if form.current_class.errors %}
                       <div class="text-danger small">{{ form.current_class.errors }}</div>
                     {% endif %}
                   </div>
-                </div>
-                
-                {% if is_edit %}
-                <div class="row mt-2">
-                  <div class="col-md-6">
+                  {% if is_edit %}
+                  <div class="col-md-3">
                     <label>Status</label>
                     {{ form.status }}
                     <small class="text-muted">Financial records are preserved</small>
                   </div>
-                  <div class="col-md-6">
+                  {% endif %}
+                </div>
+                
+                {% if is_edit %}
+                <div class="row mt-2">
+                  <div class="col-md-12">
                     <label>Status Reason</label>
                     {{ form.status_reason }}
                   </div>

@@ -13,7 +13,6 @@ class StudentForm(forms.ModelForm):
     class Meta:
         model = Student
         fields = [
-            'admission_number',  # Will be hidden for new students
             'admission_date',
             'first_name',
             'middle_name',
@@ -138,15 +137,24 @@ class StudentForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # For new students, admission_number is not required (will be auto-generated)
-        if not self.instance.pk:
-            self.fields['admission_number'].required = False
-            self.fields['admission_number'].widget = forms.HiddenInput()
-            # Set default status to 'active' for new students
+        # For editing existing students, add admission_number field
+        if self.instance.pk:
+            # Add admission_number field for editing
+            self.fields['admission_number'] = forms.CharField(
+                max_length=20,
+                required=True,
+                widget=forms.TextInput(attrs={
+                    'class': 'form-control',
+                    'placeholder': 'e.g., 2025001'
+                })
+            )
+            self.fields['admission_number'].initial = self.instance.admission_number
+        else:
+            # For new students, set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
-            # Hide status and status_reason for new students (always active)
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['status_reason'].widget = forms.HiddenInput()
+        
         # Make optional fields not required
         optional_fields = [
             'middle_name', 'birth_certificate_number', 'photo', 'current_class',
@@ -158,17 +166,16 @@ class StudentForm(forms.ModelForm):
         for field in optional_fields:
             if field in self.fields:
                 self.fields[field].required = False
-
+    
     def clean_admission_number(self):
+        """Only validate admission_number if editing (field exists)"""
+        if 'admission_number' not in self.cleaned_data:
+            return None  # Not in form for new students
         admission_number = self.cleaned_data.get('admission_number')
-        # For new students (no pk), admission_number is optional and will be auto-generated
-        if not self.instance.pk:
-            return None  # Will be auto-generated in the view
-        if admission_number:
+        if admission_number and self.instance.pk:
             # Check if admission number already exists (excluding current instance)
             qs = Student.objects.filter(admission_number=admission_number)
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
+            qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
                 raise ValidationError('A student with this admission number already exists.')
         return admission_number
