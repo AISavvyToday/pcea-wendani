@@ -54,13 +54,15 @@
             <div class="two-col">
                 <div class="col">
                     <strong>Summary</strong>
-                    <div class="small">Balance B/F: <strong class="{% if statement.balance_bf > 0 %}text-warning{% else %}text-muted{% endif %}">KES {{ statement.balance_bf|intcomma }}</strong></div>
-                    <div class="small">Prepayment: <strong class="{% if statement.prepayment > 0 %}text-success{% else %}text-muted{% endif %}">KES {{ statement.prepayment|intcomma }}</strong></div>
-                    <div class="small">Total Invoiced: <strong>KES {{ statement.total_invoiced|intcomma }}</strong></div>
-                    <div class="small">Total Paid: <strong class="text-success">KES {{ statement.total_paid|intcomma }}</strong></div>
-                    <div class="small">Balance Due: <strong class="{% if statement.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ statement.balance|intcomma }}</strong></div>
+                    <div class="small" style="margin-top: 4px;">Balance B/F: <strong>KES {{ statement.balance_bf|intcomma }}</strong></div>
+                    <div class="small" style="margin-top: 4px;">Prepayment: <strong>KES {{ statement.prepayment|intcomma }}</strong></div>
+                    <div class="small" style="margin-top: 4px;">Total Invoiced: <strong>KES {{ statement.total_invoiced|intcomma }}</strong></div>
+                    <div class="small" style="margin-top: 4px;">Total Paid: <strong>KES {{ statement.total_paid|intcomma }}</strong></div>
+                    <div class="small" style="margin-top: 4px;">Balance Due: <strong>KES {{ statement.balance|intcomma }}</strong></div>
                 </div>
-                
+                <div class="col">
+                    <!-- Additional info can go here if needed -->
+                </div>
             </div>
 
             <div style="margin-top:12px;">
