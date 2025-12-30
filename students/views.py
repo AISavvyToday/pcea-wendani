@@ -107,19 +107,27 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         parent_form_2 = context['parent_form_2']
 
         # Prepare student data
-        student_data = form.cleaned_data
+        student_data = form.cleaned_data.copy()
+        
+        # Auto-generate admission number if not provided
+        if not student_data.get('admission_number'):
+            from datetime import date
+            admission_year = student_data.get('admission_date', date.today()).year
+            student_data['admission_number'] = StudentService.generate_admission_number(year=admission_year)
 
         # Prepare parents data
         parents_data = []
 
         if parent_form_1.is_valid() and parent_form_1.cleaned_data.get('first_name'):
             parent_1_data = parent_form_1.cleaned_data.copy()
-            parent_1_data['is_primary'] = parent_1_data.pop('is_primary', True)
+            parent_1_data['is_primary'] = True
+            parent_1_data['relationship'] = parent_1_data.get('relationship', 'guardian')
             parents_data.append(parent_1_data)
 
         if parent_form_2.is_valid() and parent_form_2.cleaned_data.get('first_name'):
             parent_2_data = parent_form_2.cleaned_data.copy()
-            parent_2_data['is_primary'] = parent_2_data.pop('is_primary', False)
+            parent_2_data['is_primary'] = False
+            parent_2_data['relationship'] = parent_2_data.get('relationship', 'guardian')
             parents_data.append(parent_2_data)
 
         try:
@@ -131,7 +139,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
 
             messages.success(
                 self.request,
-                f'Student {student.full_name} registered successfully!'
+                f'Student {student.full_name} registered successfully with admission number {student.admission_number}!'
             )
             return redirect(self.success_url)
 

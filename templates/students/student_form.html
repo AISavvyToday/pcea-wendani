@@ -56,7 +56,12 @@
                 <div class="row">
                   <div class="col-md-3">
                     <label>Admission Number</label>
-                    {{ form.admission_number }}
+                    {% if is_edit %}
+                      {{ form.admission_number }}
+                    {% else %}
+                      <input type="text" class="form-control" value="Auto-generated" readonly disabled>
+                      <small class="text-muted">Will be auto-generated on save</small>
+                    {% endif %}
                   </div>
                   <div class="col-md-3">
                     <label>Admission Date</label>

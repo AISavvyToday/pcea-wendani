@@ -148,6 +148,9 @@ class StudentForm(forms.ModelForm):
 
     def clean_admission_number(self):
         admission_number = self.cleaned_data.get('admission_number')
+        # For new students (no pk), admission_number is optional and will be auto-generated
+        if not self.instance.pk and not admission_number:
+            return None  # Will be auto-generated in the view
         if admission_number:
             # Check if admission number already exists (excluding current instance)
             qs = Student.objects.filter(admission_number=admission_number)

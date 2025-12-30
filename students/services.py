@@ -18,7 +18,7 @@ class StudentService:
 
         Args:
             student_data: dict with student fields
-            parents_data: list of dicts, each containing parent info and relationship details
+            parents_data: list of dicts, each containing parent info and relationship details (can be None)
 
         Returns:
             Student instance
@@ -26,32 +26,56 @@ class StudentService:
         # Create student
         student = Student.objects.create(**student_data)
 
-        # Create parents and link them
-        for parent_data in parents_data:
-            parent_info = parent_data.pop('parent')
+        # Create parents and link them (if provided)
+        if parents_data:
+            for parent_data in parents_data:
+                # Extract parent info and relationship data
+                # parent_data should contain parent fields and relationship fields
+                parent_info = {}
+                relationship_data = {}
+                
+                # Parent fields
+                parent_fields = ['first_name', 'last_name', 'gender', 'id_number', 
+                               'phone_primary', 'phone_secondary', 'email', 'address', 
+                               'town', 'occupation', 'employer']
+                
+                for field in parent_fields:
+                    if field in parent_data:
+                        parent_info[field] = parent_data.pop(field)
+                
+                # Relationship fields
+                relationship_fields = ['relationship', 'is_primary', 'is_emergency_contact', 
+                                     'can_pickup', 'receives_notifications']
+                for field in relationship_fields:
+                    if field in parent_data:
+                        relationship_data[field] = parent_data.pop(field)
 
-            # Check if parent already exists by phone or ID
-            parent = None
-            if parent_info.get('phone_primary'):
-                parent = Parent.objects.filter(
-                    phone_primary=parent_info['phone_primary']
-                ).first()
+                # Check if parent already exists by phone or ID
+                parent = None
+                if parent_info.get('phone_primary'):
+                    parent = Parent.objects.filter(
+                        phone_primary=parent_info['phone_primary']
+                    ).first()
 
-            if not parent and parent_info.get('id_number'):
-                parent = Parent.objects.filter(
-                    id_number=parent_info['id_number']
-                ).first()
+                if not parent and parent_info.get('id_number'):
+                    parent = Parent.objects.filter(
+                        id_number=parent_info['id_number']
+                    ).first()
 
-            # Create parent if doesn't exist
-            if not parent:
-                parent = Parent.objects.create(**parent_info)
+                # Create parent if doesn't exist
+                if not parent:
+                    parent = Parent.objects.create(**parent_info)
 
-            # Create StudentParent relationship
-            StudentParent.objects.create(
-                student=student,
-                parent=parent,
-                **parent_data
-            )
+                # Create StudentParent relationship
+                StudentParent.objects.create(
+                    student=student,
+                    parent=parent,
+                    relationship=relationship_data.get('relationship', 'guardian'),
+                    is_primary=relationship_data.get('is_primary', False),
+                    is_emergency_contact=relationship_data.get('is_emergency_contact', False),
+                    can_pickup=relationship_data.get('can_pickup', True),
+                    receives_notifications=relationship_data.get('receives_notifications', True),
+                )
 
         return student
 
