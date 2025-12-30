@@ -626,6 +626,8 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
+        # Net total after balance_bf and prepayment adjustments
+        net_after_adjustments = total_invoiced + balance_bf + prepayment
         # Use the same formula as invoice model: total_amount + balance_bf + prepayment - amount_paid
         total_balance = total_invoiced + balance_bf + prepayment - total_paid
 
@@ -642,6 +644,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'total_paid': total_paid,
             'total_balance': total_balance,
             'prepayment_abs': prepayment_abs,
+            'net_after_adjustments': net_after_adjustments,
             'payment_count': len(enhanced_payments),
             'paid_percentage': paid_percentage,
             'today': timezone.now().date(),
@@ -1068,6 +1071,8 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
+        # Net total after balance_bf and prepayment adjustments
+        net_after_adjustments = total_invoiced + balance_bf + prepayment
         # Correct formula: total_amount + balance_bf + prepayment - amount_paid
         # Since prepayment is negative, adding it reduces the balance
         total_balance = total_invoiced + balance_bf + prepayment - total_paid
@@ -1098,6 +1103,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'balance_bf': balance_bf,
             'prepayment': prepayment,
             'prepayment_abs': prepayment_abs,
+            'net_after_adjustments': net_after_adjustments,
             'total_paid': total_paid,
             'total_balance': total_balance,
             'bank_details': bank_details,

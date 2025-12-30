@@ -125,6 +125,16 @@
                     </tr>
                     {% endwith %}
                     {% endfor %}
+                    {% if invoice.balance_bf and invoice.balance_bf > 0 %}
+                    <tr style="background-color:#fff3cd;">
+                        <td colspan="2"><strong>Balance Brought Forward</strong></td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">-</td>
+                        <td class="text-right" style="color:#856404;"><strong>KES {{ invoice.balance_bf|floatformat:0|intcomma }}</strong></td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    {% endif %}
                     {% if invoice.prepayment and invoice.prepayment != 0 %}
                     <tr style="background-color:#e7f3ff;">
                         <td colspan="2"><strong>Prepayment/Credit Applied</strong></td>
@@ -141,13 +151,7 @@
                         <th colspan="2">Totals</th>
                         <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
                         <th class="text-right">{% if invoice.discount_amount > 0 %}<span style="color:#080">-KES {{ invoice.discount_amount|intcomma }}</span>{% else %}-{% endif %}</th>
-                        <th class="text-right">
-                            {% if invoice.prepayment and invoice.prepayment != 0 %}
-                                KES {{ total_invoiced|add:invoice.prepayment|intcomma }}
-                            {% else %}
-                                KES {{ total_invoiced|intcomma }}
-                            {% endif %}
-                        </th>
+                        <th class="text-right">KES {{ net_after_adjustments|intcomma }}</th>
                         <th class="text-right">KES {{ total_paid|intcomma }}</th>
                         <th class="text-right">{% if total_balance > 0 %}<span style="color:#c00">KES {{ total_balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ total_balance|intcomma }}</span>{% endif %}</th>
                     </tr>

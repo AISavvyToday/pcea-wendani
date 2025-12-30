@@ -227,6 +227,18 @@
                                 {% endif %}
                                 {% endwith %}
                                 {% endfor %}
+                                {% if invoice.balance_bf and invoice.balance_bf > 0 %}
+                                <tr class="table-warning">
+                                    <td colspan="2"><strong>Balance Brought Forward</strong></td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">
+                                        <span class="text-warning">KES {{ invoice.balance_bf|floatformat:0|intcomma }}</span>
+                                    </td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-right">-</td>
+                                </tr>
+                                {% endif %}
                                 {% if invoice.prepayment and invoice.prepayment != 0 %}
                                 <tr class="table-info">
                                     <td colspan="2"><strong>Prepayment/Credit Applied</strong></td>
@@ -252,13 +264,7 @@
                                         {% endif %}
                                     </th>
                                     <th class="text-right">
-                                        <strong>
-                                            {% if invoice.prepayment and invoice.prepayment != 0 %}
-                                                KES {{ total_invoiced|add:invoice.prepayment|intcomma }}
-                                            {% else %}
-                                                KES {{ total_invoiced|intcomma }}
-                                            {% endif %}
-                                        </strong>
+                                        <strong>KES {{ net_after_adjustments|intcomma }}</strong>
                                     </th>
                                     <th class="text-right">KES {{ total_paid|intcomma }}</th>
                                     <th class="text-right">
