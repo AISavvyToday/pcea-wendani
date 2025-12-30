@@ -158,6 +158,10 @@ class StudentForm(forms.ModelForm):
             self.fields['status'].initial = 'active'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['status_reason'].widget = forms.HiddenInput()
+            # Set a temporary admission_number on instance to avoid validation errors
+            # It will be replaced by the actual generated number in save()
+            if not self.instance.admission_number:
+                self.instance.admission_number = "TEMP"  # Temporary value for validation
         
         # Make optional fields not required
         optional_fields = [
@@ -209,6 +213,26 @@ class StudentForm(forms.ModelForm):
             self.add_error('special_needs_details', 'Please provide details about special needs.')
 
         return cleaned_data
+    
+    def save(self, commit=True):
+        """Override save to auto-generate admission_number for new students."""
+        from .services import StudentService
+        
+        instance = super().save(commit=False)
+        
+        # Handle admission_number
+        if self.instance.pk:
+            # Editing existing student - admission_number is in form fields
+            if 'admission_number' in self.cleaned_data:
+                instance.admission_number = self.cleaned_data['admission_number']
+        else:
+            # New student - auto-generate admission_number (replace TEMP if set)
+            if not instance.admission_number or instance.admission_number == "TEMP":
+                instance.admission_number = StudentService.generate_admission_number()
+        
+        if commit:
+            instance.save()
+        return instance
 
 
 class ParentForm(forms.ModelForm):
@@ -393,3 +417,27 @@ class StudentPromotionForm(forms.Form):
         """Convert string IDs back to UUIDs"""
         student_ids = self.cleaned_data.get('student_ids', [])
         return student_ids
+
+
+class StudentImportForm(forms.Form):
+    """Form for importing students from Excel file."""
+    
+    excel_file = forms.FileField(
+        label='Excel File',
+        help_text='Upload an Excel file (.xlsx) with student data',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx,.xls',
+        })
+    )
+    
+    def clean_excel_file(self):
+        file = self.cleaned_data.get('excel_file')
+        if file:
+            # Check file extension
+            if not file.name.endswith(('.xlsx', '.xls')):
+                raise ValidationError('Please upload a valid Excel file (.xlsx or .xls)')
+            # Check file size (max 10MB)
+            if file.size > 10 * 1024 * 1024:
+                raise ValidationError('File size cannot exceed 10MB')
+        return file
