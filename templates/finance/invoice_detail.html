@@ -139,10 +139,10 @@
                                     <td><span class="badge bg-warning text-dark">KES {{ invoice.balance_bf|intcomma }}</span></td>
                                 </tr>
                                 {% endif %}
-                                {% if invoice.prepayment and invoice.prepayment > 0 %}
+                                {% if invoice.prepayment and invoice.prepayment != 0 %}
                                 <tr>
                                     <td class="text-muted">Prepayment:</td>
-                                    <td><span class="badge bg-success">KES {{ invoice.prepayment|intcomma }}</span></td>
+                                    <td><span class="badge bg-success">KES {{ prepayment_abs|floatformat:0|intcomma }}</span></td>
                                 </tr>
                                 {% endif %}
                             </table>
