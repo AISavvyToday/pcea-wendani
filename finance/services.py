@@ -217,6 +217,10 @@ class InvoiceService:
 
         total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         total_paid = payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Calculate total balance_bf and prepayment from invoices
+        total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+        total_prepayment = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
 
         # Build transaction list
         transactions = []
@@ -263,10 +267,15 @@ class InvoiceService:
                     'running_balance': running_balance
                 })
 
+        # Calculate balance due: total_invoiced + balance_bf - total_paid - prepayment
+        balance_due = (total_invoiced + total_balance_bf) - total_paid - total_prepayment
+
         return {
             'total_invoiced': total_invoiced,
             'total_paid': total_paid,
-            'balance': total_invoiced - total_paid,
+            'balance_bf': total_balance_bf,
+            'prepayment': total_prepayment,
+            'balance': balance_due,
             'transactions': transactions,
             'invoices': invoices,
             'payments': payments
