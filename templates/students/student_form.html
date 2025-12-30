@@ -264,7 +264,7 @@
           <div class="tab-pane fade" id="parent-info">
 
             <!-- ===== PARENT 1 ===== -->
-            <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-danger">*</span></h6>
+            <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-muted">(Optional)</span></h6>
             {% if parent_form_1.errors %}
               <div class="alert alert-danger">
                 <strong>Please fix the following errors:</strong>
@@ -279,21 +279,21 @@
             {% endif %}
             <div class="row">
               <div class="col-md-4">
-                <label>First Name <span class="text-danger">*</span></label>
+                <label>First Name</label>
                 {{ parent_form_1.first_name }}
                 {% if parent_form_1.first_name.errors %}
                   <div class="text-danger small">{{ parent_form_1.first_name.errors }}</div>
                 {% endif %}
               </div>
               <div class="col-md-4">
-                <label>Last Name <span class="text-danger">*</span></label>
+                <label>Last Name</label>
                 {{ parent_form_1.last_name }}
                 {% if parent_form_1.last_name.errors %}
                   <div class="text-danger small">{{ parent_form_1.last_name.errors }}</div>
                 {% endif %}
               </div>
               <div class="col-md-4">
-                <label>Relationship <span class="text-danger">*</span></label>
+                <label>Relationship</label>
                 {{ parent_form_1.relationship }}
                 {% if parent_form_1.relationship.errors %}
                   <div class="text-danger small">{{ parent_form_1.relationship.errors }}</div>
@@ -311,7 +311,7 @@
                 {{ parent_form_1.id_number }}
               </div>
               <div class="col-md-4">
-                <label>Primary Phone <span class="text-danger">*</span></label>
+                <label>Primary Phone</label>
                 {{ parent_form_1.phone_primary }}
                 {% if parent_form_1.phone_primary.errors %}
                   <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
@@ -491,26 +491,7 @@
         }
       });
       
-      // Check if at least one parent is provided
-      const parent1FirstName = form.querySelector('[name="parent1-first_name"]');
-      const parent1LastName = form.querySelector('[name="parent1-last_name"]');
-      const parent1Phone = form.querySelector('[name="parent1-phone_primary"]');
-      const parent2FirstName = form.querySelector('[name="parent2-first_name"]');
-      const parent2LastName = form.querySelector('[name="parent2-last_name"]');
-      const parent2Phone = form.querySelector('[name="parent2-phone_primary"]');
-      
-      const hasParent1 = (parent1FirstName && parent1FirstName.value.trim()) || 
-                        (parent1LastName && parent1LastName.value.trim()) || 
-                        (parent1Phone && parent1Phone.value.trim());
-      const hasParent2 = (parent2FirstName && parent2FirstName.value.trim()) || 
-                        (parent2LastName && parent2LastName.value.trim()) || 
-                        (parent2Phone && parent2Phone.value.trim());
-      
-      if (!hasParent1 && !hasParent2) {
-        alert('Please provide at least one parent/guardian information.');
-        e.preventDefault();
-        return false;
-      }
+      // Parent information is now optional - no validation needed
       
       if (hasErrors) {
         e.preventDefault();

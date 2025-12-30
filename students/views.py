@@ -98,8 +98,28 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         context['is_edit'] = False  # Always False for create view
 
         if self.request.POST:
-            context['parent_form_1'] = ParentForm(self.request.POST, prefix='parent1')
-            context['parent_form_2'] = ParentForm(self.request.POST, prefix='parent2')
+            # Check if parent forms have any data before binding
+            parent_1_has_data = bool(
+                self.request.POST.get('parent1-first_name', '').strip() or 
+                self.request.POST.get('parent1-last_name', '').strip() or
+                self.request.POST.get('parent1-phone_primary', '').strip()
+            )
+            parent_2_has_data = bool(
+                self.request.POST.get('parent2-first_name', '').strip() or 
+                self.request.POST.get('parent2-last_name', '').strip() or
+                self.request.POST.get('parent2-phone_primary', '').strip()
+            )
+            
+            # Only bind forms if they have data, otherwise use unbound forms
+            if parent_1_has_data:
+                context['parent_form_1'] = ParentForm(self.request.POST, prefix='parent1')
+            else:
+                context['parent_form_1'] = ParentForm(prefix='parent1')
+            
+            if parent_2_has_data:
+                context['parent_form_2'] = ParentForm(self.request.POST, prefix='parent2')
+            else:
+                context['parent_form_2'] = ParentForm(prefix='parent2')
         else:
             context['parent_form_1'] = ParentForm(prefix='parent1')
             context['parent_form_2'] = ParentForm(prefix='parent2')
@@ -125,6 +145,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         )
         
         # Validate parent forms only if they have data
+        # If no data is provided, skip validation entirely (parents are optional)
         parent_1_valid = True
         parent_2_valid = True
         
@@ -134,6 +155,9 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
                 for field, errors in parent_form_1.errors.items():
                     for error in errors:
                         messages.error(self.request, f'Parent 1 - {field}: {error}')
+        else:
+            # No data for parent 1 - mark as valid and skip validation
+            parent_1_valid = True
         
         if parent_2_has_data:
             parent_2_valid = parent_form_2.is_valid()
@@ -141,11 +165,11 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
                 for field, errors in parent_form_2.errors.items():
                     for error in errors:
                         messages.error(self.request, f'Parent 2 - {field}: {error}')
+        else:
+            # No data for parent 2 - mark as valid and skip validation
+            parent_2_valid = True
         
-        # Check if at least one parent is provided
-        if not parent_1_has_data and not parent_2_has_data:
-            messages.error(self.request, 'Please provide at least one parent/guardian information.')
-            return self.form_invalid(form)
+        # Parent information is now optional - no need to check if at least one is provided
         
         # If validation failed, return invalid
         if not parent_1_valid or not parent_2_valid:
