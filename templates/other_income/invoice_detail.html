@@ -7,7 +7,7 @@
         <h3 class="page-title">Invoice {{ invoice.invoice_number }}</h3>
         <div>
             <form method="get" action="{% url 'other_income:invoice_print' invoice.pk %}" target="_blank" class="d-inline-flex">
-                <input type="hidden" name="copies" value="2">
+                <input type="hidden" name="copies" value="1">
                 <input type="text" name="notes" class="form-control form-control-sm" placeholder="Notes (appear on print)" style="display:inline-block; width:260px;" />
                 <button class="btn btn-secondary btn-sm ms-2" type="submit"><i class="mdi mdi-printer"></i> Print</button>
             </form>

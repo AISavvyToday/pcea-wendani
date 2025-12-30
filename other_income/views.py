@@ -118,9 +118,9 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailV
         # notes & copies
         notes = self.request.GET.get('notes', '')
         try:
-            copies = int(self.request.GET.get('copies', '2'))
+            copies = int(self.request.GET.get('copies', '1'))
         except Exception:
-            copies = 2
+            copies = 1
         copies = max(1, min(copies, 4))
         copies_range = range(copies)
 
