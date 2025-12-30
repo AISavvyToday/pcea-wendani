@@ -569,7 +569,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
         if student_class:
-            invoices = invoices.filter(student__current_class=student_class)
+            invoices = invoices.filter(student__current_class__name=student_class)
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -600,7 +600,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, View):
             'student__first_name',
             'student__middle_name',
             'student__last_name',
-            'student__current_class',
+            'student__current_class__name',
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
@@ -732,7 +732,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
         if student_class:
-            invoices = invoices.filter(student__current_class=student_class)
+            invoices = invoices.filter(student__current_class__name=student_class)
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -763,7 +763,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, View):
             'student__first_name',
             'student__middle_name',
             'student__last_name',
-            'student__current_class',
+            'student__current_class__name',
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
