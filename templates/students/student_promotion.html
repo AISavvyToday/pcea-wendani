@@ -23,7 +23,7 @@
     <div class="col-12 grid-margin stretch-card">
       <div class="card">
         <div class="card-body">
-          <h4 class="card-title">Select Class to Promote</h4>
+          <h4 class="card-title">Select Grade to Promote</h4>
           <p class="card-description">Choose a class to view students eligible for promotion</p>
 
           <!-- Class Selection Form -->
@@ -31,7 +31,7 @@
             <div class="row">
               <div class="col-md-8">
                 <div class="form-group">
-                  <label>Select Class</label>
+                  <label>Select Grade</label>
                   <select name="class_id" class="form-control" onchange="this.form.submit()">
                     <option value="">-- Select a class --</option>
                     {% for class in classes %}
@@ -100,7 +100,7 @@
             <div class="row">
               <div class="col-md-6">
                 <div class="form-group">
-                  <label for="{{ form.target_class.id_for_label }}">Promote To Class *</label>
+                  <label for="{{ form.target_class.id_for_label }}">Promote To Grade *</label>
                   {{ form.target_class }}
                   {% if form.target_class.errors %}
                     <div class="text-danger mt-1">{{ form.target_class.errors }}</div>

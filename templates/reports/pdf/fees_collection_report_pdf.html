@@ -244,7 +244,7 @@ body {
 .report-table th:nth-child(4),
 .report-table td:nth-child(4) { width: 10%; } /* Admission */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 10%; } /* Class */
+.report-table td:nth-child(5) { width: 10%; } /* Grade */
 .report-table th:nth-child(6),
 .report-table td:nth-child(6) { width: 12%; } /* Amount */
 .report-table th:nth-child(7),
@@ -412,7 +412,7 @@ body {
 
         {% if filters.student_class %}
         <div class="filter-item">
-          <span class="filter-label">Class:</span>
+          <span class="filter-label">Grade:</span>
           <span class="filter-value">{{ filters.student_class }}</span>
         </div>
         {% endif %}
@@ -476,7 +476,7 @@ body {
             <th>Receipt/Ref</th>
             <th>Student</th>
             <th>Admission #</th>
-            <th>Class</th>
+            <th>Grade</th>
             <th class="text-right">Amount (KES)</th>
             <th>Method</th>
           </tr>

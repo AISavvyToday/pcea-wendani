@@ -51,7 +51,7 @@
           {{ form.term }}
         </div>
         <div class="col-md-3">
-          <label class="form-label">Class</label>
+          <label class="form-label">Grade</label>
           {{ form.student_class }}
         </div>
         <div class="col-12 d-flex gap-2 mt-2">
@@ -76,7 +76,7 @@
         {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
         {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
         {% if filters.term %} • Term: {{ filters.term }} {% endif %}
-        {% if filters.student_class %} • Class: {{ filters.student_class }} {% endif %}
+        {% if filters.student_class %} • Grade: {{ filters.student_class }} {% endif %}
       </small>
     </div>
 
@@ -89,7 +89,7 @@
                 <th>Year</th>
                 <th>Admission No</th>
                 <th>Student Name</th>
-                <th>Class</th>
+                <th>Grade</th>
                 <th class="text-right">Balance B/F</th>
                 <th class="text-right">Prepayment</th>
                 <th class="text-right">Total Billed</th>
