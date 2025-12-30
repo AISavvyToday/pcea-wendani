@@ -538,6 +538,10 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context['total_outstanding'] = invoices.aggregate(total=Sum('balance'))['total'] or 0
         context['invoice_count'] = invoices.count()
 
+        # Add prepayment_abs to each invoice for template display
+        for invoice in context.get('invoices', []):
+            invoice.prepayment_abs = abs(invoice.prepayment) if invoice.prepayment else Decimal('0.00')
+
         return context
 
 

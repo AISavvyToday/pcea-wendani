@@ -130,7 +130,7 @@
                                     {% if invoice.balance_bf > 0 %}KES {{ invoice.balance_bf|floatformat:0|intcomma }}{% else %}-{% endif %}
                                 </td>
                                 <td class="text-end {% if invoice.prepayment and invoice.prepayment != 0 %}text-success{% endif %}" style="font-size: 0.875rem;">
-                                    {% if invoice.prepayment and invoice.prepayment != 0 %}KES {{ invoice.prepayment|abs|floatformat:0|intcomma }}{% else %}-{% endif %}
+                                    {% if invoice.prepayment and invoice.prepayment != 0 %}KES {{ invoice.prepayment_abs|floatformat:0|intcomma }}{% else %}-{% endif %}
                                 </td>
                                 <td class="text-end" style="font-size: 0.875rem;">KES {{ invoice.subtotal|default:invoice.total_amount|floatformat:0|intcomma }}</td>
                                 <td class="text-end {% if invoice.discount_amount > 0 %}text-info{% endif %}" style="font-size: 0.875rem;">
