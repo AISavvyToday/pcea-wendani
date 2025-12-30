@@ -137,13 +137,6 @@ class StudentForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Residence area/estate'
             }),
-            'is_boarder': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            }),
-            'dormitory': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Dormitory Name'
-            }),
         }
 
     def clean_admission_number(self):
@@ -162,12 +155,6 @@ class StudentForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-
-        # Validate boarding/dormitory
-        is_boarder = cleaned_data.get('is_boarder')
-        dormitory = cleaned_data.get('dormitory')
-        if is_boarder and not dormitory:
-            self.add_error('dormitory', 'Dormitory is required for boarding students.')
 
         # Validate transport
         uses_transport = cleaned_data.get('uses_school_transport')
