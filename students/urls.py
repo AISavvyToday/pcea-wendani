@@ -16,6 +16,10 @@ urlpatterns = [
     # Export URLs
     path('export/xlsx/', views_exports.StudentListExcelView.as_view(), name='export_excel'),
     path('export/pdf/', views_exports.StudentListPDFView.as_view(), name='export_pdf'),
+    
+    # Import URLs
+    path('import/', views.StudentImportView.as_view(), name='import'),
+    path('import/template/', views.StudentTemplateDownloadView.as_view(), name='import_template'),
 
 # Parent/Guardian URLs
     path('parents/', views.ParentListView.as_view(), name='parent_list'),
