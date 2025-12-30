@@ -203,15 +203,6 @@ class ParentForm(forms.ModelForm):
             'employer',
             'relationship',
         ]
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Make first_name, last_name, phone_primary, and relationship required for new parents
-        if not self.instance.pk:
-            self.fields['first_name'].required = True
-            self.fields['last_name'].required = True
-            self.fields['phone_primary'].required = True
-            self.fields['relationship'].required = True
         widgets = {
             'first_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -257,6 +248,35 @@ class ParentForm(forms.ModelForm):
             }),
             'relationship': forms.Select(attrs={'class': 'form-control'}),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make fields optional by default - validation will be conditional
+        self.fields['first_name'].required = False
+        self.fields['last_name'].required = False
+        self.fields['phone_primary'].required = False
+        self.fields['relationship'].required = False
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        first_name = cleaned_data.get('first_name', '').strip()
+        last_name = cleaned_data.get('last_name', '').strip()
+        phone_primary = cleaned_data.get('phone_primary', '').strip()
+        
+        # If any field is filled, then required fields must be filled
+        has_any_data = bool(first_name or last_name or phone_primary)
+        
+        if has_any_data:
+            if not first_name:
+                self.add_error('first_name', 'First name is required when providing parent information.')
+            if not last_name:
+                self.add_error('last_name', 'Last name is required when providing parent information.')
+            if not phone_primary:
+                self.add_error('phone_primary', 'Primary phone is required when providing parent information.')
+            if not cleaned_data.get('relationship'):
+                self.add_error('relationship', 'Relationship is required when providing parent information.')
+        
+        return cleaned_data
 
     def clean_phone_primary(self):
         phone = self.cleaned_data.get('phone_primary')

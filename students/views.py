@@ -108,30 +108,44 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         parent_form_1 = context['parent_form_1']
         parent_form_2 = context['parent_form_2']
 
-        # Validate parent forms first
-        parent_1_valid = parent_form_1.is_valid() if parent_form_1 else False
-        parent_2_valid = parent_form_2.is_valid() if parent_form_2 else False
+        # Check if parent forms have any data by checking POST data directly
+        parent_1_has_data = bool(
+            self.request.POST.get('parent1-first_name', '').strip() or 
+            self.request.POST.get('parent1-last_name', '').strip() or
+            self.request.POST.get('parent1-phone_primary', '').strip()
+        )
+        
+        parent_2_has_data = bool(
+            self.request.POST.get('parent2-first_name', '').strip() or 
+            self.request.POST.get('parent2-last_name', '').strip() or
+            self.request.POST.get('parent2-phone_primary', '').strip()
+        )
+        
+        # Validate parent forms only if they have data
+        parent_1_valid = True
+        parent_2_valid = True
+        
+        if parent_1_has_data:
+            parent_1_valid = parent_form_1.is_valid()
+            if not parent_1_valid:
+                for field, errors in parent_form_1.errors.items():
+                    for error in errors:
+                        messages.error(self.request, f'Parent 1 - {field}: {error}')
+        
+        if parent_2_has_data:
+            parent_2_valid = parent_form_2.is_valid()
+            if not parent_2_valid:
+                for field, errors in parent_form_2.errors.items():
+                    for error in errors:
+                        messages.error(self.request, f'Parent 2 - {field}: {error}')
         
         # Check if at least one parent is provided
-        has_parent_1 = parent_1_valid and parent_form_1.cleaned_data.get('first_name')
-        has_parent_2 = parent_2_valid and parent_form_2.cleaned_data.get('first_name')
-        
-        if not has_parent_1 and not has_parent_2:
+        if not parent_1_has_data and not parent_2_has_data:
             messages.error(self.request, 'Please provide at least one parent/guardian information.')
             return self.form_invalid(form)
         
-        # Show parent form errors if any
-        if not parent_1_valid and parent_form_1:
-            for field, errors in parent_form_1.errors.items():
-                for error in errors:
-                    messages.error(self.request, f'Parent 1 - {field}: {error}')
-        
-        if not parent_2_valid and parent_form_2 and has_parent_2:
-            for field, errors in parent_form_2.errors.items():
-                for error in errors:
-                    messages.error(self.request, f'Parent 2 - {field}: {error}')
-        
-        if not parent_1_valid or (has_parent_2 and not parent_2_valid):
+        # If validation failed, return invalid
+        if not parent_1_valid or not parent_2_valid:
             return self.form_invalid(form)
 
         # Prepare student data
@@ -144,13 +158,13 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         # Prepare parents data
         parents_data = []
 
-        if has_parent_1:
+        if parent_1_has_data and parent_1_valid:
             parent_1_data = parent_form_1.cleaned_data.copy()
             parent_1_data['is_primary'] = True
             parent_1_data['relationship'] = parent_1_data.get('relationship', 'guardian')
             parents_data.append(parent_1_data)
 
-        if has_parent_2:
+        if parent_2_has_data and parent_2_valid:
             parent_2_data = parent_form_2.cleaned_data.copy()
             parent_2_data['is_primary'] = False
             parent_2_data['relationship'] = parent_2_data.get('relationship', 'guardian')
@@ -175,6 +189,12 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
             logger.error(f"Error registering student: {error_msg}\n{traceback.format_exc()}")
             messages.error(self.request, f'Error registering student: {error_msg}')
             return self.form_invalid(form)
+    
+    def form_invalid(self, form):
+        """Handle invalid form submission with proper context."""
+        context = self.get_context_data()
+        context['form'] = form
+        return self.render_to_response(context)
 
 
 class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):

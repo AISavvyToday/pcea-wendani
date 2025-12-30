@@ -347,7 +347,7 @@
           </div>
           <div class="d-flex gap-2">
             <a href="{% url 'students:list' %}" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
               <i class="mdi mdi-content-save"></i> {{ button_text|default:"Save Student" }}
             </button>
           </div>
@@ -423,10 +423,70 @@
         this.classList.add('is-invalid');
       } else {
         this.classList.remove('is-invalid');
-        this.classList.add('is-valid');
+        if (this.value.trim() !== '') {
+          this.classList.add('is-valid');
+        }
       }
     });
   });
+
+  // Form submission handler
+  const form = document.getElementById('studentForm');
+  const submitBtn = document.getElementById('submitBtn');
+  
+  if (form && submitBtn) {
+    form.addEventListener('submit', function(e) {
+      // Basic validation before submit
+      let hasErrors = false;
+      
+      // Check required student fields
+      const requiredFields = form.querySelectorAll('[required]');
+      requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+          field.classList.add('is-invalid');
+          hasErrors = true;
+        }
+      });
+      
+      // Check if at least one parent is provided
+      const parent1FirstName = form.querySelector('[name="parent1-first_name"]');
+      const parent1LastName = form.querySelector('[name="parent1-last_name"]');
+      const parent1Phone = form.querySelector('[name="parent1-phone_primary"]');
+      const parent2FirstName = form.querySelector('[name="parent2-first_name"]');
+      const parent2LastName = form.querySelector('[name="parent2-last_name"]');
+      const parent2Phone = form.querySelector('[name="parent2-phone_primary"]');
+      
+      const hasParent1 = (parent1FirstName && parent1FirstName.value.trim()) || 
+                        (parent1LastName && parent1LastName.value.trim()) || 
+                        (parent1Phone && parent1Phone.value.trim());
+      const hasParent2 = (parent2FirstName && parent2FirstName.value.trim()) || 
+                        (parent2LastName && parent2LastName.value.trim()) || 
+                        (parent2Phone && parent2Phone.value.trim());
+      
+      if (!hasParent1 && !hasParent2) {
+        alert('Please provide at least one parent/guardian information.');
+        e.preventDefault();
+        return false;
+      }
+      
+      if (hasErrors) {
+        e.preventDefault();
+        alert('Please fill in all required fields.');
+        return false;
+      }
+      
+      // Show loading state
+      submitBtn.disabled = true;
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin"></i> Saving...';
+      
+      // Re-enable after 10 seconds as fallback (in case of redirect delay)
+      setTimeout(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }, 10000);
+    });
+  }
 </script>
 {% endblock %}
 
