@@ -7,20 +7,102 @@
     .route-card {
         border: 1px solid #dee2e6;
         border-radius: 8px;
-        padding: 1rem;
+        padding: 1.25rem;
         margin-bottom: 1rem;
         background: #fff;
+        transition: all 0.3s ease;
     }
     .route-card:hover {
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
     }
     .fee-badge {
         display: inline-block;
-        padding: 0.25rem 0.5rem;
+        padding: 0.35rem 0.75rem;
         margin: 0.25rem;
-        background: #e9ecef;
-        border-radius: 4px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 6px;
         font-size: 0.875rem;
+        font-weight: 500;
+    }
+    .nav-tabs .nav-link {
+        color: #495057;
+        font-weight: 500;
+    }
+    .nav-tabs .nav-link.active {
+        color: #007bff;
+        border-bottom: 3px solid #007bff;
+    }
+    .tab-content {
+        padding-top: 1.5rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        opacity: 0.3;
+        margin-bottom: 1rem;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+    }
+    .alert-modal .modal-content {
+        border: none;
+        border-radius: 12px;
+    }
+    .alert-modal .modal-header {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    .alert-modal .modal-body {
+        padding-top: 0;
+        text-align: center;
+    }
+    .alert-modal .modal-footer {
+        border-top: none;
+        justify-content: center;
+    }
+    .alert-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+    .alert-icon.success {
+        color: #28a745;
+    }
+    .alert-icon.error {
+        color: #dc3545;
+    }
+    .alert-icon.warning {
+        color: #ffc107;
+    }
+    .alert-icon.info {
+        color: #17a2b8;
+    }
+    .route-info-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+    }
+    .route-info-section strong {
+        color: #495057;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    .route-info-section div {
+        color: #6c757d;
+        font-size: 0.9rem;
+        line-height: 1.6;
     }
 </style>
 {% endblock %}
@@ -29,7 +111,7 @@
 <div class="content-wrapper">
     <div class="page-header d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="page-title mb-0">Transport Routes & Fees</h3>
+            <h3 class="page-title mb-0"><i class="mdi mdi-bus"></i> Transport Management</h3>
             <small class="text-muted">Manage transport routes and their fees per term</small>
         </div>
         <div>
@@ -37,118 +119,158 @@
                 <i class="mdi mdi-plus"></i> Add Route
             </button>
             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#feeModal" onclick="openFeeModal()">
-                <i class="mdi mdi-plus"></i> Add Fee
+                <i class="mdi mdi-cash-plus"></i> Add Fee
             </button>
         </div>
     </div>
 
-    <!-- Routes Section -->
-    <div class="row mb-4">
-        <div class="col-12">
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-3" id="transportTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="routes-tab" data-bs-toggle="tab" data-bs-target="#routes" type="button" role="tab" aria-controls="routes" aria-selected="true">
+                <i class="mdi mdi-bus"></i> Routes
+                <span class="badge bg-primary ms-2">{{ routes|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab" aria-controls="fees" aria-selected="false">
+                <i class="mdi mdi-cash-multiple"></i> Fees
+                <span class="badge bg-success ms-2">{{ fees|length }}</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="transportTabContent">
+        <!-- Routes Tab -->
+        <div class="tab-pane fade show active" id="routes" role="tabpanel" aria-labelledby="routes-tab">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="mdi mdi-bus"></i> Transport Routes</h5>
-                </div>
                 <div class="card-body">
                     <div id="routes-container">
                         {% for route in routes %}
                         <div class="route-card" id="route-{{ route.id }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-2">{{ route.name }}</h5>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <h5 class="mb-0 me-2">{{ route.name }}</h5>
+                                        <span class="badge bg-info">{{ route.fees.all|length }} fee{{ route.fees.all|length|pluralize }}</span>
+                                    </div>
                                     {% if route.description %}
-                                    <p class="text-muted mb-2">{{ route.description }}</p>
+                                    <p class="text-muted mb-3">{{ route.description }}</p>
                                     {% endif %}
-                                    {% if route.pickup_points %}
-                                    <div class="mb-2">
-                                        <strong>Pickup Points:</strong>
-                                        <div class="ms-2" style="white-space: pre-line;">{{ route.pickup_points }}</div>
-                                    </div>
-                                    {% endif %}
-                                    {% if route.dropoff_points %}
-                                    <div class="mb-2">
-                                        <strong>Drop-off Points:</strong>
-                                        <div class="ms-2" style="white-space: pre-line;">{{ route.dropoff_points }}</div>
-                                    </div>
-                                    {% endif %}
-                                    <div>
-                                        <strong>Fees:</strong>
-                                        {% for fee in route.fees.all %}
-                                        {% if fee.is_active %}
-                                        <span class="fee-badge">
-                                            {{ fee.academic_year.year }} {{ fee.get_term_display }}: 
-                                            Full: KES {{ fee.amount|intcomma }}
-                                            {% if fee.half_amount %}, Half: KES {{ fee.half_amount|intcomma }}{% endif %}
-                                        </span>
+                                    
+                                    {% if route.pickup_points or route.dropoff_points %}
+                                    <div class="row">
+                                        {% if route.pickup_points %}
+                                        <div class="col-md-6">
+                                            <div class="route-info-section">
+                                                <strong><i class="mdi mdi-map-marker"></i> Pickup Points</strong>
+                                                <div style="white-space: pre-line;">{{ route.pickup_points }}</div>
+                                            </div>
+                                        </div>
                                         {% endif %}
-                                        {% empty %}
-                                        <span class="text-muted">No fees configured</span>
-                                        {% endfor %}
+                                        {% if route.dropoff_points %}
+                                        <div class="col-md-6">
+                                            <div class="route-info-section">
+                                                <strong><i class="mdi mdi-map-marker-check"></i> Drop-off Points</strong>
+                                                <div style="white-space: pre-line;">{{ route.dropoff_points }}</div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="mt-3">
+                                        <strong><i class="mdi mdi-cash"></i> Configured Fees:</strong>
+                                        <div class="mt-2">
+                                            {% for fee in route.fees.all %}
+                                            {% if fee.is_active %}
+                                            <span class="fee-badge">
+                                                <i class="mdi mdi-calendar"></i> {{ fee.academic_year.year }} {{ fee.get_term_display }}: 
+                                                Full: KES {{ fee.amount|intcomma }}
+                                                {% if fee.half_amount %}, Half: KES {{ fee.half_amount|intcomma }}{% endif %}
+                                            </span>
+                                            {% endif %}
+                                            {% empty %}
+                                            <span class="text-muted"><i class="mdi mdi-alert-circle"></i> No fees configured</span>
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="editRoute('{{ route.id }}')">
-                                        <i class="mdi mdi-pencil"></i> Edit
+                                <div class="action-buttons ms-3">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editRoute('{{ route.id }}')" title="Edit Route">
+                                        <i class="mdi mdi-pencil"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRoute('{{ route.id }}', '{{ route.name }}')">
-                                        <i class="mdi mdi-delete"></i> Delete
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRoute('{{ route.id }}', '{{ route.name }}')" title="Delete Route">
+                                        <i class="mdi mdi-delete"></i>
                                     </button>
                                 </div>
                             </div>
                         </div>
                         {% empty %}
-                        <div class="text-center text-muted py-4">
-                            <i class="mdi mdi-bus" style="font-size: 3rem;"></i>
-                            <p class="mt-2">No transport routes found. Click "Add Route" to create one.</p>
+                        <div class="empty-state">
+                            <i class="mdi mdi-bus"></i>
+                            <h5>No Transport Routes</h5>
+                            <p class="text-muted">Get started by creating your first transport route.</p>
+                            <button type="button" class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#routeModal" onclick="openRouteModal()">
+                                <i class="mdi mdi-plus"></i> Create Route
+                            </button>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Fees Section -->
-    <div class="row">
-        <div class="col-12">
+        <!-- Fees Tab -->
+        <div class="tab-pane fade" id="fees" role="tabpanel" aria-labelledby="fees-tab">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="mdi mdi-cash-multiple"></i> All Transport Fees</h5>
-                </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead>
+                            <thead class="table-light">
                                 <tr>
-                                    <th>Route</th>
-                                    <th>Academic Year</th>
-                                    <th>Term</th>
-                                    <th>Full Trip Amount</th>
-                                    <th>Half Trip Amount</th>
-                                    <th>Actions</th>
+                                    <th><i class="mdi mdi-bus"></i> Route</th>
+                                    <th><i class="mdi mdi-calendar"></i> Academic Year</th>
+                                    <th><i class="mdi mdi-calendar-clock"></i> Term</th>
+                                    <th class="text-end"><i class="mdi mdi-cash"></i> Full Trip</th>
+                                    <th class="text-end"><i class="mdi mdi-cash-multiple"></i> Half Trip</th>
+                                    <th class="text-center"><i class="mdi mdi-cog"></i> Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="fees-container">
                                 {% for fee in fees %}
                                 <tr id="fee-{{ fee.id }}">
-                                    <td>{{ fee.route.name }}</td>
+                                    <td><strong>{{ fee.route.name }}</strong></td>
                                     <td>{{ fee.academic_year.year }}</td>
-                                    <td>{{ fee.get_term_display }}</td>
-                                    <td>KES {{ fee.amount|intcomma }}</td>
-                                    <td>KES {% if fee.half_amount %}{{ fee.half_amount|intcomma }}{% else %}{% widthratio fee.amount 2 1 %}{% endif %}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="editFee('{{ fee.id }}')">
-                                            <i class="mdi mdi-pencil"></i> Edit
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFee('{{ fee.id }}')">
-                                            <i class="mdi mdi-delete"></i> Delete
-                                        </button>
+                                    <td><span class="badge bg-info">{{ fee.get_term_display }}</span></td>
+                                    <td class="text-end"><strong>KES {{ fee.amount|intcomma }}</strong></td>
+                                    <td class="text-end">KES {% if fee.half_amount %}{{ fee.half_amount|intcomma }}{% else %}{% widthratio fee.amount 2 1 %}{% endif %}</td>
+                                    <td class="text-center">
+                                        <div class="action-buttons justify-content-center">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editFee('{{ fee.id }}')" title="Edit Fee">
+                                                <i class="mdi mdi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteFee('{{ fee.id }}')" title="Delete Fee">
+                                                <i class="mdi mdi-delete"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        No transport fees found. Click "Add Fee" to create one.
+                                    <td colspan="6" class="text-center">
+                                        <div class="empty-state py-4">
+                                            <i class="mdi mdi-cash-multiple"></i>
+                                            <h5>No Transport Fees</h5>
+                                            <p class="text-muted">Create fees for your transport routes.</p>
+                                            <button type="button" class="btn btn-success mt-2" data-bs-toggle="modal" data-bs-target="#feeModal" onclick="openFeeModal()">
+                                                <i class="mdi mdi-plus"></i> Create Fee
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -163,11 +285,11 @@
 
 <!-- Route Modal -->
 <div class="modal fade" id="routeModal" tabindex="-1" aria-labelledby="routeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="routeModalLabel">Add Route</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="routeModalLabel"><i class="mdi mdi-bus"></i> Add Route</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="routeForm">
                 <div class="modal-body">
@@ -175,24 +297,30 @@
                     <input type="hidden" id="route-id" name="route_id">
                     <div class="mb-3">
                         <label for="route-name" class="form-label">Route Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="route-name" name="name" required>
+                        <input type="text" class="form-control" id="route-name" name="name" required placeholder="e.g., Route A, Thika Road">
                     </div>
                     <div class="mb-3">
                         <label for="route-description" class="form-label">Description</label>
-                        <textarea class="form-control" id="route-description" name="description" rows="3"></textarea>
+                        <textarea class="form-control" id="route-description" name="description" rows="3" placeholder="Brief description of the route"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label for="route-pickup-points" class="form-label">Pickup Points</label>
-                        <textarea class="form-control" id="route-pickup-points" name="pickup_points" rows="4" placeholder="One pickup point per line"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label for="route-dropoff-points" class="form-label">Drop-off Points</label>
-                        <textarea class="form-control" id="route-dropoff-points" name="dropoff_points" rows="4" placeholder="One drop-off point per line"></textarea>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="route-pickup-points" class="form-label"><i class="mdi mdi-map-marker"></i> Pickup Points</label>
+                                <textarea class="form-control" id="route-pickup-points" name="pickup_points" rows="4" placeholder="One pickup point per line"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="route-dropoff-points" class="form-label"><i class="mdi mdi-map-marker-check"></i> Drop-off Points</label>
+                                <textarea class="form-control" id="route-dropoff-points" name="dropoff_points" rows="4" placeholder="One drop-off point per line"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Route</button>
+                    <button type="submit" class="btn btn-primary"><i class="mdi mdi-content-save"></i> Save Route</button>
                 </div>
             </form>
         </div>
@@ -203,16 +331,16 @@
 <div class="modal fade" id="feeModal" tabindex="-1" aria-labelledby="feeModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="feeModalLabel">Add Transport Fee</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="feeModalLabel"><i class="mdi mdi-cash-plus"></i> Add Transport Fee</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="feeForm">
                 <div class="modal-body">
                     {% csrf_token %}
                     <input type="hidden" id="fee-id" name="fee_id">
                     <div class="mb-3">
-                        <label for="fee-route" class="form-label">Route <span class="text-danger">*</span></label>
+                        <label for="fee-route" class="form-label"><i class="mdi mdi-bus"></i> Route <span class="text-danger">*</span></label>
                         <select class="form-select" id="fee-route" name="route" required>
                             <option value="">Select a route...</option>
                             {% for route in routes %}
@@ -220,38 +348,89 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="fee-academic-year" class="form-label">Academic Year <span class="text-danger">*</span></label>
-                        <select class="form-select" id="fee-academic-year" name="academic_year" required>
-                            <option value="">Select academic year...</option>
-                            {% for year in academic_years %}
-                            <option value="{{ year.id }}">{{ year.year }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fee-academic-year" class="form-label"><i class="mdi mdi-calendar"></i> Academic Year <span class="text-danger">*</span></label>
+                                <select class="form-select" id="fee-academic-year" name="academic_year" required>
+                                    <option value="">Select academic year...</option>
+                                    {% for year in academic_years %}
+                                    <option value="{{ year.id }}">{{ year.year }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fee-term" class="form-label"><i class="mdi mdi-calendar-clock"></i> Term <span class="text-danger">*</span></label>
+                                <select class="form-select" id="fee-term" name="term" required>
+                                    <option value="">Select term...</option>
+                                    <option value="term_1">Term 1</option>
+                                    <option value="term_2">Term 2</option>
+                                    <option value="term_3">Term 3</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="fee-term" class="form-label">Term <span class="text-danger">*</span></label>
-                        <select class="form-select" id="fee-term" name="term" required>
-                            <option value="">Select term...</option>
-                            <option value="term_1">Term 1</option>
-                            <option value="term_2">Term 2</option>
-                            <option value="term_3">Term 3</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="fee-amount" class="form-label">Full Trip Amount (KES) <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="fee-amount" name="amount" step="0.01" min="0" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="fee-half-amount" class="form-label">Half Trip Amount (KES) <small class="text-muted">(optional, defaults to half of full amount)</small></label>
-                        <input type="number" class="form-control" id="fee-half-amount" name="half_amount" step="0.01" min="0">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fee-amount" class="form-label"><i class="mdi mdi-cash"></i> Full Trip Amount (KES) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="fee-amount" name="amount" step="0.01" min="0" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fee-half-amount" class="form-label"><i class="mdi mdi-cash-multiple"></i> Half Trip Amount (KES)</label>
+                                <input type="number" class="form-control" id="fee-half-amount" name="half_amount" step="0.01" min="0" placeholder="Optional">
+                                <small class="text-muted">Leave empty to auto-calculate (half of full amount)</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Fee</button>
+                    <button type="submit" class="btn btn-success"><i class="mdi mdi-content-save"></i> Save Fee</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div class="modal fade alert-modal" id="alertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert-icon" id="alertIcon"></div>
+                <h5 id="alertTitle"></h5>
+                <p id="alertMessage" class="text-muted"></p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="mdi mdi-alert"></i> Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmButton">Confirm</button>
+            </div>
         </div>
     </div>
 </div>
@@ -260,17 +439,89 @@
 
 {% block extra_js %}
 <script>
-// Load academic years (already populated from template)
+// Toast notification function
+function showToast(message, type = 'success') {
+    const toastContainer = document.getElementById('toastContainer');
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-info';
+    const icon = type === 'success' ? 'mdi-check-circle' : type === 'error' ? 'mdi-alert-circle' : type === 'warning' ? 'mdi-alert' : 'mdi-information';
+    
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast align-items-center text-white ${bgClass} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="mdi ${icon} me-2"></i>${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, { delay: 5000 });
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Alert modal function
+function showAlert(title, message, type = 'success') {
+    const modal = new bootstrap.Modal(document.getElementById('alertModal'));
+    const icon = document.getElementById('alertIcon');
+    const titleEl = document.getElementById('alertTitle');
+    const messageEl = document.getElementById('alertMessage');
+    
+    icon.className = 'alert-icon ' + type;
+    if (type === 'success') {
+        icon.innerHTML = '<i class="mdi mdi-check-circle"></i>';
+    } else if (type === 'error') {
+        icon.innerHTML = '<i class="mdi mdi-alert-circle"></i>';
+    } else if (type === 'warning') {
+        icon.innerHTML = '<i class="mdi mdi-alert"></i>';
+    } else {
+        icon.innerHTML = '<i class="mdi mdi-information"></i>';
+    }
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.show();
+}
+
+// Confirm modal function
+function showConfirm(message, callback) {
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    const messageEl = document.getElementById('confirmMessage');
+    const confirmBtn = document.getElementById('confirmButton');
+    
+    messageEl.textContent = message;
+    
+    // Remove previous event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    newConfirmBtn.addEventListener('click', () => {
+        modal.hide();
+        if (callback) callback();
+    });
+    
+    modal.show();
+}
+
 function loadAcademicYears() {
     const select = document.getElementById('fee-academic-year');
     if (!select) return;
-    // Years are already in the select from template
 }
 
 function openRouteModal(routeId = null) {
     document.getElementById('routeForm').reset();
     document.getElementById('route-id').value = '';
-    document.getElementById('routeModalLabel').textContent = routeId ? 'Edit Route' : 'Add Route';
+    document.getElementById('routeModalLabel').innerHTML = routeId ? '<i class="mdi mdi-pencil"></i> Edit Route' : '<i class="mdi mdi-bus"></i> Add Route';
     if (!routeId) {
         loadAcademicYears();
     }
@@ -279,30 +530,32 @@ function openRouteModal(routeId = null) {
 function openFeeModal(feeId = null) {
     document.getElementById('feeForm').reset();
     document.getElementById('fee-id').value = '';
-    document.getElementById('feeModalLabel').textContent = feeId ? 'Edit Transport Fee' : 'Add Transport Fee';
+    document.getElementById('feeModalLabel').innerHTML = feeId ? '<i class="mdi mdi-pencil"></i> Edit Transport Fee' : '<i class="mdi mdi-cash-plus"></i> Add Transport Fee';
     loadAcademicYears();
 }
 
 async function editRoute(routeId) {
     try {
         const response = await fetch(`/transport/routes/${routeId}/detail/`);
+        if (!response.ok) throw new Error('Failed to load route');
         const data = await response.json();
         document.getElementById('route-id').value = data.id;
         document.getElementById('route-name').value = data.name;
         document.getElementById('route-description').value = data.description || '';
         document.getElementById('route-pickup-points').value = data.pickup_points || '';
         document.getElementById('route-dropoff-points').value = data.dropoff_points || '';
-        document.getElementById('routeModalLabel').textContent = 'Edit Route';
+        document.getElementById('routeModalLabel').innerHTML = '<i class="mdi mdi-pencil"></i> Edit Route';
         new bootstrap.Modal(document.getElementById('routeModal')).show();
     } catch (error) {
         console.error('Error loading route:', error);
-        alert('Error loading route details');
+        showAlert('Error', 'Failed to load route details. Please try again.', 'error');
     }
 }
 
 async function editFee(feeId) {
     try {
         const response = await fetch(`/transport/fees/${feeId}/detail/`);
+        if (!response.ok) throw new Error('Failed to load fee');
         const data = await response.json();
         document.getElementById('fee-id').value = data.id;
         document.getElementById('fee-route').value = data.route_id;
@@ -310,66 +563,65 @@ async function editFee(feeId) {
         document.getElementById('fee-term').value = data.term;
         document.getElementById('fee-amount').value = data.amount;
         document.getElementById('fee-half-amount').value = data.half_amount || '';
-        document.getElementById('feeModalLabel').textContent = 'Edit Transport Fee';
+        document.getElementById('feeModalLabel').innerHTML = '<i class="mdi mdi-pencil"></i> Edit Transport Fee';
         await loadAcademicYears();
-        // Set values after loading years
         setTimeout(() => {
             document.getElementById('fee-academic-year').value = data.academic_year_id;
         }, 100);
         new bootstrap.Modal(document.getElementById('feeModal')).show();
     } catch (error) {
         console.error('Error loading fee:', error);
-        alert('Error loading fee details');
+        showAlert('Error', 'Failed to load fee details. Please try again.', 'error');
     }
 }
 
 function deleteRoute(routeId, routeName) {
-    if (!confirm(`Are you sure you want to delete route "${routeName}"?`)) return;
-    
-    fetch(`/transport/routes/${routeId}/delete/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById(`route-${routeId}`).remove();
-            alert(data.message);
-            location.reload();
-        } else {
-            alert(data.message || 'Error deleting route');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error deleting route');
+    showConfirm(`Are you sure you want to delete route "<strong>${routeName}</strong>"? This action cannot be undone.`, () => {
+        fetch(`/transport/routes/${routeId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById(`route-${routeId}`).remove();
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('Error', data.message || 'Error deleting route', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error', 'An error occurred while deleting the route', 'error');
+        });
     });
 }
 
 function deleteFee(feeId) {
-    if (!confirm('Are you sure you want to delete this transport fee?')) return;
-    
-    fetch(`/transport/fees/${feeId}/delete/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById(`fee-${feeId}`).remove();
-            alert(data.message);
-            location.reload();
-        } else {
-            alert(data.message || 'Error deleting fee');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error deleting fee');
+    showConfirm('Are you sure you want to delete this transport fee? This action cannot be undone.', () => {
+        fetch(`/transport/fees/${feeId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById(`fee-${feeId}`).remove();
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('Error', data.message || 'Error deleting fee', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error', 'An error occurred while deleting the fee', 'error');
+        });
     });
 }
 
@@ -381,6 +633,10 @@ document.getElementById('routeForm').addEventListener('submit', async (e) => {
     formData.delete('route_id');
     
     const url = routeId ? `/transport/routes/${routeId}/update/` : '/transport/routes/create/';
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
     
     try {
         const response = await fetch(url, {
@@ -392,19 +648,23 @@ document.getElementById('routeForm').addEventListener('submit', async (e) => {
         });
         const data = await response.json();
         if (data.success) {
-            alert(data.message);
             bootstrap.Modal.getInstance(document.getElementById('routeModal')).hide();
-            location.reload();
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
         } else {
-            let errorMsg = 'Error saving route:\n';
+            let errorMsg = 'Please correct the following errors:\n\n';
             for (const [field, errors] of Object.entries(data.errors || {})) {
                 errorMsg += `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}\n`;
             }
-            alert(errorMsg);
+            showAlert('Validation Error', errorMsg, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error saving route');
+        showAlert('Error', 'An error occurred while saving the route', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 });
 
@@ -416,6 +676,10 @@ document.getElementById('feeForm').addEventListener('submit', async (e) => {
     formData.delete('fee_id');
     
     const url = feeId ? `/transport/fees/${feeId}/update/` : '/transport/fees/create/';
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
     
     try {
         const response = await fetch(url, {
@@ -427,19 +691,23 @@ document.getElementById('feeForm').addEventListener('submit', async (e) => {
         });
         const data = await response.json();
         if (data.success) {
-            alert(data.message);
             bootstrap.Modal.getInstance(document.getElementById('feeModal')).hide();
-            location.reload();
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
         } else {
-            let errorMsg = 'Error saving fee:\n';
+            let errorMsg = 'Please correct the following errors:\n\n';
             for (const [field, errors] of Object.entries(data.errors || {})) {
                 errorMsg += `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}\n`;
             }
-            alert(errorMsg);
+            showAlert('Validation Error', errorMsg, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error saving fee');
+        showAlert('Error', 'An error occurred while saving the fee', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 });
 
@@ -449,4 +717,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
-
