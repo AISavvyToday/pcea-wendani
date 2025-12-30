@@ -68,59 +68,79 @@
               </div>
 
               <div class="col-md-9">
+                <!-- Hidden admission number field (auto-generated) -->
+                {{ form.admission_number }}
+                
                 <div class="row">
-                  <div class="col-md-3">
-                    <label>Admission Number <span class="text-danger">*</span></label>
-                    {% if is_edit %}
-                      {{ form.admission_number }}
-                      {% if form.admission_number.errors %}
-                        <div class="text-danger small">{{ form.admission_number.errors }}</div>
-                      {% endif %}
-                    {% else %}
-                      <input type="text" class="form-control bg-light" value="Auto-generated" readonly>
-                      <small class="text-muted"><i class="mdi mdi-information-outline"></i> Will be auto-generated sequentially</small>
+                  <div class="col-md-6">
+                    <label>Admission Date <span class="text-danger">*</span></label>
+                    {{ form.admission_date }}
+                    {% if form.admission_date.errors %}
+                      <div class="text-danger small">{{ form.admission_date.errors }}</div>
                     {% endif %}
                   </div>
-                  <div class="col-md-3">
-                    <label>Admission Date</label>
-                    {{ form.admission_date }}
+                  <div class="col-md-6">
+                    <label>Current Class</label>
+                    {{ form.current_class }}
+                    {% if form.current_class.errors %}
+                      <div class="text-danger small">{{ form.current_class.errors }}</div>
+                    {% endif %}
                   </div>
-                  <div class="col-md-3">
+                </div>
+                
+                {% if is_edit %}
+                <div class="row mt-2">
+                  <div class="col-md-6">
                     <label>Status</label>
                     {{ form.status }}
-                    {% if is_edit %}
                     <small class="text-muted">Financial records are preserved</small>
-                    {% endif %}
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-6">
                     <label>Status Reason</label>
                     {{ form.status_reason }}
                   </div>
                 </div>
+                {% else %}
+                <!-- Hidden fields for new students -->
+                {{ form.status }}
+                {{ form.status_reason }}
+                {% endif %}
 
                 <div class="row mt-2">
                   <div class="col-md-4">
-                    <label>First Name</label>
+                    <label>First Name <span class="text-danger">*</span></label>
                     {{ form.first_name }}
+                    {% if form.first_name.errors %}
+                      <div class="text-danger small">{{ form.first_name.errors }}</div>
+                    {% endif %}
                   </div>
                   <div class="col-md-4">
                     <label>Middle Name</label>
                     {{ form.middle_name }}
                   </div>
                   <div class="col-md-4">
-                    <label>Last Name</label>
+                    <label>Last Name <span class="text-danger">*</span></label>
                     {{ form.last_name }}
+                    {% if form.last_name.errors %}
+                      <div class="text-danger small">{{ form.last_name.errors }}</div>
+                    {% endif %}
                   </div>
                 </div>
 
                 <div class="row mt-2">
                   <div class="col-md-4">
-                    <label>Gender</label>
+                    <label>Gender <span class="text-danger">*</span></label>
                     {{ form.gender }}
+                    {% if form.gender.errors %}
+                      <div class="text-danger small">{{ form.gender.errors }}</div>
+                    {% endif %}
                   </div>
                   <div class="col-md-4">
-                    <label>Date of Birth</label>
+                    <label>Date of Birth <span class="text-danger">*</span></label>
                     {{ form.date_of_birth }}
+                    {% if form.date_of_birth.errors %}
+                      <div class="text-danger small">{{ form.date_of_birth.errors }}</div>
+                    {% endif %}
                   </div>
                   <div class="col-md-4">
                     <label>Birth Certificate No.</label>

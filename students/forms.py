@@ -13,7 +13,7 @@ class StudentForm(forms.ModelForm):
     class Meta:
         model = Student
         fields = [
-            'admission_number',
+            'admission_number',  # Will be hidden for new students
             'admission_date',
             'first_name',
             'middle_name',
@@ -44,10 +44,7 @@ class StudentForm(forms.ModelForm):
             'residence',
         ]
         widgets = {
-            'admission_number': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'e.g., 2025001'
-            }),
+            'admission_number': forms.HiddenInput(),  # Hidden for all - auto-generated
             'admission_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
@@ -138,11 +135,34 @@ class StudentForm(forms.ModelForm):
                 'placeholder': 'Residence area/estate'
             }),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # For new students, admission_number is not required (will be auto-generated)
+        if not self.instance.pk:
+            self.fields['admission_number'].required = False
+            self.fields['admission_number'].widget = forms.HiddenInput()
+            # Set default status to 'active' for new students
+            self.fields['status'].initial = 'active'
+            # Hide status and status_reason for new students (always active)
+            self.fields['status'].widget = forms.HiddenInput()
+            self.fields['status_reason'].widget = forms.HiddenInput()
+        # Make optional fields not required
+        optional_fields = [
+            'middle_name', 'birth_certificate_number', 'photo', 'current_class',
+            'blood_group', 'medical_conditions', 'emergency_contact_name',
+            'emergency_contact_phone', 'previous_school', 'previous_class',
+            'status_reason', 'special_needs_details', 'transport_route',
+            'transport_pickup_person', 'upi_number', 'assessment_number', 'residence'
+        ]
+        for field in optional_fields:
+            if field in self.fields:
+                self.fields[field].required = False
 
     def clean_admission_number(self):
         admission_number = self.cleaned_data.get('admission_number')
         # For new students (no pk), admission_number is optional and will be auto-generated
-        if not self.instance.pk and not admission_number:
+        if not self.instance.pk:
             return None  # Will be auto-generated in the view
         if admission_number:
             # Check if admission number already exists (excluding current instance)

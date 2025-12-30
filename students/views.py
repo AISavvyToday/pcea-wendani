@@ -93,6 +93,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Register New Student'
         context['button_text'] = 'Register Student'
+        context['is_edit'] = False  # Always False for create view
 
         if self.request.POST:
             context['parent_form_1'] = ParentForm(self.request.POST, prefix='parent1')
