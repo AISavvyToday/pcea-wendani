@@ -155,6 +155,10 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         # Auto-generate admission number if not provided
         if not student_data.get('admission_number'):
             student_data['admission_number'] = StudentService.generate_admission_number()
+        
+        # Ensure status is set to 'active' for new students
+        if not student_data.get('status'):
+            student_data['status'] = 'active'
 
         # Prepare parents data
         parents_data = []
