@@ -183,7 +183,8 @@ class Student(BaseModel):
         ]
 
     def __str__(self):
-        return f"{self.admission_number} - {self.full_name}"
+        adm_num = self.admission_number or "N/A"
+        return f"{adm_num} - {self.full_name}"
 
     @property
     def full_name(self):
