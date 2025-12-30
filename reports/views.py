@@ -418,7 +418,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
             'student__first_name',
             'student__middle_name',
             'student__last_name',
-            'student__current_class',
+            'student__current_class__name',  # Get class name instead of UUID
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
