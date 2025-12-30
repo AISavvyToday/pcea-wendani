@@ -539,7 +539,11 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context['invoice_count'] = invoices.count()
 
         # Add prepayment_abs to each invoice for template display
-        for invoice in context.get('invoices', []):
+        # Use context_object_name 'invoices' from ListView
+        invoice_list = context.get('invoices', [])
+        if not invoice_list and hasattr(self, 'object_list'):
+            invoice_list = self.object_list
+        for invoice in invoice_list:
             invoice.prepayment_abs = abs(invoice.prepayment) if invoice.prepayment else Decimal('0.00')
 
         return context
