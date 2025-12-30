@@ -54,15 +54,17 @@
             <div class="two-col">
                 <div class="col">
                     <strong>Summary</strong>
+                    {% if statement.balance_bf and statement.balance_bf != 0 %}
+                    <div class="small">Balance B/F: <strong class="text-warning">KES {{ statement.balance_bf|intcomma }}</strong></div>
+                    {% endif %}
+                    {% if statement.prepayment and statement.prepayment != 0 %}
+                    <div class="small">Prepayment: <strong class="text-success">KES {{ statement.prepayment|intcomma }}</strong></div>
+                    {% endif %}
                     <div class="small">Total Invoiced: <strong>KES {{ statement.total_invoiced|intcomma }}</strong></div>
-                    <div class="small">Total Paid: <strong>KES {{ statement.total_paid|intcomma }}</strong></div>
-                    <div class="small">Balance: <strong>KES {{ statement.balance|intcomma }}</strong></div>
+                    <div class="small">Total Paid: <strong class="text-success">KES {{ statement.total_paid|intcomma }}</strong></div>
+                    <div class="small">Balance Due: <strong class="{% if statement.balance > 0 %}text-danger{% else %}text-success{% endif %}">KES {{ statement.balance|intcomma }}</strong></div>
                 </div>
-                <div class="col">
-                    <strong>Contact</strong>
-                    <div class="small">Grade: {{ student.grade_level }}</div>
-                    {% if student.parent %}<div class="small">Parent: {{ student.parent.full_name }}</div>{% endif %}
-                </div>
+                
             </div>
 
             <div style="margin-top:12px;">
@@ -104,8 +106,6 @@
                 <div style="margin-bottom:16px;">
                     <div><strong>PAYMENT TERMS / MODE OF PAYMENT</strong></div>
                     <ol style="margin:8px 0; padding-left:20px; font-size:13px;">
-                        <li>All the above payments should be received on or before the first day of the term by way of Banker's cheque or direct deposit to the school's bank account.</li>
-                        <li>Cash payments and Personal cheques are not acceptable</li>
                         <li>School bank accounts:
                             <ul style="margin:4px 0; padding-left:20px; list-style-type:disc;">
                                 <li><strong>EQUITY BANK</strong><br>
