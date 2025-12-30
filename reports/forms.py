@@ -4,6 +4,7 @@ from django import forms
 from django.utils import timezone
 from academics.models import AcademicYear, TermChoices
 from transport.models import TransportRoute
+from core.models import PaymentSource
 
 class InvoiceReportFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(
@@ -34,6 +35,12 @@ class FeesCollectionFilterForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         initial=lambda: timezone.now().date()
+    )
+    payment_source = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Payment Sources')] + list(PaymentSource.choices),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Payment Source'
     )
     student_class = forms.ChoiceField(
         required=False,

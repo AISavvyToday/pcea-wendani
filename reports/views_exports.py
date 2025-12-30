@@ -342,6 +342,7 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         cleaned = getattr(form, 'cleaned_data', {})
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
+        payment_source = cleaned.get('payment_source') or ''
         selected_class = cleaned.get('student_class') or ''
         group_by = cleaned.get('group_by') or 'none'
 
@@ -355,6 +356,10 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         if end_date:
             end_datetime = timezone.make_aware(dt.combine(end_date, dt.max.time()))
             payments_qs = payments_qs.filter(payment_date__lte=end_datetime)
+
+        # Filter by payment source
+        if payment_source:
+            payments_qs = payments_qs.filter(payment_source=payment_source)
 
         if selected_class:
             payments_qs = payments_qs.filter(
@@ -444,6 +449,7 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
         cleaned = getattr(form, 'cleaned_data', {})
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
+        payment_source = cleaned.get('payment_source') or ''
         selected_class = cleaned.get('student_class') or ''
         group_by = cleaned.get('group_by') or 'none'
 
@@ -454,6 +460,10 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
             payments_qs = payments_qs.filter(payment_date__gte=start_date)
         if end_date:
             payments_qs = payments_qs.filter(payment_date__lte=end_date)
+
+        # Filter by payment source
+        if payment_source:
+            payments_qs = payments_qs.filter(payment_source=payment_source)
 
         if selected_class:
             payments_qs = payments_qs.filter(
@@ -512,6 +522,7 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
             'filters': {
                 'start_date': start_date,
                 'end_date': end_date,
+                'payment_source': payment_source,
                 'student_class': selected_class,
                 'group_by': group_by,
             },
@@ -911,7 +922,7 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             'invoice__student__middle_name',  # Added
             'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
-            'invoice__student__current_class',  # Added for class display
+            'invoice__student__current_class__name',  # Get class name instead of UUID
             'transport_route__pk',
             'transport_route__name'
         ).annotate(
@@ -979,7 +990,7 @@ class TransportReportExcelView(LoginRequiredMixin, View):
             rows.append({
                 'student_name': student_name,
                 'admission': g.get('invoice__student__admission_number') or '',
-                'student_class': g.get('invoice__student__current_class') or '',  # Added class
+                'student_class': g.get('invoice__student__current_class__name') or 'Not assigned',
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,
@@ -1089,7 +1100,7 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             'invoice__student__middle_name',  # Added
             'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
-            'invoice__student__current_class',  # Added for class display
+            'invoice__student__current_class__name',  # Get class name instead of UUID
             'transport_route__pk',
             'transport_route__name'
         ).annotate(
@@ -1156,7 +1167,7 @@ class TransportReportPDFView(LoginRequiredMixin, View):
             rows.append({
                 'student_name': student_name,
                 'admission': g.get('invoice__student__admission_number') or '',
-                'student_class': g.get('invoice__student__current_class') or '',  # Added class
+                'student_class': g.get('invoice__student__current_class__name') or 'Not assigned',
                 'route_name': g.get('transport_route__name') or '',
                 'billed': billed,
                 'collected': collected,

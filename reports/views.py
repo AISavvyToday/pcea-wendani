@@ -200,6 +200,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         # extract filters
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
+        payment_source = form.cleaned_data.get('payment_source') or ''
         selected_class = form.cleaned_data.get('student_class') or ''
         group_by = form.cleaned_data.get('group_by') or 'none'
 
@@ -210,6 +211,10 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
             payments_qs = payments_qs.filter(payment_date__gte=start_date)
         if end_date:
             payments_qs = payments_qs.filter(payment_date__lte=end_date)
+
+        # Filter by payment source
+        if payment_source:
+            payments_qs = payments_qs.filter(payment_source=payment_source)
 
         # Filter by class: we check both Payment.student and Payment.invoice.student
         if selected_class:
@@ -228,6 +233,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
                 params={
                     'start_date': str(start_date) if start_date else None,
                     'end_date': str(end_date) if end_date else None,
+                    'payment_source': payment_source,
                     'class': selected_class,
                     'group_by': group_by
                 }
@@ -297,6 +303,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
             'filters': {
                 'start_date': start_date,
                 'end_date': end_date,
+                'payment_source': payment_source,
                 'student_class': selected_class,
                 'group_by': group_by,
             },
@@ -555,7 +562,7 @@ class TransportReportView(LoginRequiredMixin, View):
             'invoice__student__middle_name',  # Added
             'invoice__student__last_name',  # Added
             'invoice__student__admission_number',
-            'invoice__student__current_class',
+            'invoice__student__current_class__name',  # Get class name instead of UUID
             'invoice__student__residence',  # Added for destination
             'transport_route__pk',
             'transport_route__name',
@@ -619,7 +626,7 @@ class TransportReportView(LoginRequiredMixin, View):
             student_name = ' '.join(student_name.split())
 
             admission = g.get('invoice__student__admission_number') or ''
-            student_cls = g.get('invoice__student__current_class') or ''
+            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
             route_pk = g.get('transport_route__pk')
             route_name = g.get('transport_route__name') or ''
             billed = Decimal(g.get('total_billed') or 0)

@@ -51,6 +51,10 @@
           <label class="form-label">End</label>
           {{ form.end_date }}
         </div>
+        <div class="col-md-3">
+          <label class="form-label">Payment Source</label>
+          {{ form.payment_source }}
+        </div>
                <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Filter</button>
           <a href="{% url 'reports:fees_collection_report' %}" class="btn btn-outline-secondary">Reset</a>
@@ -78,6 +82,7 @@
       <small class="text-muted">
         {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
         {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+        {% if filters.payment_source %} • Payment Source: {{ filters.payment_source|title }} {% endif %}
       </small>
     </div>
   </div>
