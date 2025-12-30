@@ -319,7 +319,7 @@
                     {% if payment.received_by %}
                     <tr>
                         <th>Received By</th>
-                        <td>{{ payment.received_by.get_full_name|default:payment.received_by.username }}</td>
+                        <td>{{ payment.received_by.get_full_name|default:payment.received_by.email }}</td>
                     </tr>
                     {% endif %}
                 </table>

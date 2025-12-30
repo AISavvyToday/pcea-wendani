@@ -92,8 +92,8 @@
 
                                 <td class="text-nowrap">
                                     {{ payment.receipt_number|default:"-" }}
-                                    {% if payment.recorded_by %}
-                                        <div class="small text-muted">By {{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}</div>
+                                    {% if payment.received_by %}
+                                        <div class="small text-muted">By {{ payment.received_by.get_full_name|default:payment.received_by.email }}</div>
                                     {% endif %}
                                 </td>
 

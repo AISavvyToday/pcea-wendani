@@ -1,0 +1,240 @@
+{% extends 'base/base.html' %}
+{% load static humanize %}
+
+{% block title %}Bank Transaction Details{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <!-- Header Section -->
+    <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
+        <div>
+            <h3 class="page-title mb-1">Bank Transaction Details</h3>
+            <div class="small text-muted">
+                {{ transaction.get_gateway_display }} • {{ transaction.transaction_id|truncatechars:25 }}
+            </div>
+        </div>
+
+        <div class="btn-group mt-2 mt-md-0">
+            <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary">
+                <i class="mdi mdi-arrow-left"></i> Back to List
+            </a>
+            {% if not transaction.payment %}
+            <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary">
+                <i class="mdi mdi-link"></i> Match Transaction
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Transaction Information -->
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-information"></i> Transaction Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 180px;"><strong>Transaction ID:</strong></td>
+                                    <td><code class="bg-light p-1 rounded">{{ transaction.transaction_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Reference:</strong></td>
+                                    <td>{{ transaction.transaction_reference|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Gateway:</strong></td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            {{ transaction.get_gateway_display|default:transaction.gateway }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Amount:</strong></td>
+                                    <td>
+                                        <span class="badge bg-success fs-6">
+                                            {{ transaction.currency }} {{ transaction.amount|floatformat:2|intcomma }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Bank Status:</strong></td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ transaction.bank_status|default:"N/A" }}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 180px;"><strong>Processing Status:</strong></td>
+                                    <td>
+                                        {% if transaction.processing_status == 'matched' %}
+                                            <span class="badge bg-success">{{ transaction.get_processing_status_display }}</span>
+                                        {% elif transaction.processing_status == 'failed' %}
+                                            <span class="badge bg-danger">{{ transaction.get_processing_status_display }}</span>
+                                        {% elif transaction.processing_status == 'duplicate' %}
+                                            <span class="badge bg-warning text-dark">{{ transaction.get_processing_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-info">{{ transaction.get_processing_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Received At:</strong></td>
+                                    <td>{{ transaction.callback_received_at|date:"d M Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Bank Timestamp:</strong></td>
+                                    <td>{{ transaction.bank_timestamp|date:"d M Y H:i"|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Created At:</strong></td>
+                                    <td>{{ transaction.created_at|date:"d M Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Updated At:</strong></td>
+                                    <td>{{ transaction.updated_at|date:"d M Y H:i" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    {% if transaction.bank_status_description %}
+                    <div class="mb-3">
+                        <strong>Bank Status Description:</strong>
+                        <p class="text-muted mb-0">{{ transaction.bank_status_description }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if transaction.processing_notes %}
+                    <div class="mb-3">
+                        <strong>Processing Notes:</strong>
+                        <p class="text-muted mb-0">{{ transaction.processing_notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Payer Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-account"></i> Payer Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted" style="width: 180px;"><strong>Payer Name:</strong></td>
+                            <td>{{ transaction.payer_name|default:"N/A" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Payer Account/Phone:</strong></td>
+                            <td>{{ transaction.payer_account|default:"N/A" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Raw Data -->
+            {% if transaction.raw_request %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-code-json"></i> Raw Request Data
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"><code>{{ transaction.raw_request|pprint }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Payment Link -->
+            {% if transaction.payment %}
+            <div class="card shadow-sm mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-check-circle"></i> Linked Payment
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <strong>Payment Reference:</strong><br>
+                        <a href="{% url 'finance:payment_detail' transaction.payment.pk %}" class="text-decoration-none">
+                            {{ transaction.payment.payment_reference }}
+                        </a>
+                    </p>
+                    <p class="mb-2">
+                        <strong>Student:</strong><br>
+                        <a href="{% url 'students:student_detail' transaction.payment.student.pk %}" class="text-decoration-none">
+                            {{ transaction.payment.student.full_name }}
+                        </a>
+                    </p>
+                    <p class="mb-2">
+                        <strong>Amount:</strong><br>
+                        KES {{ transaction.payment.amount|floatformat:2|intcomma }}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Status:</strong><br>
+                        <span class="badge bg-success">{{ transaction.payment.get_status_display }}</span>
+                    </p>
+                    <div class="mt-3">
+                        <a href="{% url 'finance:payment_detail' transaction.payment.pk %}" class="btn btn-sm btn-primary w-100">
+                            <i class="mdi mdi-eye"></i> View Payment
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-alert-circle"></i> Not Matched
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">This transaction has not been matched to a payment yet.</p>
+                    <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary w-100">
+                        <i class="mdi mdi-link"></i> Match Transaction
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Quick Actions -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="mdi mdi-cog"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="mdi mdi-arrow-left"></i> Back to List
+                        </a>
+                        {% if not transaction.payment %}
+                        <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary btn-sm">
+                            <i class="mdi mdi-link"></i> Match to Student
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
