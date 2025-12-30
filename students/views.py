@@ -131,7 +131,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
 
             messages.success(
                 self.request,
-                f'Student {student.get_full_name()} registered successfully!'
+                f'Student {student.full_name} registered successfully!'
             )
             return redirect(self.success_url)
 
@@ -153,7 +153,7 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = f'Edit Student: {self.object.get_full_name()}'
+        context['title'] = f'Edit Student: {self.object.full_name}'
         context['button_text'] = 'Update Student'
         context['is_edit'] = True
         context['original_status'] = self.object.status
