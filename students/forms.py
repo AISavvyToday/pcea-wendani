@@ -13,6 +13,7 @@ class StudentForm(forms.ModelForm):
     class Meta:
         model = Student
         fields = [
+            'admission_number',  # Include it - will be hidden for new students, visible for editing
             'admission_date',
             'first_name',
             'middle_name',
@@ -42,7 +43,6 @@ class StudentForm(forms.ModelForm):
             # Residence
             'residence',
         ]
-        exclude = ['admission_number']  # Explicitly exclude - auto-generated for new students
         widgets = {
             'admission_date': forms.DateInput(attrs={
                 'class': 'form-control',
@@ -136,42 +136,27 @@ class StudentForm(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
-        # For new students, set admission_number on instance BEFORE calling super().__init__()
-        # This ensures it's available when Django creates the form and validates
-        instance = kwargs.get('instance', None)
-        if instance is None or not instance.pk:
-            # New student - ensure instance exists and has admission_number
-            if instance is None:
-                from .models import Student
-                instance = Student()
-            if not instance.admission_number:
-                from .services import StudentService
-                instance.admission_number = StudentService.generate_admission_number()
-            kwargs['instance'] = instance
-        
         super().__init__(*args, **kwargs)
         
-        # For editing existing students, add admission_number field
+        # For editing existing students, make admission_number visible and required
         if self.instance.pk:
-            # Add admission_number field for editing
-            self.fields['admission_number'] = forms.CharField(
-                max_length=20,
-                required=True,
-                widget=forms.TextInput(attrs={
-                    'class': 'form-control',
-                    'placeholder': 'e.g., 2025001'
-                })
-            )
+            self.fields['admission_number'].required = True
+            self.fields['admission_number'].widget = forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., 2025001'
+            })
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
-            # For new students, ensure admission_number is completely removed from form fields
-            # (it's excluded in Meta, but remove it explicitly to be safe)
-            if 'admission_number' in self.fields:
-                del self.fields['admission_number']
-            # Ensure admission_number is still set (in case super().__init__() reset it)
+            # For new students, make admission_number a hidden field with auto-generated value
+            # This way Django knows about it and won't complain it's missing
+            from .services import StudentService
             if not self.instance.admission_number:
-                from .services import StudentService
                 self.instance.admission_number = StudentService.generate_admission_number()
+            
+            self.fields['admission_number'].required = False
+            self.fields['admission_number'].widget = forms.HiddenInput()
+            self.fields['admission_number'].initial = self.instance.admission_number
+            
             # Set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
             self.fields['status'].widget = forms.HiddenInput()
@@ -190,20 +175,20 @@ class StudentForm(forms.ModelForm):
                 self.fields[field].required = False
     
     def clean_admission_number(self):
-        """Only validate admission_number if editing (field exists in form)"""
-        # This method only runs if admission_number field exists in the form
-        # For new students, this field doesn't exist, so this method won't be called
-        if 'admission_number' not in self.fields:
-            # Field doesn't exist in form (new student), skip validation
-            return None
-        
+        """Handle admission_number validation for new and existing students."""
         admission_number = self.cleaned_data.get('admission_number')
-        if not admission_number:
-            return None
-            
-        # Only validate uniqueness when editing existing students
-        if self.instance.pk:
-            # Check if admission number already exists (excluding current instance)
+        
+        # For new students, if empty, generate one
+        if not self.instance.pk:
+            if not admission_number:
+                from .services import StudentService
+                admission_number = StudentService.generate_admission_number()
+                self.cleaned_data['admission_number'] = admission_number
+                self.instance.admission_number = admission_number
+            return admission_number
+        
+        # For existing students, validate uniqueness
+        if self.instance.pk and admission_number:
             qs = Student.objects.filter(admission_number=admission_number)
             qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
@@ -213,19 +198,6 @@ class StudentForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-
-        # For new students, ensure admission_number is in cleaned_data
-        # This prevents Django from thinking it's missing during model validation
-        if not self.instance.pk and 'admission_number' not in cleaned_data:
-            # Admission number was auto-generated in __init__, add it to cleaned_data
-            if self.instance.admission_number:
-                cleaned_data['admission_number'] = self.instance.admission_number
-            else:
-                # Fallback: generate it now if somehow not set in __init__
-                from .services import StudentService
-                admission_number = StudentService.generate_admission_number()
-                self.instance.admission_number = admission_number
-                cleaned_data['admission_number'] = admission_number
 
         # Validate transport
         uses_transport = cleaned_data.get('uses_school_transport')
@@ -240,16 +212,6 @@ class StudentForm(forms.ModelForm):
             self.add_error('special_needs_details', 'Please provide details about special needs.')
 
         return cleaned_data
-    
-    def _post_clean(self):
-        """Override to ensure admission_number is set before model validation."""
-        # For new students, ensure admission_number is set on instance before Django validates
-        if not self.instance.pk and not self.instance.admission_number:
-            from .services import StudentService
-            self.instance.admission_number = StudentService.generate_admission_number()
-        
-        # Call parent's _post_clean which validates the model instance
-        super()._post_clean()
     
     def save(self, commit=True):
         """Override save to handle admission_number for new and existing students."""
