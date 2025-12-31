@@ -148,14 +148,23 @@ class StudentForm(forms.ModelForm):
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
             # For new students, make admission_number a hidden field with auto-generated value
-            # This way Django knows about it and won't complain it's missing
             from .services import StudentService
             if not self.instance.admission_number:
                 self.instance.admission_number = StudentService.generate_admission_number()
             
+            generated_value = self.instance.admission_number
             self.fields['admission_number'].required = False
             self.fields['admission_number'].widget = forms.HiddenInput()
-            self.fields['admission_number'].initial = self.instance.admission_number
+            self.fields['admission_number'].initial = generated_value
+            
+            # CRITICAL: If form is bound (POST request), inject admission_number into POST data
+            # This ensures Django sees the value during validation and doesn't treat it as missing
+            if self.is_bound and 'admission_number' not in self.data:
+                from django.http import QueryDict
+                # Make QueryDict mutable and add the value
+                if isinstance(self.data, QueryDict):
+                    self.data = self.data.copy()
+                self.data['admission_number'] = generated_value
             
             # Set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
@@ -198,6 +207,17 @@ class StudentForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+
+        # For new students, ensure admission_number is in cleaned_data
+        # This is a final safeguard to prevent validation errors
+        if not self.instance.pk and 'admission_number' not in cleaned_data:
+            if self.instance.admission_number:
+                cleaned_data['admission_number'] = self.instance.admission_number
+            else:
+                from .services import StudentService
+                admission_number = StudentService.generate_admission_number()
+                cleaned_data['admission_number'] = admission_number
+                self.instance.admission_number = admission_number
 
         # Validate transport
         uses_transport = cleaned_data.get('uses_school_transport')
