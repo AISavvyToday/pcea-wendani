@@ -139,17 +139,32 @@ class StudentForm(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
+        # Check if this is a new student BEFORE calling super().__init__()
+        # If instance is provided but has no pk, or no instance provided, it's a new student
+        instance = kwargs.get('instance', None)
+        is_new_student = instance is None or not (hasattr(instance, 'pk') and instance.pk)
+        
+        logger.error(f"StudentForm.__init__ - BEFORE super().__init__(), instance provided: {instance is not None}, is_new_student: {is_new_student}")
+        if instance:
+            logger.error(f"StudentForm.__init__ - instance.pk: {getattr(instance, 'pk', 'NO PK ATTRIBUTE')}")
+        
         super().__init__(*args, **kwargs)
         
-        logger.error(f"StudentForm.__init__ - AFTER super().__init__(), instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        logger.error(f"StudentForm.__init__ - AFTER super().__init__(), instance.pk: {self.instance.pk}, is_bound: {self.is_bound}, is_new_student: {is_new_student}")
         logger.error(f"StudentForm.__init__ - admission_number field exists: {'admission_number' in self.fields}")
         if 'admission_number' in self.fields:
             logger.error(f"StudentForm.__init__ - admission_number.required BEFORE our changes: {self.fields['admission_number'].required}")
             logger.error(f"StudentForm.__init__ - admission_number.initial BEFORE our changes: {self.fields['admission_number'].initial}")
         
         # For editing existing students, make admission_number visible and required
-        if self.instance.pk:
-            logger.debug(f"StudentForm.__init__ - EDITING existing student, admission_number: {self.instance.admission_number}")
+        # Check if instance is actually saved to DB (not just has a pk - UUID instances have pk even when unsaved)
+        # _state.adding is False if instance is saved, True if it's new
+        is_saved = self.instance.pk and (hasattr(self.instance, '_state') and not self.instance._state.adding)
+        
+        logger.error(f"StudentForm.__init__ - is_saved check: pk={self.instance.pk}, has _state={hasattr(self.instance, '_state')}, _state.adding={getattr(self.instance._state, 'adding', 'NO _state') if hasattr(self.instance, '_state') else 'N/A'}, is_saved={is_saved}")
+        
+        if is_saved:
+            logger.error(f"StudentForm.__init__ - EDITING existing student, admission_number: {self.instance.admission_number}")
             self.fields['admission_number'].required = True
             self.fields['admission_number'].widget = forms.TextInput(attrs={
                 'class': 'form-control',
@@ -158,11 +173,11 @@ class StudentForm(forms.ModelForm):
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
             # For new students, make admission_number a hidden field with auto-generated value
-            logger.debug(f"StudentForm.__init__ - CREATING new student, instance.admission_number before: {self.instance.admission_number}")
+            logger.error(f"StudentForm.__init__ - CREATING new student, instance.admission_number before: {self.instance.admission_number}")
             from .services import StudentService
             if not self.instance.admission_number:
                 self.instance.admission_number = StudentService.generate_admission_number()
-                logger.debug(f"StudentForm.__init__ - Generated new admission_number: {self.instance.admission_number}")
+                logger.error(f"StudentForm.__init__ - Generated new admission_number: {self.instance.admission_number}")
             
             generated_value = self.instance.admission_number
             logger.error(f"StudentForm.__init__ - Setting field properties, generated_value: {generated_value}")
