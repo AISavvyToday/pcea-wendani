@@ -1,10 +1,13 @@
 # students/forms.py
+import logging
 from django import forms
 from django.core.exceptions import ValidationError
 
 from core.models import StreamChoices
 from .models import Student, Parent, StudentParent
 from academics.models import Class
+
+logger = logging.getLogger(__name__)
 
 
 class StudentForm(forms.ModelForm):
@@ -138,8 +141,11 @@ class StudentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
+        logger.debug(f"StudentForm.__init__ - instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        
         # For editing existing students, make admission_number visible and required
         if self.instance.pk:
+            logger.debug(f"StudentForm.__init__ - EDITING existing student, admission_number: {self.instance.admission_number}")
             self.fields['admission_number'].required = True
             self.fields['admission_number'].widget = forms.TextInput(attrs={
                 'class': 'form-control',
@@ -148,23 +154,35 @@ class StudentForm(forms.ModelForm):
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
             # For new students, make admission_number a hidden field with auto-generated value
+            logger.debug(f"StudentForm.__init__ - CREATING new student, instance.admission_number before: {self.instance.admission_number}")
             from .services import StudentService
             if not self.instance.admission_number:
                 self.instance.admission_number = StudentService.generate_admission_number()
+                logger.debug(f"StudentForm.__init__ - Generated new admission_number: {self.instance.admission_number}")
             
             generated_value = self.instance.admission_number
+            logger.debug(f"StudentForm.__init__ - Setting field properties, generated_value: {generated_value}")
             self.fields['admission_number'].required = False
             self.fields['admission_number'].widget = forms.HiddenInput()
             self.fields['admission_number'].initial = generated_value
             
             # CRITICAL: If form is bound (POST request), inject admission_number into POST data
             # This ensures Django sees the value during validation and doesn't treat it as missing
-            if self.is_bound and 'admission_number' not in self.data:
-                from django.http import QueryDict
-                # Make QueryDict mutable and add the value
-                if isinstance(self.data, QueryDict):
-                    self.data = self.data.copy()
-                self.data['admission_number'] = generated_value
+            if self.is_bound:
+                logger.debug(f"StudentForm.__init__ - Form is BOUND (POST), checking POST data")
+                logger.debug(f"StudentForm.__init__ - 'admission_number' in self.data: {'admission_number' in self.data}")
+                if 'admission_number' in self.data:
+                    logger.debug(f"StudentForm.__init__ - POST data has admission_number: {self.data.get('admission_number')}")
+                else:
+                    logger.debug(f"StudentForm.__init__ - POST data MISSING admission_number, injecting: {generated_value}")
+                    from django.http import QueryDict
+                    # Make QueryDict mutable and add the value
+                    if isinstance(self.data, QueryDict):
+                        self.data = self.data.copy()
+                    self.data['admission_number'] = generated_value
+                    logger.debug(f"StudentForm.__init__ - After injection, self.data['admission_number']: {self.data.get('admission_number')}")
+            else:
+                logger.debug(f"StudentForm.__init__ - Form is NOT bound (GET request)")
             
             # Set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
@@ -185,39 +203,65 @@ class StudentForm(forms.ModelForm):
     
     def clean_admission_number(self):
         """Handle admission_number validation for new and existing students."""
+        logger.debug(f"StudentForm.clean_admission_number - Called, instance.pk: {self.instance.pk}")
         admission_number = self.cleaned_data.get('admission_number')
+        logger.debug(f"StudentForm.clean_admission_number - cleaned_data.get('admission_number'): {admission_number}")
+        logger.debug(f"StudentForm.clean_admission_number - self.instance.admission_number: {self.instance.admission_number}")
         
         # For new students, if empty, generate one
         if not self.instance.pk:
+            logger.debug(f"StudentForm.clean_admission_number - Processing NEW student")
             if not admission_number:
+                logger.warning(f"StudentForm.clean_admission_number - admission_number is EMPTY, generating new one")
                 from .services import StudentService
                 admission_number = StudentService.generate_admission_number()
                 self.cleaned_data['admission_number'] = admission_number
                 self.instance.admission_number = admission_number
+                logger.debug(f"StudentForm.clean_admission_number - Generated and set: {admission_number}")
+            else:
+                logger.debug(f"StudentForm.clean_admission_number - admission_number already present: {admission_number}")
             return admission_number
         
         # For existing students, validate uniqueness
         if self.instance.pk and admission_number:
+            logger.debug(f"StudentForm.clean_admission_number - Processing EXISTING student, validating uniqueness")
             qs = Student.objects.filter(admission_number=admission_number)
             qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
+                logger.error(f"StudentForm.clean_admission_number - Duplicate admission_number found: {admission_number}")
                 raise ValidationError('A student with this admission number already exists.')
         
+        logger.debug(f"StudentForm.clean_admission_number - Returning: {admission_number}")
         return admission_number
 
     def clean(self):
+        logger.debug(f"StudentForm.clean - Called, instance.pk: {self.instance.pk}")
+        logger.debug(f"StudentForm.clean - Calling super().clean()...")
         cleaned_data = super().clean()
+        logger.debug(f"StudentForm.clean - super().clean() returned, cleaned_data keys: {list(cleaned_data.keys())}")
+        logger.debug(f"StudentForm.clean - 'admission_number' in cleaned_data: {'admission_number' in cleaned_data}")
+        if 'admission_number' in cleaned_data:
+            logger.debug(f"StudentForm.clean - cleaned_data['admission_number']: {cleaned_data.get('admission_number')}")
+        logger.debug(f"StudentForm.clean - self.instance.admission_number: {self.instance.admission_number}")
 
         # For new students, ensure admission_number is in cleaned_data
         # This is a final safeguard to prevent validation errors
-        if not self.instance.pk and 'admission_number' not in cleaned_data:
-            if self.instance.admission_number:
-                cleaned_data['admission_number'] = self.instance.admission_number
+        if not self.instance.pk:
+            logger.debug(f"StudentForm.clean - Processing NEW student")
+            if 'admission_number' not in cleaned_data:
+                logger.warning(f"StudentForm.clean - admission_number NOT in cleaned_data, adding it")
+                if self.instance.admission_number:
+                    logger.debug(f"StudentForm.clean - Using instance.admission_number: {self.instance.admission_number}")
+                    cleaned_data['admission_number'] = self.instance.admission_number
+                else:
+                    logger.warning(f"StudentForm.clean - instance.admission_number also empty, generating new one")
+                    from .services import StudentService
+                    admission_number = StudentService.generate_admission_number()
+                    cleaned_data['admission_number'] = admission_number
+                    self.instance.admission_number = admission_number
+                    logger.debug(f"StudentForm.clean - Generated and set: {admission_number}")
             else:
-                from .services import StudentService
-                admission_number = StudentService.generate_admission_number()
-                cleaned_data['admission_number'] = admission_number
-                self.instance.admission_number = admission_number
+                logger.debug(f"StudentForm.clean - admission_number already in cleaned_data: {cleaned_data.get('admission_number')}")
 
         # Validate transport
         uses_transport = cleaned_data.get('uses_school_transport')
@@ -231,25 +275,59 @@ class StudentForm(forms.ModelForm):
         if has_special_needs and not special_needs_details:
             self.add_error('special_needs_details', 'Please provide details about special needs.')
 
+        logger.debug(f"StudentForm.clean - Returning cleaned_data, final admission_number: {cleaned_data.get('admission_number')}")
+        
+        # Log any errors that exist
+        if self.errors:
+            logger.error(f"StudentForm.clean - FORM HAS ERRORS: {self.errors}")
+            if 'admission_number' in self.errors:
+                logger.error(f"StudentForm.clean - admission_number ERROR: {self.errors['admission_number']}")
+        
         return cleaned_data
+    
+    def full_clean(self):
+        """Override to add logging before full validation."""
+        logger.debug(f"StudentForm.full_clean - Called, instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        if self.is_bound:
+            logger.debug(f"StudentForm.full_clean - POST data keys: {list(self.data.keys())}")
+            logger.debug(f"StudentForm.full_clean - POST data admission_number: {self.data.get('admission_number', 'NOT IN POST DATA')}")
+        try:
+            super().full_clean()
+        except Exception as e:
+            logger.error(f"StudentForm.full_clean - EXCEPTION during validation: {type(e).__name__}: {str(e)}")
+            logger.error(f"StudentForm.full_clean - Form errors: {self.errors}")
+            raise
     
     def save(self, commit=True):
         """Override save to handle admission_number for new and existing students."""
+        logger.debug(f"StudentForm.save - Called, instance.pk: {self.instance.pk}, commit: {commit}")
+        logger.debug(f"StudentForm.save - cleaned_data keys: {list(self.cleaned_data.keys()) if hasattr(self, 'cleaned_data') else 'N/A'}")
+        if hasattr(self, 'cleaned_data') and 'admission_number' in self.cleaned_data:
+            logger.debug(f"StudentForm.save - cleaned_data['admission_number']: {self.cleaned_data.get('admission_number')}")
+        logger.debug(f"StudentForm.save - self.instance.admission_number before: {self.instance.admission_number}")
+        
         # For new students, admission_number is already set in __init__ method
         # For existing students, update from form data if provided
-        if self.instance.pk and 'admission_number' in self.cleaned_data:
+        if self.instance.pk and hasattr(self, 'cleaned_data') and 'admission_number' in self.cleaned_data:
             # Editing existing student - admission_number is in form fields
+            logger.debug(f"StudentForm.save - Editing existing student, updating admission_number")
             self.instance.admission_number = self.cleaned_data['admission_number']
         
         instance = super().save(commit=False)
+        logger.debug(f"StudentForm.save - After super().save(commit=False), instance.admission_number: {instance.admission_number}")
         
         # Ensure admission_number is set for new students (fallback if somehow not set in __init__)
         if not instance.pk and not instance.admission_number:
+            logger.error(f"StudentForm.save - CRITICAL: New student with NO admission_number, generating fallback!")
             from .services import StudentService
             instance.admission_number = StudentService.generate_admission_number()
+            logger.debug(f"StudentForm.save - Generated fallback admission_number: {instance.admission_number}")
         
         if commit:
+            logger.debug(f"StudentForm.save - Committing to database, admission_number: {instance.admission_number}")
             instance.save()
+        else:
+            logger.debug(f"StudentForm.save - Not committing (commit=False)")
         return instance
 
 
