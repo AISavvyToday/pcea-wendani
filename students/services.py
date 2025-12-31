@@ -304,11 +304,13 @@ class StudentService:
         """
         Generate the next sequential admission number for a student.
         Finds the highest numeric admission number and increments it.
-        Handles formats like "3389", "PWA3389", etc.
+        Preserves the format of the last admission number:
+        - If last was "PWA2205", generates "PWA2206"
+        - If last was "2205", generates "2206"
         Ensures minimum starting number is 2245.
 
         Returns:
-            str: Next admission number (numeric only, e.g., "2245")
+            str: Next admission number (preserves format: "PWA2245" or "2245")
         """
         import re
         
@@ -319,30 +321,47 @@ class StudentService:
         all_students = Student.objects.all().values_list('admission_number', flat=True)
         
         max_number = MIN_ADMISSION_NUMBER - 1  # Start from minimum - 1, so first number will be 2245
+        format_prefix = ""  # Track the prefix format of the highest number
         
         for admission_num in all_students:
             if not admission_num:
                 continue
+            
+            admission_str = str(admission_num).strip()
                 
             # Extract numeric part (handles "PWA3389", "3389", etc.)
             # Remove any non-digit characters and get the numeric part
-            numeric_part = re.sub(r'\D', '', str(admission_num))
+            numeric_part = re.sub(r'\D', '', admission_str)
             
             if numeric_part:
                 try:
                     num = int(numeric_part)
+                    # Detect prefix format (case-insensitive check for "PWA")
+                    prefix_match = re.match(r'^([A-Za-z]+)', admission_str.upper())
+                    has_pwa_prefix = prefix_match and prefix_match.group(1) == 'PWA'
+                    
                     if num > max_number:
+                        # New maximum found - update both number and format
                         max_number = num
+                        format_prefix = 'PWA' if has_pwa_prefix else ""
+                    elif num == max_number:
+                        # Same numeric value - prefer PWA prefix format if present
+                        if has_pwa_prefix:
+                            format_prefix = 'PWA'
                 except ValueError:
                     continue
         
         # Ensure we don't go below minimum
         if max_number < MIN_ADMISSION_NUMBER - 1:
             max_number = MIN_ADMISSION_NUMBER - 1
+            format_prefix = ""  # Default to numeric format for new systems
         
-        # Increment and return as string
+        # Increment and return with preserved format
         next_number = max_number + 1
-        return str(next_number)
+        if format_prefix:
+            return f"{format_prefix}{next_number}"
+        else:
+            return str(next_number)
 
     # Helper functions for Excel import
     @staticmethod
