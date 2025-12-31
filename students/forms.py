@@ -136,7 +136,21 @@ class StudentForm(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
+        # For new students, set admission_number on instance BEFORE calling super().__init__()
+        # This ensures it's available when Django creates the form and validates
+        instance = kwargs.get('instance', None)
+        if instance is None or not instance.pk:
+            # New student - ensure instance exists and has admission_number
+            if instance is None:
+                from .models import Student
+                instance = Student()
+            if not instance.admission_number:
+                from .services import StudentService
+                instance.admission_number = StudentService.generate_admission_number()
+            kwargs['instance'] = instance
+        
         super().__init__(*args, **kwargs)
+        
         # For editing existing students, add admission_number field
         if self.instance.pk:
             # Add admission_number field for editing
@@ -154,8 +168,7 @@ class StudentForm(forms.ModelForm):
             # (it's excluded in Meta, but remove it explicitly to be safe)
             if 'admission_number' in self.fields:
                 del self.fields['admission_number']
-            # Auto-generate admission_number on the instance BEFORE validation
-            # This ensures it's available when Django validates the model instance
+            # Ensure admission_number is still set (in case super().__init__() reset it)
             if not self.instance.admission_number:
                 from .services import StudentService
                 self.instance.admission_number = StudentService.generate_admission_number()
@@ -201,6 +214,19 @@ class StudentForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
 
+        # For new students, ensure admission_number is in cleaned_data
+        # This prevents Django from thinking it's missing during model validation
+        if not self.instance.pk and 'admission_number' not in cleaned_data:
+            # Admission number was auto-generated in __init__, add it to cleaned_data
+            if self.instance.admission_number:
+                cleaned_data['admission_number'] = self.instance.admission_number
+            else:
+                # Fallback: generate it now if somehow not set in __init__
+                from .services import StudentService
+                admission_number = StudentService.generate_admission_number()
+                self.instance.admission_number = admission_number
+                cleaned_data['admission_number'] = admission_number
+
         # Validate transport
         uses_transport = cleaned_data.get('uses_school_transport')
         transport_route = cleaned_data.get('transport_route')
@@ -214,6 +240,16 @@ class StudentForm(forms.ModelForm):
             self.add_error('special_needs_details', 'Please provide details about special needs.')
 
         return cleaned_data
+    
+    def _post_clean(self):
+        """Override to ensure admission_number is set before model validation."""
+        # For new students, ensure admission_number is set on instance before Django validates
+        if not self.instance.pk and not self.instance.admission_number:
+            from .services import StudentService
+            self.instance.admission_number = StudentService.generate_admission_number()
+        
+        # Call parent's _post_clean which validates the model instance
+        super()._post_clean()
     
     def save(self, commit=True):
         """Override save to handle admission_number for new and existing students."""
