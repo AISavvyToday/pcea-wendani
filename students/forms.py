@@ -141,7 +141,11 @@ class StudentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        logger.debug(f"StudentForm.__init__ - instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        logger.error(f"StudentForm.__init__ - AFTER super().__init__(), instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        logger.error(f"StudentForm.__init__ - admission_number field exists: {'admission_number' in self.fields}")
+        if 'admission_number' in self.fields:
+            logger.error(f"StudentForm.__init__ - admission_number.required BEFORE our changes: {self.fields['admission_number'].required}")
+            logger.error(f"StudentForm.__init__ - admission_number.initial BEFORE our changes: {self.fields['admission_number'].initial}")
         
         # For editing existing students, make admission_number visible and required
         if self.instance.pk:
@@ -161,10 +165,13 @@ class StudentForm(forms.ModelForm):
                 logger.debug(f"StudentForm.__init__ - Generated new admission_number: {self.instance.admission_number}")
             
             generated_value = self.instance.admission_number
-            logger.debug(f"StudentForm.__init__ - Setting field properties, generated_value: {generated_value}")
+            logger.error(f"StudentForm.__init__ - Setting field properties, generated_value: {generated_value}")
+            logger.error(f"StudentForm.__init__ - Setting required=False on admission_number field")
             self.fields['admission_number'].required = False
+            logger.error(f"StudentForm.__init__ - admission_number.required AFTER setting to False: {self.fields['admission_number'].required}")
             self.fields['admission_number'].widget = forms.HiddenInput()
             self.fields['admission_number'].initial = generated_value
+            logger.error(f"StudentForm.__init__ - admission_number.initial AFTER setting: {self.fields['admission_number'].initial}")
             
             # CRITICAL: If form is bound (POST request), inject admission_number into POST data
             # This ensures Django sees the value during validation and doesn't treat it as missing
@@ -287,12 +294,16 @@ class StudentForm(forms.ModelForm):
     
     def full_clean(self):
         """Override to add logging before full validation."""
-        logger.debug(f"StudentForm.full_clean - Called, instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        logger.error(f"StudentForm.full_clean - Called, instance.pk: {self.instance.pk}, is_bound: {self.is_bound}")
+        if 'admission_number' in self.fields:
+            logger.error(f"StudentForm.full_clean - admission_number.required: {self.fields['admission_number'].required}")
+            logger.error(f"StudentForm.full_clean - admission_number.initial: {self.fields['admission_number'].initial}")
         if self.is_bound:
-            logger.debug(f"StudentForm.full_clean - POST data keys: {list(self.data.keys())}")
-            logger.debug(f"StudentForm.full_clean - POST data admission_number: {self.data.get('admission_number', 'NOT IN POST DATA')}")
+            logger.error(f"StudentForm.full_clean - POST data keys: {list(self.data.keys())[:20]}")
+            logger.error(f"StudentForm.full_clean - POST data admission_number: {self.data.get('admission_number', 'NOT IN POST DATA')}")
         try:
             super().full_clean()
+            logger.error(f"StudentForm.full_clean - After super().full_clean(), errors: {self.errors}")
         except Exception as e:
             logger.error(f"StudentForm.full_clean - EXCEPTION during validation: {type(e).__name__}: {str(e)}")
             logger.error(f"StudentForm.full_clean - Form errors: {self.errors}")
