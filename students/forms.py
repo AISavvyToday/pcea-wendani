@@ -150,15 +150,19 @@ class StudentForm(forms.ModelForm):
             )
             self.fields['admission_number'].initial = self.instance.admission_number
         else:
-            # For new students, ensure admission_number is completely removed
+            # For new students, ensure admission_number is completely removed from form fields
             # (it's excluded in Meta, but remove it explicitly to be safe)
             if 'admission_number' in self.fields:
                 del self.fields['admission_number']
+            # Auto-generate admission_number on the instance BEFORE validation
+            # This ensures it's available when Django validates the model instance
+            if not self.instance.admission_number:
+                from .services import StudentService
+                self.instance.admission_number = StudentService.generate_admission_number()
             # Set default status to 'active' and hide it
             self.fields['status'].initial = 'active'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['status_reason'].widget = forms.HiddenInput()
-            # Admission number will be auto-generated in model's save() method if not provided
         
         # Make optional fields not required
         optional_fields = [
@@ -212,22 +216,19 @@ class StudentForm(forms.ModelForm):
         return cleaned_data
     
     def save(self, commit=True):
-        """Override save to auto-generate admission_number for new students."""
-        from .services import StudentService
-        
-        # Handle admission_number BEFORE calling super().save() to avoid validation errors
-        if not self.instance.pk:
-            # New student - auto-generate admission_number
-            # Replace any temporary placeholder with actual generated number
-            if not self.instance.admission_number or self.instance.admission_number.startswith("TEMP_"):
-                self.instance.admission_number = StudentService.generate_admission_number()
+        """Override save to handle admission_number for new and existing students."""
+        # For new students, admission_number is already set in __init__ method
+        # For existing students, update from form data if provided
+        if self.instance.pk and 'admission_number' in self.cleaned_data:
+            # Editing existing student - admission_number is in form fields
+            self.instance.admission_number = self.cleaned_data['admission_number']
         
         instance = super().save(commit=False)
         
-        # Handle admission_number for editing existing students
-        if instance.pk and 'admission_number' in self.cleaned_data:
-            # Editing existing student - admission_number is in form fields
-            instance.admission_number = self.cleaned_data['admission_number']
+        # Ensure admission_number is set for new students (fallback if somehow not set in __init__)
+        if not instance.pk and not instance.admission_number:
+            from .services import StudentService
+            instance.admission_number = StudentService.generate_admission_number()
         
         if commit:
             instance.save()
