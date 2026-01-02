@@ -272,6 +272,9 @@ def _finance_kpis(term=None):
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.user.is_authenticated:
+        # If already authenticated, redirect admins directly to admin dashboard
+        if request.user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
+            return redirect("portal:dashboard_admin")
         return redirect("portal:role_redirect")
 
     if request.method == "POST":
@@ -310,6 +313,12 @@ def login_view(request):
             next_url = request.GET.get("next") or request.POST.get("next")
             if next_url:
                 return redirect(next_url)
+            
+            # Redirect admin users directly to admin dashboard
+            if user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
+                return redirect("portal:dashboard_admin")
+            
+            # Non-admin users go through role_redirect
             return redirect("portal:role_redirect")
 
         messages.error(request, "Invalid email or password. Please try again.")
