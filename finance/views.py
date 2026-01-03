@@ -1414,6 +1414,13 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             is_active=True
         ).exclude(status=InvoiceStatus.CANCELLED)
         
+        # Get balance_bf and prepayment from invoices
+        # These are frozen at invoice creation, so we can get them from current invoices
+        total_balance_bf = current_invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+        total_prepayment = current_invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+        # Prepayment is stored as negative, so convert to positive for display
+        prepayment_display = abs(total_prepayment) if total_prepayment < 0 else Decimal('0.00')
+        
         # Calculate account status at snapshot time of payment
         # Outstanding balance = sum of all invoice balances (positive = debt)
         outstanding_balance_at_payment = current_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
@@ -1458,6 +1465,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'print_datetime': print_datetime,
             'student_balance_at_payment': student_balance_at_payment,
             'outstanding_balance_at_payment': outstanding_balance_after,
+            'balance_bf': total_balance_bf,
+            'prepayment': prepayment_display,
             'bank_details': bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,

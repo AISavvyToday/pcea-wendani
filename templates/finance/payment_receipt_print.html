@@ -230,6 +230,18 @@
             <div class="status-box">
                 <h4>Payment Summary</h4>
                 <table>
+                    {% if balance_bf > 0 %}
+                    <tr>
+                        <th style="width: 50%;">Balance Brought Forward:</th>
+                        <td class="text-right">KES {{ balance_bf|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if prepayment > 0 %}
+                    <tr>
+                        <th style="width: 50%;">Prepayment:</th>
+                        <td class="text-right" style="color:#080;">KES {{ prepayment|intcomma }}</td>
+                    </tr>
+                    {% endif %}
                     <tr>
                         <th style="width: 50%;">Student Balance:</th>
                         <td class="text-right">
