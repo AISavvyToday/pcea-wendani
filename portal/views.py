@@ -106,7 +106,7 @@ def _get_staff_count():
 
 def _invoice_base_qs():
     return (
-        Invoice.objects.filter(is_active=True)
+        Invoice.objects.filter(is_active=True, student__status='active')
         .exclude(status=InvoiceStatus.CANCELLED)
         .select_related("student", "term", "term__academic_year")
     )
@@ -174,10 +174,9 @@ def _finance_kpis(term=None):
 
         collected = _collected_for_invoices(invoice_qs)
 
-        # Outstanding: Sum of remaining balances on invoices
-        invoices = Invoice.objects.filter(
-            is_active=True
-        ).select_related('student', 'term', 'term__academic_year').exclude(status=InvoiceStatus.CANCELLED)
+        # Outstanding: Sum of remaining balances on invoices (active students only)
+        # Use invoice_qs to ensure we're only counting invoices in the queryset
+        invoices = invoice_qs.select_related('student', 'term', 'term__academic_year')
 
         # Billed: Sum of total amounts on invoices
         billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
@@ -186,17 +185,22 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
-        # Get balances from invoices
+        # Get balances from current term invoices only (active students)
+        # Balance B/F and Prepayment should sum from current term invoices
+        # These are frozen per invoice but the total varies as invoices are created/paid
         balances_bf_from_invoices = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
         prepayments_from_invoices = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
 
-        # Get balances from students without invoices for current term
+        # Get balances from students without invoices for current term (active students only)
         # This shows imported balances before invoice generation
         if term:
             students_without_invoices = Student.objects.filter(
                 status='active'
             ).exclude(
-                invoices__term=term
+                invoices__term=term,
+                invoices__is_active=True
+            ).exclude(
+                invoices__status=InvoiceStatus.CANCELLED
             ).distinct()
 
             # Bal B/F: Sum of positive credit_balance (debts) from students without invoices

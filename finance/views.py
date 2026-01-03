@@ -97,9 +97,10 @@ class FinanceDashboardView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             payment__isnull=True
         ).order_by('-callback_received_at')[:5]
 
-        # Top outstanding balances
+        # Top outstanding balances (active students only)
         context['top_balances'] = Invoice.objects.filter(
             is_active=True,
+            student__status='active',
             balance__gt=0
         ).exclude(
             status=InvoiceStatus.CANCELLED
@@ -538,13 +539,15 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context['total_outstanding'] = invoices.aggregate(total=Sum('balance'))['total'] or 0
         context['invoice_count'] = invoices.count()
 
-        # Add prepayment_abs to each invoice for template display
+        # Add prepayment_abs and total_due to each invoice for template display
         # Use context_object_name 'invoices' from ListView
         invoice_list = context.get('invoices', [])
         if not invoice_list and hasattr(self, 'object_list'):
             invoice_list = self.object_list
         for invoice in invoice_list:
             invoice.prepayment_abs = abs(invoice.prepayment) if invoice.prepayment else Decimal('0.00')
+            # Calculate total due: total_amount + balance_bf + prepayment
+            invoice.total_due = (invoice.total_amount or Decimal('0.00')) + (invoice.balance_bf or Decimal('0.00')) + (invoice.prepayment or Decimal('0.00'))
 
         return context
 

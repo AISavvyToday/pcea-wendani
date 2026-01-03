@@ -146,23 +146,58 @@ class InvoiceService:
         invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
-        # Consume credit balance (prepayment) if student has credit
-        # credit_balance: positive = debt (balance_bf), negative = credit (prepayment)
-        if student.credit_balance > 0:
-            # Positive credit_balance means debt (balance brought forward)
-            invoice.balance_bf = student.credit_balance
+        # ============================================================
+        # Calculate balance_bf from previous term outstanding balances
+        # IMPORTANT: balance_bf is frozen at invoice creation and never modified
+        # ============================================================
+        from core.models import InvoiceStatus
+        
+        # Get all previous term invoices with outstanding balances
+        previous_invoices = Invoice.objects.filter(
+            student=student,
+            is_active=True
+        ).exclude(status=InvoiceStatus.CANCELLED).exclude(term=term)
+        
+        # Calculate total outstanding from previous terms
+        total_outstanding_previous = previous_invoices.aggregate(
+            total=Sum('balance')
+        )['total'] or Decimal('0.00')
+        
+        # Also check student.credit_balance for any manually set balances
+        # or prepayments from before the invoice system
+        student_credit = student.credit_balance or Decimal('0.00')
+        
+        # Set balance_bf or prepayment based on previous term balances
+        if total_outstanding_previous > 0:
+            # Outstanding debt from previous terms (takes priority)
+            invoice.balance_bf = total_outstanding_previous
+            invoice.prepayment = Decimal('0.00')
+            # Reset student.credit_balance since we've consumed it into the invoice
+            if student_credit > 0:
+                student.credit_balance = Decimal('0.00')
+            else:
+                student.credit_balance = student_credit  # Keep any prepayment
+        elif student_credit > 0:
+            # Student has debt in credit_balance but no previous invoices
+            # Use credit_balance as balance_bf
+            invoice.balance_bf = student_credit
             invoice.prepayment = Decimal('0.00')
             student.credit_balance = Decimal('0.00')
-        elif student.credit_balance < 0:
-            # Negative credit_balance means credit/prepayment
-            # Store as negative value (will be subtracted in balance calculation)
-            invoice.prepayment = student.credit_balance
+        elif student_credit < 0:
+            # Student has prepayment/credit (negative credit_balance)
+            invoice.prepayment = student_credit
+            invoice.balance_bf = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
+        elif total_outstanding_previous < 0:
+            # Overpayment from previous terms (rare)
+            invoice.prepayment = total_outstanding_previous
             invoice.balance_bf = Decimal('0.00')
             student.credit_balance = Decimal('0.00')
         else:
-            # Zero balance
+            # No outstanding balances
             invoice.balance_bf = Decimal('0.00')
             invoice.prepayment = Decimal('0.00')
+            # Keep student.credit_balance as is (might be manually set)
         
         invoice.save()
         student.save()
@@ -368,11 +403,22 @@ class FinanceReportService:
 
     @staticmethod
     def get_dashboard_stats(term=None):
-        """Get finance dashboard statistics."""
+        """Get finance dashboard statistics for active students only."""
 
-        invoices = Invoice.objects.filter(is_active=True).exclude(status='cancelled')
-        payments = Payment.objects.filter(is_active=True, status='completed')
+        # Filter to active students only
+        invoices = Invoice.objects.filter(
+            is_active=True,
+            student__status='active'
+        ).exclude(status='cancelled')
+        
+        # Filter payments to active students only
+        payments = Payment.objects.filter(
+            is_active=True,
+            status='completed',
+            student__status='active'
+        )
 
+        # If term is provided, filter to that term (typically current term)
         if term:
             invoices = invoices.filter(term=term)
 

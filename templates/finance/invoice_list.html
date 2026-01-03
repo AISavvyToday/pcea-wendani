@@ -136,7 +136,7 @@
                                 <td class="text-end {% if invoice.discount_amount > 0 %}text-info{% endif %}" style="font-size: 0.875rem;">
                                     {% if invoice.discount_amount > 0 %}KES {{ invoice.discount_amount|floatformat:0|intcomma }}{% else %}-{% endif %}
                                 </td>
-                                <td class="text-end" style="font-size: 0.875rem;">KES {{ invoice.total_amount|floatformat:0|intcomma }}</td>
+                                <td class="text-end" style="font-size: 0.875rem;">KES {{ invoice.total_due|floatformat:0|intcomma }}</td>
                                 <td class="text-end" style="font-size: 0.875rem;">KES {{ invoice.amount_paid|floatformat:0|intcomma }}</td>
                                 <td class="text-end {% if invoice.balance|default:0 > 0 %}text-danger{% endif %}" style="font-size: 0.875rem;">
                                     KES {{ invoice.balance|floatformat:0|intcomma }}
