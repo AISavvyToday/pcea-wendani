@@ -206,10 +206,6 @@
                     <strong>Payment Source</strong>
                     {{ payment.get_payment_source_display }}
                 </div>
-                <div class="col">
-                    <strong>Status</strong>
-                    {{ payment.get_status_display }}
-                </div>
             </div>
 
             <!-- Student Information -->
@@ -230,94 +226,40 @@
             </div>
             {% endif %}
 
-            <!-- Payment Amount Box -->
-            <div class="amount-box">
-                <div class="label">AMOUNT RECEIVED</div>
-                <div class="value">KES {{ payment.amount|intcomma }}</div>
-            </div>
-
-            <!-- Account Status Before Payment -->
-            {% if account_status_before %}
+            <!-- Payment Summary Table -->
             <div class="status-box">
-                <h4>Account Status Before Payment</h4>
+                <h4>Payment Summary</h4>
                 <table>
-                    {% if account_status_before.balance_bf > 0 %}
                     <tr>
-                        <th>Balance Brought Forward:</th>
-                        <td class="text-right">KES {{ account_status_before.balance_bf|intcomma }}</td>
+                        <th style="width: 50%;">Student Balance:</th>
+                        <td class="text-right">
+                            {% if student_balance_at_payment < 0 %}
+                                <span style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</span>
+                            {% elif student_balance_at_payment > 0 %}
+                                <span style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</span>
+                            {% else %}
+                                KES {{ student_balance_at_payment|intcomma }}
+                            {% endif %}
+                        </td>
                     </tr>
-                    {% endif %}
                     <tr>
-                        <th>Total Outstanding:</th>
-                        <td class="text-right">KES {{ account_status_before.total_outstanding|intcomma }}</td>
+                        <th>Amount Paid:</th>
+                        <td class="text-right"><strong>KES {{ payment.amount|intcomma }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Outstanding Balance:</th>
+                        <td class="text-right">
+                            {% if outstanding_balance_at_payment < 0 %}
+                                <span style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                            {% elif outstanding_balance_at_payment > 0 %}
+                                <span style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                            {% else %}
+                                KES {{ outstanding_balance_at_payment|intcomma }}
+                            {% endif %}
+                        </td>
                     </tr>
                 </table>
             </div>
-            {% endif %}
-
-            <!-- Payment Allocation Breakdown -->
-            <div class="status-box">
-                <h4>Payment Allocation</h4>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Allocation</th>
-                            <th class="text-right">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if balance_bf_cleared > 0 %}
-                        <tr>
-                            <td>Balance Brought Forward Cleared</td>
-                            <td class="text-right">KES {{ balance_bf_cleared|intcomma }}</td>
-                        </tr>
-                        {% endif %}
-                        {% if invoice_items_paid > 0 %}
-                        <tr>
-                            <td>Invoice Items Paid</td>
-                            <td class="text-right">KES {{ invoice_items_paid|intcomma }}</td>
-                        </tr>
-                        {% endif %}
-                        {% if new_credit > 0 %}
-                        <tr>
-                            <td>New Credit/Prepayment</td>
-                            <td class="text-right">KES {{ new_credit|intcomma }}</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th>Total Payment:</th>
-                            <th class="text-right">KES {{ payment.amount|intcomma }}</th>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-
-            <!-- Account Status After Payment -->
-            {% if account_status_after %}
-            <div class="status-box">
-                <h4>Account Status After Payment</h4>
-                <table>
-                    {% if account_status_after.balance_bf > 0 %}
-                    <tr>
-                        <th>Remaining Balance B/F:</th>
-                        <td class="text-right">KES {{ account_status_after.balance_bf|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                    <tr>
-                        <th>New Outstanding Balance:</th>
-                        <td class="text-right">KES {{ account_status_after.total_outstanding|intcomma }}</td>
-                    </tr>
-                    {% if account_status_after.credit_balance > 0 %}
-                    <tr>
-                        <th>Credit/Prepayment:</th>
-                        <td class="text-right" style="color:#080;">KES {{ account_status_after.credit_balance|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                </table>
-            </div>
-            {% endif %}
 
             {% if notes %}
             <div class="notes">

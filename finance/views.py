@@ -1057,19 +1057,17 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Totals
         total_invoiced = invoice.total_amount or Decimal('0.00')
-        # total_paid for this invoice computed from enhanced_items (sum of allocated amounts)
-        total_paid = sum(x['total_allocated'] for x in enhanced_items) if enhanced_items else Decimal('0.00')
-
-        # Important: follow same formula as Invoice.save/update -- include balance_bf and prepayment
+        
+        # Important: Outstanding balance for invoice should NOT include payments
+        # It's just: invoice amount + balance_bf + prepayment
         # Prepayment is stored as negative, so adding it reduces the balance
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
         # Net total after balance_bf and prepayment adjustments
         net_after_adjustments = total_invoiced + balance_bf + prepayment
-        # Correct formula: total_amount + balance_bf + prepayment - amount_paid
-        # Since prepayment is negative, adding it reduces the balance
-        total_balance = total_invoiced + balance_bf + prepayment - total_paid
+        # Outstanding balance: total_amount + balance_bf + prepayment (NO payments deducted)
+        outstanding_balance = total_invoiced + balance_bf + prepayment
 
         # Bank details & logos from settings (fallback to hardcoded)
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1087,14 +1085,11 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'printed_by': printed_by,
             'print_datetime': print_datetime,
             'enhanced_items': enhanced_items,
-            'enhanced_payments': enhanced_payments,
-            'total_invoiced': total_invoiced,
-            'total_paid': total_paid,
-            'total_balance': total_balance,
             'balance_bf': balance_bf,
             'prepayment': prepayment,
             'prepayment_abs': prepayment_abs,
             'net_after_adjustments': net_after_adjustments,
+            'outstanding_balance': outstanding_balance,
             'bank_details': bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,
@@ -1409,49 +1404,38 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         
         student = payment.student
         
-        # Get allocations for this payment
-        allocations = payment.allocations.filter(is_active=True).select_related('invoice_item', 'invoice_item__invoice')
-        
-        # Calculate invoice items paid from allocations
-        invoice_items_paid = allocations.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
-        # Calculate balance_bf cleared: Since we clear balance_bf first in allocation logic,
-        # the difference between payment amount and allocated amount (if positive) might include balance_bf
-        # But we can't accurately track it per payment without additional tracking.
-        # For now, we'll calculate: payment_amount - invoice_items_paid = balance_bf_cleared + new_credit
-        total_allocated = invoice_items_paid
-        unallocated = payment.amount - total_allocated
-        
-        # If there's unallocated amount, it could be balance_bf cleared or new credit
-        # Since balance_bf is cleared first, if unallocated > 0, it's likely new credit
-        # But we can't distinguish without tracking. Let's show what we can:
-        balance_bf_cleared = Decimal('0.00')  # Would need tracking to show accurately
-        new_credit = unallocated if unallocated > 0 else Decimal('0.00')
-        
-        # Current account status (after this payment)
+        # Get current account status (after this payment)
         current_invoices = Invoice.objects.filter(
             student=student, 
             is_active=True
         ).exclude(status=InvoiceStatus.CANCELLED)
         
-        current_balance_bf = current_invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        current_outstanding = current_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        # Calculate account status at snapshot time of payment
+        # Outstanding balance = sum of all invoice balances (positive = debt)
+        outstanding_balance_at_payment = current_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        
+        # Credit balance (negative = credit/prepayment, positive = debt)
         current_credit = student.credit_balance or Decimal('0.00')
-        current_credit_abs = abs(current_credit) if current_credit < 0 else Decimal('0.00')
         
-        # Account status AFTER payment
-        account_status_after = {
-            'balance_bf': current_balance_bf,
-            'total_outstanding': current_outstanding,
-            'credit_balance': current_credit_abs,
-        }
+        # Student balance = outstanding invoices + credit balance
+        # (positive = debt owed, negative = credit/prepayment available)
+        # This is the net account status
+        outstanding_balance_after = outstanding_balance_at_payment + current_credit
         
-        # Account status BEFORE payment (approximate - add back this payment's impact)
-        # Note: This is approximate since we can't accurately track balance_bf clearing per payment
-        account_status_before = {
-            'balance_bf': current_balance_bf,  # Approximate - would need tracking
-            'total_outstanding': current_outstanding + invoice_items_paid - new_credit,
-        }
+        # To calculate student balance before payment, reverse the payment impact
+        # The payment reduced outstanding by some amount and may have created credit
+        # Simplest: outstanding before = outstanding after + payment amount
+        # (assuming payment fully reduced outstanding)
+        outstanding_balance_before = outstanding_balance_at_payment + payment.amount
+        
+        # Credit before: if payment created new credit, it would be less negative
+        # For simplicity, assume credit_before = credit_after (no new credit created)
+        # Or if credit was created, credit_before would be less negative
+        # Since we can't perfectly track this, use: credit_before ≈ credit_after
+        credit_before = current_credit
+        
+        # Student balance before payment
+        student_balance_at_payment = outstanding_balance_before + credit_before
         
         # Bank details & logos from settings
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1468,11 +1452,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'notes': notes,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
-            'account_status_before': account_status_before,
-            'account_status_after': account_status_after,
-            'balance_bf_cleared': balance_bf_cleared,
-            'invoice_items_paid': invoice_items_paid,
-            'new_credit': new_credit,
+            'student_balance_at_payment': student_balance_at_payment,
+            'outstanding_balance_at_payment': outstanding_balance_after,
             'bank_details': bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,

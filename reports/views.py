@@ -321,14 +321,12 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = OutstandingBalancesFilterForm(request.GET or None)
 
-        # populate dynamic class choices from students (get class names)
+        # populate dynamic class choices from Class model (not from students to avoid duplicates)
         class_choices = [('', 'All Classes')]
         try:
-            from students.models import Student
-            # Get distinct class names from students' current_class
-            raw_classes = Student.objects.filter(
-                current_class__isnull=False
-            ).values_list('current_class__name', flat=True).distinct()
+            from academics.models import Class
+            # Get distinct class names directly from Class model
+            raw_classes = Class.objects.values_list('name', flat=True).distinct()
             classes = sorted([c for c in raw_classes if c])
             class_choices += [(c, c) for c in classes]
             form.fields['student_class'].choices = class_choices
@@ -492,10 +490,12 @@ class TransportReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = TransportReportFilterForm(request.GET or None)
 
-        # populate student_class choices dynamically from invoices/students (if available)
+        # populate student_class choices from Class model (not from invoices to avoid duplicates)
         try:
-            classes_qs = Invoice.objects.values_list('student__current_class', flat=True).distinct()
-            classes = sorted([c for c in classes_qs if c])
+            from academics.models import Class
+            # Get distinct class names directly from Class model
+            raw_classes = Class.objects.values_list('name', flat=True).distinct()
+            classes = sorted([c for c in raw_classes if c])
             student_class_choices = [('', 'All Classes')] + [(c, c) for c in classes]
             form.fields['student_class'].choices = student_class_choices
         except Exception:
@@ -549,7 +549,7 @@ class TransportReportView(LoginRequiredMixin, View):
             items_qs = items_qs.filter(transport_route=route)
 
         if student_class:
-            items_qs = items_qs.filter(invoice__student__current_class=student_class)
+            items_qs = items_qs.filter(invoice__student__current_class__name=student_class)
 
         if start_date:
             items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
@@ -709,12 +709,12 @@ class TransferredStudentsReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = TransferredStudentsFilterForm(request.GET or None)
 
-        # Populate dynamic class choices from students
+        # Populate dynamic class choices from Class model (not from students to avoid duplicates)
         class_choices = [('', 'All Classes')]
         try:
-            raw_classes = Student.objects.filter(
-                current_class__isnull=False
-            ).values_list('current_class__name', flat=True).distinct()
+            from academics.models import Class
+            # Get distinct class names directly from Class model
+            raw_classes = Class.objects.values_list('name', flat=True).distinct()
             classes = sorted([c for c in raw_classes if c])
             class_choices += [(c, c) for c in classes]
             form.fields['student_class'].choices = class_choices
@@ -818,12 +818,12 @@ class AdmittedStudentsReportView(LoginRequiredMixin, View):
     def get(self, request):
         form = AdmittedStudentsFilterForm(request.GET or None)
 
-        # Populate dynamic class choices from students
+        # Populate dynamic class choices from Class model (not from students to avoid duplicates)
         class_choices = [('', 'All Classes')]
         try:
-            raw_classes = Student.objects.filter(
-                current_class__isnull=False
-            ).values_list('current_class__name', flat=True).distinct()
+            from academics.models import Class
+            # Get distinct class names directly from Class model
+            raw_classes = Class.objects.values_list('name', flat=True).distinct()
             classes = sorted([c for c in raw_classes if c])
             class_choices += [(c, c) for c in classes]
             form.fields['student_class'].choices = class_choices
