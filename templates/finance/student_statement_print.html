@@ -46,7 +46,7 @@
 
             <div class="meta">
                 <strong>Student:</strong> {{ student.full_name }} &nbsp; | &nbsp;
-                <strong>Admission #:</strong> {{ student.admission_number }} &nbsp; | &nbsp;
+                <strong>Admission #:</strong> {{ student.admission_number|default:"—" }} &nbsp; | &nbsp;
                 Printed: {{ print_datetime|date:"d M Y H:i" }}
                 {% if term %}&nbsp; | &nbsp; Term: {{ term }}{% endif %}
             </div>
