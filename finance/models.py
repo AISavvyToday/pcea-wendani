@@ -232,9 +232,9 @@ class Invoice(BaseModel):
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
 
-        # Formula: total_amount + balance_bf - prepayment - amount_paid
-        # prepayment is negative (credit), so subtracting it reduces balance
-        self.balance = self.total_amount + self.balance_bf - self.prepayment - self.amount_paid
+        # Formula: total_amount + balance_bf + prepayment - amount_paid
+        # prepayment is stored as negative (credit), so adding it reduces balance
+        self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid
         super().save(*args, **kwargs)
 
 

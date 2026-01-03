@@ -62,7 +62,8 @@ class InvoiceService:
         Recalculate invoice.amount_paid, invoice.balance, invoice.status from allocations.
         """
         invoice.amount_paid = InvoiceService._sum_allocations_for_invoice(invoice)
-        invoice.balance = invoice.total_amount + invoice.balance_bf - invoice.prepayment - invoice.amount_paid
+        # prepayment is stored as negative (credit), so adding it reduces balance
+        invoice.balance = invoice.total_amount + invoice.balance_bf + invoice.prepayment - invoice.amount_paid
 
         today = date_cls.today()
 
@@ -314,7 +315,8 @@ class InvoiceService:
 
         # Add to invoice payment
         invoice.amount_paid += amount_to_apply
-        invoice.balance = invoice.total_amount + invoice.balance_bf - invoice.prepayment - invoice.amount_paid
+        # prepayment is stored as negative (credit), so adding it reduces balance
+        invoice.balance = invoice.total_amount + invoice.balance_bf + invoice.prepayment - invoice.amount_paid
         invoice.save(update_fields=['amount_paid', 'balance', 'updated_at'])
 
         return amount_to_apply

@@ -2098,9 +2098,10 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                     balance_bf = invoice.balance_bf or Decimal('0.00')
                     prepayment = invoice.prepayment or Decimal('0.00')
                     amount_paid = invoice.amount_paid or Decimal('0.00')
-                    invoice.balance = (invoice.total_amount + balance_bf - prepayment) - amount_paid
+                    # prepayment is stored as negative (credit), so adding it reduces balance
+                    invoice.balance = (invoice.total_amount + balance_bf + prepayment) - amount_paid
                     if invoice.balance < Decimal('0.00'):
-                        invoice.prepayment = abs(invoice.balance)
+                        invoice.prepayment = invoice.balance  # Store as negative
                         invoice.balance = Decimal('0.00')
                     invoice.save(update_fields=['discount_amount', 'total_amount', 'balance', 'prepayment'])
 
@@ -2140,13 +2141,14 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         prepayment = invoice.prepayment or Decimal('0.00')
         amount_paid = invoice.amount_paid or Decimal('0.00')
 
-        # Formula: (total + balance_bf - prepayment) - amount_paid
-        invoice.balance = (invoice.total_amount + balance_bf - prepayment) - amount_paid
+        # Formula: (total + balance_bf + prepayment) - amount_paid
+        # prepayment is stored as negative (credit), so adding it reduces balance
+        invoice.balance = (invoice.total_amount + balance_bf + prepayment) - amount_paid
 
         # Ensure balance is not negative due to overpayment
         if invoice.balance < Decimal('0.00'):
-            # If overpaid, set balance to 0 and adjust prepayment
-            invoice.prepayment = abs(invoice.balance)
+            # If overpaid, set balance to 0 and adjust prepayment (store as negative)
+            invoice.prepayment = invoice.balance  # Store as negative
             invoice.balance = Decimal('0.00')
 
         invoice.save(update_fields=[
