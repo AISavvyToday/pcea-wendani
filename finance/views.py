@@ -1085,6 +1085,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'printed_by': printed_by,
             'print_datetime': print_datetime,
             'enhanced_items': enhanced_items,
+            'total_invoiced': total_invoiced,
             'balance_bf': balance_bf,
             'prepayment': prepayment,
             'prepayment_abs': prepayment_abs,
