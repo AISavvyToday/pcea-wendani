@@ -139,26 +139,19 @@ def _completed_allocations_base_qs():
 
 def _collected_for_invoices(invoice_qs):
     """
-    collected = allocated_total + direct_total_without_allocations
-    - allocated_total:
-        SUM(PaymentAllocation.amount) for allocations to invoice items whose invoice in invoice_qs
-    - direct_total_without_allocations:
-        SUM(Payment.amount) for completed payments linked to invoices in invoice_qs
-        where the payment has NO allocations (to avoid double counting).
+    collected = SUM(invoice.amount_paid) for invoices in invoice_qs
+    
+    This is the most accurate method because invoice.amount_paid includes:
+    - Allocations to invoice items (via PaymentAllocation)
+    - Payments to balance_bf (stored directly in amount_paid, no PaymentAllocation record)
+    - All payments applied to the invoice, regardless of allocation method
+    
+    This ensures all payments are captured, including those that go to balance_bf.
     """
-    invoice_ids = list(invoice_qs.values_list("id", flat=True))
-    if not invoice_ids:
-        return Decimal("0")
-
-    # 1) Allocated collections (best signal)
-    alloc_qs = _completed_allocations_base_qs().filter(invoice_item__invoice_id__in=invoice_ids)
-    allocated_total = alloc_qs.aggregate(x=Sum("amount"))["x"] or Decimal("0")
-
-    # 2) Direct payment totals ONLY for payments that have no allocations at all
-    pay_qs = _completed_payments_base_qs().filter(invoice_id__in=invoice_ids, allocations__isnull=True)
-    direct_total = pay_qs.aggregate(x=Sum("amount"))["x"] or Decimal("0")
-
-    return Decimal(str(allocated_total)) + Decimal(str(direct_total))
+    # Sum amount_paid from all invoices in the queryset
+    # amount_paid includes both item allocations and balance_bf payments
+    collected = invoice_qs.aggregate(total=Sum("amount_paid"))["total"] or Decimal("0")
+    return Decimal(str(collected))
 
 
 def _finance_kpis(term=None):
@@ -378,6 +371,10 @@ def role_redirect(request):
 @login_required
 def home(request):
     user = request.user
+    # Redirect admin users to admin dashboard instead of showing home page
+    if user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
+        return redirect("portal:dashboard_admin")
+    
     context = {
         "quick_stats": _get_quick_stats(user),
         "quick_actions": _get_quick_actions(user),
@@ -412,6 +409,9 @@ def dashboard_admin(request):
             admission_date__gte=term.start_date,
             admission_date__lte=term.end_date
         ).count()
+    
+    # Calculate graduated students (status='graduated')
+    graduated_students = Student.objects.filter(status='graduated').count()
     
     # Calculate transferred students (status='transferred')
     transferred_students = Student.objects.filter(status='transferred').count()
@@ -456,7 +456,7 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-primary",
                 "url": _safe_reverse("students:list"),
                 "helper": f"New Students-{new_students}",
-                "helper_extra": f"Transferred-{transferred_students}",
+                "helper_extra": f"Graduated-{graduated_students}, Transferred-{transferred_students}",
             },
             {
                 "title": "Bal B/F",

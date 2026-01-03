@@ -406,7 +406,11 @@ class FinanceReportService:
             invoices = invoices.filter(term=term)
 
         total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
-        total_collected = payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Use invoice.amount_paid to get accurate total collected
+        # This includes both item allocations AND balance_bf payments
+        # This ensures all payments are captured, including those that go to balance_bf
+        total_collected = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
         total_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
 
         collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0

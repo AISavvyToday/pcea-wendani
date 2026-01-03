@@ -2,6 +2,7 @@
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import redirect
 from django.contrib import messages
+from core.models import UserRole
 
 
 class RoleRequiredMixin(UserPassesTestMixin):
@@ -28,4 +29,7 @@ class RoleRequiredMixin(UserPassesTestMixin):
             self.request,
             'You do not have permission to access this page.'
         )
+        # Redirect admin users to admin dashboard instead of home
+        if self.request.user.is_authenticated and self.request.user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]:
+            return redirect('portal:dashboard_admin')
         return redirect('portal:home')
