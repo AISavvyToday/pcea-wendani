@@ -273,26 +273,9 @@ class InvoiceService:
 
         total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         
-        # Calculate total paid from allocations to invoice items in these invoices
-        from payments.models import PaymentAllocation
-        if term:
-            total_paid = PaymentAllocation.objects.filter(
-                is_active=True,
-                invoice_item__invoice__in=invoices,
-                payment__is_active=True,
-                payment__status='completed'
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        else:
-            # For all terms, get payments allocated to any invoice for this student
-            student_invoices = Invoice.objects.filter(
-                student=student, is_active=True
-            ).exclude(status='cancelled')
-            total_paid = PaymentAllocation.objects.filter(
-                is_active=True,
-                invoice_item__invoice__in=student_invoices,
-                payment__is_active=True,
-                payment__status='completed'
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        # Calculate total paid - use invoice.amount_paid which includes both item allocations and balance_bf payments
+        # This is more accurate than just summing allocations
+        total_paid = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
         
         # Calculate total balance_bf and prepayment from invoices
         total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')

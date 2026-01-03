@@ -1744,6 +1744,15 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context.update(statement)
         context['terms'] = Term.objects.filter(is_active=True).select_related('academic_year')
         context['selected_term'] = term_id or ''
+        
+        # Extract admission number only (remove "PWA/" prefix if present)
+        admission_number = self.object.admission_number or ''
+        if '/' in admission_number:
+            admission_number_only = admission_number.split('/')[-1]
+        else:
+            admission_number_only = admission_number
+        context['admission_number_only'] = admission_number_only
+        
         return context
 
 
@@ -1807,6 +1816,22 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
         statement_footnote = getattr(settings, 'SCHOOL_STATEMENT_FOOTNOTE', 
             'This statement is computer-generated and is valid without signature. For any queries, contact the school bursar.')
 
+        # Extract admission number only (remove "PWA/" prefix if present)
+        admission_number = student.admission_number or ''
+        if '/' in admission_number:
+            admission_number_only = admission_number.split('/')[-1]
+        else:
+            admission_number_only = admission_number
+        
+        # Process bank details to replace <admission_number> placeholder with number only
+        processed_bank_details = bank_details.copy()
+        if 'paybill_1' in processed_bank_details:
+            processed_bank_details['paybill_1'] = processed_bank_details['paybill_1'].copy()
+            processed_bank_details['paybill_1']['acc_format'] = processed_bank_details['paybill_1']['acc_format'].replace('<admission_number>', admission_number_only)
+        if 'paybill_2' in processed_bank_details:
+            processed_bank_details['paybill_2'] = processed_bank_details['paybill_2'].copy()
+            processed_bank_details['paybill_2']['acc_format'] = processed_bank_details['paybill_2']['acc_format'].replace('<admission_number>', admission_number_only)
+
         # Put everything in context
         context.update({
             'statement': statement,
@@ -1816,11 +1841,12 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
             'copies_range': copies_range,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
-            'bank_details': bank_details,
+            'bank_details': processed_bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,
             'school_name': school_name,
             'statement_footnote': statement_footnote,
+            'admission_number_only': admission_number_only,
         })
 
         return context
