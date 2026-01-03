@@ -60,8 +60,24 @@ class InvoiceService:
     def _recalculate_invoice_fields(invoice: Invoice) -> Invoice:
         """
         Recalculate invoice.amount_paid, invoice.balance, invoice.status from allocations.
+        IMPORTANT: This preserves balance_bf payments that were added to amount_paid.
+        balance_bf is frozen at invoice creation and should never be modified.
         """
-        invoice.amount_paid = InvoiceService._sum_allocations_for_invoice(invoice)
+        # Get allocations to invoice items only
+        allocations_to_items = InvoiceService._sum_allocations_for_invoice(invoice)
+        
+        # Preserve balance_bf payments from existing amount_paid
+        # If invoice has balance_bf and current amount_paid > allocations_to_items,
+        # the difference represents balance_bf payments (preserved from previous calculations)
+        balance_bf_paid = Decimal('0.00')
+        if invoice.balance_bf > 0 and invoice.amount_paid > allocations_to_items:
+            balance_bf_paid = invoice.amount_paid - allocations_to_items
+            # Can't exceed original balance_bf
+            balance_bf_paid = min(balance_bf_paid, invoice.balance_bf)
+        
+        # amount_paid = allocations to items + balance_bf payments
+        invoice.amount_paid = allocations_to_items + balance_bf_paid
+        
         # prepayment is stored as negative (credit), so adding it reduces balance
         invoice.balance = invoice.total_amount + invoice.balance_bf + invoice.prepayment - invoice.amount_paid
 
@@ -217,24 +233,53 @@ class InvoiceService:
         )
 
         # STEP 1: Clear balance_bf from invoices (oldest first)
+        # IMPORTANT: balance_bf is a snapshot at invoice creation and should NEVER be modified
+        # Instead, we track balance_bf payments by adding them to amount_paid
         for invoice in invoices:
             if remaining <= 0:
                 break
 
-            # Recalculate to get current state
-            InvoiceService._recalculate_invoice_fields(invoice)
-
-            # Clear balance_bf if it exists
+            # Get current allocations total (payments to invoice items only)
+            allocations_total = InvoiceService._sum_allocations_for_invoice(invoice)
+            
+            # Calculate how much of balance_bf is still outstanding
+            # Invoice balance = total_amount + balance_bf + prepayment - amount_paid
+            # Outstanding balance_bf = balance_bf - (amount_paid - allocations_to_items)
+            # Since amount_paid currently only includes allocations to items, outstanding_balance_bf = balance_bf
+            # But we need to account for any previous balance_bf payments that were added to amount_paid
+            # Actually, let's calculate it differently:
+            # Current invoice balance = total_amount + balance_bf + prepayment - allocations_total
+            # Outstanding balance_bf = min(balance_bf, current_balance - total_amount - prepayment)
+            
             if invoice.balance_bf > 0:
-                amount_to_clear_bf = remaining if remaining < invoice.balance_bf else invoice.balance_bf
-                invoice.balance_bf -= amount_to_clear_bf
-                invoice.save(update_fields=['balance_bf', 'updated_at'])
+                # Calculate current balance without recalculating (to avoid overwriting amount_paid)
+                current_balance = invoice.total_amount + invoice.balance_bf + invoice.prepayment - allocations_total
                 
-                balance_bf_cleared_total += amount_to_clear_bf
-                remaining -= amount_to_clear_bf
-
-                # Recalculate invoice balance after balance_bf change
-                InvoiceService._recalculate_invoice_fields(invoice)
+                # Outstanding balance_bf is the portion of balance_bf not yet paid
+                # It's the difference between current balance and total_amount (after prepayment)
+                outstanding_balance_bf = current_balance - invoice.total_amount - invoice.prepayment
+                outstanding_balance_bf = max(Decimal('0.00'), outstanding_balance_bf)  # Can't be negative
+                outstanding_balance_bf = min(outstanding_balance_bf, invoice.balance_bf)  # Can't exceed original balance_bf
+                
+                if outstanding_balance_bf > 0:
+                    amount_to_clear_bf = min(remaining, outstanding_balance_bf)
+                    
+                    # Add this payment to amount_paid (balance_bf payments are tracked here)
+                    # We'll manually update balance instead of calling _recalculate_invoice_fields
+                    # because _recalculate_invoice_fields would overwrite amount_paid with only allocations
+                    invoice.amount_paid = allocations_total + amount_to_clear_bf
+                    invoice.balance = invoice.total_amount + invoice.balance_bf + invoice.prepayment - invoice.amount_paid
+                    
+                    # Update status
+                    if invoice.balance <= 0:
+                        invoice.status = InvoiceStatus.PAID
+                    elif invoice.amount_paid > 0:
+                        invoice.status = InvoiceStatus.PARTIALLY_PAID
+                    
+                    invoice.save(update_fields=['amount_paid', 'balance', 'status', 'updated_at'])
+                    
+                    balance_bf_cleared_total += amount_to_clear_bf
+                    remaining -= amount_to_clear_bf
 
         # STEP 2: Allocate remaining payment to invoice items (by priority)
         for invoice in invoices:
