@@ -4,13 +4,12 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>{{ school_name }} - {{ mode|title }} {{ invoice.invoice_number }}</title>
+    <title>{{ school_name }} - Invoice {{ invoice.invoice_number }}</title>
     <style>
         @page {
             size: A4;
             margin: 8mm;
         }
-        /* Page/reset - Enhanced font sizes for better print quality */
         body { 
             font-family: Arial, Helvetica, sans-serif; 
             color: #000; 
@@ -29,7 +28,6 @@
         .school-title { text-align:center; flex:1; }
         h2 { margin:0; padding:0; font-size: 20px; font-weight: bold; }
         h3 { margin:0; padding:0; font-size: 16px; font-weight: bold; }
-        h4 { margin:0; padding:0; font-size: 16px; font-weight: bold; }
         .meta { margin-top:12px; font-size:14px; color:#333; font-weight: 500; padding:10px; background:#f9f9f9; border:1px solid #ddd; }
         .two-col { display:flex; gap:12px; margin-top:14px; }
         .col { flex:1; }
@@ -42,11 +40,6 @@
         .notes { margin-top:14px; padding:10px; border:1px dashed #999; background:#fafafa; min-height:28px; font-size: 13px; }
         .footer { margin-top:16px; font-size:12px; color:#333; border-top:1px dashed #999; padding-top:10px; }
         .bank-list { margin:4px 0 0 0; padding-left:16px; font-size: 12px; }
-        .signature-section { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; }
-        .signature-box { width: 45%; text-align: center; }
-        .signature-line { border-top: 2px solid #333; margin-top: 50px; padding-top: 6px; height: 30px; }
-        .signature-label { font-size: 13px; color: #333; }
-        /* Print */
         @media print {
             .page { margin:0; box-shadow:none; }
             .no-print { display:none; }
@@ -64,7 +57,7 @@
                 </div>
                 <div class="school-title">
                     <h2>PCEA Wendani Academy</h2>
-                    <h3 style="margin-top:6px; font-size:16px; font-weight:bold;">{{ mode|title }}</h3>
+                    <h3 style="margin-top:6px; font-size:16px; font-weight:bold;">Invoice</h3>
                 </div>
                 <div class="logos">
                     <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
@@ -72,7 +65,7 @@
             </div>
 
             <div class="meta">
-                <strong>{{ mode|title }} #:</strong> {{ invoice.invoice_number }}
+                <strong>Invoice #:</strong> {{ invoice.invoice_number }}
                 &nbsp;|&nbsp; Issue Date: {{ invoice.issue_date|date:"d M Y" }}
                 &nbsp;|&nbsp; Printed: {{ print_datetime|date:"d M Y H:i" }}
             </div>
@@ -90,12 +83,6 @@
                 <div class="col">
                     <strong>Invoice / Term</strong>
                     <div class="small">Term: {{ invoice.term }}</div>
-                    {% if invoice.balance_bf and invoice.balance_bf != 0 %}
-                    <div class="small">Balance B/F: KES {{ invoice.balance_bf|intcomma }}</div>
-                    {% endif %}
-                    {% if invoice.prepayment and invoice.prepayment != 0 %}
-                    <div class="small">Prepayment/Credit: KES {{ invoice.prepayment|intcomma }}</div>
-                    {% endif %}
                 </div>
             </div>
 
@@ -107,32 +94,15 @@
                         <th style="width:12%;" class="text-right">Gross</th>
                         <th style="width:10%;" class="text-right">Discount</th>
                         <th style="width:12%;" class="text-right">Net</th>
-                        <th style="width:12%;" class="text-right">Paid</th>
-                        <th style="width:12%;" class="text-right">Balance</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for it in enhanced_items %}
-                    {% with item=it.item %}
-                    <tr>
-                        <td>{{ item.get_category_display }}</td>
-                        <td>{{ item.description }}</td>
-                        <td class="text-right">KES {{ item.amount|intcomma }}</td>
-                        <td class="text-right">{% if item.discount_applied > 0 %}<span style="color:#080">-KES {{ item.discount_applied|intcomma }}</span>{% else %}-{% endif %}</td>
-                        <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
-                        <td class="text-right">KES {{ it.total_allocated|intcomma }}</td>
-                        <td class="text-right">{% if it.balance > 0 %}<span style="color:#c00">KES {{ it.balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ it.balance|intcomma }}</span>{% endif %}</td>
-                    </tr>
-                    {% endwith %}
-                    {% endfor %}
                     {% if invoice.balance_bf and invoice.balance_bf > 0 %}
                     <tr style="background-color:#fff3cd;">
                         <td colspan="2"><strong>Balance Brought Forward</strong></td>
                         <td class="text-right">-</td>
                         <td class="text-right">-</td>
                         <td class="text-right" style="color:#856404;"><strong>KES {{ invoice.balance_bf|floatformat:0|intcomma }}</strong></td>
-                        <td class="text-right">-</td>
-                        <td class="text-right">-</td>
                     </tr>
                     {% endif %}
                     {% if invoice.prepayment and invoice.prepayment != 0 %}
@@ -141,10 +111,19 @@
                         <td class="text-right">-</td>
                         <td class="text-right">-</td>
                         <td class="text-right" style="color:#080;"><strong>-KES {{ prepayment_abs|floatformat:0|intcomma }}</strong></td>
-                        <td class="text-right">-</td>
-                        <td class="text-right">-</td>
                     </tr>
                     {% endif %}
+                    {% for it in enhanced_items %}
+                    {% with item=it.item %}
+                    <tr>
+                        <td>{{ item.get_category_display }}</td>
+                        <td>{{ item.description }}</td>
+                        <td class="text-right">KES {{ item.amount|intcomma }}</td>
+                        <td class="text-right">{% if item.discount_applied > 0 %}<span style="color:#080">-KES {{ item.discount_applied|intcomma }}</span>{% else %}-{% endif %}</td>
+                        <td class="text-right">KES {{ item.net_amount|intcomma }}</td>
+                    </tr>
+                    {% endwith %}
+                    {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr>
@@ -152,7 +131,9 @@
                         <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
                         <th class="text-right">{% if invoice.discount_amount > 0 %}<span style="color:#080">-KES {{ invoice.discount_amount|intcomma }}</span>{% else %}-{% endif %}</th>
                         <th class="text-right">KES {{ net_after_adjustments|intcomma }}</th>
-                        <th class="text-right">KES {{ total_paid|intcomma }}</th>
+                    </tr>
+                    <tr>
+                        <th colspan="4" class="text-right">Outstanding Balance:</th>
                         <th class="text-right">{% if total_balance > 0 %}<span style="color:#c00">KES {{ total_balance|intcomma }}</span>{% else %}<span style="color:#080">KES {{ total_balance|intcomma }}</span>{% endif %}</th>
                     </tr>
                 </tfoot>
@@ -160,38 +141,29 @@
 
             {% if enhanced_payments %}
             <div style="margin-top:14px; padding:12px; background:#f9f9f9; border:1px solid #ddd;">
-                <h4 style="margin:0 0 12px 0; font-size:16px; font-weight:bold;">Payment Details</h4>
+                <h4 style="margin:0 0 12px 0; font-size:16px; font-weight:bold;">Payment Summary</h4>
                 <table>
                     <thead>
                         <tr>
                             <th>Payment Date</th>
-                            <th>Payment Reference</th>
                             <th>Receipt Number</th>
-                            <th>Payment Method</th>
-                            <th>Payer Name</th>
-                            <th>Transaction Reference</th>
+                            <th>Payment Source</th>
                             <th class="text-right">Amount</th>
-                            <th class="text-right">Allocated</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for ep in enhanced_payments %}
                         <tr>
-                            <td>{{ ep.payment.payment_date|date:"d M Y H:i" }}</td>
-                            <td>{{ ep.payment.payment_reference }}</td>
+                            <td>{{ ep.payment.payment_date|date:"d M Y" }}</td>
                             <td>{{ ep.payment.receipt_number|default:"-" }}</td>
-                            <td>{{ ep.payment.get_payment_method_display }}</td>
-                            <td>{{ ep.payment.payer_name|default:"-" }}</td>
-                            <td>{{ ep.payment.transaction_reference|default:"-" }}</td>
-                            <td class="text-right">KES {{ ep.payment.amount|intcomma }}</td>
+                            <td>{{ ep.payment.get_payment_source_display }}</td>
                             <td class="text-right">KES {{ ep.allocated_total|intcomma }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr>
-                            <th colspan="6" class="text-right">Total Paid:</th>
-                            <th class="text-right">KES {{ total_paid|intcomma }}</th>
+                            <th colspan="3" class="text-right">Total Paid:</th>
                             <th class="text-right">KES {{ total_paid|intcomma }}</th>
                         </tr>
                     </tfoot>
@@ -206,8 +178,6 @@
             </div>
             {% endif %}
 
-            {% if mode == 'invoice' %}
-            <!-- Show payment terms only for invoices, not receipts -->
             <div class="footer">
                 <div><strong>Mode of Payment</strong></div>
                 <ul class="bank-list" style="margin-top:4px;">
@@ -217,60 +187,9 @@
                     <li>M-PESA Paybill <strong>{{ bank_details.paybill_2.number|default:"400222" }}</strong> — Account: {{ bank_details.paybill_2.acc_format }}</li>
                 </ul>
             </div>
-            {% else %}
-            <!-- Receipt footer with payment terms and signature -->
-            <div class="footer">
-                <div style="margin-bottom:16px;">
-                    <div><strong>PAYMENT TERMS / MODE OF PAYMENT</strong></div>
-                    <ol style="margin:8px 0; padding-left:20px; font-size:13px;">
-                        <li>School bank accounts:
-                            <ul style="margin:4px 0; padding-left:20px; list-style-type:disc;">
-                                <li><strong>EQUITY BANK</strong><br>
-                                    Account Name: P.C.E.A Wendani Academy<br>
-                                    Account No: {{ bank_details.equity.account_no|default:"1130280029105" }}
-                                </li>
-                                <li><strong>CO-OPERATIVE BANK</strong><br>
-                                    Account Name: P.C.E.A Wendani Academy<br>
-                                    Account No: {{ bank_details.coop.account_no|default:"01129158350600" }}
-                                </li>
-                                <li><strong>PAYBILL:</strong><br>
-                                    B/S NO: {{ bank_details.paybill_1.number|default:"247247" }}<br>
-                                    ACC NO: {{ bank_details.paybill_1.acc_format|default:"80029#admission number" }}
-                                </li>
-                                <li><strong>PAYBILL:</strong><br>
-                                    B/S NO: {{ bank_details.paybill_2.number|default:"400222" }}<br>
-                                    ACC NO: {{ bank_details.paybill_2.acc_format|default:"393939#admission number" }}
-                                </li>
-                            </ul>
-                        </li>
-                    </ol>
-                </div>
-                
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                    <div>
-                        <strong>Served by:</strong> {{ printed_by|default:"School Bursar" }}
-                    </div>
-                    <div>
-                        <strong>Date:</strong> {{ print_datetime|date:"d M Y H:i" }}
-                    </div>
-                </div>
-                
-                <div class="signature-section">
-                    <div class="signature-box">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Cashier's Signature</div>
-                    </div>
-                </div>
-                
-                <div style="text-align:center; margin-top:8px; font-size:10px; color:#666; font-style:italic;">
-                    This is a computer-generated receipt. For queries, contact the school bursar.
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
 
-    <!-- small helper: Print & close if opened in new window -->
     <div class="no-print" style="position:fixed; bottom:10px; right:10px;">
         <button onclick="window.print()" style="padding:8px 12px;">Print</button>
     </div>

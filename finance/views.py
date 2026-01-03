@@ -1004,22 +1004,8 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         invoice = self.object
 
-        # Determine mode: explicit ?mode=invoice|receipt else infer by amount_paid
-        mode = self.request.GET.get('mode')
-        if mode not in ('invoice', 'receipt'):
-            mode = 'receipt' if (invoice.amount_paid and invoice.amount_paid > Decimal('0.00')) else 'invoice'
-
         # notes from querystring (optional)
         notes = self.request.GET.get('notes', '').strip()
-
-        # copies parameter for printing multiple receipts on one page (default 2 for Epson LX350 A4)
-        try:
-            copies = int(self.request.GET.get('copies', '2'))
-        except Exception:
-            copies = 2
-        copies = max(1, min(copies, 4))  # limit to 1..4
-
-        copies_range = range(copies)
 
         # printed metadata
         printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
@@ -1097,10 +1083,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
 
         context.update({
-            'mode': mode,
             'notes': notes,
-            'copies': copies,
-            'copies_range': copies_range,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
             'enhanced_items': enhanced_items,
@@ -1112,8 +1095,6 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             'prepayment': prepayment,
             'prepayment_abs': prepayment_abs,
             'net_after_adjustments': net_after_adjustments,
-            'total_paid': total_paid,
-            'total_balance': total_balance,
             'bank_details': bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,
@@ -1314,7 +1295,7 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         )
 
         messages.success(self.request, f'Payment of KES {payment.amount:,.2f} recorded successfully.')
-        return redirect('finance:payment_list')
+        return redirect('finance:payment_detail', pk=payment.pk)
 
 
 class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
@@ -1411,13 +1392,93 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """Print-friendly payment receipt."""
 
     model = Payment
-    template_name = 'finance/payment_receipt.html'
+    template_name = 'finance/payment_receipt_print.html'
     context_object_name = 'payment'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['school_name'] = 'PCEA Wendani Academy'
+        payment = self.object
+        
+        # Notes from query string (optional)
+        notes = self.request.GET.get('notes', '').strip()
+        
+        # Printed metadata
+        printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
+        print_datetime = timezone.now()
+        
+        student = payment.student
+        
+        # Get allocations for this payment
+        allocations = payment.allocations.filter(is_active=True).select_related('invoice_item', 'invoice_item__invoice')
+        
+        # Calculate invoice items paid from allocations
+        invoice_items_paid = allocations.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Calculate balance_bf cleared: Since we clear balance_bf first in allocation logic,
+        # the difference between payment amount and allocated amount (if positive) might include balance_bf
+        # But we can't accurately track it per payment without additional tracking.
+        # For now, we'll calculate: payment_amount - invoice_items_paid = balance_bf_cleared + new_credit
+        total_allocated = invoice_items_paid
+        unallocated = payment.amount - total_allocated
+        
+        # If there's unallocated amount, it could be balance_bf cleared or new credit
+        # Since balance_bf is cleared first, if unallocated > 0, it's likely new credit
+        # But we can't distinguish without tracking. Let's show what we can:
+        balance_bf_cleared = Decimal('0.00')  # Would need tracking to show accurately
+        new_credit = unallocated if unallocated > 0 else Decimal('0.00')
+        
+        # Current account status (after this payment)
+        current_invoices = Invoice.objects.filter(
+            student=student, 
+            is_active=True
+        ).exclude(status=InvoiceStatus.CANCELLED)
+        
+        current_balance_bf = current_invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+        current_outstanding = current_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        current_credit = student.credit_balance or Decimal('0.00')
+        current_credit_abs = abs(current_credit) if current_credit < 0 else Decimal('0.00')
+        
+        # Account status AFTER payment
+        account_status_after = {
+            'balance_bf': current_balance_bf,
+            'total_outstanding': current_outstanding,
+            'credit_balance': current_credit_abs,
+        }
+        
+        # Account status BEFORE payment (approximate - add back this payment's impact)
+        # Note: This is approximate since we can't accurately track balance_bf clearing per payment
+        account_status_before = {
+            'balance_bf': current_balance_bf,  # Approximate - would need tracking
+            'total_outstanding': current_outstanding + invoice_items_paid - new_credit,
+        }
+        
+        # Bank details & logos from settings
+        bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
+            'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+            'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+            'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+        })
+        
+        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+        
+        context.update({
+            'notes': notes,
+            'printed_by': printed_by,
+            'print_datetime': print_datetime,
+            'account_status_before': account_status_before,
+            'account_status_after': account_status_after,
+            'balance_bf_cleared': balance_bf_cleared,
+            'invoice_items_paid': invoice_items_paid,
+            'new_credit': new_credit,
+            'bank_details': bank_details,
+            'school_logo_url': school_logo_url,
+            'sponsor_logo_url': sponsor_logo_url,
+            'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
+        })
+        
         return context
 
 

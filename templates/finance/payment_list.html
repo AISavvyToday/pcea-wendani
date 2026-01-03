@@ -77,9 +77,10 @@
                             <th>Receipt #</th>
                             <th>Student</th>
                             <th class="text-end">Amount</th>
-                            <th>Method</th>
+                            <th>Source</th>
                             <th>Reference</th>
                             <th>Status</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
 
@@ -109,7 +110,7 @@
                                 <td class="text-end">KES {{ payment.amount|floatformat:2|intcomma }}</td>
 
                                 <td>
-                                    {{ payment.get_payment_method_display|default:"—" }}
+                                    {{ payment.get_payment_source_display|default:"—" }}
                                 </td>
                             
 
@@ -127,10 +128,24 @@
                                     {% endif %}
                                 </td>
 
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'finance:payment_detail' payment.pk %}" class="btn btn-outline-secondary" title="View Details">
+                                            <i class="mdi mdi-eye"></i>
+                                        </a>
+                                        <form method="get" action="{% url 'finance:payment_receipt' payment.pk %}" target="_blank" class="d-inline">
+                                            <input type="text" name="notes" class="form-control form-control-sm d-inline-block" placeholder="Notes" style="width:100px; display:none;" id="notes-{{ payment.pk }}" />
+                                            <button type="submit" class="btn btn-outline-primary" title="Print Receipt" onclick="event.stopPropagation();">
+                                                <i class="mdi mdi-receipt"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+
                             </tr>
                         {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No payments found</td>
+                                <td colspan="9" class="text-center text-muted py-4">No payments found</td>
                             </tr>
                         {% endfor %}
                     </tbody>

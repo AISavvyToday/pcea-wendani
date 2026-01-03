@@ -47,7 +47,7 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         # Get filter parameters
         query = self.request.GET.get('query', '')
         class_id = self.request.GET.get('current_class', '')  # Use 'current_class' as per form field name
-        status = self.request.GET.get('status', '')  # Use 'status' as per form field name
+        status = self.request.GET.get('status', 'active')  # Default to 'active' if not specified
         gender = self.request.GET.get('gender', '')  # Use 'gender' as per form field name
         is_boarder = self.request.GET.get('is_boarder', '')  # Use 'is_boarder' as per form field name
         stream = self.request.GET.get('stream', '')  # ADD THIS LINE: Get stream from form
@@ -56,7 +56,7 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         queryset = StudentService.search_students(
             query=query if query else None,
             class_id=class_id if class_id else None,
-            status=status if status else None,
+            status=status if status else 'active',  # Default to 'active' if empty
             gender=gender if gender else None,  # ADD THIS LINE
             is_boarder=is_boarder if is_boarder else None,  # ADD THIS LINE
             stream=stream if stream else None  # ADD THIS LINE
@@ -78,7 +78,22 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['search_form'] = StudentSearchForm(self.request.GET)
         context['total_students'] = Student.objects.count()
-        context['active_students'] = Student.objects.filter(status='active').count()
+        
+        # Get counts for each status
+        context['status_counts'] = {
+            'active': Student.objects.filter(status='active').count(),
+            'graduated': Student.objects.filter(status='graduated').count(),
+            'transferred': Student.objects.filter(status='transferred').count(),
+            'suspended': Student.objects.filter(status='suspended').count(),
+            'expelled': Student.objects.filter(status='expelled').count(),
+            'withdrawn': Student.objects.filter(status='withdrawn').count(),
+            'inactive': Student.objects.filter(status='inactive').count(),
+        }
+        context['active_students'] = context['status_counts']['active']
+        
+        # Get current status from request (default to 'active' if not specified)
+        context['current_status'] = self.request.GET.get('status', '') or 'active'
+        
         return context
 
 

@@ -68,14 +68,10 @@
         <i class="mdi mdi-plus"></i> Record Payment
     </a>
     <form method="get" action="{% url 'finance:invoice_receipt_print' invoice.pk %}" target="_blank" class="d-inline-flex">
-        <!-- default 2 copies for LX350; override via copies input if needed -->
-        <input type="hidden" name="copies" value="2" />
-        <input type="hidden" name="mode" value="{% if invoice.amount_paid > 0 %}receipt{% else %}invoice{% endif %}" />
         <div class="input-group input-group-sm">
-            <input type="text" name="notes" class="form-control" placeholder="Optional print notes (appear on receipt)" style="min-width:260px;" />
+            <input type="text" name="notes" class="form-control" placeholder="Optional print notes" style="min-width:260px;" />
             <button class="btn btn-secondary" type="submit">
-                <i class="mdi mdi-printer"></i>
-                {% if invoice.amount_paid > 0 %} Print Receipt {% else %} Print Invoice {% endif %}
+                <i class="mdi mdi-printer"></i> Print Invoice
             </button>
         </div>
     </form>
@@ -306,8 +302,7 @@
                                         </h6>
                                         <small class="text-muted">
                                             {{ payment.payment_date|date:"d M Y" }} •
-                                            {{ payment.get_payment_method_display }}
-                                            {{ payment.payment_source }}
+                                            <strong>{{ payment.get_payment_source_display }}</strong>
                                         </small>
                                         <div class="mt-1">
                                             <span class="badge badge-light">Total: KES {{ payment.amount|intcomma }}</span>

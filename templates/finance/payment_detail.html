@@ -1,0 +1,174 @@
+{% extends 'base/base.html' %}
+{% load static humanize %}
+
+{% block title %}Payment {{ payment.payment_reference }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
+        <div>
+            <h3 class="page-title mb-1">Payment {{ payment.payment_reference }}</h3>
+            <div class="small text-muted">
+                {{ payment.student.full_name }} • {{ payment.payment_date|date:"d M Y H:i" }} • KES {{ payment.amount|intcomma }}
+            </div>
+        </div>
+
+        <div class="btn-group mt-2 mt-md-0">
+            <a href="{% url 'finance:payment_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="mdi mdi-arrow-left"></i> Back to Payments
+            </a>
+            <form method="get" action="{% url 'finance:payment_receipt' payment.pk %}" target="_blank" class="d-inline-flex ms-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" name="notes" class="form-control" placeholder="Optional print notes" style="min-width:200px;" />
+                    <button class="btn btn-primary" type="submit">
+                        <i class="mdi mdi-receipt"></i> Print Receipt
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="mb-3">Payment Information</h5>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted" style="width: 150px;">Payment Reference:</td>
+                            <td><strong>{{ payment.payment_reference }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Receipt Number:</td>
+                            <td>{{ payment.receipt_number|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Amount:</td>
+                            <td><strong class="text-success">KES {{ payment.amount|intcomma }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Payment Date:</td>
+                            <td>{{ payment.payment_date|date:"d M Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Payment Source:</td>
+                            <td><strong>{{ payment.get_payment_source_display }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Payment Method:</td>
+                            <td>{{ payment.get_payment_method_display }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Status:</td>
+                            <td>
+                                {% if payment.status == 'completed' %}
+                                    <span class="badge bg-success">{{ payment.get_status_display }}</span>
+                                {% elif payment.status == 'pending' %}
+                                    <span class="badge bg-warning text-dark">{{ payment.get_status_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ payment.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if payment.transaction_reference %}
+                        <tr>
+                            <td class="text-muted">Transaction Reference:</td>
+                            <td>{{ payment.transaction_reference }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if payment.received_by %}
+                        <tr>
+                            <td class="text-muted">Received By:</td>
+                            <td>{{ payment.received_by.get_full_name|default:payment.received_by.email }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if payment.notes %}
+                        <tr>
+                            <td class="text-muted">Notes:</td>
+                            <td>{{ payment.notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            {% if allocations %}
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <h5 class="mb-3">Payment Allocations</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Term</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th class="text-right">Amount Allocated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alloc in allocations %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'finance:invoice_detail' alloc.invoice_item.invoice.pk %}">
+                                            {{ alloc.invoice_item.invoice.invoice_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ alloc.invoice_item.invoice.term|default:"-" }}</td>
+                                    <td>{{ alloc.invoice_item.get_category_display }}</td>
+                                    <td>{{ alloc.invoice_item.description|truncatechars:50 }}</td>
+                                    <td class="text-right text-success">KES {{ alloc.amount|intcomma }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="4" class="text-right">Total Allocated:</th>
+                                    <th class="text-right">KES {{ payment.amount|intcomma }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="mb-3">Student Information</h5>
+                    {% if payment.student %}
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted" style="width: 120px;">Name:</td>
+                            <td><strong>{{ payment.student.full_name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Admission #:</td>
+                            <td>{{ payment.student.admission_number }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Grade:</td>
+                            <td>{{ payment.student.current_class|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"></td>
+                            <td>
+                                <a href="{% url 'students:detail' payment.student.pk %}" class="btn btn-sm btn-outline-primary">
+                                    View Student
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+                    {% else %}
+                    <p class="text-muted">No student assigned</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

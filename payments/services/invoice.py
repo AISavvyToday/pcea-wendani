@@ -176,11 +176,12 @@ class InvoiceService:
     def apply_payment_to_student_arrears(payment: Payment) -> Decimal:
         """
         Core requirement:
-        - Clear oldest invoices first
+        - First clear balance_bf from all invoices (oldest invoice first)
+        - Then allocate remaining payment to invoice items by priority
         - If payment exceeds all invoices, remainder becomes unapplied credit
 
         Returns remaining unapplied credit for THIS payment:
-            payment.amount - sum(payment.allocations.amount)
+            payment.amount - sum(balance_bf_cleared) - sum(payment.allocations.amount)
         """
         if not payment or not payment.is_active:
             return Decimal("0")
@@ -203,6 +204,7 @@ class InvoiceService:
 
         student = payment.student
         remaining = payment.amount
+        balance_bf_cleared_total = Decimal("0")
 
         # Oldest first: issue_date ascending.
         # If issue_date can be NULL, Coalesce pushes NULLs to far-future so they come last.
@@ -213,8 +215,29 @@ class InvoiceService:
             .order_by(Coalesce("issue_date", date_cls(9999, 12, 31)).asc(), "created_at")
         )
 
+        # STEP 1: Clear balance_bf from invoices (oldest first)
         for invoice in invoices:
-            # Keep invoice current
+            if remaining <= 0:
+                break
+
+            # Recalculate to get current state
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+            # Clear balance_bf if it exists
+            if invoice.balance_bf > 0:
+                amount_to_clear_bf = remaining if remaining < invoice.balance_bf else invoice.balance_bf
+                invoice.balance_bf -= amount_to_clear_bf
+                invoice.save(update_fields=['balance_bf', 'updated_at'])
+                
+                balance_bf_cleared_total += amount_to_clear_bf
+                remaining -= amount_to_clear_bf
+
+                # Recalculate invoice balance after balance_bf change
+                InvoiceService._recalculate_invoice_fields(invoice)
+
+        # STEP 2: Allocate remaining payment to invoice items (by priority)
+        for invoice in invoices:
+            # Recalculate to get current state
             InvoiceService._recalculate_invoice_fields(invoice)
 
             # Only pay invoices that actually have outstanding balance
@@ -242,7 +265,8 @@ class InvoiceService:
                 payment.allocations.filter(is_active=True).aggregate(total=Sum("amount"))["total"]
                 or Decimal("0")
         )
-        leftover = payment.amount - allocated_total
+        total_applied = balance_bf_cleared_total + allocated_total
+        leftover = payment.amount - total_applied
 
         if leftover > 0:
             # Add leftover to student's credit balance (negative means credit)
@@ -257,7 +281,8 @@ class InvoiceService:
                 payment.save(update_fields=["notes", "updated_at"])
 
         logger.info(
-            f"Payment {payment.payment_reference} allocated. Applied={allocated_total}, Unapplied={leftover}"
+            f"Payment {payment.payment_reference} allocated. Balance_BF cleared={balance_bf_cleared_total}, "
+            f"Items allocated={allocated_total}, Unapplied={leftover}"
         )
         return leftover
 

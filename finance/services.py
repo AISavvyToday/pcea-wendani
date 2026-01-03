@@ -146,24 +146,24 @@ class InvoiceService:
         invoice.discount_amount = total_discount
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
-        # Add credit balance to invoice bal -ve or positve
+        # Consume credit balance (prepayment) if student has credit
+        # credit_balance: positive = debt (balance_bf), negative = credit (prepayment)
         if student.credit_balance > 0:
-            print("##########################################")
-            print("Credit balance is ", student.credit_balance)
-            debt = student.credit_balance
-
-            invoice.balance_bf = debt
-            invoice.prepayment = 0
-
-            student.credit_balance = 0
+            # Positive credit_balance means debt (balance brought forward)
+            invoice.balance_bf = student.credit_balance
+            invoice.prepayment = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
         elif student.credit_balance < 0:
-            print("##########################################")
-            print("Credit balance is ", student.credit_balance)
-            credit = student.credit_balance
-            invoice.prepayment = credit
-            invoice.balance_bf = 0
-
-            student.credit_balance = 0
+            # Negative credit_balance means credit/prepayment
+            # Store as negative value (will be subtracted in balance calculation)
+            invoice.prepayment = student.credit_balance
+            invoice.balance_bf = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
+        else:
+            # Zero balance
+            invoice.balance_bf = Decimal('0.00')
+            invoice.prepayment = Decimal('0.00')
+        
         invoice.save()
         student.save()
 
