@@ -265,7 +265,10 @@ class InvoiceService:
 
         # Build transaction list
         transactions = []
+        # Start running balance with total balance_bf (if any invoices have it)
+        # We'll show balance_bf as a separate transaction entry for the first invoice that has it
         running_balance = Decimal('0.00')
+        balance_bf_shown = False
 
         all_items = []
         for inv in invoices:
@@ -291,8 +294,23 @@ class InvoiceService:
         for item in all_items:
             if item['type'] == 'invoice':
                 inv = item['obj']
-                running_balance += inv.total_amount
                 inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
+                
+                # Show balance_bf first if it exists and hasn't been shown yet
+                if inv.balance_bf and inv.balance_bf > 0 and not balance_bf_shown:
+                    running_balance += inv.balance_bf
+                    balance_bf_shown = True
+                    transactions.append({
+                        'date': inv_date,
+                        'description': f"Balance B/F (Invoice {inv.invoice_number})",
+                        'reference': inv.invoice_number,
+                        'debit': inv.balance_bf,
+                        'credit': None,
+                        'running_balance': running_balance
+                    })
+                
+                # Add invoice total amount
+                running_balance += inv.total_amount
                 transactions.append({
                     'date': inv_date,
                     'description': f"Invoice {inv.invoice_number}",
@@ -301,21 +319,35 @@ class InvoiceService:
                     'credit': None,
                     'running_balance': running_balance
                 })
+                
+                # If invoice has prepayment, show it as a credit entry (reduces balance)
+                if inv.prepayment and inv.prepayment != 0:
+                    # Prepayment is stored as negative, so adding it reduces balance
+                    running_balance += inv.prepayment
+                    transactions.append({
+                        'date': inv_date,
+                        'description': f"Prepayment Applied (Invoice {inv.invoice_number})",
+                        'reference': inv.invoice_number,
+                        'debit': None,
+                        'credit': abs(inv.prepayment),
+                        'running_balance': running_balance
+                    })
             else:
                 pmt = item['obj']
                 running_balance -= pmt.amount
                 pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
                 transactions.append({
                     'date': pmt_date,
-                    'description': f"Payment - {pmt.get_payment_method_display()}",
-                    'reference': pmt.receipt_number or pmt.transaction_reference or '-',
+                    'description': f"Payment - {pmt.get_payment_source_display()}",
+                    'reference': pmt.receipt_number or pmt.payment_reference or '-',
                     'debit': None,
                     'credit': pmt.amount,
                     'running_balance': running_balance
                 })
 
-        # Calculate balance due: total_invoiced + balance_bf - total_paid - prepayment
-        balance_due = (total_invoiced + total_balance_bf) - total_paid - total_prepayment
+        # Calculate balance due: (total_invoiced + balance_bf + prepayment) - total_paid
+        # Prepayment is stored as negative, so adding it reduces the balance
+        balance_due = (total_invoiced + total_balance_bf + total_prepayment) - total_paid
 
         return {
             'total_invoiced': total_invoiced,
