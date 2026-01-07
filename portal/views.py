@@ -139,6 +139,8 @@ def _completed_allocations_base_qs():
 
 def _collected_for_invoices(invoice_qs):
     """
+    Calculate total collected amount from invoices in the queryset.
+    
     collected = SUM(invoice.amount_paid) for invoices in invoice_qs
     
     This is the most accurate method because invoice.amount_paid includes:
@@ -146,10 +148,16 @@ def _collected_for_invoices(invoice_qs):
     - Payments to balance_bf (stored directly in amount_paid, no PaymentAllocation record)
     - All payments applied to the invoice, regardless of allocation method
     
+    IMPORTANT: When a payment clears balance_bf, it is added to invoice.amount_paid
+    (see payments/services/invoice.py apply_payment_to_student_arrears method).
+    This ensures ALL payments are captured in the Collected stat, including those
+    that clear balance_bf from previous terms.
+    
     This ensures all payments are captured, including those that go to balance_bf.
     """
     # Sum amount_paid from all invoices in the queryset
     # amount_paid includes both item allocations and balance_bf payments
+    # This means Collected stat will increment for ALL payments, including balance_bf payments
     collected = invoice_qs.aggregate(total=Sum("amount_paid"))["total"] or Decimal("0")
     return Decimal(str(collected))
 
@@ -164,7 +172,14 @@ def _finance_kpis(term=None):
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
     def agg(invoice_qs):
-
+        """
+        Aggregate financial statistics for a set of invoices.
+        
+        Key points:
+        - collected: Sum of invoice.amount_paid (includes ALL payments: items + balance_bf)
+        - balances_bf: Sum of frozen balance_bf values (does NOT change when payments are made)
+        - When payments clear balance_bf, they increment 'collected' but NOT 'balances_bf'
+        """
         collected = _collected_for_invoices(invoice_qs)
 
         # Outstanding: Sum of remaining balances on invoices (active students only)
@@ -180,7 +195,11 @@ def _finance_kpis(term=None):
 
         # Get balances from current term invoices only (active students)
         # Balance B/F and Prepayment should sum from current term invoices
-        # These are frozen per invoice but the total varies as invoices are created/paid
+        # IMPORTANT: balance_bf is frozen at invoice creation and NEVER changes during the term
+        # This represents the outstanding amount from previous terms at the START of current term
+        # Payments made during the term do NOT modify balance_bf field - they only update amount_paid
+        # Therefore, the sum of balance_bf from current term invoices remains constant during the term
+        # and only changes when a new term starts and new invoices are generated
         balances_bf_from_invoices = invoices.aggregate(total=Sum('balance_bf'))['total'] or 0
         prepayments_from_invoices = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
 
@@ -210,6 +229,8 @@ def _finance_kpis(term=None):
             prepayments_from_students = abs(prepayments_from_students_raw) if prepayments_from_students_raw else 0
 
             # Combine invoice balances + student balances
+            # Note: balances_bf_from_invoices contains frozen balance_bf values that don't change when payments are made
+            # This ensures the dashboard Balance B/F stat remains constant during the term
             balances_bf = Decimal(str(balances_bf_from_invoices)) + Decimal(str(balances_bf_from_students))
             prepayments = Decimal(str(prepayments_from_invoices)) + Decimal(str(prepayments_from_students))
         else:
@@ -434,6 +455,18 @@ def dashboard_admin(request):
     collected = Decimal(str(term_stats["collected"] or 0))
     prepayments = Decimal(str(term_stats["prepayments"] or 0))
     balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
+    
+    # IMPORTANT: Balance B/F stat behavior
+    # - balances_bf is the sum of frozen balance_bf values from current term invoices
+    # - These values are set at invoice creation and NEVER change during the term
+    # - When payments are made, they increment 'collected' but do NOT change 'balances_bf'
+    # - Balance B/F stat only changes when a new term starts and new invoices are generated
+    
+    # IMPORTANT: Collected stat behavior
+    # - collected includes ALL payments: both to invoice items AND to balance_bf
+    # - When a student pays 20k to clear balance_bf, Collected increases by 20k
+    # - Balance B/F stat remains unchanged (frozen value)
+    
     total_expected = (balances_bf + billed) - prepayments
     # Outstanding should be Total Expected - Collected (not just billed - collected)
     outstanding = total_expected - collected

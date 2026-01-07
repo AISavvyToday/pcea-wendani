@@ -7,28 +7,30 @@
     <style>
         @page {
             size: A4;
-            margin: 8mm;
+            margin: 5mm;
         }
         body {
             font-family: Arial, Helvetica, sans-serif;
             color: #222;
-            font-size: 14px;
+            font-size: 18px;
             margin: 0;
             padding: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 10mm;
+            padding: 6mm;
             box-sizing: border-box;
             background: white;
             margin: 0 auto;
         }
         .receipt {
             border: 2px solid #333;
-            padding: 16px;
+            padding: 12px;
             page-break-inside: avoid;
         }
         .header {
@@ -54,12 +56,12 @@
         }
         .school-title h2 {
             margin: 0;
-            font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
         }
         .school-title h3 {
             margin: 6px 0 0;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
         }
         .meta-info {
@@ -75,7 +77,7 @@
         }
         .meta-info .col strong {
             display: block;
-            font-size: 12px;
+            font-size: 15px;
             color: #333;
             margin-bottom: 6px;
             font-weight: bold;
@@ -88,7 +90,7 @@
             background: #f9f9f9;
         }
         .amount-box .label {
-            font-size: 14px;
+            font-size: 18px;
             color: #333;
             font-weight: bold;
             margin-bottom: 8px;
@@ -102,7 +104,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 14px;
-            font-size: 14px;
+            font-size: 18px;
         }
         th, td {
             padding: 10px 12px;
@@ -112,7 +114,7 @@
         th {
             background: #f0f0f0;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 18px;
         }
         .text-right {
             text-align: right;
@@ -120,7 +122,7 @@
         .signature-area {
             display: flex;
             justify-content: space-between;
-            margin-top: 30px;
+            margin-top: 16px;
         }
         .signature-area .sig-box {
             width: 45%;
@@ -128,13 +130,13 @@
         }
         .signature-area .sig-line {
             border-top: 2px solid #333;
-            margin-top: 50px;
+            margin-top: 40px;
             padding-top: 6px;
-            font-size: 14px;
+            font-size: 18px;
         }
         .footer {
-            margin-top: 16px;
-            font-size: 12px;
+            margin-top: 8px;
+            font-size: 15px;
             color: #555;
             text-align: center;
             border-top: 1px dashed #ddd;
@@ -144,18 +146,18 @@
             padding: 10px;
             border: 1px dashed #ddd;
             background: #fafafa;
-            font-size: 13px;
-            margin-bottom: 14px;
+            font-size: 16px;
+            margin-bottom: 8px;
         }
         .status-box {
             padding: 12px;
             background: #f9f9f9;
             border: 1px solid #ddd;
-            margin-bottom: 14px;
+            margin-bottom: 8px;
         }
         .status-box h4 {
             margin: 0 0 12px 0;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
         }
         @media print {
@@ -167,7 +169,9 @@
                 display: none;
             }
             body {
-                font-size: 14px;
+                font-size: 18px;
+                -webkit-font-smoothing: antialiased;
+                text-rendering: optimizeLegibility;
             }
             .receipt {
                 border: 2px solid #000;
