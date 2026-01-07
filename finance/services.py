@@ -199,6 +199,11 @@ class InvoiceService:
             invoice.prepayment = Decimal('0.00')
             # Keep student.credit_balance as is (might be manually set)
         
+        # IMPORTANT: Set balance_bf_original to the frozen value at invoice creation
+        # This value will never change, even when payments clear balance_bf
+        # Used by dashboard stats to show original outstanding balance from previous terms
+        invoice.balance_bf_original = invoice.balance_bf
+        
         invoice.save()
         student.save()
 

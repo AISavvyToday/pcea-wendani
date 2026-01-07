@@ -162,6 +162,11 @@ class Invoice(BaseModel):
     # Balance brought forward from previous term
     balance_bf = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
+    # Balance B/F original frozen value (for dashboard stats)
+    # This is set at invoice creation and NEVER changes, even when payments clear balance_bf
+    # Used by dashboard to show the original outstanding balance from previous terms at term start
+    balance_bf_original = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
+    
     # Prepayment/credit from previous term
     prepayment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
