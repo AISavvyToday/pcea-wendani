@@ -210,12 +210,15 @@ def _finance_kpis(term=None):
 
         # Get balances from students without invoices for current term (active students only)
         # This shows imported balances before invoice generation
+        # IMPORTANT: Exclude students who have ANY invoice for this term (active or deleted)
+        # This prevents double-counting when invoices are deleted - the deleted invoice's
+        # balance_bf_original is excluded from invoice calculations, and we don't want to
+        # count the restored credit_balance either (since it represents the same amount)
         if term:
             students_without_invoices = Student.objects.filter(
                 status='active'
             ).exclude(
-                invoices__term=term,
-                invoices__is_active=True
+                invoices__term=term  # Exclude if they have ANY invoice for this term (active or deleted)
             ).exclude(
                 invoices__status=InvoiceStatus.CANCELLED
             ).distinct()

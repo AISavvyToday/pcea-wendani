@@ -1149,23 +1149,27 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         invoice = self.object
         student = invoice.student
         
-        # Before deleting, restore balance_bf and prepayment to student's credit_balance
-        # This ensures that when the invoice is deleted, the student's outstanding balance
-        # correctly reflects the original balance_bf that was on the invoice
+        # IMPORTANT: When an invoice is deleted, we need to restore the ORIGINAL balance_bf_original
+        # that was there BEFORE the invoice was created, not just add the invoice's balance_bf
+        # The invoice's balance_bf_original represents what was outstanding before invoice creation
         with db_transaction.atomic():
-            # Restore balance_bf to student's credit_balance if it exists
-            # balance_bf represents debt from previous terms, so it should be positive
-            if invoice.balance_bf > 0:
-                # Add the balance_bf back to student's credit_balance
-                # credit_balance is positive for debts
-                current_credit = student.credit_balance or Decimal('0.00')
-                student.credit_balance = current_credit + invoice.balance_bf
+            # Restore the original balance_bf_original that was on the invoice
+            # This represents what was outstanding before invoice creation
+            if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+                # Set credit_balance to the original balance_bf_original (don't add to current)
+                # This ensures the student's outstanding balance shows the original amount
+                student.credit_balance = invoice.balance_bf_original
+                student.save()
+            elif invoice.balance_bf > 0:
+                # Fallback: if balance_bf_original is not set, use balance_bf
+                student.credit_balance = invoice.balance_bf
                 student.save()
             
-            # Restore prepayment to student's credit_balance if it exists
-            # prepayment is stored as negative (credit), so it reduces balance
+            # Handle prepayment restoration
+            # Prepayment is stored as negative (credit), so it reduces balance
             if invoice.prepayment < 0:
-                # prepayment is negative, so adding it to credit_balance maintains the credit
+                # If there was a prepayment, restore it
+                # Since we've already set credit_balance above, we need to adjust it
                 current_credit = student.credit_balance or Decimal('0.00')
                 student.credit_balance = current_credit + invoice.prepayment  # prepayment is already negative
                 student.save()
