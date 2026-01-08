@@ -107,7 +107,10 @@ def _get_staff_count():
 
 def _invoice_base_qs():
     return (
-        Invoice.objects.filter(is_active=True, student__status='active')
+        Invoice.objects.filter(
+            is_active=True, 
+            student__status__in=['active', 'transferred', 'graduated']
+        )
         .exclude(status=InvoiceStatus.CANCELLED)
         .select_related("student", "term", "term__academic_year")
     )
@@ -216,7 +219,7 @@ def _finance_kpis(term=None):
         # count the restored credit_balance either (since it represents the same amount)
         if term:
             students_without_invoices = Student.objects.filter(
-                status='active'
+                status__in=['active', 'transferred', 'graduated']  # Include transferred and graduated
             ).exclude(
                 invoices__term=term  # Exclude if they have ANY invoice for this term (active or deleted)
             ).exclude(
