@@ -3,7 +3,8 @@ Validation script to verify expected amount calculation matches manual calculati
 Expected amount = bal_bf + billed - prepayments
 """
 from django.core.management.base import BaseCommand
-from django.db.models import Sum, Q, Coalesce
+from django.db.models import Sum, Q
+from django.db.models.functions import Coalesce
 from decimal import Decimal
 
 from finance.models import Invoice

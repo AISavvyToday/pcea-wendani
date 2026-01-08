@@ -20,7 +20,8 @@ Unmatched bank transactions:
 import logging
 from decimal import Decimal
 from decimal import Decimal
-from django.db.models import Sum, Q, Coalesce
+from django.db.models import Sum, Q
+from django.db.models.functions import Coalesce
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
