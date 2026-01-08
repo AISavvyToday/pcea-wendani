@@ -20,7 +20,7 @@ Unmatched bank transactions:
 import logging
 from decimal import Decimal
 from decimal import Decimal
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Coalesce
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
@@ -201,7 +201,10 @@ def _finance_kpis(term=None):
         # Therefore, the sum of balance_bf_original from current term invoices remains constant during the term
         # and only changes when a new term starts and new invoices are generated
         # Note: balance_bf decreases as payments are made (used for student accounts), but balance_bf_original stays frozen (used for dashboard)
-        balances_bf_from_invoices = invoices.aggregate(total=Sum('balance_bf_original'))['total'] or 0
+        # Use Coalesce to fallback to balance_bf if balance_bf_original is NULL (for invoices created before this field was added)
+        balances_bf_from_invoices = invoices.aggregate(
+            total=Sum(Coalesce('balance_bf_original', 'balance_bf'))
+        )['total'] or 0
         prepayments_from_invoices = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
 
         # Get balances from students without invoices for current term (active students only)

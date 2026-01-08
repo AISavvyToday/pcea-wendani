@@ -128,18 +128,39 @@ class ResolutionService:
         """
         Extract admission number from Co-op Bank narration fields.
 
+        Priority:
+        1. Check Narration field for pattern #...~ (text between # and ~)
+        2. Fallback to regex pattern matching across all narration fields
+
         Parents typically include the admission number in the payment narration.
-        We search through all narration fields for the pattern.
         """
-        # Combine all narration fields
+        narration = str(narration_fields.get('Narration', '')).strip()
+        
+        # Primary: Check Narration field for #...~ pattern
+        if narration:
+            # Pattern: # followed by text until ~
+            hash_tilde_pattern = re.compile(r'#([^~]+)~')
+            match = hash_tilde_pattern.search(narration)
+            
+            if match:
+                extracted = match.group(1).strip()
+                if extracted:
+                    # Remove PWA prefix if present (for consistency with existing logic)
+                    admission_number = extracted.upper()
+                    if admission_number.startswith('PWA'):
+                        admission_number = admission_number[3:]
+                    logger.info(f"Extracted admission number from #...~ pattern in Narration: {admission_number}")
+                    return admission_number
+        
+        # Fallback: Use existing regex pattern matching across all narration fields
         search_text = ' '.join([
-            str(narration_fields.get('Narration', '')),
+            narration,
             str(narration_fields.get('CustMemoLine1', '')),
             str(narration_fields.get('CustMemoLine2', '')),
             str(narration_fields.get('CustMemoLine3', '')),
         ])
 
-        logger.debug(f"Searching for admission number in: {search_text}")
+        logger.debug(f"Searching for admission number in: {search_text[:200]}")
 
         # Search for admission number pattern
         match = ResolutionService.ADMISSION_PATTERN.search(search_text)
@@ -149,7 +170,7 @@ class ResolutionService:
             # Extract just the numeric part if it has PWA prefix
             if admission_number.upper().startswith('PWA'):
                 admission_number = admission_number[3:]  # Remove 'PWA' prefix
-            logger.info(f"Extracted admission number from narration: {admission_number}")
+            logger.info(f"Extracted admission number from regex pattern: {admission_number}")
             return admission_number
 
         logger.warning(f"No admission number found in narration: {search_text[:100]}")

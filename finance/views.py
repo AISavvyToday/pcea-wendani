@@ -1146,12 +1146,40 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
             )
             return redirect('finance:invoice_detail', pk=self.object.pk)
 
-        # Soft delete - set is_active to False
-        invoice_number = self.object.invoice_number
-        self.object.is_active = False
-        self.object.save()
+        invoice = self.object
+        student = invoice.student
+        
+        # Before deleting, restore balance_bf and prepayment to student's credit_balance
+        # This ensures that when the invoice is deleted, the student's outstanding balance
+        # correctly reflects the original balance_bf that was on the invoice
+        with db_transaction.atomic():
+            # Restore balance_bf to student's credit_balance if it exists
+            # balance_bf represents debt from previous terms, so it should be positive
+            if invoice.balance_bf > 0:
+                # Add the balance_bf back to student's credit_balance
+                # credit_balance is positive for debts
+                current_credit = student.credit_balance or Decimal('0.00')
+                student.credit_balance = current_credit + invoice.balance_bf
+                student.save()
+            
+            # Restore prepayment to student's credit_balance if it exists
+            # prepayment is stored as negative (credit), so it reduces balance
+            if invoice.prepayment < 0:
+                # prepayment is negative, so adding it to credit_balance maintains the credit
+                current_credit = student.credit_balance or Decimal('0.00')
+                student.credit_balance = current_credit + invoice.prepayment  # prepayment is already negative
+                student.save()
 
-        messages.success(request, f'Invoice {invoice_number} deleted successfully.')
+            # Soft delete - set is_active to False
+            invoice_number = invoice.invoice_number
+            invoice.is_active = False
+            invoice.save()
+
+        messages.success(
+            request, 
+            f'Invoice {invoice_number} deleted successfully. '
+            f'Student outstanding balance has been adjusted.'
+        )
         return HttpResponseRedirect(self.get_success_url())
 
 

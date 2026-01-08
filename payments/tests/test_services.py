@@ -17,7 +17,7 @@ from students.models import Student, Grade
 from fees.models import Invoice, InvoiceItem, FeeStructure, FeeItem
 from payments.models import Payment, BankTransaction, PaymentAllocation
 from payments.services.bank_transaction import BankTransactionService
-from payments.services.resolution import StudentResolutionService
+from payments.services.resolution import ResolutionService
 from payments.services.payment import PaymentCreationService
 from payments.services.invoice import InvoiceUpdateService
 from payments.services.notifications import NotificationService
@@ -131,10 +131,10 @@ class BankTransactionServiceTests(TestCase):
 
 
 class StudentResolutionServiceTests(TestCase):
-    """Tests for StudentResolutionService"""
+    """Tests for ResolutionService"""
 
     def setUp(self):
-        self.service = StudentResolutionService()
+        self.service = ResolutionService()
 
         # Create test grade
         self.grade = Grade.objects.create(
@@ -199,43 +199,124 @@ class StudentResolutionServiceTests(TestCase):
         self.assertIn('not active', str(context.exception))
 
     def test_extract_admission_from_narration_success(self):
-        """Test extraction of admission number from narration"""
-        narrations = [
-            'FT from John Doe',
-            'School fees PWA1001',
-            'Term 1 payment'
-        ]
-        result = self.service.extract_admission_from_narration(narrations)
-        self.assertEqual(result, 'PWA1001')
+        """Test extraction of admission number from narration using fallback pattern"""
+        narration_fields = {
+            'Narration': 'FT from John Doe',
+            'CustMemoLine1': 'School fees PWA1001',
+            'CustMemoLine2': 'Term 1 payment',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '1001')  # PWA prefix removed
 
     def test_extract_admission_from_narration_variations(self):
-        """Test various narration formats"""
+        """Test various narration formats using fallback pattern"""
         test_cases = [
-            (['Payment for PWA1001'], 'PWA1001'),
-            (['pwa1001 fees'], 'PWA1001'),
-            (['Ref: PWA-1001'], 'PWA1001'),
-            (['Student PWA 1001 fees'], 'PWA1001'),
+            ({'Narration': 'Payment for PWA1001', 'CustMemoLine1': '', 'CustMemoLine2': '', 'CustMemoLine3': ''}, '1001'),
+            ({'Narration': 'pwa1001 fees', 'CustMemoLine1': '', 'CustMemoLine2': '', 'CustMemoLine3': ''}, '1001'),
+            ({'Narration': 'Ref: PWA-1001', 'CustMemoLine1': '', 'CustMemoLine2': '', 'CustMemoLine3': ''}, '1001'),
+            ({'Narration': 'Student PWA 1001 fees', 'CustMemoLine1': '', 'CustMemoLine2': '', 'CustMemoLine3': ''}, '1001'),
         ]
 
-        for narrations, expected in test_cases:
-            result = self.service.extract_admission_from_narration(narrations)
-            self.assertEqual(result, expected, f"Failed for: {narrations}")
+        for narration_fields, expected in test_cases:
+            result = self.service.extract_admission_from_narration(narration_fields)
+            self.assertEqual(result, expected, f"Failed for: {narration_fields}")
 
     def test_extract_admission_from_narration_not_found(self):
         """Test when no admission number in narration"""
-        narrations = ['General payment', 'No reference']
-        result = self.service.extract_admission_from_narration(narrations)
+        narration_fields = {
+            'Narration': 'General payment',
+            'CustMemoLine1': 'No reference',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
         self.assertIsNone(result)
+
+    def test_extract_admission_from_hash_tilde_pattern(self):
+        """Test extraction using #...~ pattern from Narration field"""
+        narration_fields = {
+            'Narration': 'UA78T33Q20~393939#2204~254710593745~MPESAC2B_40',
+            'CustMemoLine1': '',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '2204')
+
+    def test_extract_admission_from_hash_tilde_with_pwa(self):
+        """Test extraction of PWA format from #...~ pattern"""
+        narration_fields = {
+            'Narration': 'Payment#PWA2204~for school fees',
+            'CustMemoLine1': '',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '2204')  # PWA prefix should be removed
+
+    def test_extract_admission_hash_tilde_fallback(self):
+        """Test fallback to regex when #...~ pattern not found"""
+        narration_fields = {
+            'Narration': 'UA78T33Q20~393939~254710593745~MPESAC2B_40',  # No #...~ pattern
+            'CustMemoLine1': 'Payment for PWA1001',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '1001')  # Should use fallback regex pattern
+
+    def test_extract_admission_hash_tilde_edge_cases(self):
+        """Test edge cases for #...~ pattern"""
+        # Multiple # characters - should use first match
+        narration_fields = {
+            'Narration': 'First#2204~then#3305~more text',
+            'CustMemoLine1': '',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '2204')  # Should extract first match
+
+        # Missing ~ after # - should fallback to regex
+        narration_fields = {
+            'Narration': 'Payment#2204but no tilde',
+            'CustMemoLine1': 'PWA1001',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '1001')  # Should fallback to regex
+
+        # Empty narration field - should use fallback
+        narration_fields = {
+            'Narration': '',
+            'CustMemoLine1': 'PWA1001 fees',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '1001')  # Should use fallback regex
+
+        # Only # without ~ - should fallback
+        narration_fields = {
+            'Narration': 'Payment#2204',
+            'CustMemoLine1': 'PWA1001',
+            'CustMemoLine2': '',
+            'CustMemoLine3': ''
+        }
+        result = self.service.extract_admission_from_narration(narration_fields)
+        self.assertEqual(result, '1001')  # Should fallback to regex
 
     def test_resolve_student_only(self):
         """Test resolving student without invoice requirement"""
-        student = self.service.resolve_student_only('PWA1001')
+        student = self.service.get_student_by_admission('PWA1001')
         self.assertEqual(student, self.student)
 
     def test_get_outstanding_amount(self):
         """Test getting outstanding amount for student"""
-        amount = self.service.get_outstanding_amount(self.student)
-        self.assertEqual(amount, Decimal('50000.00'))
+        amount, description = self.service.calculate_outstanding_amount(self.student)
+        self.assertEqual(amount, 50000.00)
 
 
 class PaymentCreationServiceTests(TestCase):
