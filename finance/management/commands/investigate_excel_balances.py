@@ -15,6 +15,9 @@ from finance.models import Invoice
 from students.models import Student
 from core.models import InvoiceStatus
 from portal.views import _get_current_term, _invoice_base_qs
+from payments.models import PaymentAllocation
+from payments.services.invoice import InvoiceService
+from core.models import PaymentStatus
 
 
 class Command(BaseCommand):
@@ -24,7 +27,15 @@ class Command(BaseCommand):
         parser.add_argument(
             'excel_file',
             type=str,
-            help='Path to the original Excel file with student data',
+            nargs='?',
+            default=None,
+            help='Path to the original Excel file with student data (or use --excel-base64)',
+        )
+        parser.add_argument(
+            '--excel-base64',
+            type=str,
+            default=None,
+            help='Base64 encoded Excel file data (alternative to excel_file path)',
         )
         parser.add_argument(
             '--admission-column',
@@ -55,15 +66,32 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        excel_file = options['excel_file']
+        excel_file = options.get('excel_file')
+        excel_base64 = options.get('excel_base64')
         admission_col = options.get('admission_column')
         balance_col = options.get('balance_column')
         dry_run = options.get('dry_run', False)
         verbose = options.get('verbose', False)
         apply_corrections = options.get('apply_corrections', False)
         
-        if not os.path.exists(excel_file):
+        # Handle base64 encoded Excel data
+        if excel_base64:
+            import base64
+            import tempfile
+            try:
+                excel_data = base64.b64decode(excel_base64)
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+                temp_file.write(excel_data)
+                temp_file.close()
+                excel_file = temp_file.name
+                self.stdout.write(f'✓ Decoded Excel file from base64: {excel_file}')
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Error decoding base64 Excel data: {e}'))
+                return
+        
+        if not excel_file or not os.path.exists(excel_file):
             self.stdout.write(self.style.ERROR(f'Excel file not found: {excel_file}'))
+            self.stdout.write('Please provide either excel_file path or --excel-base64')
             return
         
         term = _get_current_term()
@@ -168,6 +196,17 @@ class Command(BaseCommand):
             current_bf_original = invoice.balance_bf_original or Decimal('0.00')
             total_current_bf_original += current_bf_original
             
+            # Calculate what balance_bf_original SHOULD be based on current state + payments
+            # If payments were made to balance_bf, we need to restore the original value
+            allocations_to_items = InvoiceService._sum_allocations_for_invoice(invoice)
+            balance_bf_paid = Decimal('0.00')
+            if invoice.balance_bf > 0 and invoice.amount_paid > allocations_to_items:
+                balance_bf_paid = invoice.amount_paid - allocations_to_items
+                balance_bf_paid = min(balance_bf_paid, invoice.balance_bf)
+            
+            # Original balance_bf should be current balance_bf + what was paid to it
+            calculated_bf_original = invoice.balance_bf + balance_bf_paid
+            
             # Try to find original balance from Excel
             original_balance = original_balances.get(admission)
             if original_balance is None and '/' in admission:
@@ -183,14 +222,22 @@ class Command(BaseCommand):
                 if original_balance > 0:
                     total_original_excel += original_balance
                 
+                # Use Excel value as the authoritative source for balance_bf_original
+                # But also check if calculated value matches
                 difference = current_bf_original - original_balance
-                if abs(difference) > Decimal('0.01'):
+                calculated_difference = calculated_bf_original - original_balance
+                
+                if abs(difference) > Decimal('0.01') or abs(calculated_difference) > Decimal('0.01'):
                     discrepancies.append({
                         'invoice': invoice,
                         'admission': admission,
                         'excel_balance': original_balance,
                         'current_bf_original': current_bf_original,
-                        'difference': difference
+                        'calculated_bf_original': calculated_bf_original,
+                        'current_balance_bf': invoice.balance_bf,
+                        'balance_bf_paid': balance_bf_paid,
+                        'difference': difference,
+                        'calculated_difference': calculated_difference
                     })
                     if verbose:
                         self.stdout.write(
@@ -238,18 +285,20 @@ class Command(BaseCommand):
             self.stdout.write(f'Found {len(discrepancies)} invoices with discrepancies:')
             self.stdout.write('-' * 80)
             self.stdout.write(
-                f'{"Invoice":<20} {"Student":<15} {"Excel":>15} {"Current":>15} {"Difference":>15}'
+                f'{"Invoice":<20} {"Student":<15} {"Excel":>12} {"Current":>12} {"Calculated":>12} {"BF Paid":>12} {"Diff":>12}'
             )
-            self.stdout.write('-' * 80)
+            self.stdout.write('-' * 100)
             
             for disc in discrepancies[:50]:  # Show top 50
                 inv = disc['invoice']
                 self.stdout.write(
                     f"{inv.invoice_number:<20} "
                     f"{disc['admission']:<15} "
-                    f"{disc['excel_balance']:>15,.2f} "
-                    f"{disc['current_bf_original']:>15,.2f} "
-                    f"{disc['difference']:>15,.2f}"
+                    f"{disc['excel_balance']:>12,.2f} "
+                    f"{disc['current_bf_original']:>12,.2f} "
+                    f"{disc.get('calculated_bf_original', 0):>12,.2f} "
+                    f"{disc.get('balance_bf_paid', 0):>12,.2f} "
+                    f"{disc['difference']:>12,.2f}"
                 )
             
             if len(discrepancies) > 50:
@@ -259,18 +308,43 @@ class Command(BaseCommand):
             if apply_corrections and not dry_run:
                 self.stdout.write('')
                 self.stdout.write('Applying corrections...')
+                self.stdout.write('Setting balance_bf_original from Excel values...')
                 
                 with transaction.atomic():
                     corrected_count = 0
+                    total_corrected = Decimal('0.00')
                     for disc in discrepancies:
                         inv = disc['invoice']
-                        inv.balance_bf_original = disc['excel_balance']
-                        inv.save(update_fields=['balance_bf_original'])
-                        corrected_count += 1
+                        old_value = inv.balance_bf_original or Decimal('0.00')
+                        new_value = disc['excel_balance']
+                        # Only set positive values (debts) as balance_bf_original
+                        # Negative values (prepayments) should go to prepayment field
+                        if new_value > 0:
+                            inv.balance_bf_original = new_value
+                            inv.save(update_fields=['balance_bf_original'])
+                            corrected_count += 1
+                            total_corrected += new_value
+                            if verbose:
+                                self.stdout.write(
+                                    f'  {inv.invoice_number} ({disc["admission"]}): '
+                                    f'{old_value:,.2f} -> {new_value:,.2f}'
+                                )
+                        elif new_value < 0:
+                            # Negative value = prepayment, should not be in balance_bf_original
+                            if old_value > 0:
+                                inv.balance_bf_original = Decimal('0.00')
+                                inv.save(update_fields=['balance_bf_original'])
+                                corrected_count += 1
+                                if verbose:
+                                    self.stdout.write(
+                                        f'  {inv.invoice_number} ({disc["admission"]}): '
+                                        f'Cleared balance_bf_original (was {old_value:,.2f}, Excel shows prepayment)'
+                                    )
                 
                 self.stdout.write(self.style.SUCCESS(
                     f'✓ Successfully corrected {corrected_count} invoices'
                 ))
+                self.stdout.write(f'Total balance_bf_original set: {total_corrected:,.2f}')
             elif dry_run:
                 self.stdout.write('')
                 self.stdout.write(self.style.WARNING('DRY RUN MODE - No changes were made'))
