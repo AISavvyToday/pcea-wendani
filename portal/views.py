@@ -209,7 +209,10 @@ def _finance_kpis(term=None):
         balances_bf_from_invoices = invoices.aggregate(
             total=Sum(Coalesce('balance_bf_original', 'balance_bf'))
         )['total'] or 0
-        prepayments_from_invoices = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
+        # Get prepayments from invoices (stored as negative)
+        prepayments_from_invoices_raw = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
+        # Convert negative to positive (prepayment is stored as negative, like credit_balance)
+        prepayments_from_invoices = abs(prepayments_from_invoices_raw) if prepayments_from_invoices_raw else 0
 
         # Get balances from students without invoices for current term (active students only)
         # This shows imported balances before invoice generation
