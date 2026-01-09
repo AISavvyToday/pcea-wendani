@@ -99,7 +99,7 @@ class Command(BaseCommand):
             writer.writerow([
                 'Payment ID', 'Student Admission Number', 'Student Name',
                 'Invoice Number', 'Amount', 'Payment Date', 'Payment Method',
-                'Status', 'Is Active', 'Reference Number', 'Created At'
+                'Status', 'Is Active', 'Payment Reference', 'Transaction Reference', 'Created At'
             ])
             
             for pmt in payments:
@@ -113,7 +113,8 @@ class Command(BaseCommand):
                     pmt.payment_method,
                     pmt.status,
                     pmt.is_active,
-                    pmt.reference_number,
+                    pmt.payment_reference,
+                    pmt.transaction_reference,
                     pmt.created_at,
                 ])
         
