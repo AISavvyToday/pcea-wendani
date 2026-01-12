@@ -23,6 +23,7 @@ from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionF
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from core.models import UserRole, InvoiceStatus
+from finance.models import Invoice
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +316,42 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
             # Status is changing - update status_date
             form.instance.status_date = timezone.now()
             
+            # Handle invoice deletion and balance_bf restoration for graduated/transferred students
+            if new_status in ['graduated', 'transferred']:
+                student = form.instance
+                current_term = Term.objects.filter(is_current=True).first()
+                
+                if current_term:
+                    # Get active invoices for current term
+                    current_invoices = Invoice.objects.filter(
+                        student=student,
+                        term=current_term,
+                        is_active=True
+                    ).exclude(status=InvoiceStatus.CANCELLED)
+                    
+                    if current_invoices.exists():
+                        # Sum balance_bf_original (frozen value) or fallback to balance_bf
+                        total_balance_bf = Decimal('0.00')
+                        for invoice in current_invoices:
+                            # Use balance_bf_original if available, otherwise balance_bf
+                            bf_value = invoice.balance_bf_original if invoice.balance_bf_original is not None else invoice.balance_bf
+                            total_balance_bf += bf_value
+                        
+                        # Soft delete invoices (set is_active=False)
+                        # This removes them from dashboard calculations
+                        current_invoices.update(is_active=False)
+                        
+                        # Restore balance_bf to student's credit_balance
+                        # This preserves the outstanding debt from previous terms
+                        current_credit = student.credit_balance or Decimal('0.00')
+                        form.instance.credit_balance = current_credit + total_balance_bf
+                        
+                        messages.info(
+                            self.request,
+                            f'Student status changed to "{new_status}". '
+                            f'Invoices deleted. Balance b/f ({total_balance_bf:,.2f}) restored to student account.'
+                        )
+            
             # Add a note about who changed the status
             current_reason = form.instance.status_reason or ''
             change_note = f"Status changed from {original_status} to {new_status} by {self.request.user.get_full_name()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}"
@@ -323,11 +360,12 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
             else:
                 form.instance.status_reason = change_note
             
-            messages.info(
-                self.request,
-                f'Student status changed from "{original_status}" to "{new_status}". '
-                f'Financial records have been preserved.'
-            )
+            if new_status not in ['graduated', 'transferred']:
+                messages.info(
+                    self.request,
+                    f'Student status changed from "{original_status}" to "{new_status}". '
+                    f'Financial records have been preserved.'
+                )
         
         messages.success(self.request, 'Student updated successfully!')
         return super().form_valid(form)
