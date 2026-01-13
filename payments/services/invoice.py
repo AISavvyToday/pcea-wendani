@@ -61,19 +61,30 @@ class InvoiceService:
         """
         Recalculate invoice.amount_paid, invoice.balance, invoice.status from allocations.
         IMPORTANT: This preserves balance_bf payments that were added to amount_paid.
-        balance_bf is frozen at invoice creation and should never be modified.
+        balance_bf decreases as payments are made (for student account), but balance_bf_original stays frozen (for dashboard).
         """
         # Get allocations to invoice items only
         allocations_to_items = InvoiceService._sum_allocations_for_invoice(invoice)
         
         # Preserve balance_bf payments from existing amount_paid
-        # If invoice has balance_bf and current amount_paid > allocations_to_items,
+        # If invoice has balance_bf_original and current amount_paid > allocations_to_items,
         # the difference represents balance_bf payments (preserved from previous calculations)
         balance_bf_paid = Decimal('0.00')
-        if invoice.balance_bf > 0 and invoice.amount_paid > allocations_to_items:
+        if invoice.amount_paid > allocations_to_items:
             balance_bf_paid = invoice.amount_paid - allocations_to_items
-            # Can't exceed original balance_bf
-            balance_bf_paid = min(balance_bf_paid, invoice.balance_bf)
+            # Can't exceed original balance_bf_original (frozen value)
+            # Use balance_bf_original if available, otherwise use current balance_bf
+            max_balance_bf = invoice.balance_bf_original if invoice.balance_bf_original is not None else invoice.balance_bf
+            balance_bf_paid = min(balance_bf_paid, max_balance_bf)
+        
+        # Calculate what balance_bf should be (original - paid)
+        # This ensures balance_bf decreases as payments are made
+        if invoice.balance_bf_original is not None:
+            # Use balance_bf_original as the source of truth
+            invoice.balance_bf = max(Decimal('0.00'), invoice.balance_bf_original - balance_bf_paid)
+        elif balance_bf_paid > 0:
+            # Fallback: if balance_bf_original not set, decrease current balance_bf
+            invoice.balance_bf = max(Decimal('0.00'), invoice.balance_bf - balance_bf_paid)
         
         # amount_paid = allocations to items + balance_bf payments
         invoice.amount_paid = allocations_to_items + balance_bf_paid
@@ -91,8 +102,8 @@ class InvoiceService:
         elif invoice.due_date and invoice.due_date < today:
             invoice.status = InvoiceStatus.OVERDUE
 
-        # IMPORTANT: update_fields must include balance/amount_paid/status
-        invoice.save(update_fields=["amount_paid", "balance", "status", "updated_at"])
+        # IMPORTANT: update_fields must include balance_bf/amount_paid/balance/status
+        invoice.save(update_fields=["balance_bf", "amount_paid", "balance", "status", "updated_at"])
         return invoice
 
     @staticmethod
@@ -264,6 +275,10 @@ class InvoiceService:
                 if outstanding_balance_bf > 0:
                     amount_to_clear_bf = min(remaining, outstanding_balance_bf)
                     
+                    # IMPORTANT: Decrease balance_bf (for student account display)
+                    # balance_bf_original stays frozen (for dashboard stats)
+                    invoice.balance_bf = invoice.balance_bf - amount_to_clear_bf
+                    
                     # Add this payment to amount_paid (balance_bf payments are tracked here)
                     # We'll manually update balance instead of calling _recalculate_invoice_fields
                     # because _recalculate_invoice_fields would overwrite amount_paid with only allocations
@@ -276,7 +291,7 @@ class InvoiceService:
                     elif invoice.amount_paid > 0:
                         invoice.status = InvoiceStatus.PARTIALLY_PAID
                     
-                    invoice.save(update_fields=['amount_paid', 'balance', 'status', 'updated_at'])
+                    invoice.save(update_fields=['balance_bf', 'amount_paid', 'balance', 'status', 'updated_at'])
                     
                     balance_bf_cleared_total += amount_to_clear_bf
                     remaining -= amount_to_clear_bf
