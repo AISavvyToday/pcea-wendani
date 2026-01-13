@@ -1,0 +1,269 @@
+j@j-Latitude-5310:~/Projects/Pcea Wendani/purple-free$ ls
+dist  package.json  package-lock.json  src
+j@j-Latitude-5310:~/Projects/Pcea Wendani/purple-free$ find dist -type f | head -20
+dist/docs/style.css
+dist/docs/documentation.html
+dist/docs/script.js
+dist/index.html
+dist/pages/icons/font-awesome.html
+dist/pages/charts/chartjs.html
+dist/pages/forms/basic_elements.html
+dist/pages/tables/basic-table.html
+dist/pages/ui-features/typography.html
+dist/pages/ui-features/buttons.html
+dist/pages/ui-features/dropdowns.html
+dist/pages/samples/login.html
+dist/pages/samples/error-404.html
+dist/pages/samples/blank-page.html
+dist/pages/samples/register.html
+dist/pages/samples/error-500.html
+dist/assets/vendors/font-awesome/fonts/fontawesome-webfont.eot
+dist/assets/vendors/font-awesome/fonts/fontawesome-webfont.svg
+dist/assets/vendors/font-awesome/fonts/fontawesome-webfont.woff2
+dist/assets/vendors/font-awesome/fonts/fontawesome-webfont.woff
+j@j-Latitude-5310:~/Projects/Pcea Wendani/purple-free$ ls -R dist
+dist:
+assets  docs  index.html  pages
+
+dist/assets:
+css  fonts  images  js  vendors
+
+dist/assets/css:
+maps  style.css
+
+dist/assets/css/maps:
+style.css.map
+
+dist/assets/fonts:
+Ubuntu
+
+dist/assets/fonts/Ubuntu:
+Ubuntu-Bold.eot    Ubuntu-Light.woff    Ubuntu-Regular.eot
+Ubuntu-Bold.ttf    Ubuntu-Light.woff2   Ubuntu-Regular.ttf
+Ubuntu-Bold.woff   Ubuntu-Medium.eot    Ubuntu-Regular.woff
+Ubuntu-Bold.woff2  Ubuntu-Medium.ttf    Ubuntu-Regular.woff2
+Ubuntu-Light.eot   Ubuntu-Medium.woff
+Ubuntu-Light.ttf   Ubuntu-Medium.woff2
+
+dist/assets/images:
+auth         dashboard  faces-clipart  lightbox        product_images_2
+brand_icons  demo       favicon.ico    logo-mini.svg   samples
+carousel     email      favicon.png    logo.svg        screenshots
+chat         faces      file-icons     product_images  sprites
+
+dist/assets/images/auth:
+lockscreen-bg.jpg  login-bg.jpg  register-bg.jpg
+
+dist/assets/images/brand_icons:
+bitmap.jpg  oval-copy.jpg  oval.jpg
+
+dist/assets/images/carousel:
+banner_10.jpg  banner_1.jpg  banner_4.jpg  banner_7.jpg
+banner_11.jpg  banner_2.jpg  banner_5.jpg  banner_8.jpg
+banner_12.jpg  banner_3.jpg  banner_6.jpg  banner_9.jpg
+
+dist/assets/images/chat:
+profile_image.jpg  thumb_image3.jpg  thumb_image6.jpg
+thumb_image1.jpg   thumb_image4.jpg  thumb_image7.jpg
+thumb_image2.jpg   thumb_image5.jpg  thumb_image8.jpg
+
+dist/assets/images/dashboard:
+circle.png  ecommerce  food       img_2.jpg  img_4.jpg
+circle.svg  erp        img_1.jpg  img_3.jpg
+
+dist/assets/images/dashboard/ecommerce:
+img_2.png  Shoe_1.jpg  Shoe_2.jpg  Shoe_3.jpg  Shoe_4.jpg
+
+dist/assets/images/dashboard/erp:
+img_1.png
+
+dist/assets/images/dashboard/food:
+food_1.jpg  food_4.jpg  items_1.jpg  items_4.jpg  order_4.jpg
+food_2.jpg  food_5.jpg  items_2.jpg  order_2.jpg  title.png
+food_3.jpg  food_6.jpg  items_3.jpg  order_3.jpg
+
+dist/assets/images/demo:
+boxed-layout.png  horizontal-menu-dark.png   toggle-menu.png
+calendar.png      horizontal-menu-light.png  toggle-overlay-menu.png
+compact-menu.png  icon-menu.png              vertical-dark.png
+dark-sidebar.png  login.png                  vertical-default.png
+email.png         portfolio.png
+fixed-menu.png    pricing.png
+
+dist/assets/images/email:
+fb.png  mail-image.jpg  medium.png  slack.png  twitter.png  youtube.png
+
+dist/assets/images/faces:
+face10.jpg  face15.jpg  face1.jpg   face24.jpg  face3.jpg  face8.jpg
+face11.jpg  face16.jpg  face20.jpg  face25.jpg  face4.jpg  face9.jpg
+face12.jpg  face17.jpg  face21.jpg  face26.jpg  face5.jpg
+face13.jpg  face18.jpg  face22.jpg  face27.jpg  face6.jpg
+face14.jpg  face19.jpg  face23.jpg  face2.jpg   face7.jpg
+
+dist/assets/images/faces-clipart:
+pic-1.png  pic-2.png  pic-3.png  pic-4.png
+
+dist/assets/images/file-icons:
+128  64          firefox.png  icon-google.svg        Safari.png
+256  chrome.png  flag.png     Internet-Explorer.png  vivaldi.png
+512  extension   icon-3.svg   opera.png
+
+dist/assets/images/file-icons/128:
+001-interface-1.png  003-interface.png  005-database.png  007-folder.png
+002-tool.png         004-folder-1.png   006-record.png    008-archive.png
+
+dist/assets/images/file-icons/256:
+001-interface-1.png  003-interface.png  005-database.png  007-folder.png
+002-tool.png         004-folder-1.png   006-record.png    008-archive.png
+
+dist/assets/images/file-icons/512:
+001-interface-1.png  003-interface.png  005-database.png  007-folder.png
+002-tool.png         004-folder-1.png   006-record.png    008-archive.png
+
+dist/assets/images/file-icons/64:
+001-interface-1.png  003-interface.png  005-database.png  007-folder.png
+002-tool.png         004-folder-1.png   006-record.png    008-archive.png
+
+dist/assets/images/file-icons/extension:
+corrupted-file.png  document.png       git-file.png  server-2.png
+css.png             download-file.png  html.png      server.png
+database.png        folder-open.png    js-file.png   zip-file.png
+doc-file.png        folder.png         pdf.png       zip.png
+
+dist/assets/images/lightbox:
+play-button.png  thumb-v-v-2.jpg  thumb-v-y-2.jpg
+thumb-v-v-1.jpg  thumb-v-y-1.jpg
+
+dist/assets/images/product_images:
+apple-watch_2.jpg    headphone.jpeg     iphone-x.jpg     shoe.jpeg
+apple-watch.jpg      Homepod.png        macbook-pro.png  watch.jpeg
+baf.jpeg             homepod_small.png  magic-mouse.png
+ball.jpeg            imac.png           shoe_2.jpeg
+beats-headphone.jpg  iphone.png         shoe_3.jpeg
+
+dist/assets/images/product_images_2:
+thumb_image10.jpg  thumb_image1.jpg  thumb_image4.jpg  thumb_image7.jpg
+thumb_image11.jpg  thumb_image2.jpg  thumb_image5.jpg  thumb_image8.jpg
+thumb_image12.jpg  thumb_image3.jpg  thumb_image6.jpg  thumb_image9.jpg
+
+dist/assets/images/samples:
+1280x768       bootstrap-stack.png  e-commerce.png  forms.png  popup.png
+300x300        charts.png           editors.png     html5.png  weather.svg
+angular-4.png  dashboard.png        email.png       modal.png  widgets.png
+
+dist/assets/images/samples/1280x768:
+10.jpg  12.jpg  14.jpg  1.jpg  3.jpg  5.jpg  7.jpg  9.jpg
+11.jpg  13.jpg  15.jpg  2.jpg  4.jpg  6.jpg  8.jpg
+
+dist/assets/images/samples/300x300:
+10.jpg  12.jpg  14.jpg  1.jpg  3.jpg  5.jpg  7.jpg  9.jpg
+11.jpg  13.jpg  15.jpg  2.jpg  4.jpg  6.jpg  8.jpg
+
+dist/assets/images/screenshots:
+horizontal-dark.jpg   vertical-dark.jpg
+horizontal-light.jpg  vertical-light.jpg
+
+dist/assets/images/sprites:
+blue.png  flag.png   jsgrid-icons-color.png  red.png
+dark.png  green.png  jsgrid-icons.png        yellow.png
+
+dist/assets/js:
+chart.js           file-upload.js         off-canvas.js  typeahead.js
+codemirror.js      jquery.cookie.js       select2.js
+dashboard-dark.js  jquery-file-upload.js  settings.js
+dashboard.js       misc.js                todolist.js
+
+dist/assets/vendors:
+bootstrap-datepicker  font-awesome        owl-carousel-2           ti-icons
+chart.js              jquery-file-upload  pwstabs                  typeahead.js
+codemirror            js                  select2
+css                   mdi                 select2-bootstrap-theme
+
+dist/assets/vendors/bootstrap-datepicker:
+bootstrap-datepicker.min.css  bootstrap-datepicker.min.js
+
+dist/assets/vendors/chart.js:
+chart.umd.js
+
+dist/assets/vendors/codemirror:
+ambiance.css  codemirror.css  codemirror.js  javascript.js  shell.js
+
+dist/assets/vendors/css:
+vendor.bundle.base.css
+
+dist/assets/vendors/font-awesome:
+css  fonts
+
+dist/assets/vendors/font-awesome/css:
+font-awesome.min.css
+
+dist/assets/vendors/font-awesome/fonts:
+FontAwesome.otf          fontawesome-webfont.svg  fontawesome-webfont.woff
+fontawesome-webfont.eot  fontawesome-webfont.ttf  fontawesome-webfont.woff2
+
+dist/assets/vendors/jquery-file-upload:
+jquery.uploadfile.min.js
+
+dist/assets/vendors/js:
+bootstrap.min.js.map  vendor.bundle.base.js
+
+dist/assets/vendors/mdi:
+css  fonts
+
+dist/assets/vendors/mdi/css:
+materialdesignicons.min.css  materialdesignicons.min.css.map
+
+dist/assets/vendors/mdi/fonts:
+materialdesignicons-webfont.eot  materialdesignicons-webfont.woff
+materialdesignicons-webfont.ttf  materialdesignicons-webfont.woff2
+
+dist/assets/vendors/owl-carousel-2:
+owl.carousel.min.css  owl.theme.default.min.css
+owl.carousel.min.js   owl.video.play.png
+
+dist/assets/vendors/pwstabs:
+jquery.pwstabs.min.css  jquery.pwstabs.min.js
+
+dist/assets/vendors/select2:
+select2.min.css  select2.min.js
+
+dist/assets/vendors/select2-bootstrap-theme:
+select2-bootstrap.min.css
+
+dist/assets/vendors/ti-icons:
+css  fonts
+
+dist/assets/vendors/ti-icons/css:
+themify-icons.css
+
+dist/assets/vendors/ti-icons/fonts:
+themify.eot  themify.svg  themify.ttf  themify.woff
+
+dist/assets/vendors/typeahead.js:
+typeahead.bundle.min.js
+
+dist/docs:
+documentation.html  script.js  style.css
+
+dist/pages:
+charts  forms  icons  samples  tables  ui-features
+
+dist/pages/charts:
+chartjs.html
+
+dist/pages/forms:
+basic_elements.html
+
+dist/pages/icons:
+font-awesome.html
+
+dist/pages/samples:
+blank-page.html  error-404.html  error-500.html  login.html  register.html
+
+dist/pages/tables:
+basic-table.html
+
+dist/pages/ui-features:
+buttons.html  dropdowns.html  typography.html
+j@j-Latitude-5310:~/Projects/Pcea Wendani/purple-free$ 
+
