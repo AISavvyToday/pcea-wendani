@@ -113,7 +113,7 @@ class CoopIPNView(APIView):
                 )
                 logger.warning(f"Coop IPN: No admission number in narration for {transaction_id}")
                 return Response(
-                    {"MessageCode": "200", "Message": "Payment received, pending manual matching"},
+                    {"MessageCode": "200", "Message": "Successfully received data"},
                     status=status.HTTP_200_OK,
                 )
 
@@ -129,7 +129,7 @@ class CoopIPNView(APIView):
                 return Response(
                     {
                         "MessageCode": "200",
-                        "Message": "Payment received, student not found - pending manual matching",
+                        "Message": "Successfully received data",
                     },
                     status=status.HTTP_200_OK,
                 )

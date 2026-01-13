@@ -24,7 +24,8 @@ from payments.models import BankTransaction, Payment
 
 
 @override_settings(
-    EQUITY_API_KEY='test-equity-api-key-12345',
+    EQUITY_IPN_USERNAME='testuser',
+    EQUITY_IPN_PASSWORD='testpass',
     COOP_IPN_USERNAME='testuser',
     COOP_IPN_PASSWORD='testpass',
     SCHOOL_COOP_ACCOUNT_NO='01234567890100'
@@ -133,13 +134,14 @@ class EquityValidationViewTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_validation_wrong_api_key(self):
-        """Test validation with wrong API key"""
+    def test_validation_wrong_credentials(self):
+        """Test validation with wrong credentials"""
+        wrong_creds = base64.b64encode(b'wronguser:wrongpass').decode('utf-8')
         response = self.client.post(
             self.url,
             data={'billNumber': 'PWA1001'},
             format='json',
-            HTTP_AUTHORIZATION='Api-Key wrong-key'
+            HTTP_AUTHORIZATION=f'Basic {wrong_creds}'
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -159,7 +161,8 @@ class EquityValidationViewTests(TestCase):
 
 
 @override_settings(
-    EQUITY_API_KEY='test-equity-api-key-12345',
+    EQUITY_IPN_USERNAME='testuser',
+    EQUITY_IPN_PASSWORD='testpass',
     COOP_IPN_USERNAME='testuser',
     COOP_IPN_PASSWORD='testpass',
     SCHOOL_COOP_ACCOUNT_NO='01234567890100'
@@ -202,7 +205,8 @@ class EquityNotificationViewTests(TestCase):
         )
 
     def get_auth_header(self):
-        return {'HTTP_AUTHORIZATION': 'Api-Key test-equity-api-key-12345'}
+        credentials = base64.b64encode(b'testuser:testpass').decode('utf-8')
+        return {'HTTP_AUTHORIZATION': f'Basic {credentials}'}
 
     def get_valid_payload(self):
         return {
@@ -601,17 +605,18 @@ class AuthenticationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @override_settings(EQUITY_API_KEY='correct-key')
+    @override_settings(EQUITY_IPN_USERNAME='correctuser', EQUITY_IPN_PASSWORD='correctpass')
     def test_equity_auth_header_formats(self):
-        """Test various API key header formats"""
+        """Test various Basic auth header formats"""
         url = reverse('payments:equity-validation')
 
         # Correct format
+        creds = base64.b64encode(b'correctuser:correctpass').decode('utf-8')
         response = self.client.post(
             url,
             data={'billNumber': 'TEST'},
             format='json',
-            HTTP_AUTHORIZATION='Api-Key correct-key'
+            HTTP_AUTHORIZATION=f'Basic {creds}'
         )
         # Will be 404 (bill not found) not 401 (unauthorized)
         self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -625,12 +630,12 @@ class AuthenticationTests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # No prefix
+        # Invalid base64
         response = self.client.post(
             url,
             data={'billNumber': 'TEST'},
             format='json',
-            HTTP_AUTHORIZATION='correct-key'
+            HTTP_AUTHORIZATION='Basic not-base64!'
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -665,33 +670,35 @@ class ErrorHandlingTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @override_settings(EQUITY_API_KEY='test-key')
+    @override_settings(EQUITY_IPN_USERNAME='testuser', EQUITY_IPN_PASSWORD='testpass')
     @patch('payments.views.equity.logger')
     def test_errors_are_logged(self, mock_logger):
         """Test that errors are properly logged"""
         url = reverse('payments:equity-validation')
+        creds = base64.b64encode(b'testuser:testpass').decode('utf-8')
 
         response = self.client.post(
             url,
             data={'billNumber': 'NONEXISTENT'},
             format='json',
-            HTTP_AUTHORIZATION='Api-Key test-key'
+            HTTP_AUTHORIZATION=f'Basic {creds}'
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         # Verify logging was called
         self.assertTrue(mock_logger.warning.called or mock_logger.error.called)
 
-    @override_settings(EQUITY_API_KEY='test-key')
+    @override_settings(EQUITY_IPN_USERNAME='testuser', EQUITY_IPN_PASSWORD='testpass')
     def test_error_response_format(self):
         """Test error responses match expected format"""
         url = reverse('payments:equity-validation')
+        creds = base64.b64encode(b'testuser:testpass').decode('utf-8')
 
         response = self.client.post(
             url,
             data={'billNumber': 'INVALID'},
             format='json',
-            HTTP_AUTHORIZATION='Api-Key test-key'
+            HTTP_AUTHORIZATION=f'Basic {creds}'
         )
 
         data = response.json()

@@ -54,9 +54,15 @@ class Command(BaseCommand):
         self.stdout.write(self.style.HTTP_INFO('=== Testing Equity Validation ==='))
         
         url = f'{base_url}/api/payments/equity/validation/'
+        
+        import base64
+        credentials = base64.b64encode(
+            f'{settings.EQUITY_IPN_USERNAME}:{settings.EQUITY_IPN_PASSWORD}'.encode()
+        ).decode()
+        
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Api-Key {settings.EQUITY_API_KEY}'
+            'Authorization': f'Basic {credentials}'
         }
         payload = {'billNumber': bill_number}
 
@@ -78,9 +84,15 @@ class Command(BaseCommand):
         self.stdout.write(self.style.HTTP_INFO('=== Testing Equity Notification ==='))
         
         url = f'{base_url}/api/payments/equity/notification/'
+        
+        import base64
+        credentials = base64.b64encode(
+            f'{settings.EQUITY_IPN_USERNAME}:{settings.EQUITY_IPN_PASSWORD}'.encode()
+        ).decode()
+        
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Api-Key {settings.EQUITY_API_KEY}'
+            'Authorization': f'Basic {credentials}'
         }
         
         import uuid

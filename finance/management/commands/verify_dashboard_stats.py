@@ -69,15 +69,29 @@ class Command(BaseCommand):
         self.stdout.write('')
 
         # Get dashboard stats
-        dashboard_stats = _finance_kpis(term=term)
-        self.stdout.write('DASHBOARD STATS:')
-        self.stdout.write(f'  Billed: KES {dashboard_stats["billed"]:,.2f}')
-        self.stdout.write(f'  Collected: KES {dashboard_stats["collected"]:,.2f}')
-        self.stdout.write(f'  Outstanding: KES {dashboard_stats["outstanding"]:,.2f}')
-        self.stdout.write(f'  Balance B/F: KES {dashboard_stats["balances_bf"]:,.2f}')
-        self.stdout.write(f'  Prepayments: KES {dashboard_stats["prepayments"]:,.2f}')
-        self.stdout.write(f'  Invoice Count: {dashboard_stats["invoice_count"]}')
-        self.stdout.write('')
+        try:
+            dashboard_stats = _finance_kpis(term=term)
+            # _finance_kpis returns a dict with term_stats and year_stats
+            # We need term_stats
+            if isinstance(dashboard_stats, dict) and 'term_stats' in dashboard_stats:
+                term_stats = dashboard_stats['term_stats']
+            else:
+                term_stats = dashboard_stats
+            
+            self.stdout.write('DASHBOARD STATS:')
+            self.stdout.write(f'  Billed: KES {term_stats.get("billed", 0):,.2f}')
+            self.stdout.write(f'  Collected: KES {term_stats.get("collected", 0):,.2f}')
+            self.stdout.write(f'  Outstanding: KES {term_stats.get("outstanding", 0):,.2f}')
+            self.stdout.write(f'  Balance B/F: KES {term_stats.get("balances_bf", 0):,.2f}')
+            self.stdout.write(f'  Prepayments: KES {term_stats.get("prepayments", 0):,.2f}')
+            self.stdout.write(f'  Invoice Count: {term_stats.get("invoice_count", 0)}')
+            self.stdout.write('')
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Error getting dashboard stats: {e}'))
+            import traceback
+            if verbose:
+                self.stdout.write(traceback.format_exc())
+            return
 
         # Verify invoice base queryset
         self.stdout.write('VERIFICATION CHECKS:')
@@ -222,12 +236,12 @@ class Command(BaseCommand):
                         
                         self.stdout.write(f'   Excel Balance B/F (active students): KES {excel_balance_bf:,.2f}')
                         self.stdout.write(f'   Excel Prepayments (active students): KES {excel_prepayments:,.2f}')
-                        self.stdout.write(f'   Dashboard Balance B/F: KES {dashboard_stats["balances_bf"]:,.2f}')
-                        self.stdout.write(f'   Dashboard Prepayments: KES {dashboard_stats["prepayments"]:,.2f}')
+                        self.stdout.write(f'   Dashboard Balance B/F: KES {term_stats.get("balances_bf", 0):,.2f}')
+                        self.stdout.write(f'   Dashboard Prepayments: KES {term_stats.get("prepayments", 0):,.2f}')
                         
                         # Compare (allow small differences due to payments/allocations)
-                        bf_diff = abs(excel_balance_bf - dashboard_stats["balances_bf"])
-                        prep_diff = abs(excel_prepayments - dashboard_stats["prepayments"])
+                        bf_diff = abs(excel_balance_bf - Decimal(str(term_stats.get("balances_bf", 0))))
+                        prep_diff = abs(excel_prepayments - Decimal(str(term_stats.get("prepayments", 0))))
                         
                         if bf_diff < Decimal('100.00'):  # Allow small differences
                             self.stdout.write(self.style.SUCCESS(

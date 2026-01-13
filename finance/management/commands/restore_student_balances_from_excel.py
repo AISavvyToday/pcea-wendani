@@ -139,10 +139,31 @@ class Command(BaseCommand):
             adm_no = str(adm_no).strip()
             self.stdout.write(f'\nStudent: {adm_no}')
 
-            # Check if student exists in database
+            # Try to find student - check exact match first, then try with PWA prefix
+            student = None
             try:
                 student = Student.objects.get(admission_number=adm_no)
             except Student.DoesNotExist:
+                # Try with PWA prefix
+                try:
+                    student = Student.objects.get(admission_number=f'PWA{adm_no}')
+                except Student.DoesNotExist:
+                    # Try with PWA/ prefix and suffix
+                    try:
+                        student = Student.objects.get(admission_number=f'PWA/{adm_no}/')
+                    except Student.DoesNotExist:
+                        # Try partial match (contains)
+                        matches = Student.objects.filter(admission_number__contains=adm_no)
+                        if matches.count() == 1:
+                            student = matches.first()
+                        elif matches.count() > 1:
+                            self.stdout.write(self.style.WARNING(
+                                f'  ⚠ Multiple students found with admission containing "{adm_no}":'
+                            ))
+                            for s in matches:
+                                self.stdout.write(f'      - {s.admission_number} - {s.full_name}')
+            
+            if not student:
                 self.stdout.write(self.style.WARNING(f'  ✗ Student not found in database'))
                 stats['not_found_db'] += 1
                 continue
@@ -153,8 +174,22 @@ class Command(BaseCommand):
             current_balance = student.credit_balance or Decimal('0.00')
             self.stdout.write(f'  Current credit_balance: {current_balance:,.2f}')
 
-            # Get balance from Excel
+            # Get balance from Excel - try different formats
             excel_balance = excel_balances.get(adm_no)
+            if excel_balance is None:
+                # Try with PWA prefix
+                excel_balance = excel_balances.get(f'PWA{adm_no}')
+            if excel_balance is None:
+                # Try with PWA/ prefix and suffix
+                excel_balance = excel_balances.get(f'PWA/{adm_no}/')
+            if excel_balance is None:
+                # Try to find by partial match in Excel
+                for excel_adm, balance in excel_balances.items():
+                    if adm_no in excel_adm or excel_adm.endswith(adm_no) or excel_adm.startswith(f'PWA{adm_no}'):
+                        excel_balance = balance
+                        self.stdout.write(f'  Found in Excel with admission: {excel_adm}')
+                        break
+            
             if excel_balance is None:
                 self.stdout.write(self.style.WARNING(f'  ✗ Student not found in Excel file'))
                 stats['not_found_excel'] += 1

@@ -1,7 +1,7 @@
 # File: payments/authentication.py
 # ============================================================
 # RATIONALE: Implement custom authentication for bank APIs
-# - Equity uses API Key authentication
+# - Equity uses Basic Authentication
 # - Co-op uses Basic Authentication
 # Both need to return proper JSON responses on failure
 # ============================================================
@@ -15,10 +15,10 @@ from rest_framework.exceptions import AuthenticationFailed
 logger = logging.getLogger(__name__)
 
 
-class EquityAPIKeyAuthentication(authentication.BaseAuthentication):
+class EquityBasicAuthentication(authentication.BaseAuthentication):
     """
-    Custom authentication for Equity Bank API.
-    Expects header: Authorization: Api-Key <your-api-key>
+    Custom Basic Authentication for Equity Bank API.
+    Expects header: Authorization: Basic <base64(username:password)>
     """
     
     def authenticate(self, request):
@@ -31,38 +31,49 @@ class EquityAPIKeyAuthentication(authentication.BaseAuthentication):
                 'responseMessage': 'Missing Authorization header'
             })
         
-        # Parse "Api-Key <key>" format
+        # Parse "Basic <base64>" format
         parts = auth_header.split(' ')
-        if len(parts) != 2 or parts[0].lower() != 'api-key':
+        if len(parts) != 2 or parts[0].lower() != 'basic':
             logger.warning(f"Equity API: Invalid Authorization format from {request.META.get('REMOTE_ADDR')}")
             raise AuthenticationFailed({
                 'responseCode': '401',
-                'responseMessage': 'Invalid Authorization header format. Expected: Api-Key <key>'
+                'responseMessage': 'Invalid Authorization header format. Expected: Basic <base64(username:password)>'
             })
         
-        api_key = parts[1]
-        expected_key = settings.EQUITY_API_KEY
+        try:
+            # Decode base64 credentials
+            decoded = base64.b64decode(parts[1]).decode('utf-8')
+            username, password = decoded.split(':', 1)
+        except (ValueError, UnicodeDecodeError) as e:
+            logger.warning(f"Equity API: Failed to decode credentials from {request.META.get('REMOTE_ADDR')}: {e}")
+            raise AuthenticationFailed({
+                'responseCode': '401',
+                'responseMessage': 'Invalid credentials format'
+            })
         
-        if not expected_key:
-            logger.error("Equity API: EQUITY_API_KEY not configured in settings")
+        expected_username = settings.EQUITY_IPN_USERNAME
+        expected_password = settings.EQUITY_IPN_PASSWORD
+        
+        if not expected_username or not expected_password:
+            logger.error("Equity API: EQUITY_IPN_USERNAME or EQUITY_IPN_PASSWORD not configured in settings")
             raise AuthenticationFailed({
                 'responseCode': '500',
                 'responseMessage': 'Server configuration error'
             })
         
-        if api_key != expected_key:
-            logger.warning(f"Equity API: Invalid API key from {request.META.get('REMOTE_ADDR')}")
+        if username != expected_username or password != expected_password:
+            logger.warning(f"Equity API: Invalid credentials from {request.META.get('REMOTE_ADDR')}")
             raise AuthenticationFailed({
                 'responseCode': '401',
-                'responseMessage': 'Invalid API key'
+                'responseMessage': 'Invalid credentials'
             })
         
         logger.info(f"Equity API: Authentication successful from {request.META.get('REMOTE_ADDR')}")
         # Return None for user since this is service-to-service auth
-        return (None, 'equity_api_key')
+        return (None, 'equity_basic_auth')
     
     def authenticate_header(self, request):
-        return 'Api-Key'
+        return 'Basic realm="Equity Bank API"'
 
 
 class CoopBasicAuthentication(authentication.BaseAuthentication):

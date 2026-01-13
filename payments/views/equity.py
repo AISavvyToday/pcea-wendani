@@ -3,7 +3,7 @@
 # RATIONALE: Handle Equity Bank API endpoints
 # - Validation: Validates bill number and returns student info + amount
 # - Notification: Receives payment notification and creates payment record
-# Both endpoints use API Key authentication per Equity spec
+# Both endpoints use Basic Authentication (username/password) per Equity spec
 #
 # IMPORTANT (Equity spec alignment):
 # - Equity notification expects HTTP 200 responses (even on failure),
@@ -20,7 +20,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from payments.authentication import EquityAPIKeyAuthentication
+from payments.authentication import EquityBasicAuthentication
 from payments.exceptions import (
     BillNotFoundError,
     DuplicateTransactionError,
@@ -61,7 +61,7 @@ class EquityValidationView(APIView):
     - description: Validation result description
     """
 
-    authentication_classes = [EquityAPIKeyAuthentication]
+    authentication_classes = [EquityBasicAuthentication]
     permission_classes = []  # No additional permissions needed after auth
 
     def post(self, request):
@@ -149,7 +149,7 @@ class EquityNotificationView(APIView):
     - Use responseCode in JSON to signal business outcome.
     """
 
-    authentication_classes = [EquityAPIKeyAuthentication]
+    authentication_classes = [EquityBasicAuthentication]
     permission_classes = []
 
     @db_transaction.atomic
@@ -190,7 +190,7 @@ class EquityNotificationView(APIView):
                 return Response(
                     {
                         "responseCode": "200",
-                        "responseMessage": "Payment received, pending manual matching",
+                        "responseMessage": "Successfully received data",
                     },
                     status=status.HTTP_200_OK,
                 )
@@ -218,7 +218,7 @@ class EquityNotificationView(APIView):
             )
 
             return Response(
-                {"responseCode": "200", "responseMessage": "Success"},
+                {"responseCode": "200", "responseMessage": "Successfully received data"},
                 status=status.HTTP_200_OK,
             )
 

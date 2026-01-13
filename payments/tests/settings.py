@@ -25,7 +25,8 @@ class DisableMigrations:
 MIGRATION_MODULES = DisableMigrations()
 
 # Test credentials
-EQUITY_API_KEY = 'test-equity-api-key-12345'
+EQUITY_IPN_USERNAME = 'testuser'
+EQUITY_IPN_PASSWORD = 'testpass'
 COOP_IPN_USERNAME = 'wendani_academy'
 COOP_IPN_PASSWORD = 'pwasms@!#2026'
 SCHOOL_COOP_ACCOUNT_NO = '01234567890100'

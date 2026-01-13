@@ -194,7 +194,8 @@ if not DEBUG:
 
 # Bank Integration Settings
 # Equity Bank
-EQUITY_API_KEY = os.environ.get('EQUITY_API_KEY', 'test_api_key')
+EQUITY_IPN_USERNAME = os.environ.get('EQUITY_IPN_USERNAME', 'wendani_academy')
+EQUITY_IPN_PASSWORD = os.environ.get('EQUITY_IPN_PASSWORD', 'pwasms@!#2026')
 
 # Co-operative Bank
 COOP_IPN_USERNAME = os.environ.get('COOP_IPN_USERNAME', 'wendani_academy')

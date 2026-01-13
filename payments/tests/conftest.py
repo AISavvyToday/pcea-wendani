@@ -57,10 +57,11 @@ def test_invoice(db, test_student):
 
 
 @pytest.fixture
-def equity_api_key(settings):
-    """Set Equity API key for tests"""
-    settings.EQUITY_API_KEY = 'test-equity-key'
-    return 'test-equity-key'
+def equity_credentials(settings):
+    """Set Equity Basic Auth credentials for tests"""
+    settings.EQUITY_IPN_USERNAME = 'testuser'
+    settings.EQUITY_IPN_PASSWORD = 'testpass'
+    return ('testuser', 'testpass')
 
 
 @pytest.fixture
