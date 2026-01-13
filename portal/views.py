@@ -197,60 +197,25 @@ def _finance_kpis(term=None):
         outstanding = billed - collected
         outstanding = Decimal(str(outstanding))
 
-        # Get balances from current term invoices only (active students)
-        # Balance B/F and Prepayment should sum from current term invoices
-        # IMPORTANT: balance_bf_original is frozen at invoice creation and NEVER changes during the term
-        # This represents the outstanding amount from previous terms at the START of current term
-        # Payments made during the term do NOT modify balance_bf_original field - they only update balance_bf and amount_paid
-        # Therefore, the sum of balance_bf_original from current term invoices remains constant during the term
-        # and only changes when a new term starts and new invoices are generated
-        # Note: balance_bf decreases as payments are made (used for student accounts), but balance_bf_original stays frozen (used for dashboard)
-        # Use Coalesce to fallback to balance_bf if balance_bf_original is NULL (for invoices created before this field was added)
-        balances_bf_from_invoices = invoices.aggregate(
-            total=Sum(Coalesce('balance_bf_original', 'balance_bf'))
-        )['total'] or 0
-        # Get prepayments from invoices (stored as negative)
-        prepayments_from_invoices_raw = invoices.aggregate(total=Sum('prepayment'))['total'] or 0
-        # Convert negative to positive (prepayment is stored as negative, like credit_balance)
-        prepayments_from_invoices = abs(prepayments_from_invoices_raw) if prepayments_from_invoices_raw else 0
-
-        # Get balances from students without invoices for current term (active students only)
-        # This shows imported balances before invoice generation
-        # IMPORTANT: Exclude students who have ANY invoice for this term (active or deleted)
-        # This prevents double-counting when invoices are deleted - the deleted invoice's
-        # balance_bf_original is excluded from invoice calculations, and we don't want to
-        # count the restored credit_balance either (since it represents the same amount)
-        if term:
-            students_without_invoices = Student.objects.filter(
-                status='active'  # Only active students
-            ).exclude(
-                invoices__term=term  # Exclude if they have ANY invoice for this term (active or deleted)
-            ).exclude(
-                invoices__status=InvoiceStatus.CANCELLED
-            ).distinct()
-
-            # Bal B/F: Sum of positive credit_balance (debts) from students without invoices
-            balances_bf_from_students = students_without_invoices.aggregate(
-                total=Sum('credit_balance', filter=Q(credit_balance__gt=0))
-            )['total'] or 0
-
-            # Prepayments: Sum of negative credit_balance (prepayments) from students without invoices
-            # Note: credit_balance is negative for prepayments, so we need to make it positive
-            prepayments_from_students_raw = students_without_invoices.aggregate(
-                total=Sum('credit_balance', filter=Q(credit_balance__lt=0))
-            )['total'] or 0
-            # Convert negative to positive (prepayments_from_students_raw is negative)
-            prepayments_from_students = abs(prepayments_from_students_raw) if prepayments_from_students_raw else 0
-
-            # Combine invoice balances + student balances
-            # Note: balances_bf_from_invoices contains frozen balance_bf_original values that don't change when payments are made
-            # This ensures the dashboard Balance B/F stat remains constant during the term
-            balances_bf = Decimal(str(balances_bf_from_invoices)) + Decimal(str(balances_bf_from_students))
-            prepayments = Decimal(str(prepayments_from_invoices)) + Decimal(str(prepayments_from_students))
-        else:
-            # No term specified, only use invoice balances
-            balances_bf = Decimal(str(balances_bf_from_invoices))
-            prepayments = Decimal(str(prepayments_from_invoices))
+        # SIMPLIFIED: Use frozen fields from Student model directly
+        # These are set at Excel import (term start) and NEVER change during the term
+        # This ensures dashboard Balance B/F and Prepayment stats remain constant
+        # regardless of invoice generation, payment, or invoice deletion
+        active_students = Student.objects.filter(status='active')
+        
+        # Balance B/F: Sum of balance_bf_original from all active students
+        # balance_bf_original is a positive value representing debt from previous term
+        balances_bf = active_students.aggregate(
+            total=Sum('balance_bf_original')
+        )['total'] or Decimal('0.00')
+        balances_bf = Decimal(str(balances_bf))
+        
+        # Prepayments: Sum of prepayment_original from all active students
+        # prepayment_original is a positive value representing credit from previous term
+        prepayments = active_students.aggregate(
+            total=Sum('prepayment_original')
+        )['total'] or Decimal('0.00')
+        prepayments = Decimal(str(prepayments))
 
         invoice_count = invoice_qs.count()
 

@@ -308,8 +308,14 @@ Errors: {stats['errors']}
             return
 
         credit_balance = to_decimal(row["Total_Balance"])  # This is the TOTAL_BALANCE column
+        
+        # Set frozen original values based on Excel balance
+        # These are term-start values that NEVER change during the term
+        # Used by dashboard for consistent reporting
+        balance_bf_original = credit_balance if credit_balance > 0 else Decimal('0.00')
+        prepayment_original = abs(credit_balance) if credit_balance < 0 else Decimal('0.00')
 
-        # Student upsert with credit_balance
+        # Student upsert with credit_balance and frozen fields
         student, created = Student.objects.update_or_create(
             admission_number=admission_no,
             defaults={
@@ -318,6 +324,8 @@ Errors: {stats['errors']}
                 "last_name": last_name.title(),
                 "current_class": class_obj,
                 "credit_balance": credit_balance,  # Store the balance (+ve = debt, -ve = credit)
+                "balance_bf_original": balance_bf_original,  # Frozen debt from previous term
+                "prepayment_original": prepayment_original,  # Frozen prepayment from previous term
                 "admission_date": date(2025, 1, 6),
                 "date_of_birth": date(2015, 1, 1),  # placeholder
                 "gender": "M",  # placeholder

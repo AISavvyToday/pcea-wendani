@@ -172,6 +172,22 @@ class Student(BaseModel):
         default=Decimal("0.00"),
         help_text="Positive = owes money (debt), Negative = has credit (prepayment)"
     )
+    
+    # Frozen balance fields - set at term start (Excel import), never change during the term
+    # Used by dashboard for consistent reporting
+    balance_bf_original = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Frozen debt from previous term at term start (positive value). Never changes during the term."
+    )
+    
+    prepayment_original = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Frozen prepayment from previous term at term start (positive value). Never changes during the term."
+    )
 
     class Meta:
         db_table = 'students'
