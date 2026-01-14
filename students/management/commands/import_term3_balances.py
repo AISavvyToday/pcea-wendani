@@ -9,7 +9,8 @@ class Command(BaseCommand):
     help = "Import Term 3 2025 balances and set bal_bf_original or prepayment_original"
 
     def handle(self, *args, **options):
-        BASE_DIR = Path(__file__).resolve().parents[4]
+        BASE_DIR = Path(__file__).resolve().parents[3]
+
 
         excel_path = BASE_DIR / "TERM_3_2025_LIST_AND_BALANCES_NO GRADE_9.xlsx"
 
