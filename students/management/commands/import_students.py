@@ -16,66 +16,41 @@ from core.models import TermChoices
 STREAM_EAST = "East"
 
 
-# ----------------------------
-# CLASS NORMALIZATION (FIX)
-# ----------------------------
-
-CLASS_ALIASES = {
-    "PLAY GROUP": "PLAYGROUP",
-    "PLAYGROUP": "PLAYGROUP",
-    "PG": "PLAYGROUP",
-
-    "PP1": "PP1",
-    "PRE PRIMARY 1": "PP1",
-
-    "PP2": "PP2",
-    "PRE PRIMARY 2": "PP2",
-
-    "GRADE 1": "GRADE 1",
-    "GRADE 2": "GRADE 2",
-    "GRADE 3": "GRADE 3",
-    "GRADE 4": "GRADE 4",
-    "GRADE 5": "GRADE 5",
-    "GRADE 6": "GRADE 6",
-
-    "GRADE 7": "GRADE SEVEN",
-    "GRADE SEVEN": "GRADE SEVEN",
-    "GRADE 8": "GRADE EIGHT",
-    "GRADE EIGHT": "GRADE EIGHT",
-    "GRADE 9": "GRADE NINE",
-    "GRADE NINE": "GRADE NINE",
-}
-
+# -------------------------------------------------
+# CLASS NORMALIZATION (EXCEL + DB)
+# -------------------------------------------------
 
 def normalize_excel_class(value: str) -> str:
     """
-    Converts:
-      'Grade 1 2025'   -> 'GRADE 1'
-      'PlayGroup 2025' -> 'PLAYGROUP'
-      'PP1 2025'       -> 'PP1'
+    Normalizes BOTH Excel class names and DB class names.
+
+    Examples:
+      "Grade 1 2025"   -> "GRADE 1"
+      "PP1 2025"       -> "PP1"
+      "PlayGroup 2025" -> "PLAYGROUP"
     """
     if not value:
         return ""
 
     value = str(value).upper().strip()
 
-    # Remove year (only dealing with 2025)
+    # Remove year (we only deal with 2025)
     value = re.sub(r"\b20\d{2}\b", "", value)
 
     # Normalize spacing
     value = re.sub(r"\s+", " ", value).strip()
 
-    # Alias mapping
-    return CLASS_ALIASES.get(value, value)
+    return value
 
 
-# ----------------------------
-# HELPERS (UNCHANGED)
-# ----------------------------
+# -------------------------------------------------
+# HELPERS (UNCHANGED LOGIC)
+# -------------------------------------------------
 
 def to_decimal(value) -> Decimal:
     if value is None:
         return Decimal("0.00")
+
     try:
         if pd.isna(value):
             return Decimal("0.00")
@@ -123,12 +98,12 @@ def extract_phones(text: str) -> List[str]:
     return phones
 
 
-# ----------------------------
+# -------------------------------------------------
 # COMMAND
-# ----------------------------
+# -------------------------------------------------
 
 class Command(BaseCommand):
-    help = "Import students from Excel"
+    help = "Import students from Excel (STRICT class matching, 2025 only)"
 
     def add_arguments(self, parser):
         parser.add_argument("file_path", type=str)
@@ -136,29 +111,41 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=0)
 
     def handle(self, *args, **options):
-        df = pd.read_excel(options["file_path"])
+        file_path = options["file_path"]
+        dry_run = options["dry_run"]
+        limit = options["limit"]
+
+        self.stdout.write(self.style.NOTICE(f"Reading file: {file_path}"))
+
+        df = pd.read_excel(file_path)
         df.columns = [str(c).strip() for c in df.columns]
 
-        required = ["Year", "#", "Name", "Class", "Contacts", "Total Balance"]
-        df = df.rename(columns={"#": "Admission_No", "Total Balance": "Total_Balance"})
+        df = df.rename(columns={
+            "#": "Admission_No",
+            "Total Balance": "Total_Balance",
+        })
+
+        required = ["Admission_No", "Name", "Class", "Contacts", "Total_Balance"]
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
 
         df = df.dropna(subset=["Admission_No"])
-        df["Class"] = df["Class"].astype(str)
+        df["Admission_No"] = df["Admission_No"].astype(str).str.strip()
+        df["Class"] = df["Class"].astype(str).str.strip()
 
-        if options["limit"]:
-            df = df.head(options["limit"])
+        if limit:
+            df = df.head(limit)
 
-        stats = {"students_created": 0, "students_updated": 0, "rows_skipped": 0}
+        stats = {
+            "students_created": 0,
+            "students_updated": 0,
+            "parents_created": 0,
+            "rows_skipped": 0,
+        }
 
         with transaction.atomic():
-            academic_year, _ = AcademicYear.objects.get_or_create(
-                year=2025,
-                defaults={
-                    "start_date": date(2025, 1, 6),
-                    "end_date": date(2025, 11, 28),
-                    "is_current": True,
-                },
-            )
+            academic_year = AcademicYear.objects.get(year=2025)
 
             term, _ = Term.objects.get_or_create(
                 academic_year=academic_year,
@@ -166,65 +153,67 @@ class Command(BaseCommand):
                 defaults={"is_current": True},
             )
 
-            class_mapping = self.create_classes(academic_year)
+            # 🔑 LOAD EXISTING CLASSES ONLY
+            class_mapping = self.load_existing_classes(academic_year)
 
-            for _, row in df.iterrows():
-                self.import_row(row, class_mapping, stats)
+            for idx, row in df.iterrows():
+                self.import_row(idx + 2, row, class_mapping, stats)
 
-            if options["dry_run"]:
+            if dry_run:
                 transaction.set_rollback(True)
 
-        self.stdout.write(self.style.SUCCESS(f"Import complete: {stats}"))
+        self.stdout.write(self.style.SUCCESS(
+            f"""
+IMPORT COMPLETE {'(DRY RUN)' if dry_run else ''}
+---------------------------------
+Students created : {stats['students_created']}
+Students updated : {stats['students_updated']}
+Parents created  : {stats['parents_created']}
+Rows skipped     : {stats['rows_skipped']}
+"""
+        ))
 
-    # ----------------------------
-    # CLASS CREATION
-    # ----------------------------
+    # -------------------------------------------------
+    # CLASS LOADER (NO CREATION)
+    # -------------------------------------------------
 
-    def create_classes(self, academic_year):
-        class_config = [
-            ("PLAYGROUP", "pp1"),
-            ("PP1", "pp1"),
-            ("PP2", "pp2"),
-            ("GRADE 1", "grade_1"),
-            ("GRADE 2", "grade_2"),
-            ("GRADE 3", "grade_3"),
-            ("GRADE 4", "grade_4"),
-            ("GRADE 5", "grade_5"),
-            ("GRADE 6", "grade_6"),
-            ("GRADE SEVEN", "grade_7"),
-            ("GRADE EIGHT", "grade_8"),
-            ("GRADE NINE", "grade_9"),
-        ]
-
+    def load_existing_classes(self, academic_year):
         mapping = {}
-        for key, grade in class_config:
-            display = key.title() if "GRADE" in key else key.capitalize()
+        classes = Class.objects.filter(academic_year=academic_year)
 
-            obj, _ = Class.objects.get_or_create(
-                name=display,
-                academic_year=academic_year,
-                defaults={"grade_level": grade, "stream": STREAM_EAST},
-            )
+        for cls in classes:
+            key = normalize_excel_class(cls.name)
 
-            mapping[key] = obj
+            if key in mapping:
+                self.stdout.write(self.style.WARNING(
+                    f"Duplicate class key '{key}' -> {cls.name}"
+                ))
+                continue
+
+            mapping[key] = cls
+
+        self.stdout.write(self.style.NOTICE(
+            f"Loaded {len(mapping)} existing classes for matching"
+        ))
 
         return mapping
 
-    # ----------------------------
-    # ROW IMPORT
-    # ----------------------------
+    # -------------------------------------------------
+    # ROW IMPORT WITH LOGGING
+    # -------------------------------------------------
 
-    def import_row(self, row, class_mapping, stats):
-        admission_no = str(row["Admission_No"]).strip()
+    def import_row(self, excel_row_no, row, class_mapping, stats):
+        admission_no = row["Admission_No"]
         class_raw = row["Class"]
 
-        class_key = normalize_excel_class(class_raw)
-        class_obj = class_mapping.get(class_key)
+        normalized = normalize_excel_class(class_raw)
+        class_obj = class_mapping.get(normalized)
 
         if not class_obj:
             stats["rows_skipped"] += 1
-            self.stdout.write(self.style.WARNING(
-                f"Unknown class '{class_raw}' → '{class_key}'"
+            self.stdout.write(self.style.ERROR(
+                f"[ROW {excel_row_no}] SKIPPED | ADM: {admission_no} | "
+                f"Class '{class_raw}' → '{normalized}' NOT FOUND IN DB"
             ))
             return
 
@@ -235,6 +224,8 @@ class Command(BaseCommand):
                 "last_name": row["Name"].split()[-1].title(),
                 "current_class": class_obj,
                 "credit_balance": to_decimal(row["Total_Balance"]),
+                "balance_bf_original": max(to_decimal(row["Total_Balance"]), Decimal("0.00")),
+                "prepayment_original": abs(min(to_decimal(row["Total_Balance"]), Decimal("0.00"))),
                 "admission_date": date(2025, 1, 6),
                 "date_of_birth": date(2015, 1, 1),
                 "gender": "M",
@@ -243,3 +234,25 @@ class Command(BaseCommand):
         )
 
         stats["students_created" if created else "students_updated"] += 1
+
+        # Parent linking (unchanged)
+        contacts = str(row["Contacts"]) if pd.notna(row["Contacts"]) else ""
+        phones = extract_phones(contacts)
+
+        if phones:
+            parent, p_created = Parent.objects.get_or_create(
+                phone_primary=phones[0],
+                defaults={
+                    "first_name": student.last_name or "Parent",
+                    "last_name": "(Parent)",
+                    "relationship": "guardian",
+                },
+            )
+            if p_created:
+                stats["parents_created"] += 1
+
+            StudentParent.objects.get_or_create(
+                student=student,
+                parent=parent,
+                defaults={"is_primary": True},
+            )
