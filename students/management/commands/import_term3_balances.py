@@ -104,7 +104,7 @@ class Command(BaseCommand):
             self.stderr.write(
                 self.style.ERROR(
                     f"Could not detect admission number column. Found columns: {list(df.columns)}"
-                )
+                ))
             # Show sample of first row to help debug
             self.stdout.write(f"First row sample: {df.iloc[0].to_dict() if len(df) > 0 else 'No data'}")
             return
