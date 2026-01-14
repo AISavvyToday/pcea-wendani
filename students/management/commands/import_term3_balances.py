@@ -11,7 +11,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         BASE_DIR = Path(__file__).resolve().parents[4]
 
-        excel_path = BASE_DIR / "TERM 3 2025 LIST AND  BALANCES ....... (1) NO GRADE 9.xlsx"
+        excel_path = BASE_DIR / "TERM_3_2025_LIST_AND_BALANCES_NO GRADE_9.xlsx"
 
         if not excel_path.exists():
             self.stderr.write(self.style.ERROR(f"Excel file not found: {excel_path}"))
