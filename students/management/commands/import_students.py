@@ -228,7 +228,7 @@ Errors: {stats['errors']}
         Create all classes and return mapping keyed by normalized Excel class names.
         """
         class_config = [
-            ("PLAYGROUP", "playgroup", STREAM_EAST),
+            ("PLAYGROUP", "pp1", STREAM_EAST),
             ("PP1", "pp1", STREAM_EAST),
             ("PP2", "pp2", STREAM_EAST),
             ("GRADE 1", "grade_1", STREAM_EAST),
