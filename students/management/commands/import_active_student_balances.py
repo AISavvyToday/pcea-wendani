@@ -8,17 +8,14 @@ from decimal import Decimal, InvalidOperation
 
 
 class Command(BaseCommand):
-    help = "Import balance_bf_original and prepayment_original for active students from Excel"
-
-    BALANCE_BF_FIELD = "balance_bf_original"
-    PREPAYMENT_FIELD = "prepayment_original"
+    help = "Import balance_bf_original and prepayment_original for active students from Excel (DB-level update)"
 
     def normalize_admission_number(self, value):
         """
-        Normalize admission numbers:
+        Normalize admission numbers coming from Excel:
         - Convert to string
         - Strip whitespace
-        - Remove trailing .0 from Excel
+        - Remove trailing .0 (Excel numeric coercion)
         """
         if pd.isna(value):
             return None
@@ -29,7 +26,7 @@ class Command(BaseCommand):
 
     def safe_decimal(self, value):
         """
-        Convert Excel value to Decimal safely.
+        Convert Excel cell to Decimal safely.
         Empty / NaN / invalid → Decimal(0)
         """
         try:
@@ -53,7 +50,7 @@ class Command(BaseCommand):
             self.style.WARNING(f"Reading Excel file: {excel_path}")
         )
 
-        # Expecting 3 columns:
+        # Expected columns:
         # admission_number | balance_bf_original | prepayment_original
         df = pd.read_excel(excel_path, header=0)
 
@@ -65,25 +62,25 @@ class Command(BaseCommand):
         with transaction.atomic():
             for _, row in df.iterrows():
                 admission_number = self.normalize_admission_number(row.iloc[0])
-                bf_value = self.safe_decimal(row.iloc[2])
-                prepay_value = self.safe_decimal(row.iloc[1])
+                bf_value = self.safe_decimal(row.iloc[1])
+                prepay_value = self.safe_decimal(row.iloc[2])
 
                 if not admission_number:
                     skipped += 1
                     continue
 
-                # Enforce business rules
+                # Enforce financial sanity
                 if bf_value < 0:
                     bf_value = Decimal("0")
 
-                if prepay_value > 0:
-                    prepay_value = Decimal("0")
+                # Prepayment should be stored as positive
+                prepay_value = abs(prepay_value)
 
-                try:
-                    student = Student.objects.get(
-                        admission_number__iexact=admission_number
-                    )
-                except Student.DoesNotExist:
+                student = Student.objects.filter(
+                    admission_number__iexact=admission_number
+                ).first()
+
+                if not student:
                     not_found += 1
                     self.stderr.write(
                         self.style.WARNING(
@@ -96,13 +93,11 @@ class Command(BaseCommand):
                     inactive += 1
                     continue
 
-                student.balance_bf_original = bf_value
-                student.prepayment_original = abs(prepay_value)
-
-                student.save(update_fields=[
-                    self.BALANCE_BF_FIELD,
-                    self.PREPAYMENT_FIELD,
-                ])
+                # 🔥 CRITICAL PART — DB-LEVEL UPDATE (bypasses save(), signals, overrides)
+                Student.objects.filter(id=student.id).update(
+                    balance_bf_original=bf_value,
+                    prepayment_original=prepay_value,
+                )
 
                 updated += 1
 
