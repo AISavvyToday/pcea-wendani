@@ -23,8 +23,8 @@ class Command(BaseCommand):
         # Read Excel
         df = pd.read_excel(excel_path)
 
-        # Normalize column names (strip spaces)
-        df.columns = df.columns.str.strip()
+        # Normalize column names
+        df.columns = df.columns.map(lambda c: str(c).strip())
 
         # -----------------------------
         # Detect ADMISSION NUMBER column
@@ -41,7 +41,8 @@ class Command(BaseCommand):
 
         admission_col = None
         for col in df.columns:
-            if col.upper() in ADMISSION_COL_CANDIDATES:
+            col_upper = col.upper()
+            if col_upper in ADMISSION_COL_CANDIDATES:
                 admission_col = col
                 break
 
@@ -66,7 +67,8 @@ class Command(BaseCommand):
 
         balance_col = None
         for col in df.columns:
-            if str(col).strip().upper() in TOTAL_BALANCE_CANDIDATES:
+            col_upper = col.upper()
+            if col_upper in TOTAL_BALANCE_CANDIDATES:
                 balance_col = col
                 break
 
@@ -93,7 +95,6 @@ class Command(BaseCommand):
             for _, row in df.iterrows():
                 admission_number = str(row[admission_col]).strip()
 
-                # Skip empty admission numbers
                 if not admission_number or admission_number.lower() == "nan":
                     skipped += 1
                     continue
