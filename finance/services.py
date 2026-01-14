@@ -184,20 +184,22 @@ class InvoiceService:
         student_credit = student.credit_balance or Decimal('0.00')
         
         # PRIORITY 1: Use frozen fields from Student (set at term start from Excel)
-        # These are the source of truth and take highest priority
+        # These are the source of truth and take highest priority.
+        # IMPORTANT: Do NOT reset balance_bf_original / prepayment_original here;
+        # they must remain frozen for the whole term for dashboard reporting.
         if student.balance_bf_original and student.balance_bf_original > 0:
             invoice.balance_bf = student.balance_bf_original
             invoice.prepayment = Decimal('0.00')
-            # Reset frozen field since consumed into invoice
-            student.balance_bf_original = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
+            # Optionally clear credit_balance once consumed into invoices
+            if student_credit > 0:
+                student.credit_balance = Decimal('0.00')
             
         elif student.prepayment_original and student.prepayment_original > 0:
             invoice.prepayment = -student.prepayment_original  # Store as negative
             invoice.balance_bf = Decimal('0.00')
-            # Reset frozen field since consumed into invoice
-            student.prepayment_original = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
+            # Optionally clear credit_balance once consumed into invoices
+            if student_credit < 0:
+                student.credit_balance = Decimal('0.00')
 
         # PRIORITY 2: Fallback to previous invoices (backward compatibility)
         elif total_outstanding_previous > 0:

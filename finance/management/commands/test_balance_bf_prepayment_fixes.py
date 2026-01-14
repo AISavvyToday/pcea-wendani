@@ -218,7 +218,7 @@ class Command(BaseCommand):
             self.stdout.write('  [DRY RUN] Would generate invoice with:')
             self.stdout.write(f'    balance_bf = {student.balance_bf_original}')
             self.stdout.write('    prepayment = 0.00')
-            self.stdout.write('  [DRY RUN] Student frozen fields would be reset to 0')
+            self.stdout.write('  [DRY RUN] Student frozen fields would remain unchanged')
             return {'passed': True}
         
         # Generate invoice
@@ -248,20 +248,15 @@ class Command(BaseCommand):
                 checks.append(False)
                 self.stdout.write(f'  ✗ Invoice balance_bf_original = {invoice.balance_bf_original} (expected 10000.00)')
             
-            # Check student frozen fields are reset
-            if student.balance_bf_original == Decimal('0.00'):
+            # Check student frozen fields remain (dashboard uses them)
+            if student.balance_bf_original == Decimal('10000.00'):
                 checks.append(True)
-                self.stdout.write(f'  ✓ Student balance_bf_original reset to {student.balance_bf_original}')
+                self.stdout.write(f'  ✓ Student balance_bf_original preserved at {student.balance_bf_original}')
             else:
                 checks.append(False)
-                self.stdout.write(f'  ✗ Student balance_bf_original = {student.balance_bf_original} (expected 0.00)')
+                self.stdout.write(f'  ✗ Student balance_bf_original = {student.balance_bf_original} (expected 10000.00)')
             
-            if student.credit_balance == Decimal('0.00'):
-                checks.append(True)
-                self.stdout.write(f'  ✓ Student credit_balance reset to {student.credit_balance}')
-            else:
-                checks.append(False)
-                self.stdout.write(f'  ✗ Student credit_balance = {student.credit_balance} (expected 0.00)')
+            # We don't assert on credit_balance here; dashboard does not use it.
             
             # Cleanup
             invoice.is_active = False
@@ -340,7 +335,7 @@ class Command(BaseCommand):
             self.stdout.write('  [DRY RUN] Would generate invoice with:')
             self.stdout.write(f'    prepayment = -{student.prepayment_original}')
             self.stdout.write('    balance_bf = 0.00')
-            self.stdout.write('  [DRY RUN] Student frozen fields would be reset to 0')
+            self.stdout.write('  [DRY RUN] Student frozen fields would remain unchanged')
             return {'passed': True}
         
         # Generate invoice
@@ -370,20 +365,15 @@ class Command(BaseCommand):
                 checks.append(False)
                 self.stdout.write(f'  ✗ Invoice balance_bf = {invoice.balance_bf} (expected 0.00)')
             
-            # Check student frozen fields are reset
-            if student.prepayment_original == Decimal('0.00'):
+            # Check student frozen fields remain (dashboard uses them)
+            if student.prepayment_original == Decimal('5000.00'):
                 checks.append(True)
-                self.stdout.write(f'  ✓ Student prepayment_original reset to {student.prepayment_original}')
+                self.stdout.write(f'  ✓ Student prepayment_original preserved at {student.prepayment_original}')
             else:
                 checks.append(False)
-                self.stdout.write(f'  ✗ Student prepayment_original = {student.prepayment_original} (expected 0.00)')
+                self.stdout.write(f'  ✗ Student prepayment_original = {student.prepayment_original} (expected 5000.00)')
             
-            if student.credit_balance == Decimal('0.00'):
-                checks.append(True)
-                self.stdout.write(f'  ✓ Student credit_balance reset to {student.credit_balance}')
-            else:
-                checks.append(False)
-                self.stdout.write(f'  ✗ Student credit_balance = {student.credit_balance} (expected 0.00)')
+            # We don't assert on credit_balance here; dashboard does not use it.
             
             # Cleanup
             invoice.is_active = False
@@ -456,9 +446,9 @@ class Command(BaseCommand):
         
         if not execute:
             self.stdout.write('  [DRY RUN] Would:')
-            self.stdout.write('    1. Generate invoice (consumes frozen fields)')
+            self.stdout.write('    1. Generate invoice (frozen fields remain)')
             self.stdout.write('    2. Delete invoice')
-            self.stdout.write('    3. Verify frozen fields are restored')
+            self.stdout.write('    3. Verify frozen fields are still intact')
             return {'passed': True}
         
         # Generate invoice
@@ -469,9 +459,9 @@ class Command(BaseCommand):
         self.stdout.write(f'  After generation - balance_bf_original: {student.balance_bf_original}')
         self.stdout.write(f'  After generation - credit_balance: {student.credit_balance}')
         
-        # Verify frozen fields are consumed
-        if student.balance_bf_original != Decimal('0.00'):
-            return {'passed': False, 'error': 'Frozen fields not consumed during invoice generation'}
+        # Verify frozen fields are NOT consumed
+        if student.balance_bf_original != Decimal('10000.00'):
+            return {'passed': False, 'error': 'Frozen fields changed during invoice generation'}
         
         # Delete invoice
         invoice.refresh_from_db()
@@ -498,7 +488,7 @@ class Command(BaseCommand):
         
         student.refresh_from_db()
         
-        # Verify frozen fields are restored
+        # Verify frozen fields are still intact
         checks = []
         
         if student.balance_bf_original == Decimal('10000.00'):
@@ -608,7 +598,7 @@ class Command(BaseCommand):
                 checks.append(False)
                 self.stdout.write(f'  ✗ Invoice balance_bf = {invoice.balance_bf} (expected 5000.00)')
             
-            # Check prepayment_original remains (not consumed)
+            # Check both frozen fields remain (they should not change)
             if student.prepayment_original == Decimal('3000.00'):
                 checks.append(True)
                 self.stdout.write(f'  ✓ Student prepayment_original preserved: {student.prepayment_original}')
@@ -616,19 +606,16 @@ class Command(BaseCommand):
                 checks.append(False)
                 self.stdout.write(f'  ✗ Student prepayment_original = {student.prepayment_original} (expected 3000.00)')
             
-            # Check balance_bf_original is consumed
-            if student.balance_bf_original == Decimal('0.00'):
+            if student.balance_bf_original == Decimal('5000.00'):
                 checks.append(True)
-                self.stdout.write(f'  ✓ Student balance_bf_original consumed: {student.balance_bf_original}')
+                self.stdout.write(f'  ✓ Student balance_bf_original preserved: {student.balance_bf_original}')
             else:
                 checks.append(False)
-                self.stdout.write(f'  ✗ Student balance_bf_original = {student.balance_bf_original} (expected 0.00)')
+                self.stdout.write(f'  ✗ Student balance_bf_original = {student.balance_bf_original} (expected 5000.00)')
             
             # Cleanup
             invoice.is_active = False
             invoice.save()
-            student.prepayment_original = Decimal('0.00')
-            student.save()
             
             return {'passed': all(checks)}
             

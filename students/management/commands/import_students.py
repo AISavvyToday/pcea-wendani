@@ -228,16 +228,18 @@ Errors: {stats['errors']}
         Create all classes and return mapping keyed by normalized Excel class names.
         """
         class_config = [
-            ("PlayGroup 2025", "play_group", STREAM_EAST),
-            ("Grade 1 2025", "grade_1", STREAM_EAST),
-            ("Grade 2 2025", "grade_2", STREAM_EAST),
-            ("Grade 3 2025", "grade_3", STREAM_EAST),
-            ("Grade 4 2025", "grade_4", STREAM_EAST),
-            ("Grade 5 2025", "grade_5", STREAM_EAST),
-            ("Grade 6 2025", "grade_6", STREAM_EAST),
-            ("Grade 7 2025", "grade_7", STREAM_EAST),
-            ("Grade 8 2025", "grade_8", STREAM_EAST),
-            ("Grade 9 2025", "grade_9", STREAM_EAST),
+            ("PlayGroup", "play_group", STREAM_EAST),
+            ("PP1", "pp1", STREAM_EAST),
+            ("PP2", "pp2", STREAM_EAST),
+            ("GRADE 1", "grade_1", STREAM_EAST),
+            ("GRADE 2", "grade_2", STREAM_EAST),
+            ("GRADE 3", "grade_3", STREAM_EAST),
+            ("GRADE 4", "grade_4", STREAM_EAST),
+            ("GRADE 5", "grade_5", STREAM_EAST),
+            ("GRADE 6", "grade_6", STREAM_EAST),
+            ("GRADE SEVEN-JSS", "grade_7", STREAM_EAST),
+            ("GRADE EIGHT-JSS", "grade_8", STREAM_EAST),
+            ("GRADE NINE-JSS", "grade_9", STREAM_EAST),
         ]
 
         mapping = {}
