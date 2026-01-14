@@ -110,51 +110,6 @@ def extract_phones(contacts: str) -> List[str]:
     return phones
 
 
-def map_excel_class_to_db_class(excel_class_name: str, class_mapping: dict) -> Optional[Class]:
-    """
-    Map Excel class names to existing database classes.
-    Handles various formats like 'GRADE 9 2025', 'GRADE 9 2035', 'GRADE 8 2025', etc.
-    Maps all to 2025 classes.
-    """
-    excel_class = excel_class_name.strip().upper()
-    
-    # Remove any extra years from the class name (e.g., 'GRADE 9 2035' -> 'GRADE 9')
-    # Also handle PP1, PP2, PlayGroup
-    if excel_class.startswith("GRADE"):
-        # Extract grade number
-        parts = excel_class.split()
-        if len(parts) >= 2:
-            grade_num = parts[1]
-            # Map to 'Grade X 2025' format
-            db_class_name = f"Grade {grade_num} 2025"
-            # Try to find in mapping
-            for key, class_obj in class_mapping.items():
-                if key.upper() == db_class_name.upper():
-                    return class_obj
-    elif excel_class.startswith("PP1"):
-        # Look for PP1 2025
-        for key, class_obj in class_mapping.items():
-            if "PP1" in key.upper() and "2025" in key:
-                return class_obj
-    elif excel_class.startswith("PP2"):
-        # Look for PP2 2025
-        for key, class_obj in class_mapping.items():
-            if "PP2" in key.upper() and "2025" in key:
-                return class_obj
-    elif "PLAYGROUP" in excel_class or "PP1" in excel_class:
-        # Look for PlayGroup 2025 or PP1 2025
-        for key, class_obj in class_mapping.items():
-            if ("PLAYGROUP" in key.upper() or "PP1" in key.upper()) and "2025" in key:
-                return class_obj
-    elif "PP2" in excel_class:
-        # Look for PP2 2025
-        for key, class_obj in class_mapping.items():
-            if "PP2" in key.upper() and "2025" in key:
-                return class_obj
-    
-    return None
-
-
 class Command(BaseCommand):
     help = "Import students with credit balances from Excel file"
 
@@ -173,6 +128,11 @@ class Command(BaseCommand):
         # Read Excel: your sheet has a top line then header row (Year, #, Name...)
         df = pd.read_excel(file_path)
 
+
+
+        print("Columns found:", df.columns.tolist())
+        print("First few rows:")
+        print(df.head())
         df.columns = [str(c).strip() for c in df.columns]
 
         # Rename columns safely based on actual header row
@@ -265,27 +225,52 @@ Errors: {stats['errors']}
 
     def create_classes(self, academic_year):
         """
-        Get existing classes for the academic year and create a mapping.
-        Uses classes in format 'Grade 1 2025', 'PlayGroup 2025', 'PP1 2025', etc.
+        Create all classes and return mapping keyed by normalized Excel class names.
         """
+        class_config = [
+            ("PlayGroup 2025", "play_group", STREAM_EAST),
+            ("Grade 1 2025", "grade_1", STREAM_EAST),
+            ("Grade 2 2025", "grade_2", STREAM_EAST),
+            ("Grade 3 2025", "grade_3", STREAM_EAST),
+            ("Grade 4 2025", "grade_4", STREAM_EAST),
+            ("Grade 5 2025", "grade_5", STREAM_EAST),
+            ("Grade 6 2025", "grade_6", STREAM_EAST),
+            ("Grade 7 2025", "grade_7", STREAM_EAST),
+            ("Grade 8 2025", "grade_8", STREAM_EAST),
+            ("Grade 9 2025", "grade_9", STREAM_EAST),
+        ]
+
         mapping = {}
-        
-        # Get all classes for the academic year
-        existing_classes = Class.objects.filter(academic_year=academic_year)
-        
-        for class_obj in existing_classes:
-            # Store mapping by class name
-            key = class_obj.name.strip()
+        for excel_name, grade_level, stream in class_config:
+            key = normalize_class_key(excel_name)
+
+            if key == "PLAYGROUP":
+                display_name = "Playgroup"
+            elif "JSS" in key:
+                base = key.replace("-JSS", "").title()
+                display_name = f"{base} (JSS)"
+            else:
+                display_name = key.title()
+
+            class_obj, _ = Class.objects.get_or_create(
+                name=display_name,
+                academic_year=academic_year,
+                defaults={
+                    "grade_level": grade_level,
+                    "stream": stream,
+                },
+            )
+
+            # Enforce stream if field exists / is editable
+            try:
+                if getattr(class_obj, "stream", None) != stream:
+                    class_obj.stream = stream
+                    class_obj.save(update_fields=["stream"])
+            except Exception:
+                pass
+
             mapping[key] = class_obj
-            
-            # Also store uppercase version for easier matching
-            mapping[key.upper()] = class_obj
-            
-            # Store just the grade part (e.g., "Grade 1") for flexible matching
-            if "2025" in key:
-                grade_part = key.replace(" 2025", "").strip()
-                mapping[grade_part.upper()] = class_obj
-        
+
         return mapping
 
     def import_row(self, row, class_mapping, term, stats):
@@ -312,17 +297,9 @@ Errors: {stats['errors']}
             last_name = ""
             middle_name = ""
 
-        # Class mapping
-        class_obj = map_excel_class_to_db_class(class_name, class_mapping)
-        
-        if not class_obj:
-            # Try direct lookup in mapping
-            excel_class_upper = class_name.strip().upper()
-            for key in class_mapping:
-                if excel_class_upper in key.upper() or key.upper() in excel_class_upper:
-                    class_obj = class_mapping[key]
-                    break
-        
+        # Class mapping (robust)
+        class_key = normalize_class_key(class_name)
+        class_obj = class_mapping.get(class_key)
         if not class_obj:
             stats["rows_skipped"] += 1
             self.stdout.write(self.style.WARNING(f"Unknown class '{class_name}' for {admission_no}"))
