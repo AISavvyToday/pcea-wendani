@@ -4,302 +4,286 @@
 <head>
     <meta charset="utf-8" />
     <title>Payment Receipt - {{ payment.payment_reference }}</title>
+
     <style>
         @page {
             size: A4;
             margin: 5mm;
         }
+
         body {
             font-family: Arial, Helvetica, sans-serif;
             color: #222;
-            font-size: 18px;
+            font-size: 14px;
             margin: 0;
             padding: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            -webkit-font-smoothing: antialiased;
-            text-rendering: optimizeLegibility;
         }
+
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 6mm;
+            padding: 4mm;
             box-sizing: border-box;
-            background: white;
-            margin: 0 auto;
+            background: #fff;
         }
+
         .receipt {
             border: 2px solid #333;
-            padding: 12px;
+            padding: 8px;
             page-break-inside: avoid;
         }
+
+        /* HEADER */
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 16px;
             border-bottom: 2px solid #333;
-            padding-bottom: 12px;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .header .logos {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+
         .logo {
-            height: 60px;
-            width: auto;
+            height: 45px;
         }
+
         .school-title {
             text-align: center;
             flex: 1;
         }
+
         .school-title h2 {
             margin: 0;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
         }
+
         .school-title h3 {
-            margin: 6px 0 0;
-            font-size: 20px;
+            margin: 2px 0 0;
+            font-size: 15px;
             font-weight: bold;
         }
+
+        /* META INFO */
         .meta-info {
             display: flex;
             justify-content: space-between;
             border: 1px solid #ddd;
-            padding: 10px;
+            padding: 6px;
+            margin-bottom: 6px;
             background: #f9f9f9;
-            margin-bottom: 14px;
         }
+
         .meta-info .col {
             flex: 1;
         }
-        .meta-info .col strong {
+
+        .meta-info strong {
             display: block;
-            font-size: 15px;
-            color: #333;
-            margin-bottom: 6px;
-            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 2px;
         }
-        .amount-box {
-            border: 3px solid #333;
-            padding: 16px;
-            text-align: center;
-            margin: 16px 0;
-            background: #f9f9f9;
-        }
-        .amount-box .label {
-            font-size: 18px;
-            color: #333;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-        .amount-box .value {
-            font-size: 28px;
-            font-weight: bold;
-            color: #000;
-        }
+
+        /* TABLE */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 14px;
-            font-size: 18px;
+            font-size: 14px;
         }
+
         th, td {
-            padding: 10px 12px;
+            padding: 6px 8px;
             border: 1px solid #ddd;
-            text-align: left;
         }
+
         th {
             background: #f0f0f0;
-            font-weight: bold;
-            font-size: 18px;
+            text-align: left;
         }
+
         .text-right {
             text-align: right;
         }
+
+        /* STATUS */
+        .status-box {
+            border: 1px solid #ddd;
+            padding: 6px;
+            margin-bottom: 6px;
+            page-break-inside: avoid;
+        }
+
+        .status-box h4 {
+            margin: 0 0 6px;
+            font-size: 15px;
+        }
+
+        .status-box p {
+            margin: 4px 0 0;
+            font-size: 12px;
+        }
+
+        /* NOTES */
+        .notes {
+            padding: 6px;
+            border: 1px dashed #ccc;
+            background: #fafafa;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        /* SIGNATURE */
         .signature-area {
             display: flex;
             justify-content: space-between;
-            margin-top: 16px;
+            margin-top: 10px;
+            page-break-inside: avoid;
         }
-        .signature-area .sig-box {
+
+        .sig-box {
             width: 45%;
             text-align: center;
+            font-size: 13px;
         }
-        .signature-area .sig-line {
+
+        .sig-line {
             border-top: 2px solid #333;
-            margin-top: 40px;
-            padding-top: 6px;
-            font-size: 18px;
+            margin-top: 22px;
+            padding-top: 4px;
         }
-        .footer {
-            margin-top: 8px;
-            font-size: 15px;
-            color: #555;
-            text-align: center;
-            border-top: 1px dashed #ddd;
-            padding-top: 10px;
-        }
-        .notes {
-            padding: 10px;
-            border: 1px dashed #ddd;
-            background: #fafafa;
-            font-size: 16px;
-            margin-bottom: 8px;
-        }
-        .status-box {
-            padding: 12px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            margin-bottom: 8px;
-        }
-        .status-box h4 {
-            margin: 0 0 12px 0;
-            font-size: 20px;
-            font-weight: bold;
-        }
+
+        /* PRINT */
         @media print {
-            .page {
-                margin: 0;
-                box-shadow: none;
-            }
             .no-print {
                 display: none;
             }
             body {
-                font-size: 18px;
-                -webkit-font-smoothing: antialiased;
-                text-rendering: optimizeLegibility;
-            }
-            .receipt {
-                border: 2px solid #000;
+                font-size: 14px;
             }
         }
     </style>
 </head>
+
 <body>
-    <div class="page">
-        <div class="receipt">
-            <!-- Header -->
-            <div class="header">
-                <div class="logos">
-                    <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
-                </div>
-                <div class="school-title">
-                    <h2>{{ school_name }}</h2>
-                    <h3>OFFICIAL PAYMENT RECEIPT</h3>
-                </div>
-                <div class="logos">
-                    <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
-                </div>
-            </div>
+<div class="page">
+<div class="receipt">
 
-            <!-- Receipt Meta Info -->
-            <div class="meta-info">
-                <div class="col">
-                    <strong>Receipt No.</strong>
-                    {{ payment.receipt_number|default:payment.payment_reference }}
-                </div>
-                <div class="col">
-                    <strong>Payment Date</strong>
-                    {{ payment.payment_date|date:"d M Y H:i" }}
-                </div>
-                <div class="col">
-                    <strong>Payment Source</strong>
-                    {{ payment.get_payment_source_display }}
-                </div>
-            </div>
+    <!-- HEADER -->
+    <div class="header">
+        <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
+        <div class="school-title">
+            <h2>{{ school_name }}</h2>
+            <h3>OFFICIAL PAYMENT RECEIPT</h3>
+        </div>
+        <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
+    </div>
 
-            <!-- Student Information -->
-            {% if payment.student %}
-            <div class="meta-info">
-                <div class="col">
-                    <strong>Student Name</strong>
-                    {{ payment.student.full_name }}
-                </div>
-                <div class="col">
-                    <strong>Admission No.</strong>
-                    {{ payment.student.admission_number }}
-                </div>
-                <div class="col">
-                    <strong>Grade</strong>
-                    {{ payment.student.current_class|default:"-" }}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Payment Summary Table -->
-            <div class="status-box">
-                <h4>Payment Summary</h4>
-                <table>
-                    {% if balance_bf > 0 %}
-                    <tr>
-                        <th style="width: 50%;">Balance Brought Forward:</th>
-                        <td class="text-right">KES {{ balance_bf|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                    {% if prepayment > 0 %}
-                    <tr>
-                        <th style="width: 50%;">Prepayment:</th>
-                        <td class="text-right" style="color:#080;">KES {{ prepayment|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                    <tr>
-                        <th style="width: 50%;">Student Balance:</th>
-                        <td class="text-right">
-                            {% if student_balance_at_payment < 0 %}
-                                <span style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</span>
-                            {% elif student_balance_at_payment > 0 %}
-                                <span style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</span>
-                            {% else %}
-                                KES {{ student_balance_at_payment|intcomma }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Amount Paid:</th>
-                        <td class="text-right"><strong>KES {{ payment.amount|intcomma }}</strong></td>
-                    </tr>
-                    <tr>
-                        <th>Outstanding Balance:</th>
-                        <td class="text-right">
-                            {% if outstanding_balance_at_payment < 0 %}
-                                <span style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
-                            {% elif outstanding_balance_at_payment > 0 %}
-                                <span style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
-                            {% else %}
-                                KES {{ outstanding_balance_at_payment|intcomma }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                </table>
-            </div>
-
-            {% if notes %}
-            <div class="notes">
-                <strong>Notes:</strong> {{ notes }}
-            </div>
-            {% endif %}
-
-            <!-- Signature Area -->
-            <div class="signature-area">
-                <div class="sig-box">
-                    <div class="sig-line">Received By: {{ printed_by|default:"School Bursar" }}</div>
-                </div>
-                <div class="sig-box">
-                    <div class="sig-line">Signature / Stamp</div>
-                </div>
-            </div>
+    <!-- META -->
+    <div class="meta-info">
+        <div class="col">
+            <strong>Receipt No.</strong>
+            {{ payment.receipt_number|default:payment.payment_reference }}
+        </div>
+        <div class="col">
+            <strong>Date</strong>
+            {{ payment.payment_date|date:"d M Y H:i" }}
+        </div>
+        <div class="col">
+            <strong>Source</strong>
+            {{ payment.get_payment_source_display }}
         </div>
     </div>
 
-    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px;">
-        <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer;">
-            🖨️ Print Receipt
-        </button>
+    {% if payment.student %}
+    <div class="meta-info">
+        <div class="col">
+            <strong>Student</strong>
+            {{ payment.student.full_name }}
+        </div>
+        <div class="col">
+            <strong>Adm No.</strong>
+            {{ payment.student.admission_number }}
+        </div>
+        <div class="col">
+            <strong>Grade</strong>
+            {{ payment.student.current_class|default:"-" }}
+        </div>
     </div>
+    {% endif %}
+
+    <!-- SUMMARY -->
+    <div class="status-box">
+        <h4>Payment Summary</h4>
+        <table>
+            {% if balance_bf > 0 %}
+            <tr>
+                <th>Balance B/F</th>
+                <td class="text-right">KES {{ balance_bf|intcomma }}</td>
+            </tr>
+            {% endif %}
+            {% if prepayment > 0 %}
+            <tr>
+                <th>Prepayment</th>
+                <td class="text-right" style="color:#080;">KES {{ prepayment|intcomma }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <th>Student Balance</th>
+                <td class="text-right">
+                    {% if student_balance_at_payment < 0 %}
+                        <span style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</span>
+                    {% elif student_balance_at_payment > 0 %}
+                        <span style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</span>
+                    {% else %}
+                        KES {{ student_balance_at_payment|intcomma }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Amount Paid</th>
+                <td class="text-right"><strong>KES {{ payment.amount|intcomma }}</strong></td>
+            </tr>
+            <tr>
+                <th>Outstanding</th>
+                <td class="text-right">
+                    {% if outstanding_balance_at_payment < 0 %}
+                        <span style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                    {% elif outstanding_balance_at_payment > 0 %}
+                        <span style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                    {% else %}
+                        KES {{ outstanding_balance_at_payment|intcomma }}
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+        <p>Payments made are not refundable.</p>
+    </div>
+
+    {% if notes %}
+    <div class="notes">
+        <strong>Notes:</strong> {{ notes }}
+    </div>
+    {% endif %}
+
+    <!-- SIGNATURE -->
+    <div class="signature-area">
+        <div class="sig-box">
+            <div class="sig-line">Received By: {{ printed_by|default:"School Bursar" }}</div>
+        </div>
+        <div class="sig-box">
+            <div class="sig-line">Signature / Stamp</div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<div class="no-print" style="position: fixed; bottom: 15px; right: 15px;">
+    <button onclick="window.print()" style="padding: 8px 14px; font-size: 13px;">
+        🖨️ Print Receipt
+    </button>
+</div>
 </body>
 </html>
-
