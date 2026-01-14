@@ -26,7 +26,7 @@ class Command(BaseCommand):
         # Normalize column names
         df.columns = df.columns.str.strip()
 
-        REQUIRED_COLUMNS = ["#", "Total Balance"]
+        REQUIRED_COLUMNS = ["Total Balance"]
         for col in REQUIRED_COLUMNS:
             if col not in df.columns:
                 self.stderr.write(self.style.ERROR(f"Missing required column: {col}"))
