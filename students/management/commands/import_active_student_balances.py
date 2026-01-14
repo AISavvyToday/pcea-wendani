@@ -65,8 +65,8 @@ class Command(BaseCommand):
         with transaction.atomic():
             for _, row in df.iterrows():
                 admission_number = self.normalize_admission_number(row.iloc[0])
-                bf_value = self.safe_decimal(row.iloc[1])
-                prepay_value = self.safe_decimal(row.iloc[2])
+                bf_value = self.safe_decimal(row.iloc[2])
+                prepay_value = self.safe_decimal(row.iloc[1])
 
                 if not admission_number:
                     skipped += 1
