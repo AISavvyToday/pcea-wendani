@@ -66,7 +66,7 @@ class Command(BaseCommand):
 
         balance_col = None
         for col in df.columns:
-            if str(col).upper() in TOTAL_BALANCE_CANDIDATES:
+            if str(col).strip().upper() in TOTAL_BALANCE_CANDIDATES:
                 balance_col = col
                 break
 
