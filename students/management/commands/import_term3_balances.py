@@ -9,9 +9,8 @@ import pandas as pd
 class Command(BaseCommand):
     help = "Import Term 3 2025 balances and set balance BF or prepayment"
 
-    # 🔑 CHANGE THESE IF YOUR MODEL USES DIFFERENT NAMES
-    BALANCE_BF_FIELD = "bal_bf"          # <-- confirmed field name
-    PREPAYMENT_FIELD = "prepayment"      # <-- confirmed field name
+    BALANCE_BF_FIELD = "balance_bf_original"
+    PREPAYMENT_FIELD = "prepayment_original"
 
     def handle(self, *args, **options):
         BASE_DIR = Path(settings.BASE_DIR)
