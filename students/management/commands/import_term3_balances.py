@@ -20,71 +20,8 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.WARNING(f"Reading file: {excel_path}"))
 
-        # Read Excel
-        df = pd.read_excel(excel_path)
-
-        # Normalize column names
-        df.columns = df.columns.map(lambda c: str(c).strip())
-
-        # -----------------------------
-        # Detect ADMISSION NUMBER column
-        # -----------------------------
-        ADMISSION_COL_CANDIDATES = {
-            "#",
-            "ADM NO",
-            "ADM",
-            "ADMISSION NO",
-            "ADMISSION NUMBER",
-            "STUDENT NO",
-            "STUDENT NUMBER",
-        }
-
-        admission_col = None
-        for col in df.columns:
-            col_upper = col.upper()
-            if col_upper in ADMISSION_COL_CANDIDATES:
-                admission_col = col
-                break
-
-        if not admission_col:
-            self.stderr.write(
-                self.style.ERROR(
-                    f"Could not detect admission number column. Found columns: {list(df.columns)}"
-                )
-            )
-            return
-
-        # -----------------------------
-        # Detect TOTAL BALANCE column
-        # -----------------------------
-        TOTAL_BALANCE_CANDIDATES = {
-            "TOTAL BALANCE",
-            "BALANCE",
-            "FINAL BALANCE",
-            "TOTAL",
-            "BALANCE TOTAL",
-        }
-
-        balance_col = None
-        for col in df.columns:
-            col_upper = col.upper()
-            if col_upper in TOTAL_BALANCE_CANDIDATES:
-                balance_col = col
-                break
-
-        if not balance_col:
-            self.stderr.write(
-                self.style.ERROR(
-                    f"Could not detect Total Balance column. Found columns: {list(df.columns)}"
-                )
-            )
-            return
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Using admission column '{admission_col}' and balance column '{balance_col}'"
-            )
-        )
+        # 🔑 READ EXCEL WITH NO HEADERS
+        df = pd.read_excel(excel_path, header=None)
 
         updated_bf = 0
         updated_prepayment = 0
@@ -93,13 +30,14 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             for _, row in df.iterrows():
-                admission_number = str(row[admission_col]).strip()
+                # Column positions (0-based index)
+                admission_number = str(row[1]).strip()   # PWA/3176/
+                total_balance = row.iloc[-1]             # LAST COLUMN
 
+                # Skip invalid rows
                 if not admission_number or admission_number.lower() == "nan":
                     skipped += 1
                     continue
-
-                total_balance = row[balance_col]
 
                 if pd.isna(total_balance) or total_balance == 0:
                     skipped += 1
@@ -131,5 +69,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("=== IMPORT SUMMARY ==="))
         self.stdout.write(self.style.SUCCESS(f"Balance BF updated: {updated_bf}"))
         self.stdout.write(self.style.SUCCESS(f"Prepayments updated: {updated_prepayment}"))
-        self.stdout.write(self.style.WARNING(f"Skipped (0/empty): {skipped}"))
+        self.stdout.write(self.style.WARNING(f"Skipped rows: {skipped}"))
         self.stdout.write(self.style.WARNING(f"Students not found: {not_found}"))
