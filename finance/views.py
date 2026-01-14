@@ -1149,38 +1149,41 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
         invoice = self.object
         student = invoice.student
         
-        # IMPORTANT: When an invoice is deleted, we need to restore balance_bf_original and prepayment
-        # by ADDING them to the current credit_balance (not overwriting it)
-        # This preserves any existing balances and correctly restores what was consumed into the invoice
+        # IMPORTANT: When an invoice is deleted, we need to restore BOTH:
+        # 1. student.credit_balance (for account balance)
+        # 2. student.balance_bf_original and student.prepayment_original (frozen fields for dashboard stats)
+        # This ensures dashboard stats remain accurate even after invoice deletion
         with db_transaction.atomic():
-            # Get current credit_balance (may have other balances from other sources)
             current_credit = student.credit_balance or Decimal('0.00')
             
-            # Restore balance_bf_original by ADDING to current credit_balance
+            # Restore balance_bf_original to Student frozen field
             if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+                student.balance_bf_original = invoice.balance_bf_original
                 student.credit_balance = current_credit + invoice.balance_bf_original
-                student.save()
-                # Update current_credit for prepayment calculation below
                 current_credit = student.credit_balance
             elif invoice.balance_bf and invoice.balance_bf > 0:
-                # Fallback: if balance_bf_original is not set, use balance_bf
+                # Fallback if balance_bf_original not set
+                student.balance_bf_original = invoice.balance_bf
                 student.credit_balance = current_credit + invoice.balance_bf
-                student.save()
-                # Update current_credit for prepayment calculation below
                 current_credit = student.credit_balance
             
-            # Handle prepayment restoration - ADD to current credit_balance
-            # Prepayment is stored as negative (credit), so adding it restores the prepayment
-            if invoice.prepayment < 0:
-                # Restore prepayment by adding it to current credit_balance
-                # Since prepayment is negative, adding it makes credit_balance more negative (restores prepayment)
+            # Restore prepayment_original to Student frozen field
+            if invoice.prepayment and invoice.prepayment < 0:
+                student.prepayment_original = abs(invoice.prepayment)
                 student.credit_balance = current_credit + invoice.prepayment
-                student.save()
-
+            
             # Soft delete - set is_active to False
             invoice_number = invoice.invoice_number
             invoice.is_active = False
             invoice.save()
+            
+            # Save student with restored frozen fields
+            student.save(update_fields=[
+                'balance_bf_original', 
+                'prepayment_original', 
+                'credit_balance', 
+                'updated_at'
+            ])
 
         messages.success(
             request, 

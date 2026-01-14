@@ -162,27 +162,36 @@ class Command(BaseCommand):
                             student.refresh_from_db()
                             current_credit = student.credit_balance or Decimal('0.00')
 
-                            # Restore balance_bf_original by ADDING to current credit_balance
+                            # Restore balance_bf_original to Student frozen field
                             if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+                                student.balance_bf_original = invoice.balance_bf_original
                                 student.credit_balance = current_credit + invoice.balance_bf_original
-                                student.save(update_fields=['credit_balance', 'updated_at'])
                                 current_credit = student.credit_balance
                                 stats['balance_bf_restored'] += invoice.balance_bf_original
                             elif invoice.balance_bf and invoice.balance_bf > 0:
+                                # Fallback if balance_bf_original not set
+                                student.balance_bf_original = invoice.balance_bf
                                 student.credit_balance = current_credit + invoice.balance_bf
-                                student.save(update_fields=['credit_balance', 'updated_at'])
                                 current_credit = student.credit_balance
                                 stats['balance_bf_restored'] += invoice.balance_bf
 
-                            # Restore prepayment by ADDING to current credit_balance
+                            # Restore prepayment_original to Student frozen field
                             if invoice.prepayment and invoice.prepayment < 0:
+                                student.prepayment_original = abs(invoice.prepayment)
                                 student.credit_balance = current_credit + invoice.prepayment
-                                student.save(update_fields=['credit_balance', 'updated_at'])
                                 stats['prepayments_restored'] += abs(invoice.prepayment)
 
                             # Soft delete invoice
                             invoice.is_active = False
                             invoice.save(update_fields=['is_active', 'updated_at'])
+                            
+                            # Save student with restored frozen fields
+                            student.save(update_fields=[
+                                'balance_bf_original', 
+                                'prepayment_original', 
+                                'credit_balance', 
+                                'updated_at'
+                            ])
 
                         if verbose:
                             self.stdout.write(f'    ✓ Deleted {invoice.invoice_number}')

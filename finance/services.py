@@ -44,13 +44,29 @@ class InvoiceService:
         if not grade_level and hasattr(student, 'current_class'):
             grade_level = student.current_class.grade_level if student.current_class else None
 
-        fee_structure = FeeStructure.objects.filter(
+        # Query fee structures - handle SQLite JSONField limitation
+        fee_structures = FeeStructure.objects.filter(
             academic_year=term.academic_year,
             term=term.term,
             is_active=True
-        ).filter(
-            Q(grade_levels__contains=[grade_level]) | Q(grade_levels=[])
-        ).first()
+        )
+        
+        # Filter by grade level - SQLite doesn't support contains on JSONField
+        # So we check if grade_levels is empty (applies to all) or contains the grade_level
+        fee_structure = None
+        for fs in fee_structures:
+            if not fs.grade_levels or len(fs.grade_levels) == 0:
+                # Empty list means applies to all grade levels
+                fee_structure = fs
+                break
+            elif grade_level and grade_level in fs.grade_levels:
+                # Grade level is in the list
+                fee_structure = fs
+                break
+        
+        # If no match found, try to get first available (fallback)
+        if not fee_structure:
+            fee_structure = fee_structures.first()
 
         if not fee_structure:
             raise ValueError(f"No fee structure found for student {student.admission_number} (Grade: {grade_level})")
@@ -167,30 +183,41 @@ class InvoiceService:
         # or prepayments from before the invoice system
         student_credit = student.credit_balance or Decimal('0.00')
         
-        # Set balance_bf or prepayment based on previous term balances
-        if total_outstanding_previous > 0:
-            # Outstanding debt from previous terms (takes priority)
+        # PRIORITY 1: Use frozen fields from Student (set at term start from Excel)
+        # These are the source of truth and take highest priority
+        if student.balance_bf_original and student.balance_bf_original > 0:
+            invoice.balance_bf = student.balance_bf_original
+            invoice.prepayment = Decimal('0.00')
+            # Reset frozen field since consumed into invoice
+            student.balance_bf_original = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
+            
+        elif student.prepayment_original and student.prepayment_original > 0:
+            invoice.prepayment = -student.prepayment_original  # Store as negative
+            invoice.balance_bf = Decimal('0.00')
+            # Reset frozen field since consumed into invoice
+            student.prepayment_original = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
+
+        # PRIORITY 2: Fallback to previous invoices (backward compatibility)
+        elif total_outstanding_previous > 0:
             invoice.balance_bf = total_outstanding_previous
             invoice.prepayment = Decimal('0.00')
-            # Reset student.credit_balance since we've consumed it into the invoice
-            if student_credit > 0:
-                student.credit_balance = Decimal('0.00')
-            else:
-                student.credit_balance = student_credit  # Keep any prepayment
+            student.credit_balance = Decimal('0.00')
+            
+        elif total_outstanding_previous < 0:
+            invoice.prepayment = total_outstanding_previous
+            invoice.balance_bf = Decimal('0.00')
+            student.credit_balance = Decimal('0.00')
+
+        # PRIORITY 3: Fallback to credit_balance (manual entries)
         elif student_credit > 0:
-            # Student has debt in credit_balance but no previous invoices
-            # Use credit_balance as balance_bf
             invoice.balance_bf = student_credit
             invoice.prepayment = Decimal('0.00')
             student.credit_balance = Decimal('0.00')
+            
         elif student_credit < 0:
-            # Student has prepayment/credit (negative credit_balance)
             invoice.prepayment = student_credit
-            invoice.balance_bf = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
-        elif total_outstanding_previous < 0:
-            # Overpayment from previous terms (rare)
-            invoice.prepayment = total_outstanding_previous
             invoice.balance_bf = Decimal('0.00')
             student.credit_balance = Decimal('0.00')
         else:
@@ -205,7 +232,12 @@ class InvoiceService:
         invoice.balance_bf_original = invoice.balance_bf
         
         invoice.save()
-        student.save()
+        student.save(update_fields=[
+            'balance_bf_original', 
+            'prepayment_original', 
+            'credit_balance', 
+            'updated_at'
+        ])
 
 
 

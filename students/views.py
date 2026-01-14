@@ -330,27 +330,54 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                     ).exclude(status=InvoiceStatus.CANCELLED)
                     
                     if current_invoices.exists():
-                        # Sum balance_bf_original (frozen value) or fallback to balance_bf
+                        # Restore frozen fields from invoices before deleting them
+                        current_credit = student.credit_balance or Decimal('0.00')
                         total_balance_bf = Decimal('0.00')
+                        total_prepayment = Decimal('0.00')
+                        
                         for invoice in current_invoices:
-                            # Use balance_bf_original if available, otherwise balance_bf
-                            bf_value = invoice.balance_bf_original if invoice.balance_bf_original is not None else invoice.balance_bf
-                            total_balance_bf += bf_value
+                            # Restore balance_bf_original to Student frozen field
+                            if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+                                if form.instance.balance_bf_original == Decimal('0.00'):
+                                    form.instance.balance_bf_original = invoice.balance_bf_original
+                                else:
+                                    form.instance.balance_bf_original += invoice.balance_bf_original
+                                current_credit += invoice.balance_bf_original
+                                total_balance_bf += invoice.balance_bf_original
+                            elif invoice.balance_bf and invoice.balance_bf > 0:
+                                # Fallback if balance_bf_original not set
+                                if form.instance.balance_bf_original == Decimal('0.00'):
+                                    form.instance.balance_bf_original = invoice.balance_bf
+                                else:
+                                    form.instance.balance_bf_original += invoice.balance_bf
+                                current_credit += invoice.balance_bf
+                                total_balance_bf += invoice.balance_bf
+                            
+                            # Restore prepayment_original to Student frozen field
+                            if invoice.prepayment and invoice.prepayment < 0:
+                                prepayment_amount = abs(invoice.prepayment)
+                                if form.instance.prepayment_original == Decimal('0.00'):
+                                    form.instance.prepayment_original = prepayment_amount
+                                else:
+                                    form.instance.prepayment_original += prepayment_amount
+                                current_credit += invoice.prepayment
+                                total_prepayment += prepayment_amount
                         
                         # Soft delete invoices (set is_active=False)
                         # This removes them from dashboard calculations
                         current_invoices.update(is_active=False)
                         
-                        # Restore balance_bf to student's credit_balance
-                        # This preserves the outstanding debt from previous terms
-                        current_credit = student.credit_balance or Decimal('0.00')
-                        form.instance.credit_balance = current_credit + total_balance_bf
+                        # Update student's credit_balance and frozen fields
+                        form.instance.credit_balance = current_credit
                         
-                        messages.info(
-                            self.request,
-                            f'Student status changed to "{new_status}". '
-                            f'Invoices deleted. Balance b/f ({total_balance_bf:,.2f}) restored to student account.'
-                        )
+                        # Build message
+                        msg_parts = [f'Student status changed to "{new_status}". Invoices deleted.']
+                        if total_balance_bf > 0:
+                            msg_parts.append(f'Balance b/f ({total_balance_bf:,.2f}) restored.')
+                        if total_prepayment > 0:
+                            msg_parts.append(f'Prepayment ({total_prepayment:,.2f}) restored.')
+                        
+                        messages.info(self.request, ' '.join(msg_parts))
             
             # Add a note about who changed the status
             current_reason = form.instance.status_reason or ''
