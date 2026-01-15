@@ -1425,92 +1425,150 @@ class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_list')
 
 
+from decimal import Decimal
+from django.conf import settings
+from django.utils import timezone
+from django.views.generic import DetailView
+from django.db.models import Sum
+
+from accounts.mixins import LoginRequiredMixin, RoleRequiredMixin
+from accounts.constants import UserRole
+from finance.models import Payment, Invoice
+from core.models import InvoiceStatus
+
+
 class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-    """Print-friendly payment receipt."""
+    """
+    Print-friendly payment receipt.
+
+    IMPORTANT ACCOUNTING RULES (LOCKED):
+    -----------------------------------
+    • Student Balance (BEFORE payment) = Invoice Total + Balance B/F
+    • Outstanding (AFTER payment) = Student Balance - Payment Amount
+    • Prepayment and Credit Balance DO NOT affect receipt math
+    """
 
     model = Payment
     template_name = 'finance/payment_receipt_print.html'
     context_object_name = 'payment'
-    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+        UserRole.ACCOUNTANT,
+    ]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         payment = self.object
-        
-        # Notes from query string (optional)
-        notes = self.request.GET.get('notes', '').strip()
-        
-        # Printed metadata
-        printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
-        print_datetime = timezone.now()
-        
         student = payment.student
-        
-        # Get current account status (after this payment)
+
+        # Optional notes from query string
+        notes = self.request.GET.get('notes', '').strip()
+
+        # Printed metadata
+        printed_by = getattr(
+            self.request.user,
+            'get_full_name',
+            lambda: str(self.request.user)
+        )()
+        print_datetime = timezone.now()
+
+        # Get all active invoices for student
         current_invoices = Invoice.objects.filter(
-            student=student, 
+            student=student,
             is_active=True
         ).exclude(status=InvoiceStatus.CANCELLED)
-        
-        # Get balance_bf and prepayment from invoices
-        # These are frozen at invoice creation, so we can get them from current invoices
-        total_balance_bf = current_invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        total_prepayment = current_invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
-        # Prepayment is stored as negative, so convert to positive for display
-        prepayment_display = abs(total_prepayment) if total_prepayment < 0 else Decimal('0.00')
-        
-        # Calculate account status at snapshot time of payment
-        # Outstanding balance = sum of all invoice balances (positive = debt)
-        outstanding_balance_at_payment = current_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
-        
-        # Credit balance (negative = credit/prepayment, positive = debt)
-        current_credit = student.credit_balance or Decimal('0.00')
-        
-        # Student balance = outstanding invoices + credit balance
-        # (positive = debt owed, negative = credit/prepayment available)
-        # This is the net account status
-        outstanding_balance_after = outstanding_balance_at_payment + current_credit
-        
-        # To calculate student balance before payment, reverse the payment impact
-        # The payment reduced outstanding by some amount and may have created credit
-        # Simplest: outstanding before = outstanding after + payment amount
-        # (assuming payment fully reduced outstanding)
-        outstanding_balance_before = outstanding_balance_at_payment + payment.amount
-        
-        # Credit before: if payment created new credit, it would be less negative
-        # For simplicity, assume credit_before = credit_after (no new credit created)
-        # Or if credit was created, credit_before would be less negative
-        # Since we can't perfectly track this, use: credit_before ≈ credit_after
-        credit_before = current_credit
-        
-        # Student balance before payment
-        student_balance_at_payment = outstanding_balance_before + credit_before
-        
-        # Bank details & logos from settings
+
+        # ---- CORE RECEIPT ACCOUNTING (CORRECT & SIMPLE) ----
+
+        # Total invoice amounts (GROSS, before any payments)
+        total_invoice_amount = current_invoices.aggregate(
+            total=Sum('total_amount')
+        )['total'] or Decimal('0.00')
+
+        # Balance B/F (frozen at invoice creation)
+        total_balance_bf = current_invoices.aggregate(
+            total=Sum('balance_bf')
+        )['total'] or Decimal('0.00')
+
+        # Student balance BEFORE this payment
+        # (Invoice total + Balance B/F)
+        student_balance_at_payment = (
+            total_invoice_amount + total_balance_bf
+        )
+
+        # Outstanding AFTER this payment
+        outstanding_balance_after = (
+            student_balance_at_payment - payment.amount
+        )
+
+        # Prepayment (display only — does NOT affect math)
+        total_prepayment = current_invoices.aggregate(
+            total=Sum('prepayment')
+        )['total'] or Decimal('0.00')
+
+        prepayment_display = (
+            abs(total_prepayment)
+            if total_prepayment < 0
+            else Decimal('0.00')
+        )
+
+        # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
-            'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
-            'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
-            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
-            'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+            'equity': {
+                'name': 'EQUITY BANK',
+                'account_name': 'P.C.E.A Wendani Academy',
+                'account_no': '1130280029105'
+            },
+            'coop': {
+                'name': 'CO-OPERATIVE BANK',
+                'account_name': 'P.C.E.A Wendani Academy',
+                'account_no': '01129158350600'
+            },
+            'paybill_1': {
+                'label': 'PAYBILL (247247)',
+                'acc_format': '80029#<admission_number>'
+            },
+            'paybill_2': {
+                'label': 'PAYBILL (400222)',
+                'acc_format': '393939#<admission_number>'
+            },
         })
-        
-        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
-        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
-        
+
+        school_logo_url = getattr(
+            settings,
+            'SCHOOL_LOGO_URL',
+            '/static/img/school_logo.png'
+        )
+        sponsor_logo_url = getattr(
+            settings,
+            'SPONSOR_LOGO_URL',
+            '/static/img/sponsor_logo.png'
+        )
+
+        # Final context
         context.update({
             'notes': notes,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
-            'student_balance_at_payment': student_balance_at_payment,
-            'outstanding_balance_at_payment': outstanding_balance_after,
+
+            # Financial snapshot
             'balance_bf': total_balance_bf,
             'prepayment': prepayment_display,
+            'student_balance_at_payment': student_balance_at_payment,
+            'outstanding_balance_at_payment': outstanding_balance_after,
+
+            # Branding
             'bank_details': bank_details,
             'school_logo_url': school_logo_url,
             'sponsor_logo_url': sponsor_logo_url,
-            'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
+            'school_name': getattr(
+                settings,
+                'SCHOOL_NAME',
+                'P.C.E.A Wendani Academy'
+            ),
         })
-        
+
         return context
 
 
