@@ -380,7 +380,7 @@ class InvoiceService:
                 # If invoice has prepayment, show it as a credit entry (reduces balance)
                 if inv.prepayment and inv.prepayment != 0:
                     # Prepayment is stored as negative, so adding it reduces balance
-                    running_balance += inv.prepayment
+                    running_balance -= abs(inv.prepayment)
                     transactions.append({
                         'date': inv_date,
                         'description': f"Prepayment Applied (Invoice {inv.invoice_number})",
