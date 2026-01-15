@@ -268,6 +268,6 @@ class Command(BaseCommand):
         
         if dry_run:
             self.stdout.write(self.style.WARNING("\nThis was a DRY RUN. No changes were made to the database."))
-            self.stdout.write("Run without --dry-run to actually import the fees."))
+            self.stdout.write("Run without --dry-run to actually import the fees.")
         else:
             self.stdout.write(self.style.SUCCESS("\nTransport fees import completed!"))
