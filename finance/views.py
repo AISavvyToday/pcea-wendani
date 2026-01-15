@@ -15,6 +15,7 @@ from academics.models import Term
 
 import logging
 
+from decimal import Decimal
 
 from django.conf import settings
 from .forms import InvoiceEditForm, InvoiceItemFormSet
@@ -663,102 +664,6 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         return context
 
-# class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-#     """View invoice details with comprehensive allocation breakdown."""
-#
-#     model = Invoice
-#     template_name = 'finance/invoice_detail.html'
-#     context_object_name = 'invoice'
-#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
-#
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#
-#         # Get invoice items with their allocations
-#         items = self.object.items.filter(is_active=True).order_by('category')
-#
-#         # Enhanced items with allocation details
-#         enhanced_items = []
-#         for item in items:
-#             # Get total allocated amount for this item from all payments
-#             from payments.models import PaymentAllocation
-#             total_allocated = PaymentAllocation.objects.filter(
-#                 invoice_item=item,
-#                 is_active=True,
-#                 payment__is_active=True,
-#                 payment__status=PaymentStatus.COMPLETED
-#             ).aggregate(total=models.Sum('amount'))['total'] or 0
-#
-#             # Get individual allocations for this item
-#             allocations = PaymentAllocation.objects.filter(
-#                 invoice_item=item,
-#                 is_active=True,
-#                 payment__is_active=True,
-#                 payment__status=PaymentStatus.COMPLETED
-#             ).select_related('payment').order_by('-created_at')
-#
-#             enhanced_items.append({
-#                 'item': item,
-#                 'total_allocated': total_allocated,
-#                 'balance': item.net_amount - total_allocated,
-#                 'is_fully_paid': total_allocated >= item.net_amount,
-#                 'allocations': allocations,
-#                 'payment_count': allocations.count(),
-#             })
-#
-#         context['enhanced_items'] = enhanced_items
-#
-#         # Get all payments for this invoice (via allocations)
-#         from django.db.models import Q
-#         payments = Payment.objects.filter(
-#             is_active=True,
-#             status=PaymentStatus.COMPLETED
-#         ).filter(
-#             Q(invoice=self.object) | Q(allocations__invoice_item__invoice=self.object)
-#         ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
-#
-#         # Enhance payments with allocation details for this invoice
-#         enhanced_payments = []
-#         for payment in payments:
-#             # Get allocations for this payment that belong to this invoice
-#             payment_allocations = payment.allocations.filter(
-#                 is_active=True,
-#                 invoice_item__invoice=self.object
-#             ).select_related('invoice_item')
-#
-#             # Calculate total allocated from this payment to this invoice
-#             total_from_payment = payment_allocations.aggregate(
-#                 total=models.Sum('amount')
-#             )['total'] or 0
-#
-#             enhanced_payments.append({
-#                 'payment': payment,
-#                 'allocations': payment_allocations,
-#                 'total_allocated': total_from_payment,
-#             })
-#
-#         context['enhanced_payments'] = enhanced_payments
-#
-#         # Calculate totals for display
-#         total_invoiced = self.object.total_amount
-#         total_paid = sum(item['total_allocated'] for item in enhanced_items)
-#         total_balance = total_invoiced - total_paid
-#
-#         # Calculate paid percentage
-#         paid_percentage = 0
-#         if total_invoiced > 0:
-#             paid_percentage = (total_paid / total_invoiced) * 100
-#
-#         context.update({
-#             'total_invoiced': total_invoiced,
-#             'total_paid': total_paid,
-#             'total_balance': total_balance,
-#             'payment_count': len(enhanced_payments),
-#             'paid_percentage': paid_percentage,
-#             'today': timezone.now().date(),
-#         })
-#
-#         return context
 
 
 class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
@@ -1125,8 +1030,17 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('finance:invoice_list')
 
 
+
 class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
-    """Soft delete an invoice (sets is_active=False)."""
+    """
+    Soft delete an invoice (sets is_active=False).
+
+    Financial invariants:
+    - Frozen fields (student.balance_bf_original, student.prepayment_original)
+      represent historical term-start data and MUST NEVER be mutated here.
+    - Only student.credit_balance is restored, because it was consumed
+      during invoice creation.
+    """
 
     model = Invoice
     template_name = 'finance/invoice_confirm_delete.html'
@@ -1136,61 +1050,114 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
+        invoice = self.object
 
-        # Check if invoice has payments
-        if self.object.amount_paid > 0:
+        # SAFETY: Block deletion if invoice has any payments
+        if invoice.amount_paid > 0:
             messages.error(
                 request,
-                f'Cannot delete invoice {self.object.invoice_number}. It has payments (KES {self.object.amount_paid:,.2f}). '
-                'Please reverse payments first or cancel the invoice instead.'
+                (
+                    f'Cannot delete invoice {invoice.invoice_number}. '
+                    f'It has payments (KES {invoice.amount_paid:,.2f}). '
+                    'Please reverse payments first or cancel the invoice instead.'
+                )
             )
-            return redirect('finance:invoice_detail', pk=self.object.pk)
+            return redirect('finance:invoice_detail', pk=invoice.pk)
 
-        invoice = self.object
         student = invoice.student
-        
-        # IMPORTANT: When an invoice is deleted, we need to restore BOTH:
-        # 1. student.credit_balance (for account balance)
-        # 2. student.balance_bf_original and student.prepayment_original (frozen fields for dashboard stats)
-        # This ensures dashboard stats remain accurate even after invoice deletion
+        invoice_number = invoice.invoice_number
+
         with db_transaction.atomic():
+            # Restore ONLY what invoice creation consumed:
+            # student.credit_balance
             current_credit = student.credit_balance or Decimal('0.00')
-            
-            # Restore balance_bf_original to Student frozen field
-            if invoice.balance_bf_original and invoice.balance_bf_original > 0:
-                student.balance_bf_original = invoice.balance_bf_original
-                student.credit_balance = current_credit + invoice.balance_bf_original
-                current_credit = student.credit_balance
-            elif invoice.balance_bf and invoice.balance_bf > 0:
-                # Fallback if balance_bf_original not set
-                student.balance_bf_original = invoice.balance_bf
-                student.credit_balance = current_credit + invoice.balance_bf
-                current_credit = student.credit_balance
-            
-            # Restore prepayment_original to Student frozen field
+
             if invoice.prepayment and invoice.prepayment < 0:
-                student.prepayment_original = abs(invoice.prepayment)
-                student.credit_balance = current_credit + invoice.prepayment
-            
-            # Soft delete - set is_active to False
-            invoice_number = invoice.invoice_number
+                # Prepayments are stored as negative values on the invoice
+                student.credit_balance = current_credit + abs(invoice.prepayment)
+
+            # Soft delete invoice (ledger-safe)
             invoice.is_active = False
-            invoice.save()
-            
-            # Save student with restored frozen fields
-            student.save(update_fields=[
-                'balance_bf_original', 
-                'prepayment_original', 
-                'credit_balance', 
-                'updated_at'
-            ])
+            invoice.save(update_fields=['is_active'])
+
+            # Persist restored credit balance
+            student.save(update_fields=['credit_balance', 'updated_at'])
 
         messages.success(
-            request, 
-            f'Invoice {invoice_number} deleted successfully. '
-            f'Student outstanding balance has been adjusted.'
+            request,
+            (
+                f'Invoice {invoice_number} deleted successfully. '
+                'Student outstanding balance has been adjusted.'
+            )
         )
         return HttpResponseRedirect(self.get_success_url())
+
+# class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+#     """Soft delete an invoice (sets is_active=False)."""
+
+#     model = Invoice
+#     template_name = 'finance/invoice_confirm_delete.html'
+#     success_url = reverse_lazy('finance:invoice_list')
+#     context_object_name = 'invoice'
+#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+#     def delete(self, request, *args, **kwargs):
+#         self.object = self.get_object()
+
+#         # Check if invoice has payments
+#         if self.object.amount_paid > 0:
+#             messages.error(
+#                 request,
+#                 f'Cannot delete invoice {self.object.invoice_number}. It has payments (KES {self.object.amount_paid:,.2f}). '
+#                 'Please reverse payments first or cancel the invoice instead.'
+#             )
+#             return redirect('finance:invoice_detail', pk=self.object.pk)
+
+#         invoice = self.object
+#         student = invoice.student
+        
+#         # IMPORTANT: When an invoice is deleted, we need to restore BOTH:
+#         # 1. student.credit_balance (for account balance)
+#         # 2. student.balance_bf_original and student.prepayment_original (frozen fields for dashboard stats)
+#         # This ensures dashboard stats remain accurate even after invoice deletion
+#         with db_transaction.atomic():
+#             current_credit = student.credit_balance or Decimal('0.00')
+            
+#             # Restore balance_bf_original to Student frozen field
+#             if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+#                 student.balance_bf_original = invoice.balance_bf_original
+#                 student.credit_balance = current_credit + invoice.balance_bf_original
+#                 current_credit = student.credit_balance
+#             elif invoice.balance_bf and invoice.balance_bf > 0:
+#                 # Fallback if balance_bf_original not set
+#                 student.balance_bf_original = invoice.balance_bf
+#                 student.credit_balance = current_credit + invoice.balance_bf
+#                 current_credit = student.credit_balance
+            
+#             # Restore prepayment_original to Student frozen field
+#             if invoice.prepayment and invoice.prepayment < 0:
+#                 student.prepayment_original = abs(invoice.prepayment)
+#                 student.credit_balance = current_credit + invoice.prepayment
+            
+#             # Soft delete - set is_active to False
+#             invoice_number = invoice.invoice_number
+#             invoice.is_active = False
+#             invoice.save()
+            
+#             # Save student with restored frozen fields
+#             student.save(update_fields=[
+#                 'balance_bf_original', 
+#                 'prepayment_original', 
+#                 'credit_balance', 
+#                 'updated_at'
+#             ])
+
+#         messages.success(
+#             request, 
+#             f'Invoice {invoice_number} deleted successfully. '
+#             f'Student outstanding balance has been adjusted.'
+#         )
+#         return HttpResponseRedirect(self.get_success_url())
 
 
 # =============================================================================
