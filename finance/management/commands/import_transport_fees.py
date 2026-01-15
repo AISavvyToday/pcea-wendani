@@ -2,7 +2,7 @@
 import os
 import pandas as pd
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import transaction, models
 from decimal import Decimal
 from students.models import Student
 from finance.models import Invoice, InvoiceItem, FeeStructure, FeeItem
@@ -25,29 +25,33 @@ class Command(BaseCommand):
             help='Show what would be done without making changes'
         )
 
-    def normalize_admission_number(self, adm):
-        """Normalize admission number from Excel format to DB format"""
-        if not adm or pd.isna(adm):
-            return None
+    def get_admission_number_variations(self, raw_adm):
+        """Return all possible admission number variations to try"""
+        if not raw_adm or pd.isna(raw_adm):
+            return []
         
-        # Convert to string and strip
-        adm = str(adm).strip()
+        raw_adm = str(raw_adm).strip()
+        variations = []
         
-        # Handle cases like 'PWA2629' -> convert to 'PWA/2629/'
-        if '/' not in adm and adm.startswith('PWA'):
-            try:
-                # Extract the numeric part
-                num_part = adm[3:]  # Remove 'PWA'
-                if num_part.isdigit():
-                    return f'PWA/{num_part}/'
-                else:
-                    # Handle cases with letters after PWA
-                    return f'PWA/{num_part}/'
-            except:
-                pass
+        # Add the raw version first
+        variations.append(raw_adm)
         
-        # If it already has slashes, keep as is
-        return adm
+        # If it has slashes, also try without them
+        if '/' in raw_adm:
+            without_slashes = raw_adm.replace('/', '')
+            if without_slashes not in variations:
+                variations.append(without_slashes)
+        
+        # If it doesn't have slashes and starts with PWA, try with slashes
+        if '/' not in raw_adm and raw_adm.startswith('PWA'):
+            # Extract numeric part
+            num_part = raw_adm[3:]  # Remove 'PWA'
+            if num_part.isdigit():
+                with_slashes = f'PWA/{num_part}/'
+                if with_slashes not in variations:
+                    variations.append(with_slashes)
+        
+        return variations
 
     def handle(self, *args, **options):
         file_path = options['file']
@@ -72,28 +76,17 @@ class Command(BaseCommand):
             # First get academic year
             academic_year = AcademicYear.objects.get(year=2026)
             
-            # Get term - try different field names
-            term = None
-            # Try 'term' field first (most common)
+            # Try to find term
             term = Term.objects.filter(
                 academic_year=academic_year,
                 term='term_1'
             ).first()
             
             if not term:
-                # Try 'name' field
-                term = Term.objects.filter(
-                    academic_year=academic_year,
-                    name__icontains='term 1'
-                ).first()
-            
-            if not term:
                 self.stdout.write(self.style.ERROR("Term 1 2026 not found"))
                 return
             
-            # Get term display name (try different attributes)
-            term_display = getattr(term, 'name', None) or getattr(term, 'term', 'Term 1 2026')
-            self.stdout.write(f"Found term: {term_display}")
+            self.stdout.write(f"Using term: {term}")
             
         except AcademicYear.DoesNotExist:
             self.stdout.write(self.style.ERROR("Academic year 2026 not found"))
@@ -110,77 +103,65 @@ class Command(BaseCommand):
         error_count = 0
         skipped_no_invoice = 0
         skipped_already_exists = 0
+        skipped_not_active = 0
 
         for index, row in df.iterrows():
             try:
-                # Get and normalize admission number
+                # Get raw admission number
                 raw_adm = row.get('Admission #')
                 if pd.isna(raw_adm):
                     self.stdout.write(f"Row {index}: No admission number")
                     error_count += 1
                     continue
                 
-                admission_number = self.normalize_admission_number(raw_adm)
-                if not admission_number:
-                    self.stdout.write(f"Row {index}: Invalid admission number: {raw_adm}")
-                    error_count += 1
-                    continue
-                    
                 transport_amount = Decimal(str(row.get('Transport Amount', 0)))
                 route = str(row.get('Route/Destination', '')).strip()
                 
                 # Skip if transport amount is 0
                 if transport_amount <= 0:
-                    self.stdout.write(f"{admission_number}: Skipped (zero transport amount)")
+                    self.stdout.write(f"Row {index}: Skipped (zero transport amount)")
                     continue
                 
-                # Find student
-                try:
-                    # Try exact match first
-                    student = Student.objects.get(admission_number=admission_number)
-                except Student.DoesNotExist:
-                    # Try without trailing slash
-                    if admission_number.endswith('/'):
-                        alt_adm = admission_number.rstrip('/')
-                        try:
-                            student = Student.objects.get(admission_number=alt_adm)
-                            admission_number = alt_adm  # Update to found format
-                        except Student.DoesNotExist:
-                            # Try with/without prefix
-                            if admission_number.startswith('PWA/'):
-                                alt_adm = admission_number.replace('PWA/', 'PWA')
-                                try:
-                                    student = Student.objects.get(admission_number=alt_adm)
-                                    admission_number = alt_adm
-                                except Student.DoesNotExist:
-                                    self.stdout.write(f"{admission_number}: Student not found")
-                                    error_count += 1
-                                    continue
-                            else:
-                                self.stdout.write(f"{admission_number}: Student not found")
-                                error_count += 1
-                                continue
-                    else:
-                        self.stdout.write(f"{admission_number}: Student not found")
-                        error_count += 1
+                # Try multiple admission number variations
+                variations = self.get_admission_number_variations(raw_adm)
+                student = None
+                found_admission = None
+                
+                for adm_variation in variations:
+                    try:
+                        student = Student.objects.get(admission_number=adm_variation)
+                        found_admission = adm_variation
+                        break
+                    except Student.DoesNotExist:
                         continue
+                
+                if not student:
+                    self.stdout.write(f"{raw_adm}: Student not found (tried: {variations})")
+                    error_count += 1
+                    continue
+                
+                # Check if student is active
+                if student.status != 'active':
+                    self.stdout.write(f"{found_admission}: Student is not active (status: {student.status}) - skipping")
+                    skipped_not_active += 1
+                    continue
                 
                 # Find existing invoice for Term 1 2026
                 try:
                     invoice = Invoice.objects.get(student=student, term=term)
                 except Invoice.DoesNotExist:
-                    self.stdout.write(f"{admission_number}: No invoice found for Term 1 2026 - skipping")
+                    self.stdout.write(f"{found_admission}: No invoice found for Term 1 2026 - skipping")
                     skipped_no_invoice += 1
                     continue
                 except Invoice.MultipleObjectsReturned:
                     # Take the first one
                     invoice = Invoice.objects.filter(student=student, term=term).first()
-                    self.stdout.write(f"{admission_number}: Multiple invoices found, using {invoice.invoice_number}")
+                    self.stdout.write(f"{found_admission}: Multiple invoices found, using {invoice.invoice_number}")
                 
                 # Check if transport already exists in invoice items
                 existing_transport = invoice.items.filter(category=FeeCategory.TRANSPORT).exists()
                 if existing_transport:
-                    self.stdout.write(f"{admission_number}: Transport already exists in invoice")
+                    self.stdout.write(f"{found_admission}: Transport already exists in invoice")
                     skipped_already_exists += 1
                     continue
                 
@@ -191,7 +172,7 @@ class Command(BaseCommand):
                     new_total = old_total + transport_amount
                     new_balance = old_balance + transport_amount
                     
-                    self.stdout.write(f"{admission_number}: Would add transport fee of {transport_amount}")
+                    self.stdout.write(f"{found_admission}: Would add transport fee of {transport_amount}")
                     self.stdout.write(f"  Route: {route}")
                     self.stdout.write(f"  Invoice: {invoice.invoice_number}")
                     self.stdout.write(f"  Current total: {old_total} → New total: {new_total}")
@@ -248,7 +229,7 @@ class Command(BaseCommand):
                         student.save(update_fields=['uses_school_transport'])
                     
                     success_count += 1
-                    self.stdout.write(self.style.SUCCESS(f"{admission_number}: Added transport fee of {transport_amount}"))
+                    self.stdout.write(self.style.SUCCESS(f"{found_admission}: Added transport fee of {transport_amount}"))
                     
             except Exception as e:
                 error_count += 1
@@ -263,6 +244,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Successfully processed: {success_count}")
         self.stdout.write(f"  Skipped (no invoice): {skipped_no_invoice}")
         self.stdout.write(f"  Skipped (already exists): {skipped_already_exists}")
+        self.stdout.write(f"  Skipped (not active): {skipped_not_active}")
         self.stdout.write(f"  Errors: {error_count}")
         self.stdout.write(f"  Total in Excel: {len(df)}")
         

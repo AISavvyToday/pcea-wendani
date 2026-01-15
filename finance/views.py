@@ -1070,7 +1070,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Net total after balance_bf and prepayment adjustments
         net_after_adjustments = total_invoiced + balance_bf + prepayment
         # Outstanding balance: total_amount + balance_bf + prepayment (NO payments deducted)
-        outstanding_balance = total_invoiced + balance_bf + prepayment
+        outstanding_balance = total_invoiced + balance_bf - prepayment
 
         # Bank details & logos from settings (fallback to hardcoded)
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
