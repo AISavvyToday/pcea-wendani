@@ -237,7 +237,9 @@ class Invoice(BaseModel):
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
 
-        self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid
+
+        self.balance = (self.total_amount + self.balance_bf) - (self.prepayment + self.amount_paid + self.discount_amount)
+        # self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid - self.discount_amount
         super().save(*args, **kwargs)
 
         # 🔥 recompute student outstanding balance
