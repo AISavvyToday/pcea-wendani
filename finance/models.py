@@ -232,15 +232,17 @@ class Invoice(BaseModel):
         # Save normally so balance/status stay consistent
         self.save()
 
+    
     def save(self, *args, **kwargs):
-        # Auto-generate invoice number if not set
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
 
-        # Formula: total_amount + balance_bf + prepayment - amount_paid
-        # prepayment is stored as negative (credit), so adding it reduces balance
         self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid
         super().save(*args, **kwargs)
+
+        # 🔥 recompute student outstanding balance
+        self.student.recompute_outstanding_balance()
+
 
 
 class InvoiceItem(BaseModel):
@@ -300,3 +302,5 @@ class InvoiceItem(BaseModel):
             self.net_amount = Decimal('0.00')
 
         super().save(*args, **kwargs)
+
+

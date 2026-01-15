@@ -6,6 +6,8 @@ from django.core.validators import RegexValidator
 from core.models import BaseModel, Gender, GradeLevel
 from accounts.models import User
 
+from django.db.models import Sum
+
 
 class Parent(BaseModel):
     """
@@ -189,6 +191,14 @@ class Student(BaseModel):
         help_text="Frozen prepayment from previous term at term start (positive value). Never changes during the term."
     )
 
+    outstanding_balance = models.DecimalField(
+    max_digits=12,
+    decimal_places=2,
+    default=Decimal("0.00"),
+    help_text="Sum of balances of all unpaid, active invoices"
+    )
+
+
     class Meta:
         db_table = 'students'
         ordering = ['admission_number']
@@ -224,6 +234,23 @@ class Student(BaseModel):
 
         sp_any = self.student_parents.select_related("parent").first()
         return sp_any.parent if sp_any else None
+
+
+
+    def recompute_outstanding_balance(self):
+        total = self.invoices.filter(
+            status__in=[
+                InvoiceStatus.OVERDUE,
+                InvoiceStatus.PARTIALLY_PAID
+            ],
+            is_active=True
+        ).aggregate(
+            total=Sum('balance')
+        )['total'] or Decimal('0.00')
+
+        self.outstanding_balance = total
+        self.save(update_fields=['outstanding_balance'])
+
 
     def save(self, *args, **kwargs):
         """Override save to auto-generate admission_number if not provided."""

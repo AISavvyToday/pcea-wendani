@@ -439,39 +439,10 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         context['total_paid'] = total_paid
 
-        # Outstanding invoice balance (active, non-cancelled)
-        outstanding_invoice_balance = student.invoices.filter(
-            is_active=True
-        ).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        
 
-        # ----------------------------
-        # CREDIT / PREPAYMENT LOGIC
-        # ----------------------------
-        credit_balance = student.credit_balance  # source of truth
-        context['raw_credit_balance'] = credit_balance
+        context['outstanding_balance'] = student.outstanding_balance
 
-        # If credit_balance > 0 → student owes money not yet invoiced
-        # If credit_balance < 0 → student has prepaid credit
-
-        if credit_balance > 0:
-            # Debt not yet invoiced → add to outstanding balance
-            outstanding_balance = outstanding_invoice_balance + credit_balance
-            context['credit_balance'] = Decimal('0.00')
-            context['has_credit'] = False
-        elif credit_balance < 0:
-            # Student has prepaid credit
-            outstanding_balance = outstanding_invoice_balance
-            context['credit_balance'] = abs(credit_balance)  # display as positive
-            context['has_credit'] = True
-        else:
-            # Neutral balance
-            outstanding_balance = outstanding_invoice_balance
-            context['credit_balance'] = Decimal('0.00')
-            context['has_credit'] = False
-
-        context['outstanding_balance'] = outstanding_balance
 
         # ----------------------------
         # DOCUMENTS & RECORDS
