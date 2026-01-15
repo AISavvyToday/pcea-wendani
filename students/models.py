@@ -1,6 +1,6 @@
 # students/models.py
 from decimal import Decimal
-
+from core.models import InvoiceStatus
 from django.db import models
 from django.core.validators import RegexValidator
 from core.models import BaseModel, Gender, GradeLevel
