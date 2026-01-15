@@ -404,7 +404,8 @@ class InvoiceService:
 
         # Calculate balance due: (total_invoiced + balance_bf + prepayment) - total_paid
         # Prepayment is stored as negative, so adding it reduces the balance
-        balance_due = (total_invoiced + total_balance_bf + total_prepayment) - total_paid
+        balance_due = (total_invoiced + total_balance_bf) - total_prepayment - total_paid
+
 
         return {
             'total_invoiced': total_invoiced,
