@@ -638,9 +638,9 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
         # Net total after balance_bf and prepayment adjustments
-        net_after_adjustments = total_invoiced + balance_bf + prepayment
+        net_after_adjustments = total_invoiced + balance_bf - prepayment
         # Use the same formula as invoice model: total_amount + balance_bf + prepayment - amount_paid
-        total_balance = total_invoiced + balance_bf + prepayment - total_paid
+        total_balance = total_invoiced + balance_bf - prepayment - total_paid
 
         # paid percentage
         paid_percentage = 0
