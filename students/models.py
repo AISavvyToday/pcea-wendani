@@ -248,7 +248,7 @@ class Student(BaseModel):
             total=Sum('balance')
         )['total'] or Decimal('0.00')
 
-        self.outstanding_balance = total
+        self.outstanding_balance = total + student.balance_bf_original
         self.save(update_fields=['outstanding_balance'])
 
 
