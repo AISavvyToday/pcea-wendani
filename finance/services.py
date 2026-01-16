@@ -371,6 +371,37 @@ class InvoiceService:
             'invoices': invoices,
             'payments': payments
         }
+        
+    @staticmethod
+    @transaction.atomic
+    def delete_invoice(invoice):
+        """
+        Safely delete an invoice.
+
+        Rules:
+        - Block deletion if amount_paid > 0
+        - Delete all invoice items (cascade deletes allocations)
+        - Restore student.credit_balance if invoice consumed credit
+        """
+
+        if invoice.amount_paid > 0:
+            raise ValueError(
+                f"Cannot delete invoice {invoice.invoice_number}: it has payments applied."
+            )
+
+        student = invoice.student
+
+        # Calculate credit used during invoice generation
+        credit_used = 0
+        if invoice.prepayment < 0:
+            credit_used = abs(invoice.prepayment)  # convert to positive
+            student.credit_balance += credit_used
+            student.save(update_fields=['credit_balance', 'updated_at'])
+
+        # Delete invoice (items and allocations cascade automatically)
+        invoice.delete()
+
+        return credit_used
 
 
 

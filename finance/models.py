@@ -171,10 +171,7 @@ class Invoice(BaseModel):
 
     # Opening balances (FROZEN)
     balance_bf = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
-    balance_bf_original = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal("0.00"), null=True, blank=True
-    )
-
+    
     # Credit applied at invoice creation (POSITIVE)
     prepayment = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 

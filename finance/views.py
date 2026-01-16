@@ -1031,66 +1031,31 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
 
 
 
-class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     """
-    Soft delete an invoice (sets is_active=False).
-
-    Financial invariants:
-    - Frozen fields (student.balance_bf_original, student.prepayment_original)
-      represent historical term-start data and MUST NEVER be mutated here.
-    - Only student.credit_balance is restored, because it was consumed
-      during invoice creation.
+    Safely delete an invoice.
+    Only works if amount_paid == 0.
     """
 
-    model = Invoice
-    template_name = 'finance/invoice_confirm_delete.html'
-    success_url = reverse_lazy('finance:invoice_list')
-    context_object_name = 'invoice'
-    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
-    def delete(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        invoice = self.object
+    def get(self, request, pk, *args, **kwargs):
+        invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
-        # SAFETY: Block deletion if invoice has any payments
-        if invoice.amount_paid > 0:
-            messages.error(
+        try:
+            restored_credit = InvoiceService.delete_invoice(invoice)
+            messages.success(
                 request,
-                (
-                    f'Cannot delete invoice {invoice.invoice_number}. '
-                    f'It has payments (KES {invoice.amount_paid:,.2f}). '
-                    'Please reverse payments first or cancel the invoice instead.'
-                )
+                f"Invoice {invoice.invoice_number} deleted successfully. "
+                + (f"Restored KES {restored_credit} to student credit." if restored_credit > 0 else "")
             )
-            return redirect('finance:invoice_detail', pk=invoice.pk)
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Failed to delete invoice: {str(e)}")
 
-        student = invoice.student
-        invoice_number = invoice.invoice_number
-
-        with db_transaction.atomic():
-            # Restore ONLY what invoice creation consumed:
-            # student.credit_balance
-            current_credit = student.credit_balance or Decimal('0.00')
-
-            if invoice.prepayment and invoice.prepayment < 0:
-                # Prepayments are stored as negative values on the invoice
-                student.credit_balance = current_credit + abs(invoice.prepayment)
-
-            # Soft delete invoice (ledger-safe)
-            invoice.is_active = False
-            invoice.save(update_fields=['is_active'])
-
-            # Persist restored credit balance
-            student.save(update_fields=['credit_balance', 'updated_at'])
-
-        messages.success(
-            request,
-            (
-                f'Invoice {invoice_number} deleted successfully. '
-                'Student outstanding balance has been adjusted.'
-            )
-        )
-        return HttpResponseRedirect(self.get_success_url())
+        # Redirect back to invoice list or student detail
+        return redirect(request.META.get("HTTP_REFERER") or reverse_lazy("finance:invoice_list"))
 
 # class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 #     """Soft delete an invoice (sets is_active=False)."""
