@@ -1449,12 +1449,7 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             total=Sum('balance_bf')
         )['total'] or Decimal('0.00')
 
-        # Student balance BEFORE this payment
-        # (Invoice total + Balance B/F)
-        student_balance_at_payment = (
-            total_invoice_amount + total_balance_bf
-        )
-
+        
         # Outstanding AFTER this payment
         outstanding_balance_after = (
             student_balance_at_payment - payment.amount
@@ -1470,6 +1465,12 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             if total_prepayment < 0
             else Decimal('0.00')
         )
+        total_discount = current_invoices.aggregate(
+            total=Sum('discount_amount')
+        )['total'] or Decimal('0.00')
+
+        student_balance_at_payment = (total_invoice_amount + total_balance_bf) - (total_prepayment + total_discount)
+        
 
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
