@@ -547,8 +547,14 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             invoice_list = self.object_list
         for invoice in invoice_list:
             invoice.prepayment_abs = abs(invoice.prepayment) if invoice.prepayment else Decimal('0.00')
-            # Calculate total due: total_amount + balance_bf + prepayment
-            invoice.total_due = (invoice.total_amount or Decimal('0.00')) + (invoice.balance_bf or Decimal('0.00')) + (invoice.prepayment or Decimal('0.00'))
+            invoice.total_due = (
+                        (invoice.total_amount or Decimal("0.00")) +
+                        (invoice.balance_bf or Decimal("0.00"))
+                    ) - (
+                        (invoice.prepayment or Decimal("0.00")) +
+                        (invoice.amount_paid or Decimal("0.00")) +
+                        (invoice.discount_amount or Decimal("0.00"))
+                    )
 
         return context
 
