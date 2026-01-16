@@ -135,6 +135,11 @@ class Payment(BaseModel):
         
         return f'RCP-{year}-{new_num:05d}'
 
+    def delete(self, *args, **kwargs):
+        raise RuntimeError(
+            "Payments must be deleted via InvoiceService.delete_payment()"
+        )
+
 
 class BankTransaction(BaseModel):
     """

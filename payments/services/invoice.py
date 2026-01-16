@@ -145,6 +145,58 @@ class InvoiceService:
 
         return allocated_total
 
+
+    @staticmethod
+    @db_transaction.atomic
+    def delete_payment(payment: Payment):
+        """
+        Hard-delete a payment and its allocations and restore all derived state.
+        """
+
+        if not payment:
+            return
+
+        student = payment.student
+
+        # 1. Capture allocations BEFORE deletion
+        allocations = list(payment.allocations.all())
+
+        invoice_ids = list(
+            {a.invoice_item.invoice_id for a in allocations}
+        )
+
+        allocated_total = sum(a.amount for a in allocations)
+
+        # 2. Delete allocations
+        for alloc in allocations:
+            alloc.delete()
+
+        # 3. Delete payment
+        payment.delete()
+
+        # 4. Restore student credit balance
+        # Payment creation subtracted this remainder; deletion must add it back
+        unapplied_credit = max(
+            Decimal("0.00"),
+            payment.amount - allocated_total
+        )
+
+        if unapplied_credit > 0:
+            student.credit_balance += unapplied_credit
+            student.save(update_fields=["credit_balance", "updated_at"])
+
+        # 5. Recalculate affected invoices
+        for invoice in Invoice.objects.select_for_update().filter(
+            id__in=invoice_ids
+        ):
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+        logger.info(
+            f"Payment {payment.payment_reference} deleted. "
+            f"Allocated={allocated_total}, Credit restored={unapplied_credit}"
+        )
+
+
     # ---------------------------------------------------------
     # Credit helpers
     # ---------------------------------------------------------
