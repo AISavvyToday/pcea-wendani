@@ -172,7 +172,7 @@ class InvoiceService:
             alloc.delete()
 
         # 3. Delete payment
-        payment.delete()
+        Payment.objects.filter(pk=payment.pk).delete()
 
         # 4. Restore student credit balance
         # Payment creation subtracted this remainder; deletion must add it back
