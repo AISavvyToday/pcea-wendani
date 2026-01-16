@@ -1048,7 +1048,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         UserRole.ACCOUNTANT
     ]
 
-    def get(self, request, pk, *args, **kwargs):
+    def post(self, request, pk, *args, **kwargs):
         invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
         # 🔑 Capture student BEFORE deletion
