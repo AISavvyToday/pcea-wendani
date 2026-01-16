@@ -400,6 +400,7 @@ class InvoiceService:
 
         # Delete invoice (items and allocations cascade automatically)
         invoice.delete()
+        student.recompute_outstanding_balance()
 
         return credit_used
 
