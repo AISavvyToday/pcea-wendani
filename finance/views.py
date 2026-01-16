@@ -1076,7 +1076,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
             return redirect("finance:invoice_detail", pk=pk)
 
         # ✅ Redirect to student detail page
-        return redirect("students:student_detail", pk=student.pk)
+        return redirect("students:detail", pk=student.pk)
 
 
 # class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
