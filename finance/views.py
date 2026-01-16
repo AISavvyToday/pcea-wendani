@@ -1042,25 +1042,42 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     Only works if amount_paid == 0.
     """
 
-    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+        UserRole.ACCOUNTANT
+    ]
 
     def get(self, request, pk, *args, **kwargs):
         invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
+        # 🔑 Capture student BEFORE deletion
+        student = invoice.student
+        invoice_number = invoice.invoice_number
+
         try:
             restored_credit = InvoiceService.delete_invoice(invoice)
+
             messages.success(
                 request,
-                f"Invoice {invoice.invoice_number} deleted successfully. "
-                + (f"Restored KES {restored_credit} to student credit." if restored_credit > 0 else "")
+                f"Invoice {invoice_number} deleted successfully."
+                + (
+                    f" Restored KES {restored_credit} to student credit."
+                    if restored_credit > 0 else ""
+                )
             )
+
         except ValueError as e:
             messages.error(request, str(e))
+            return redirect("finance:invoice_detail", pk=pk)
+
         except Exception as e:
             messages.error(request, f"Failed to delete invoice: {str(e)}")
+            return redirect("finance:invoice_detail", pk=pk)
 
-        # Redirect back to invoice list or student detail
-        return redirect(request.META.get("HTTP_REFERER") or reverse_lazy("finance:invoice_list"))
+        # ✅ Redirect to student detail page
+        return redirect("students:student_detail", pk=student.pk)
+
 
 # class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 #     """Soft delete an invoice (sets is_active=False)."""
