@@ -552,7 +552,6 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
                         (invoice.balance_bf or Decimal("0.00"))
                     ) - (
                         (invoice.prepayment or Decimal("0.00")) +
-                        (invoice.amount_paid or Decimal("0.00")) +
                         (invoice.discount_amount or Decimal("0.00"))
                     )
 
