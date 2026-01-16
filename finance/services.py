@@ -25,112 +25,114 @@ from academics.models import Term
 class InvoiceService:
     """Service for invoice operations."""
 
+    
     @staticmethod
     @transaction.atomic
     def generate_invoice(student, term, generated_by=None):
-        """Generate invoice for a student for a term with route-specific transport fees."""
+        """
+        Generate invoice for a student for a term.
 
-        # Check if invoice already exists
+        Financial rules enforced:
+        - Opening balance comes ONLY from student.balance_bf_original
+        - Opening credit comes ONLY from student.prepayment_original
+        - Live credit_balance may further reduce exposure ONCE
+        - Frozen fields are NEVER modified here
+        """
+
+        # --------------------------------------------------
+        # Prevent duplicate invoice
+        # --------------------------------------------------
         existing = Invoice.objects.filter(
             student=student,
-            term=term
+            term=term,
+            is_active=True
         ).exclude(status='cancelled').first()
 
         if existing:
             return existing, False
 
-        # Find applicable fee structure
-        grade_level = student.grade_level if hasattr(student, 'grade_level') else None
-        if not grade_level and hasattr(student, 'current_class'):
-            grade_level = student.current_class.grade_level if student.current_class else None
+        # --------------------------------------------------
+        # Resolve fee structure
+        # --------------------------------------------------
+        grade_level = getattr(student, 'grade_level', None)
+        if not grade_level and getattr(student, 'current_class', None):
+            grade_level = student.current_class.grade_level
 
-        # Query fee structures - handle SQLite JSONField limitation
         fee_structures = FeeStructure.objects.filter(
             academic_year=term.academic_year,
             term=term.term,
             is_active=True
         )
-        
-        # Filter by grade level - SQLite doesn't support contains on JSONField
-        # So we check if grade_levels is empty (applies to all) or contains the grade_level
+
         fee_structure = None
         for fs in fee_structures:
-            if not fs.grade_levels or len(fs.grade_levels) == 0:
-                # Empty list means applies to all grade levels
+            if not fs.grade_levels or grade_level in fs.grade_levels:
                 fee_structure = fs
                 break
-            elif grade_level and grade_level in fs.grade_levels:
-                # Grade level is in the list
-                fee_structure = fs
-                break
-        
-        # If no match found, try to get first available (fallback)
-        if not fee_structure:
-            fee_structure = fee_structures.first()
 
         if not fee_structure:
-            raise ValueError(f"No fee structure found for student {student.admission_number} (Grade: {grade_level})")
+            raise ValueError(
+                f"No fee structure for {student.admission_number} (Grade: {grade_level})"
+            )
 
-        # Create invoice
+        # --------------------------------------------------
+        # Create invoice shell
+        # --------------------------------------------------
         invoice = Invoice.objects.create(
             student=student,
             term=term,
             fee_structure=fee_structure,
             issue_date=timezone.now().date(),
-            due_date=term.start_date + timedelta(days=30) if term.start_date else timezone.now().date() + timedelta(
-                days=30),
+            due_date=(
+                term.start_date + timedelta(days=30)
+                if term.start_date
+                else timezone.now().date() + timedelta(days=30)
+            ),
             generated_by=generated_by,
             status='overdue'
         )
 
+        # --------------------------------------------------
         # Add fee items
+        # --------------------------------------------------
         subtotal = Decimal('0.00')
-        fee_items = FeeItem.objects.filter(fee_structure=fee_structure, is_active=True)
+        fee_items = FeeItem.objects.filter(
+            fee_structure=fee_structure,
+            is_active=True
+        )
 
         for item in fee_items:
-            # SPECIAL HANDLING FOR TRANSPORT FEES
+            item_amount = Decimal('0.00')
+            description = item.description
+
             if item.category == 'transport':
-                # Check if student uses school transport
                 if student.uses_school_transport and student.transport_route:
+                    from transport.models import TransportFee
                     try:
-                        # Get transport fee for this student's route, term, and academic year
-                        from transport.models import TransportFee
-                        transport_fee = TransportFee.objects.get(
+                        tf = TransportFee.objects.get(
                             route=student.transport_route,
                             academic_year=term.academic_year,
                             term=term.term,
                             is_active=True
                         )
-                        item_amount = transport_fee.amount
-                        description = f"Transport ({student.transport_route.name} Route)"
+                        item_amount = tf.amount
+                        description = f"Transport ({student.transport_route.name})"
                     except TransportFee.DoesNotExist:
-                        # No transport fee defined for this route - set to 0
-                        item_amount = Decimal('0.00')
-                        description = f"Transport - Route fee not configured"
                         logger.warning(
-                            f"No transport fee configured for {student.transport_route.name} in {term.academic_year.year} {term.term}")
-                else:
-                    # Student doesn't use transport - set amount to 0
-                    item_amount = Decimal('0.00')
-                    description = item.description
+                            f"No transport fee for {student.transport_route}"
+                        )
             else:
-                # Non-transport items use the fixed amount from fee structure
                 item_amount = item.amount
-                description = item.description
 
-            # Calculate discount for this item
             discount_amount = Decimal('0.00')
-
-            # Get applicable student discounts
             student_discounts = StudentDiscount.objects.filter(
                 student=student,
                 is_active=True,
                 is_approved=True,
                 discount__academic_year=term.academic_year
             ).filter(
-                Q(start_date__lte=timezone.now().date()) | Q(start_date__isnull=True)
-            ).filter(
-                Q(end_date__gte=timezone.now().date()) | Q(end_date__isnull=True)
+                Q(start_date__lte=timezone.now().date()) | Q(start_date__isnull=True),
+                Q(end_date__gte=timezone.now().date()) | Q(end_date__isnull=True),
             )
 
             for sd in student_discounts:
@@ -152,98 +154,50 @@ class InvoiceService:
                 discount_applied=discount_amount,
                 net_amount=net_amount
             )
+
             subtotal += item_amount
 
-        # Update invoice totals
+        # --------------------------------------------------
+        # Finalize totals
+        # --------------------------------------------------
         invoice.subtotal = subtotal
-
-        # Calculate total discount (sum of all item discounts)
-        total_discount = invoice.items.aggregate(total=Sum('discount_applied'))['total'] or Decimal('0.00')
-        invoice.discount_amount = total_discount
+        invoice.discount_amount = (
+            invoice.items.aggregate(total=Sum('discount_applied'))['total']
+            or Decimal('0.00')
+        )
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
-        # ============================================================
-        # Calculate balance_bf from previous term outstanding balances
-        # IMPORTANT: balance_bf is frozen at invoice creation and never modified
-        # ============================================================
-        from core.models import InvoiceStatus
-        
-        # Get all previous term invoices with outstanding balances
-        previous_invoices = Invoice.objects.filter(
-            student=student,
-            is_active=True
-        ).exclude(status=InvoiceStatus.CANCELLED).exclude(term=term)
-        
-        # Calculate total outstanding from previous terms
-        total_outstanding_previous = previous_invoices.aggregate(
-            total=Sum('balance')
-        )['total'] or Decimal('0.00')
-        
-        # Also check student.credit_balance for any manually set balances
-        # or prepayments from before the invoice system
-        student_credit = student.credit_balance or Decimal('0.00')
-        
-        # PRIORITY 1: Use frozen fields from Student (set at term start from Excel)
-        # These are the source of truth and take highest priority.
-        # IMPORTANT: Do NOT reset balance_bf_original / prepayment_original here;
-        # they must remain frozen for the whole term for dashboard reporting.
-        if student.balance_bf_original and student.balance_bf_original > 0:
-            invoice.balance_bf = student.balance_bf_original
-            invoice.prepayment = Decimal('0.00')
-            # Optionally clear credit_balance once consumed into invoices
-            if student_credit > 0:
-                student.credit_balance = Decimal('0.00')
-            
-        elif student.prepayment_original and student.prepayment_original > 0:
-            invoice.prepayment = -student.prepayment_original  # Store as negative
-            invoice.balance_bf = Decimal('0.00')
-            # Optionally clear credit_balance once consumed into invoices
-            if student_credit < 0:
-                student.credit_balance = Decimal('0.00')
+        # --------------------------------------------------
+        # CORE FIX: Apply frozen opening balances
+        # --------------------------------------------------
+        opening_balance = student.balance_bf_original or Decimal('0.00')
+        opening_prepayment = student.prepayment_original or Decimal('0.00')
 
-        # PRIORITY 2: Fallback to previous invoices (backward compatibility)
-        elif total_outstanding_previous > 0:
-            invoice.balance_bf = total_outstanding_previous
-            invoice.prepayment = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
-            
-        elif total_outstanding_previous < 0:
-            invoice.prepayment = total_outstanding_previous
-            invoice.balance_bf = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
+        invoice.balance_bf = opening_balance
+        invoice.prepayment = -opening_prepayment if opening_prepayment > 0 else Decimal('0.00')
+        invoice.balance_bf_original = opening_balance
 
-        # PRIORITY 3: Fallback to credit_balance (manual entries)
-        elif student_credit > 0:
-            invoice.balance_bf = student_credit
-            invoice.prepayment = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
-            
-        elif student_credit < 0:
-            invoice.prepayment = student_credit
-            invoice.balance_bf = Decimal('0.00')
-            student.credit_balance = Decimal('0.00')
-        else:
-            # No outstanding balances
-            invoice.balance_bf = Decimal('0.00')
-            invoice.prepayment = Decimal('0.00')
-            # Keep student.credit_balance as is (might be manually set)
-        
-        # IMPORTANT: Set balance_bf_original to the frozen value at invoice creation
-        # This value will never change, even when payments clear balance_bf
-        # Used by dashboard stats to show original outstanding balance from previous terms
-        invoice.balance_bf_original = invoice.balance_bf
-        
+        # --------------------------------------------------
+        # Consume live credit_balance once
+        # --------------------------------------------------
+        available_credit = student.credit_balance or Decimal('0.00')
+
+        exposure = opening_balance + invoice.total_amount - opening_prepayment
+        credit_to_apply = min(available_credit, exposure)
+
+        if credit_to_apply > 0:
+            invoice.prepayment -= credit_to_apply
+            student.credit_balance = available_credit - credit_to_apply
+
+        # --------------------------------------------------
+        # Persist
+        # --------------------------------------------------
         invoice.save()
-        student.save(update_fields=[
-            'balance_bf_original', 
-            'prepayment_original', 
-            'credit_balance', 
-            'updated_at'
-        ])
-
-
+        student.save(update_fields=['credit_balance', 'updated_at'])
 
         return invoice, True
+
+
 
     @staticmethod
     @transaction.atomic

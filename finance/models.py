@@ -138,112 +138,231 @@ class StudentDiscount(BaseModel):
         return f"{self.student.admission_number} - {self.discount.name}"
 
 
+from decimal import Decimal
+from django.db import models
+from django.contrib.auth import get_user_model
+from core.models import InvoiceStatus
+from finance.models import FeeStructure, FeeItem
+from students.models import Student
+
+User = get_user_model()
+
+
 class Invoice(BaseModel):
     """
     Fee invoice for a student for a specific term.
     """
-    # Invoice number (auto-generated)
+
     invoice_number = models.CharField(max_length=20, unique=True)
-    
+
     student = models.ForeignKey(
-        'students.Student', on_delete=models.CASCADE, related_name='invoices'
+        Student, on_delete=models.CASCADE, related_name="invoices"
     )
     term = models.ForeignKey(
-        'academics.Term', on_delete=models.CASCADE, related_name='invoices'
+        "academics.Term", on_delete=models.CASCADE, related_name="invoices"
     )
-    
+
     # Amounts
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
-    # Balance brought forward from previous term
-    balance_bf = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
-    # Balance B/F original frozen value (for dashboard stats)
-    # This is set at invoice creation and NEVER changes, even when payments clear balance_bf
-    # Used by dashboard to show the original outstanding balance from previous terms at term start
-    balance_bf_original = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
-    
-    # Prepayment/credit from previous term
-    prepayment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
-    status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.OVERDUE)
-    
-    # Dates
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # Opening balances (FROZEN)
+    balance_bf = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    balance_bf_original = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00"), null=True, blank=True
+    )
+
+    # Credit applied at invoice creation (POSITIVE)
+    prepayment = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # Derived
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    status = models.CharField(
+        max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.OVERDUE
+    )
+
     issue_date = models.DateField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
 
-    # Notes
     notes = models.TextField(blank=True)
-    
-    # Tracking
+
     generated_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, related_name='invoices_generated'
+        User, on_delete=models.SET_NULL, null=True, related_name="invoices_generated"
     )
+
     fee_structure = models.ForeignKey(
-        FeeStructure,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='invoices'
+        FeeStructure, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoices"
     )
 
     class Meta:
-        db_table = 'invoices'
-        unique_together = ['student', 'term']
-        ordering = ['-issue_date']
-        indexes = [
-            models.Index(fields=['invoice_number']),
-            models.Index(fields=['student', 'term']),
-            models.Index(fields=['status']),
-        ]
+        db_table = "invoices"
+        unique_together = ["student", "term"]
+        ordering = ["-issue_date"]
 
     def __str__(self):
         return f"{self.invoice_number} - {self.student.admission_number}"
 
     def generate_invoice_number(self):
-        """Generate unique invoice number: INV-YYYY-XXXXX"""
         from django.utils import timezone
-        year = timezone.now().year
-        last_invoice = Invoice.objects.filter(
-            invoice_number__startswith=f'INV-{year}'
-        ).order_by('-invoice_number').first()
-        
-        if last_invoice:
-            last_num = int(last_invoice.invoice_number.split('-')[-1])
-            new_num = last_num + 1
-        else:
-            new_num = 1
-        
-        return f'INV-{year}-{new_num:05d}'
 
-    def update_payment_status(self):
-        """Update invoice status based on balance and payment."""
+        year = timezone.now().year
+        last = (
+            Invoice.objects.filter(invoice_number__startswith=f"INV-{year}")
+            .order_by("-invoice_number")
+            .first()
+        )
+
+        seq = int(last.invoice_number.split("-")[-1]) + 1 if last else 1
+        return f"INV-{year}-{seq:05d}"
+
+    def _recalculate_balance(self):
+        """
+        SINGLE SOURCE OF TRUTH.
+        """
+        self.balance = (
+            (self.balance_bf or Decimal("0.00"))
+            + (self.total_amount or Decimal("0.00"))
+        ) - (
+            (self.prepayment or Decimal("0.00"))
+            + (self.amount_paid or Decimal("0.00"))
+            + (self.discount_amount or Decimal("0.00"))
+        )
+
+    def _recalculate_status(self):
+        from datetime import date
+
         if self.balance <= 0:
             self.status = InvoiceStatus.PAID
         elif self.amount_paid > 0:
             self.status = InvoiceStatus.PARTIALLY_PAID
-        elif self.due_date and self.due_date < __import__("datetime").date.today():
+        elif self.due_date and self.due_date < date.today():
             self.status = InvoiceStatus.OVERDUE
 
-        # Save normally so balance/status stay consistent
-        self.save()
-
-    
     def save(self, *args, **kwargs):
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
 
+        if self.balance_bf_original in (None, Decimal("0.00")):
+            self.balance_bf_original = self.balance_bf
 
-        self.balance = (self.total_amount + self.balance_bf) - (self.prepayment + self.amount_paid + self.discount_amount)
-        # self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid - self.discount_amount
+        self._recalculate_balance()
+        self._recalculate_status()
+
         super().save(*args, **kwargs)
 
-        # 🔥 recompute student outstanding balance
+        # Student aggregate must depend on invoice balances only
         self.student.recompute_outstanding_balance()
+
+# class Invoice(BaseModel):
+#     """
+#     Fee invoice for a student for a specific term.
+#     """
+#     # Invoice number (auto-generated)
+#     invoice_number = models.CharField(max_length=20, unique=True)
+    
+#     student = models.ForeignKey(
+#         'students.Student', on_delete=models.CASCADE, related_name='invoices'
+#     )
+#     term = models.ForeignKey(
+#         'academics.Term', on_delete=models.CASCADE, related_name='invoices'
+#     )
+    
+#     # Amounts
+#     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+#     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+#     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+#     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+#     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+#     # Balance brought forward from previous term
+#     balance_bf = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+#     # Balance B/F original frozen value (for dashboard stats)
+#     # This is set at invoice creation and NEVER changes, even when payments clear balance_bf
+#     # Used by dashboard to show the original outstanding balance from previous terms at term start
+#     balance_bf_original = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
+    
+#     # Prepayment/credit from previous term
+#     prepayment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+#     status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.OVERDUE)
+    
+#     # Dates
+#     issue_date = models.DateField(null=True, blank=True)
+#     due_date = models.DateField(null=True, blank=True)
+
+#     # Notes
+#     notes = models.TextField(blank=True)
+    
+#     # Tracking
+#     generated_by = models.ForeignKey(
+#         User, on_delete=models.SET_NULL, null=True, related_name='invoices_generated'
+#     )
+#     fee_structure = models.ForeignKey(
+#         FeeStructure,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         blank=True,
+#         related_name='invoices'
+#     )
+
+#     class Meta:
+#         db_table = 'invoices'
+#         unique_together = ['student', 'term']
+#         ordering = ['-issue_date']
+#         indexes = [
+#             models.Index(fields=['invoice_number']),
+#             models.Index(fields=['student', 'term']),
+#             models.Index(fields=['status']),
+#         ]
+
+#     def __str__(self):
+#         return f"{self.invoice_number} - {self.student.admission_number}"
+
+#     def generate_invoice_number(self):
+#         """Generate unique invoice number: INV-YYYY-XXXXX"""
+#         from django.utils import timezone
+#         year = timezone.now().year
+#         last_invoice = Invoice.objects.filter(
+#             invoice_number__startswith=f'INV-{year}'
+#         ).order_by('-invoice_number').first()
+        
+#         if last_invoice:
+#             last_num = int(last_invoice.invoice_number.split('-')[-1])
+#             new_num = last_num + 1
+#         else:
+#             new_num = 1
+        
+#         return f'INV-{year}-{new_num:05d}'
+
+#     def update_payment_status(self):
+#         """Update invoice status based on balance and payment."""
+#         if self.balance <= 0:
+#             self.status = InvoiceStatus.PAID
+#         elif self.amount_paid > 0:
+#             self.status = InvoiceStatus.PARTIALLY_PAID
+#         elif self.due_date and self.due_date < __import__("datetime").date.today():
+#             self.status = InvoiceStatus.OVERDUE
+
+#         # Save normally so balance/status stay consistent
+#         self.save()
+
+    
+#     def save(self, *args, **kwargs):
+#         if not self.invoice_number:
+#             self.invoice_number = self.generate_invoice_number()
+
+
+#         self.balance = (self.total_amount + self.balance_bf) - (self.prepayment + self.amount_paid + self.discount_amount)
+#         # self.balance = self.total_amount + self.balance_bf + self.prepayment - self.amount_paid - self.discount_amount
+#         super().save(*args, **kwargs)
+
+#         # 🔥 recompute student outstanding balance
+#         self.student.recompute_outstanding_balance()
 
 
 
