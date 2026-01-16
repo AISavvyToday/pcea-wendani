@@ -1051,7 +1051,6 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
-        # 🔑 Capture student BEFORE deletion
         student = invoice.student
         invoice_number = invoice.invoice_number
 
@@ -1075,7 +1074,6 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
             messages.error(request, f"Failed to delete invoice: {str(e)}")
             return redirect("finance:invoice_detail", pk=pk)
 
-        # ✅ Redirect to student detail page
         return redirect("students:detail", pk=student.pk)
 
 
