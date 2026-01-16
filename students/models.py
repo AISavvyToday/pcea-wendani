@@ -172,7 +172,7 @@ class Student(BaseModel):
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
-        help_text="Positive = owes money (debt), Negative = has credit (prepayment)"
+        help_text=""
     )
     
     # Frozen balance fields - set at term start (Excel import), never change during the term
@@ -238,7 +238,7 @@ class Student(BaseModel):
 
 
     def recompute_outstanding_balance(self):
-        total = self.invoices.filter(
+        invoice_total = self.invoices.filter(
             status__in=[
                 InvoiceStatus.OVERDUE,
                 InvoiceStatus.PARTIALLY_PAID
@@ -248,8 +248,14 @@ class Student(BaseModel):
             total=Sum('balance')
         )['total'] or Decimal('0.00')
 
-        self.outstanding_balance = total + self.balance_bf_original
+        # 🔑 Add historical debt ONCE
+        self.outstanding_balance = (
+            (self.balance_bf_original or Decimal("0.00"))
+            + invoice_total
+        )
+
         self.save(update_fields=['outstanding_balance'])
+        return self.outstanding_balance
 
 
     def save(self, *args, **kwargs):
