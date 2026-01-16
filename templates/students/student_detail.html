@@ -162,18 +162,7 @@
             </div>
             {% endif %}
 
-            {% if student.uses_school_transport %}
-            <div class="mb-2">
-              <div class="info-key">Transport Route</div>
-              <div class="info-val">{{ student.transport_route|default:"Not Assigned" }}</div>
-            </div>
-            {% if student.transport_pickup_person %}
-            <div class="mb-2">
-              <div class="info-key">Pick-up Person</div>
-              <div class="info-val">{{ student.transport_pickup_person }}</div>
-            </div>
-            {% endif %}
-            {% endif %}
+            
           </div>
         </div>
       </div>
