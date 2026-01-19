@@ -416,6 +416,9 @@
                             <a href="{% url 'finance:invoice_receipt_print' inv.pk %}" target="_blank" class="btn btn-outline-primary" title="Print Invoice">
                               <i class="mdi mdi-file-document"></i>
                             </a>
+
+                          </div>
+                          <div>
                             {% if invoice.amount_paid == 0 %}
 <form method="post"
       action="{% url 'finance:invoice_delete' invoice.pk %}"
