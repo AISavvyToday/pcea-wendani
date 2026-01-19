@@ -404,16 +404,14 @@ class InvoiceService:
                     'running_balance': running_balance
                 })
 
-        # Calculate balance due: (total_invoiced + balance_bf) - prepayment - total_paid
-        # Prepayment is stored as positive, so subtract it to reduce the balance
-        balance_due = (total_invoiced + total_balance_bf) - total_prepayment - total_paid
+        balance_due = (total_invoiced + total_balance_bf) - (total_prepayment + total_paid)
 
 
         return {
             'total_invoiced': total_invoiced,
             'total_paid': total_paid,
             'balance_bf': total_balance_bf,
-            'prepayment': total_prepayment,
+            'prepayment': abs(total_prepayment),
             'balance': balance_due,
             'transactions': transactions,
             'invoices': invoices,
