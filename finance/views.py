@@ -1734,7 +1734,12 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             admission_number_only = admission_number.split('/')[-1]
         else:
             admission_number_only = admission_number
+
+        balance_bf = student.balance_bf_original
+        prepayment = student.prepayment_original
         context['admission_number_only'] = admission_number_only
+        context['balance_bf'] = balance_bf
+        context['prepayment'] = prepayment
         
         return context
 
