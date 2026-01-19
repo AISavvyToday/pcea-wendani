@@ -2136,8 +2136,7 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         amount_paid = invoice.amount_paid or Decimal('0.00')
 
         # Formula: (total + balance_bf + prepayment) - amount_paid
-        # prepayment is stored as negative (credit), so adding it reduces balance
-        invoice.balance = (invoice.total_amount + balance_bf + prepayment) - amount_paid
+        invoice.balance = (invoice.total_amount + balance_bf ) - (amount_paid + prepayment + invoice.discount_amount)
 
         # Ensure balance is not negative due to overpayment
         if invoice.balance < Decimal('0.00'):
