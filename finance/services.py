@@ -195,6 +195,8 @@ class InvoiceService:
         invoice.save()
         student.save(update_fields=['credit_balance', 'updated_at'])
 
+        student.recompute_outstanding_balance()
+
         return invoice, True
 
 
@@ -592,6 +594,8 @@ class FeeStructureService:
         if not include_optional:
             items = items.filter(is_optional=False)
         return items.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+
 class DiscountService:
     """Service for managing discounts."""
 
