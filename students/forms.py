@@ -213,7 +213,7 @@ class StudentForm(forms.ModelForm):
         
         # Make optional fields not required
         optional_fields = [
-            'middle_name', 'birth_certificate_number', 'photo', 'current_class',
+            'middle_name', 'birth_certificate_number', 'photo',
             'blood_group', 'medical_conditions', 'emergency_contact_name',
             'emergency_contact_phone', 'previous_school', 'previous_class',
             'status_reason', 'special_needs_details', 'transport_route',
