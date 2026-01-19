@@ -1735,11 +1735,11 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         else:
             admission_number_only = admission_number
 
-        balance_bf = student.balance_bf_original
-        prepayment = student.prepayment_original
+        # balance_bf = student.balance_bf_original
+        # prepayment = student.prepayment_original
         context['admission_number_only'] = admission_number_only
-        context['balance_bf'] = balance_bf
-        context['prepayment'] = prepayment
+        # context['balance_bf'] = balance_bf
+        # context['prepayment'] = prepayment
         
         return context
 

@@ -272,16 +272,62 @@ class InvoiceService:
         # This is more accurate than just summing allocations
         total_paid = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
         
-        # Calculate total balance_bf and prepayment from invoices
-        total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        total_prepayment = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+        # Check for deleted invoices
+        deleted_invoices = Invoice.objects.filter(
+            student=student, is_active=False
+        )
+        
+        # Calculate total balance_bf and prepayment
+        # If deleted invoices exist or no active invoices, use student-level frozen fields
+        if deleted_invoices.exists() or not invoices.exists():
+            # Use student frozen fields for balance_bf and prepayment
+            total_balance_bf = student.balance_bf_original or Decimal('0.00')
+            total_prepayment = student.prepayment_original or Decimal('0.00')
+        else:
+            # Use values from active invoices
+            total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+            total_prepayment = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
 
         # Build transaction list
         transactions = []
-        # Start running balance with total balance_bf (if any invoices have it)
-        # We'll show balance_bf as a separate transaction entry for the first invoice that has it
         running_balance = Decimal('0.00')
         balance_bf_shown = False
+
+        # If deleted invoices exist or no active invoices, add balance_bf/prepayment from student level first
+        if (deleted_invoices.exists() or not invoices.exists()) and (total_balance_bf > 0 or total_prepayment > 0):
+            # Use earliest invoice date or current date for opening balances
+            earliest_date = None
+            if invoices.exists():
+                earliest_inv = invoices.order_by('issue_date', 'created_at').first()
+                earliest_date = earliest_inv.issue_date or (earliest_inv.created_at.date() if hasattr(earliest_inv.created_at, 'date') else earliest_inv.created_at)
+            else:
+                from datetime import date
+                earliest_date = date.today()
+            
+            # Add balance_bf as opening balance
+            if total_balance_bf > 0:
+                running_balance += total_balance_bf
+                balance_bf_shown = True
+                transactions.append({
+                    'date': earliest_date,
+                    'description': 'Balance B/F from previous term',
+                    'reference': 'Opening Balance',
+                    'debit': total_balance_bf,
+                    'credit': None,
+                    'running_balance': running_balance
+                })
+            
+            # Add prepayment as opening credit
+            if total_prepayment > 0:
+                running_balance -= total_prepayment
+                transactions.append({
+                    'date': earliest_date,
+                    'description': 'Prepayment/Advance Payment',
+                    'reference': 'Opening Credit',
+                    'debit': None,
+                    'credit': total_prepayment,
+                    'running_balance': running_balance
+                })
 
         all_items = []
         for inv in invoices:
@@ -309,7 +355,7 @@ class InvoiceService:
                 inv = item['obj']
                 inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
                 
-                # Show balance_bf first if it exists and hasn't been shown yet
+                # Show balance_bf first if it exists and hasn't been shown yet (only for active invoices)
                 if inv.balance_bf and inv.balance_bf > 0 and not balance_bf_shown:
                     running_balance += inv.balance_bf
                     balance_bf_shown = True
@@ -335,14 +381,14 @@ class InvoiceService:
                 
                 # If invoice has prepayment, show it as a credit entry (reduces balance)
                 if inv.prepayment and inv.prepayment != 0:
-                    # Prepayment is stored as negative, so adding it reduces balance
-                    running_balance -= abs(inv.prepayment)
+                    # Prepayment is stored as positive, so subtract it to reduce balance
+                    running_balance -= inv.prepayment
                     transactions.append({
                         'date': inv_date,
                         'description': f"Prepayment Applied (Invoice {inv.invoice_number})",
                         'reference': inv.invoice_number,
                         'debit': None,
-                        'credit': abs(inv.prepayment),
+                        'credit': inv.prepayment,
                         'running_balance': running_balance
                     })
             else:
@@ -358,8 +404,8 @@ class InvoiceService:
                     'running_balance': running_balance
                 })
 
-        # Calculate balance due: (total_invoiced + balance_bf + prepayment) - total_paid
-        # Prepayment is stored as negative, so adding it reduces the balance
+        # Calculate balance due: (total_invoiced + balance_bf) - prepayment - total_paid
+        # Prepayment is stored as positive, so subtract it to reduce the balance
         balance_due = (total_invoiced + total_balance_bf) - total_prepayment - total_paid
 
 
@@ -373,6 +419,150 @@ class InvoiceService:
             'invoices': invoices,
             'payments': payments
         }
+
+    # @staticmethod
+    # def get_student_statement(student, term=None):
+    #     """Get student financial statement."""
+    #     from datetime import date as date_cls
+    #     from django.db.models import Q
+
+    #     from core.models import InvoiceStatus
+    #     invoices = Invoice.objects.filter(
+    #         student=student, is_active=True
+    #     ).exclude(status=InvoiceStatus.CANCELLED)
+
+    #     if term:
+    #         invoices = invoices.filter(term=term)
+
+    #     # Get payments - if term is specified, only get payments allocated to invoices in that term
+    #     if term:
+    #         # Get payments that have allocations to invoice items in invoices for this term
+    #         from payments.models import PaymentAllocation
+    #         payment_ids = PaymentAllocation.objects.filter(
+    #             is_active=True,
+    #             invoice_item__invoice__in=invoices,
+    #             payment__is_active=True,
+    #             payment__status='completed'
+    #         ).values_list('payment_id', flat=True).distinct()
+            
+    #         payments = Payment.objects.filter(
+    #             id__in=payment_ids,
+    #             student=student,
+    #             is_active=True,
+    #             status='completed'
+    #         )
+    #     else:
+    #         payments = Payment.objects.filter(
+    #             student=student, is_active=True, status='completed'
+    #         )
+
+    #     total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        
+    #     # Calculate total paid - use invoice.amount_paid which includes both item allocations and balance_bf payments
+    #     # This is more accurate than just summing allocations
+    #     total_paid = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
+        
+    #     # Calculate total balance_bf and prepayment from invoices
+    #     total_balance_bf = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+    #     total_prepayment = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+
+    #     # Build transaction list
+    #     transactions = []
+    #     # Start running balance with total balance_bf (if any invoices have it)
+    #     # We'll show balance_bf as a separate transaction entry for the first invoice that has it
+    #     running_balance = Decimal('0.00')
+    #     balance_bf_shown = False
+
+    #     all_items = []
+    #     for inv in invoices:
+    #         # Handle None issue_date - use created_at as fallback
+    #         inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
+    #         all_items.append({
+    #             'date': inv_date,
+    #             'type': 'invoice',
+    #             'obj': inv
+    #         })
+        
+    #     for pmt in payments:
+    #         pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
+    #         all_items.append({
+    #             'date': pmt_date,
+    #             'type': 'payment',
+    #             'obj': pmt
+    #         })
+
+    #     # Sort by date, handling None dates by putting them at the end
+    #     all_items.sort(key=lambda x: x['date'] if x['date'] is not None else date_cls(9999, 12, 31))
+
+    #     for item in all_items:
+    #         if item['type'] == 'invoice':
+    #             inv = item['obj']
+    #             inv_date = inv.issue_date or (inv.created_at.date() if hasattr(inv.created_at, 'date') else inv.created_at)
+                
+    #             # Show balance_bf first if it exists and hasn't been shown yet
+    #             if inv.balance_bf and inv.balance_bf > 0 and not balance_bf_shown:
+    #                 running_balance += inv.balance_bf
+    #                 balance_bf_shown = True
+    #                 transactions.append({
+    #                     'date': inv_date,
+    #                     'description': f"Balance B/F (Invoice {inv.invoice_number})",
+    #                     'reference': inv.invoice_number,
+    #                     'debit': inv.balance_bf,
+    #                     'credit': None,
+    #                     'running_balance': running_balance
+    #                 })
+                
+    #             # Add invoice total amount
+    #             running_balance += inv.total_amount
+    #             transactions.append({
+    #                 'date': inv_date,
+    #                 'description': f"Invoice {inv.invoice_number}",
+    #                 'reference': inv.invoice_number,
+    #                 'debit': inv.total_amount,
+    #                 'credit': None,
+    #                 'running_balance': running_balance
+    #             })
+                
+    #             # If invoice has prepayment, show it as a credit entry (reduces balance)
+    #             if inv.prepayment and inv.prepayment != 0:
+    #                 # Prepayment is stored as negative, so adding it reduces balance
+    #                 running_balance -= abs(inv.prepayment)
+    #                 transactions.append({
+    #                     'date': inv_date,
+    #                     'description': f"Prepayment Applied (Invoice {inv.invoice_number})",
+    #                     'reference': inv.invoice_number,
+    #                     'debit': None,
+    #                     'credit': abs(inv.prepayment),
+    #                     'running_balance': running_balance
+    #                 })
+    #         else:
+    #             pmt = item['obj']
+    #             running_balance -= pmt.amount
+    #             pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
+    #             transactions.append({
+    #                 'date': pmt_date,
+    #                 'description': f"Payment - {pmt.get_payment_source_display()}",
+    #                 'reference': pmt.receipt_number or pmt.payment_reference or '-',
+    #                 'debit': None,
+    #                 'credit': pmt.amount,
+    #                 'running_balance': running_balance
+    #             })
+
+    #     # Calculate balance due: (total_invoiced + balance_bf + prepayment) - total_paid
+    #     # Prepayment is stored as negative, so adding it reduces the balance
+    #     balance_due = (total_invoiced + total_balance_bf) - total_prepayment - total_paid
+
+
+    #     return {
+    #         'total_invoiced': total_invoiced,
+    #         'total_paid': total_paid,
+    #         'balance_bf': total_balance_bf,
+    #         'prepayment': total_prepayment,
+    #         'balance': balance_due,
+    #         'transactions': transactions,
+    #         'invoices': invoices,
+    #         'payments': payments
+    #     }
         
     @staticmethod
     @transaction.atomic
