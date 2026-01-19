@@ -1077,72 +1077,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect("students:detail", pk=student.pk)
 
 
-# class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
-#     """Soft delete an invoice (sets is_active=False)."""
 
-#     model = Invoice
-#     template_name = 'finance/invoice_confirm_delete.html'
-#     success_url = reverse_lazy('finance:invoice_list')
-#     context_object_name = 'invoice'
-#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
-
-#     def delete(self, request, *args, **kwargs):
-#         self.object = self.get_object()
-
-#         # Check if invoice has payments
-#         if self.object.amount_paid > 0:
-#             messages.error(
-#                 request,
-#                 f'Cannot delete invoice {self.object.invoice_number}. It has payments (KES {self.object.amount_paid:,.2f}). '
-#                 'Please reverse payments first or cancel the invoice instead.'
-#             )
-#             return redirect('finance:invoice_detail', pk=self.object.pk)
-
-#         invoice = self.object
-#         student = invoice.student
-        
-#         # IMPORTANT: When an invoice is deleted, we need to restore BOTH:
-#         # 1. student.credit_balance (for account balance)
-#         # 2. student.balance_bf_original and student.prepayment_original (frozen fields for dashboard stats)
-#         # This ensures dashboard stats remain accurate even after invoice deletion
-#         with db_transaction.atomic():
-#             current_credit = student.credit_balance or Decimal('0.00')
-            
-#             # Restore balance_bf_original to Student frozen field
-#             if invoice.balance_bf_original and invoice.balance_bf_original > 0:
-#                 student.balance_bf_original = invoice.balance_bf_original
-#                 student.credit_balance = current_credit + invoice.balance_bf_original
-#                 current_credit = student.credit_balance
-#             elif invoice.balance_bf and invoice.balance_bf > 0:
-#                 # Fallback if balance_bf_original not set
-#                 student.balance_bf_original = invoice.balance_bf
-#                 student.credit_balance = current_credit + invoice.balance_bf
-#                 current_credit = student.credit_balance
-            
-#             # Restore prepayment_original to Student frozen field
-#             if invoice.prepayment and invoice.prepayment < 0:
-#                 student.prepayment_original = abs(invoice.prepayment)
-#                 student.credit_balance = current_credit + invoice.prepayment
-            
-#             # Soft delete - set is_active to False
-#             invoice_number = invoice.invoice_number
-#             invoice.is_active = False
-#             invoice.save()
-            
-#             # Save student with restored frozen fields
-#             student.save(update_fields=[
-#                 'balance_bf_original', 
-#                 'prepayment_original', 
-#                 'credit_balance', 
-#                 'updated_at'
-#             ])
-
-#         messages.success(
-#             request, 
-#             f'Invoice {invoice_number} deleted successfully. '
-#             f'Student outstanding balance has been adjusted.'
-#         )
-#         return HttpResponseRedirect(self.get_success_url())
 
 
 # =============================================================================

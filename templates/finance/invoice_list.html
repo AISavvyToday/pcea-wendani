@@ -151,10 +151,19 @@
                                             <i class="mdi mdi-pencil"></i>
                                         </a>
                                         {% if invoice.amount_paid == 0 %}
-                                        <a href="{% url 'finance:invoice_delete' invoice.pk %}" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Are you sure you want to delete this invoice?');" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
-                                            <i class="mdi mdi-delete"></i>
-                                        </a>
-                                        {% endif %}
+<form method="post"
+      action="{% url 'finance:invoice_delete' invoice.pk %}"
+      style="display:inline;"
+      onsubmit="return confirm('Are you sure you want to delete this invoice?');">
+    {% csrf_token %}
+    <button type="submit"
+            class="btn btn-sm btn-outline-danger"
+            title="Delete"
+            style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+        <i class="mdi mdi-delete"></i>
+    </button>
+</form>
+{% endif %}
                                     </div>
                                 </td>
                             </tr>
