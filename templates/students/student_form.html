@@ -26,11 +26,30 @@
 
         <!-- ================= HEADER ================= -->
         <div class="d-flex justify-content-between align-items-center mb-4">
-          <h4 class="fw-bold mb-0">{{ title|default:"Create Student" }}</h4>
-          <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">← Back</a>
+          <h4 class="fw-bold mb-0">{{ title|default:"Register New Student" }}</h4>
+          <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">← Back to List</a>
         </div>
 
-        <!-- ================= TABS ================= -->
+        <!-- ================= STEP INDICATOR (For New Students Only) ================= -->
+        {% if not is_edit %}
+        <div class="step-indicator mb-5">
+          <div class="step active" data-step="1">
+            <span class="step-number">1</span>
+            <span class="step-label">Student Info</span>
+          </div>
+          <div class="step" data-step="2">
+            <span class="step-number">2</span>
+            <span class="step-label">Academic & Medical</span>
+          </div>
+          <div class="step" data-step="3">
+            <span class="step-number">3</span>
+            <span class="step-label">Parents/Guardians</span>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- ================= TAB NAVIGATION (For Editing Only) ================= -->
+        {% if is_edit %}
         <ul class="nav nav-pills mb-4">
           <li class="nav-item">
             <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#student-info">
@@ -48,19 +67,472 @@
             </button>
           </li>
         </ul>
+        {% endif %}
 
+        <!-- ================= STEP CONTENT (For New Students) ================= -->
+        {% if not is_edit %}
+        <div class="step-content">
+          <!-- STEP 1: STUDENT INFO -->
+          <div class="step-pane active" id="step-1">
+            <div class="card mb-4">
+              <div class="card-header bg-light">
+                <h5 class="fw-bold mb-0">Student Basic Information</h5>
+              </div>
+              <div class="card-body">
+                <div class="row mb-4">
+                  <div class="col-md-3 text-center">
+                    <img id="photoPreview"
+                         src="{% static 'assets/images/faces/default-pp.jpeg' %}"
+                         class="avatar-preview mb-2">
+                    {{ form.photo }}
+                    <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
+                      <i class="mdi mdi-camera"></i> Upload Photo
+                    </label>
+                  </div>
+
+                  <div class="col-md-9">
+                    <div class="row">
+                      <!-- Hidden admission number for new students -->
+                      {{ form.admission_number }}
+                      
+                      <div class="col-md-4">
+                        <label>Admission Date <span class="text-danger">*</span></label>
+                        {{ form.admission_date }}
+                        {% if form.admission_date.errors %}
+                          <div class="text-danger small">{{ form.admission_date.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Current Grade <span class="text-danger">*</span></label>
+                        {{ form.current_class }}
+                        {% if form.current_class.errors %}
+                          <div class="text-danger small">{{ form.current_class.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Status</label>
+                        <input type="text" class="form-control" value="Active" readonly>
+                        <small class="text-muted">New students are automatically set to Active</small>
+                      </div>
+                    </div>
+
+                    <!-- Hidden status fields for new students -->
+                    {{ form.status }}
+                    {{ form.status_reason }}
+
+                    <div class="row mt-3">
+                      <div class="col-md-4">
+                        <label>First Name <span class="text-danger">*</span></label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                          <div class="text-danger small">{{ form.first_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Middle Name</label>
+                        {{ form.middle_name }}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Last Name <span class="text-danger">*</span></label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                          <div class="text-danger small">{{ form.last_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-4">
+                        <label>Gender <span class="text-danger">*</span></label>
+                        {{ form.gender }}
+                        {% if form.gender.errors %}
+                          <div class="text-danger small">{{ form.gender.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Date of Birth <span class="text-danger">*</span></label>
+                        {{ form.date_of_birth }}
+                        {% if form.date_of_birth.errors %}
+                          <div class="text-danger small">{{ form.date_of_birth.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Birth Certificate No.</label>
+                        {{ form.birth_certificate_number }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 1 Actions -->
+            <div class="step-actions mt-4">
+              <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary" onclick="goToStep(2)">
+                  Next: Academic & Medical <i class="mdi mdi-arrow-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: ACADEMIC & MEDICAL -->
+          <div class="step-pane" id="step-2">
+            <div class="card mb-4">
+              <div class="card-header bg-light">
+                <h5 class="fw-bold mb-0">Academic & Medical Information</h5>
+              </div>
+              <div class="card-body">
+                <h6 class="fw-bold mb-3 text-primary">Academic Information</h6>
+                <div class="row">
+                  <div class="col-md-4">
+                    <label>UPI Number</label>
+                    {{ form.upi_number }}
+                    <small class="text-muted">NEMIS/Ministry of Education ID</small>
+                  </div>
+                  <div class="col-md-4">
+                    <label>Assessment Number</label>
+                    {{ form.assessment_number }}
+                    <small class="text-muted">Exam/Assessment ID</small>
+                  </div>
+                </div>
+
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <label>Previous School</label>
+                    {{ form.previous_school }}
+                  </div>
+                  <div class="col-md-6">
+                    <label>Residence</label>
+                    {{ form.residence }}
+                    <small class="text-muted">Area/Estate where student lives</small>
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h6 class="fw-bold mb-3 text-primary">Transport Information</h6>
+                <div class="row">
+                  <div class="col-md-3">
+                    <div class="form-check form-switch">
+                      {{ form.uses_school_transport }}
+                      <label class="form-check-label" for="{{ form.uses_school_transport.id_for_label }}">
+                        Uses School Transport
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label>Transport Route/Destination</label>
+                    {{ form.transport_route }}
+                  </div>
+                  <div class="col-md-5">
+                    <label>Pick-up Person</label>
+                    {{ form.transport_pickup_person }}
+                    <small class="text-muted">Authorized person to pick up from bus</small>
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h6 class="fw-bold mb-3 text-primary">Special Needs</h6>
+                <div class="row">
+                  <div class="col-md-3">
+                    <div class="form-check form-switch">
+                      {{ form.has_special_needs }}
+                      <label class="form-check-label" for="{{ form.has_special_needs.id_for_label }}">
+                        Has Special Needs
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-9">
+                    <label>Special Needs Details</label>
+                    {{ form.special_needs_details }}
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h6 class="fw-bold mb-3 text-primary">Medical Information</h6>
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <label>Medical Conditions</label>
+                    {{ form.medical_conditions }}
+                  </div>
+                  <div class="col-md-3">
+                    <label>Blood Group</label>
+                    {{ form.blood_group }}
+                  </div>
+                  <div class="col-md-3">
+                    <label>Emergency Contact Name</label>
+                    {{ form.emergency_contact_name }}
+                  </div>
+                </div>
+                <div class="row mt-2">
+                  <div class="col-md-6">
+                    <label>Emergency Contact Phone</label>
+                    {{ form.emergency_contact_phone }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2 Actions -->
+            <div class="step-actions mt-4">
+              <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+                  <i class="mdi mdi-arrow-left me-1"></i> Back to Student Info
+                </button>
+                <button type="button" class="btn btn-primary" onclick="goToStep(3)">
+                  Next: Parents/Guardians <i class="mdi mdi-arrow-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: PARENTS/GUARDIANS -->
+          <div class="step-pane" id="step-3">
+            <div class="card mb-4">
+              <div class="card-header bg-light">
+                <h5 class="fw-bold mb-0">Parent/Guardian Information</h5>
+              </div>
+              <div class="card-body">
+                <div class="row mb-4">
+                  <div class="col-md-12">
+                    <div class="alert alert-info">
+                      <i class="mdi mdi-information-outline"></i>
+                      <strong>Parent/Guardian information is optional.</strong> You can add up to 2 parents/guardians. 
+                      At least one is recommended for emergency contacts.
+                    </div>
+                    
+                    <div class="row mb-4">
+                      <div class="col-md-6">
+                        <div class="form-check card-option">
+                          <input class="form-check-input" type="radio" name="parentCount" 
+                                 id="parentSingle" value="1" checked onclick="toggleParent2(false)">
+                          <label class="form-check-label" for="parentSingle">
+                            <div class="option-content">
+                              <i class="mdi mdi-account-check text-primary" style="font-size: 24px;"></i>
+                              <div>
+                                <strong>Single Parent/Guardian</strong><br>
+                                <small class="text-muted">Primary contact only</small>
+                              </div>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check card-option">
+                          <input class="form-check-input" type="radio" name="parentCount" 
+                                 id="parentBoth" value="2" onclick="toggleParent2(true)">
+                          <label class="form-check-label" for="parentBoth">
+                            <div class="option-content">
+                              <i class="mdi mdi-account-multiple-check text-primary" style="font-size: 24px;"></i>
+                              <div>
+                                <strong>Both Parents/Guardians</strong><br>
+                                <small class="text-muted">Primary and secondary contacts</small>
+                              </div>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="d-flex gap-2 mb-4" id="parent-actions">
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyParent1ToParent2()">
+                        <i class="mdi mdi-content-copy me-1"></i> Copy Primary to Parent 2
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearParent2()">
+                        <i class="mdi mdi-close-circle me-1"></i> Clear Parent 2
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ===== PARENT 1 ===== -->
+                <div class="card mb-4">
+                  <div class="card-header bg-primary bg-opacity-10">
+                    <h6 class="fw-bold mb-0 text-primary">
+                      <i class="mdi mdi-account-star me-1"></i> Primary Parent/Guardian
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    {% if parent_form_1.errors %}
+                      <div class="alert alert-danger">
+                        <strong>Please fix the following errors:</strong>
+                        <ul class="mb-0">
+                          {% for field, errors in parent_form_1.errors.items %}
+                            {% for error in errors %}
+                              <li>{{ field|title }}: {{ error }}</li>
+                            {% endfor %}
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                      <div class="col-md-4">
+                        <label>First Name</label>
+                        {{ parent_form_1.first_name }}
+                        {% if parent_form_1.first_name.errors %}
+                          <div class="text-danger small">{{ parent_form_1.first_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Last Name</label>
+                        {{ parent_form_1.last_name }}
+                        {% if parent_form_1.last_name.errors %}
+                          <div class="text-danger small">{{ parent_form_1.last_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Relationship</label>
+                        {{ parent_form_1.relationship }}
+                        {% if parent_form_1.relationship.errors %}
+                          <div class="text-danger small">{{ parent_form_1.relationship.errors }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-3">
+                        <label>Gender</label>
+                        {{ parent_form_1.gender }}
+                      </div>
+                      <div class="col-md-3">
+                        <label>ID Number</label>
+                        {{ parent_form_1.id_number }}
+                      </div>
+                      <div class="col-md-6">
+                        <label>Primary Phone <span class="text-danger">*</span></label>
+                        {{ parent_form_1.phone_primary }}
+                        {% if parent_form_1.phone_primary.errors %}
+                          <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">Format: +254712345678</small>
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-6">
+                        <label>Email</label>
+                        {{ parent_form_1.email }}
+                      </div>
+                      <div class="col-md-6">
+                        <label>Town</label>
+                        {{ parent_form_1.town }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ===== PARENT 2 (Hidden by default) ===== -->
+                <div class="card mb-4" id="parent2-section" style="display: none;">
+                  <div class="card-header bg-info bg-opacity-10">
+                    <h6 class="fw-bold mb-0 text-info">
+                      <i class="mdi mdi-account-multiple me-1"></i> Second Parent/Guardian
+                      <span class="badge bg-info ms-2">Optional</span>
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    {% if parent_form_2.errors %}
+                      <div class="alert alert-warning">
+                        <strong>Parent 2 errors:</strong>
+                        <ul class="mb-0">
+                          {% for field, errors in parent_form_2.errors.items %}
+                            {% for error in errors %}
+                              <li>{{ field|title }}: {{ error }}</li>
+                            {% endfor %}
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                      <div class="col-md-4">
+                        <label>First Name</label>
+                        {{ parent_form_2.first_name }}
+                        {% if parent_form_2.first_name.errors %}
+                          <div class="text-danger small">{{ parent_form_2.first_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Last Name</label>
+                        {{ parent_form_2.last_name }}
+                        {% if parent_form_2.last_name.errors %}
+                          <div class="text-danger small">{{ parent_form_2.last_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Relationship</label>
+                        {{ parent_form_2.relationship }}
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-6">
+                        <label>Primary Phone</label>
+                        {{ parent_form_2.phone_primary }}
+                        {% if parent_form_2.phone_primary.errors %}
+                          <div class="text-danger small">{{ parent_form_2.phone_primary.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">Format: +254712345678</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label>Email</label>
+                        {{ parent_form_2.email }}
+                        {% if parent_form_2.email.errors %}
+                          <div class="text-danger small">{{ parent_form_2.email.errors }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-6">
+                        <label>ID Number</label>
+                        {{ parent_form_2.id_number }}
+                      </div>
+                      <div class="col-md-6">
+                        <label>Town</label>
+                        {{ parent_form_2.town }}
+                      </div>
+                    </div>
+
+                    <div class="form-check mt-3">
+                      <input class="form-check-input" type="checkbox" id="sameAddress" onclick="copyAddressToParent2()">
+                      <label class="form-check-label" for="sameAddress">
+                        <i class="mdi mdi-home me-1"></i> Use same address as primary parent
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3 Actions -->
+            <div class="step-actions mt-4">
+              <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="goToStep(2)">
+                  <i class="mdi mdi-arrow-left me-1"></i> Back to Academic & Medical
+                </button>
+                <button type="submit" class="btn btn-success" id="submitBtn">
+                  <i class="mdi mdi-content-save me-1"></i> Complete Registration
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB CONTENT (For Editing Only) ================= -->
+        {% else %}
         <div class="tab-content">
-
-          <!-- ================================================= -->
-          <!-- STUDENT INFO -->
-          <!-- ================================================= -->
+          <!-- STUDENT INFO TAB (Edit Mode) -->
           <div class="tab-pane fade show active" id="student-info">
             <div class="row mb-4">
               <div class="col-md-3 text-center">
                 <img id="photoPreview"
-                     src="{% static 'assets/images/faces/default-pp.jpeg' %}"
+                     src="{% if form.instance.photo %}{{ form.instance.photo.url }}{% else %}{% static 'assets/images/faces/default-pp.jpeg' %}{% endif %}"
                      class="avatar-preview mb-2">
-
                 {{ form.photo }}
                 <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
                   Change Photo
@@ -69,7 +541,6 @@
 
               <div class="col-md-9">
                 <div class="row">
-                  {% if is_edit %}
                   <div class="col-md-3">
                     <label>Admission Number <span class="text-danger">*</span></label>
                     {{ form.admission_number }}
@@ -77,42 +548,33 @@
                       <div class="text-danger small">{{ form.admission_number.errors }}</div>
                     {% endif %}
                   </div>
-                  {% endif %}
-                  <div class="col-md-{% if is_edit %}3{% else %}4{% endif %}">
+                  <div class="col-md-3">
                     <label>Admission Date <span class="text-danger">*</span></label>
                     {{ form.admission_date }}
                     {% if form.admission_date.errors %}
                       <div class="text-danger small">{{ form.admission_date.errors }}</div>
                     {% endif %}
                   </div>
-                  <div class="col-md-{% if is_edit %}3{% else %}4{% endif %}">
+                  <div class="col-md-3">
                     <label>Current Grade</label>
                     {{ form.current_class }}
                     {% if form.current_class.errors %}
                       <div class="text-danger small">{{ form.current_class.errors }}</div>
                     {% endif %}
                   </div>
-                  {% if is_edit %}
                   <div class="col-md-3">
                     <label>Status</label>
                     {{ form.status }}
                     <small class="text-muted">Financial records are preserved</small>
                   </div>
-                  {% endif %}
                 </div>
                 
-                {% if is_edit %}
                 <div class="row mt-2">
                   <div class="col-md-12">
                     <label>Status Reason</label>
                     {{ form.status_reason }}
                   </div>
                 </div>
-                {% else %}
-                <!-- Hidden fields for new students -->
-                {{ form.status }}
-                {{ form.status_reason }}
-                {% endif %}
 
                 <div class="row mt-2">
                   <div class="col-md-4">
@@ -159,10 +621,9 @@
             </div>
           </div>
 
-          <!-- ================================================= -->
-          <!-- ACADEMIC & MEDICAL -->
-          <!-- ================================================= -->
+          <!-- ACADEMIC & MEDICAL TAB (Edit Mode) -->
           <div class="tab-pane fade" id="academic-info">
+            <!-- Same content as step 2 above -->
             <div class="row">
               <div class="col-md-4">
                 <label>UPI Number</label>
@@ -254,12 +715,9 @@
             </div>
           </div>
 
-          <!-- ================================================= -->
-          <!-- PARENTS / GUARDIANS (FIXED) -->
-          <!-- ================================================= -->
+          <!-- PARENTS TAB (Edit Mode) -->
           <div class="tab-pane fade" id="parent-info">
-
-            <!-- ===== PARENT 1 ===== -->
+            <!-- Same parent content as original -->
             <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-muted">(Optional)</span></h6>
             {% if parent_form_1.errors %}
               <div class="alert alert-danger">
@@ -318,7 +776,6 @@
 
             <hr class="my-4">
 
-            <!-- ===== PARENT 2 ===== -->
             <h6 class="fw-bold mb-3">Parent / Guardian 2 <span class="text-muted">(Optional)</span></h6>
             {% if parent_form_2.errors %}
               <div class="alert alert-warning">
@@ -374,12 +831,12 @@
                 {{ parent_form_2.town }}
               </div>
             </div>
-
           </div>
-
         </div>
+        {% endif %}
 
-        <!-- ================= FOOTER ================= -->
+        <!-- ================= FOOTER (Edit Mode Only) ================= -->
+        {% if is_edit %}
         <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
           <div class="text-muted small">
             <i class="mdi mdi-information-outline"></i> Fields marked with <span class="text-danger">*</span> are required
@@ -391,6 +848,7 @@
             </button>
           </div>
         </div>
+        {% endif %}
 
       </div>
     </div>
@@ -405,23 +863,228 @@
     object-fit: cover;
     border: 2px solid #e0e0e0;
   }
+  
+  /* Step indicator */
+  .step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    position: relative;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .step-indicator:before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #dee2e6;
+    z-index: 1;
+  }
+  
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    flex: 1;
+  }
+  
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+  }
+  
+  .step.active .step-number {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+  }
+  
+  .step.completed .step-number {
+    background: #198754;
+    color: white;
+    border-color: #198754;
+  }
+  
+  .step-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-weight: 500;
+    text-align: center;
+    max-width: 100px;
+  }
+  
+  .step.active .step-label {
+    color: #0d6efd;
+    font-weight: 600;
+  }
+  
+  .step.completed .step-label {
+    color: #198754;
+  }
+  
+  /* Step content */
+  .step-pane {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  .step-pane.active {
+    display: block;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Card improvements */
+  .card {
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+  }
+  
+  .card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 10px 10px 0 0 !important;
+    padding: 1rem 1.5rem;
+  }
+  
+  /* Form improvements */
+  .form-control:focus, .form-select:focus {
+    border-color: #4dabf7;
+    box-shadow: 0 0 0 0.25rem rgba(77, 171, 247, 0.25);
+  }
+  
+  /* Required field indicator */
+  label[for]:has(+ input[required]):after,
+  label[for]:has(+ select[required]):after {
+    content: ' *';
+    color: #dc3545;
+  }
+  
+  /* Parent card option */
+  .card-option .form-check-input {
+    margin-top: 0.5rem;
+  }
+  
+  .card-option .form-check-label {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .card-option .form-check-input:checked + .form-check-label {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+  
+  .card-option .option-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  /* Step actions */
+  .step-actions {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.5rem 0;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 1rem;
+  }
+  
+  /* Form switch */
+  .form-switch .form-check-input {
+    height: 1.5em;
+    width: 3em;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .step-label {
+      font-size: 0.75rem;
+    }
+    
+    .step-number {
+      width: 28px;
+      height: 28px;
+      font-size: 0.875rem;
+    }
+    
+    .step-indicator:before {
+      top: 14px;
+    }
+    
+    .avatar-preview {
+      width: 120px;
+      height: 120px;
+    }
+    
+    .card-option .option-content {
+      flex-direction: column;
+      text-align: center;
+      gap: 0.5rem;
+    }
+  }
+  
+  /* Parent actions */
+  #parent-actions {
+    flex-wrap: wrap;
+  }
+  
+  /* Alert improvements */
+  .alert {
+    border-radius: 8px;
+    border: 1px solid transparent;
+  }
+  
+  /* Nav pills for edit mode */
   .nav-pills .nav-link {
     color: #6c757d;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
   }
+  
   .nav-pills .nav-link.active {
     background-color: #0d6efd;
     color: white;
   }
-  .form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-  }
+  
   .text-danger {
     font-size: 0.75rem;
   }
 </style>
 
 <script>
+  // Current step tracking for new students
+  let currentStep = 1;
+  const totalSteps = 3;
+  
   // Photo preview
   const input = document.getElementById("{{ form.photo.id_for_label }}");
   const preview = document.getElementById("photoPreview");
@@ -431,82 +1094,294 @@
     });
   }
 
-  // Tab navigation
+  // Initialize based on edit mode
   document.addEventListener('DOMContentLoaded', function() {
-    const tabButtons = document.querySelectorAll('.nav-pills .nav-link');
-    const tabPanes = document.querySelectorAll('.tab-pane');
+    {% if is_edit %}
+      // Edit mode: Use Bootstrap tabs
+      const tabButtons = document.querySelectorAll('.nav-pills .nav-link');
+      const tabPanes = document.querySelectorAll('.tab-pane');
+      
+      tabButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+          e.preventDefault();
+          const targetId = this.getAttribute('data-bs-target');
+          
+          // Remove active class from all buttons and panes
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          tabPanes.forEach(pane => pane.classList.remove('show', 'active'));
+          
+          // Add active class to clicked button and corresponding pane
+          this.classList.add('active');
+          const targetPane = document.querySelector(targetId);
+          if (targetPane) {
+            targetPane.classList.add('show', 'active');
+          }
+        });
+      });
+    {% else %}
+      // Create mode: Initialize step wizard
+      updateStepIndicator();
+      
+      // Hide parent actions initially
+      document.getElementById('parent-actions').style.display = 'none';
+    {% endif %}
     
-    tabButtons.forEach(button => {
-      button.addEventListener('click', function(e) {
-        e.preventDefault();
-        const targetId = this.getAttribute('data-bs-target');
-        
-        // Remove active class from all buttons and panes
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabPanes.forEach(pane => pane.classList.remove('show', 'active'));
-        
-        // Add active class to clicked button and corresponding pane
-        this.classList.add('active');
-        const targetPane = document.querySelector(targetId);
-        if (targetPane) {
-          targetPane.classList.add('show', 'active');
+    // Form validation feedback
+    document.querySelectorAll('.form-control').forEach(field => {
+      field.addEventListener('blur', function() {
+        if (this.value.trim() === '' && this.hasAttribute('required')) {
+          this.classList.add('is-invalid');
+        } else {
+          this.classList.remove('is-invalid');
+          if (this.value.trim() !== '') {
+            this.classList.add('is-valid');
+          }
         }
       });
     });
   });
 
-  // Form validation feedback
-  document.querySelectorAll('.form-control').forEach(field => {
-    field.addEventListener('blur', function() {
-      if (this.value.trim() === '' && this.hasAttribute('required')) {
-        this.classList.add('is-invalid');
-      } else {
-        this.classList.remove('is-invalid');
-        if (this.value.trim() !== '') {
-          this.classList.add('is-valid');
-        }
+  // ================= STEP NAVIGATION FUNCTIONS =================
+  function goToStep(step) {
+    // Validate current step before moving
+    if (!validateStep(currentStep)) {
+      return;
+    }
+    
+    // Hide current step
+    document.querySelector(`#step-${currentStep}`).classList.remove('active');
+    document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+    
+    // Show new step
+    currentStep = step;
+    document.querySelector(`#step-${currentStep}`).classList.add('active');
+    document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+    
+    // Update step indicator
+    updateStepIndicator();
+    
+    // Scroll to top of form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  
+  function updateStepIndicator() {
+    const steps = document.querySelectorAll('.step');
+    steps.forEach((step, index) => {
+      const stepNum = index + 1;
+      step.classList.remove('active', 'completed');
+      
+      if (stepNum < currentStep) {
+        step.classList.add('completed');
+      } else if (stepNum === currentStep) {
+        step.classList.add('active');
       }
     });
-  });
-
-  // Form submission handler
+  }
+  
+  function validateStep(step) {
+    let isValid = true;
+    const errorMessages = [];
+    
+    if (step === 1) {
+      // Validate student info required fields
+      const requiredFields = [
+        { id: 'id_first_name', label: 'First Name' },
+        { id: 'id_last_name', label: 'Last Name' },
+        { id: 'id_gender', label: 'Gender' },
+        { id: 'id_date_of_birth', label: 'Date of Birth' },
+        { id: 'id_admission_date', label: 'Admission Date' },
+        { id: 'id_current_class', label: 'Current Grade' }
+      ];
+      
+      requiredFields.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element && !element.value.trim()) {
+          element.classList.add('is-invalid');
+          errorMessages.push(`${field.label} is required`);
+          isValid = false;
+        }
+      });
+    }
+    
+    if (step === 3) {
+      // Validate at least one parent phone if any parent info is provided
+      const parent1Phone = document.getElementById('id_parent1-phone_primary').value;
+      const parent2Phone = document.getElementById('id_parent2-phone_primary').value;
+      const parent1FirstName = document.getElementById('id_parent1-first_name').value;
+      const parent1LastName = document.getElementById('id_parent1-last_name').value;
+      
+      // If any parent info is filled, phone is required
+      if ((parent1FirstName || parent1LastName) && !parent1Phone) {
+        document.getElementById('id_parent1-phone_primary').classList.add('is-invalid');
+        errorMessages.push('Primary parent phone is required if name is provided');
+        isValid = false;
+      }
+    }
+    
+    if (!isValid && errorMessages.length > 0) {
+      alert('Please fix the following errors:\n\n' + errorMessages.join('\n'));
+    }
+    
+    return isValid;
+  }
+  
+  // ================= PARENT MANAGEMENT FUNCTIONS =================
+  function toggleParent2(show) {
+    const parent2Section = document.getElementById('parent2-section');
+    const parentActions = document.getElementById('parent-actions');
+    
+    if (show) {
+      parent2Section.style.display = 'block';
+      parentActions.style.display = 'flex';
+    } else {
+      parent2Section.style.display = 'none';
+      parentActions.style.display = 'none';
+    }
+  }
+  
+  function copyParent1ToParent2() {
+    const fieldsToCopy = ['first_name', 'last_name', 'gender', 'id_number', 'phone_primary', 'email', 'town'];
+    fieldsToCopy.forEach(field => {
+      const source = document.getElementById(`id_parent1-${field}`);
+      const target = document.getElementById(`id_parent2-${field}`);
+      if (source && target) {
+        target.value = source.value;
+        target.classList.add('is-valid');
+      }
+    });
+    
+    // Show success feedback
+    showToast('Copied primary parent info to parent 2', 'success');
+  }
+  
+  function clearParent2() {
+    const parent2Fields = document.querySelectorAll('[id^="id_parent2-"]');
+    parent2Fields.forEach(field => {
+      field.value = '';
+      field.classList.remove('is-valid', 'is-invalid');
+    });
+    
+    // Uncheck same address
+    document.getElementById('sameAddress').checked = false;
+    
+    showToast('Cleared parent 2 information', 'info');
+  }
+  
+  function copyAddressToParent2() {
+    const sameAddress = document.getElementById('sameAddress');
+    if (sameAddress.checked) {
+      const townField = document.getElementById('id_parent2-town');
+      const sourceTown = document.getElementById('id_parent1-town');
+      if (townField && sourceTown) {
+        townField.value = sourceTown.value;
+        townField.classList.add('is-valid');
+      }
+    }
+  }
+  
+  function showToast(message, type = 'info') {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">
+          <i class="mdi mdi-${type === 'success' ? 'check-circle' : 'information'} me-2"></i>
+          ${message}
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    `;
+    
+    // Add to container
+    const container = document.querySelector('.content-wrapper');
+    container.appendChild(toast);
+    
+    // Initialize and show
+    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    // Remove after hiding
+    toast.addEventListener('hidden.bs.toast', () => {
+      toast.remove();
+    });
+  }
+  
+  // ================= FORM SUBMISSION HANDLER =================
   const form = document.getElementById('studentForm');
   const submitBtn = document.getElementById('submitBtn');
   
   if (form && submitBtn) {
     form.addEventListener('submit', function(e) {
-      // Basic validation before submit
-      let hasErrors = false;
-      
-      // Check required student fields
-      const requiredFields = form.querySelectorAll('[required]');
-      requiredFields.forEach(field => {
-        if (!field.value.trim()) {
-          field.classList.add('is-invalid');
-          hasErrors = true;
-        }
-      });
-      
-      // Parent information is now optional - no validation needed
-      
-      if (hasErrors) {
+      // For new students, validate all steps
+      {% if not is_edit %}
+      if (!validateAllSteps()) {
         e.preventDefault();
-        alert('Please fill in all required fields.');
+        alert('Please complete all required fields before submitting.');
+        // Go to first step with errors
+        for (let i = 1; i <= totalSteps; i++) {
+          if (!validateStep(i, true)) {
+            goToStep(i);
+            break;
+          }
+        }
         return false;
       }
+      {% endif %}
       
       // Show loading state
       submitBtn.disabled = true;
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin"></i> Saving...';
+      submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin"></i> Processing...';
       
-      // Re-enable after 10 seconds as fallback (in case of redirect delay)
+      // Re-enable after 10 seconds as fallback
       setTimeout(() => {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
       }, 10000);
     });
   }
+  
+  function validateAllSteps() {
+    for (let i = 1; i <= totalSteps; i++) {
+      if (!validateStep(i, true)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  
+  // Validation only (no alert)
+  function validateStep(step, silent = false) {
+    let isValid = true;
+    
+    if (step === 1) {
+      const requiredFields = ['id_first_name', 'id_last_name', 'id_gender', 'id_date_of_birth', 'id_admission_date', 'id_current_class'];
+      requiredFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field && !field.value.trim()) {
+          field.classList.add('is-invalid');
+          isValid = false;
+        }
+      });
+    }
+    
+    if (step === 3) {
+      const parent1Phone = document.getElementById('id_parent1-phone_primary').value;
+      const parent1FirstName = document.getElementById('id_parent1-first_name').value;
+      const parent1LastName = document.getElementById('id_parent1-last_name').value;
+      
+      if ((parent1FirstName || parent1LastName) && !parent1Phone) {
+        document.getElementById('id_parent1-phone_primary').classList.add('is-invalid');
+        isValid = false;
+      }
+    }
+    
+    return isValid;
+  }
 </script>
 {% endblock %}
-
