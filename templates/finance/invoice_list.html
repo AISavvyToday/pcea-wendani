@@ -92,6 +92,9 @@
                         <tr>
                             <th style="width: 100px;">Invoice</th>
                             <th style="width: 150px;">Student</th>
+                            <th style="width: 100px;">Grade</th>
+
+                            
                             <th style="width: 100px;">Term</th>
                             <th class="text-end" style="width: 80px;">Bal B/F</th>
                             <th class="text-end" style="width: 80px;">Pre-payment</th>
@@ -121,6 +124,7 @@
                                         <span class="text-muted" style="font-size: 0.875rem;">No student</span>
                                     {% endif %}
                                 </td>
+                                <td>{{ invoice.student.current_class }}</td>
 
                                 <td style="font-size: 0.875rem;">
                                     {{ invoice.term|default:"—"|truncatechars:15 }}
