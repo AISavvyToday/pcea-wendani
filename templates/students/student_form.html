@@ -43,7 +43,7 @@
           </div>
           <div class="step" data-step="3">
             <span class="step-number">3</span>
-            <span class="step-label">Parents/Guardians</span>
+            <span class="step-label">Parent/Guardian</span>
           </div>
         </div>
         {% endif %}
@@ -63,7 +63,7 @@
           </li>
           <li class="nav-item">
             <button class="nav-link" data-bs-toggle="pill" data-bs-target="#parent-info">
-              Parents / Guardians
+              Parent / Guardian
             </button>
           </li>
         </ul>
@@ -85,16 +85,21 @@
                          src="{% static 'assets/images/faces/default-pp.jpeg' %}"
                          class="avatar-preview mb-2">
                     {{ form.photo }}
-                    <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
+                    <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-outline-primary mt-2">
                       <i class="mdi mdi-camera"></i> Upload Photo
                     </label>
+                    <small class="d-block text-muted mt-1">Optional</small>
                   </div>
 
                   <div class="col-md-9">
+                    <!-- Hidden admission number for new students -->
+                    {{ form.admission_number }}
+                    
+                    <!-- Hidden status fields for new students -->
+                    {{ form.status }}
+                    {{ form.status_reason }}
+
                     <div class="row">
-                      <!-- Hidden admission number for new students -->
-                      {{ form.admission_number }}
-                      
                       <div class="col-md-4">
                         <label>Admission Date <span class="text-danger">*</span></label>
                         {{ form.admission_date }}
@@ -110,15 +115,13 @@
                         {% endif %}
                       </div>
                       <div class="col-md-4">
-                        <label>Status</label>
-                        <input type="text" class="form-control" value="Active" readonly>
-                        <small class="text-muted">New students are automatically set to Active</small>
+                        <label>Gender <span class="text-danger">*</span></label>
+                        {{ form.gender }}
+                        {% if form.gender.errors %}
+                          <div class="text-danger small">{{ form.gender.errors }}</div>
+                        {% endif %}
                       </div>
                     </div>
-
-                    <!-- Hidden status fields for new students -->
-                    {{ form.status }}
-                    {{ form.status_reason }}
 
                     <div class="row mt-3">
                       <div class="col-md-4">
@@ -142,13 +145,6 @@
                     </div>
 
                     <div class="row mt-3">
-                      <div class="col-md-4">
-                        <label>Gender <span class="text-danger">*</span></label>
-                        {{ form.gender }}
-                        {% if form.gender.errors %}
-                          <div class="text-danger small">{{ form.gender.errors }}</div>
-                        {% endif %}
-                      </div>
                       <div class="col-md-4">
                         <label>Date of Birth <span class="text-danger">*</span></label>
                         {{ form.date_of_birth }}
@@ -180,32 +176,23 @@
           <div class="step-pane" id="step-2">
             <div class="card mb-4">
               <div class="card-header bg-light">
-                <h5 class="fw-bold mb-0">Academic & Medical Information</h5>
+                <h5 class="fw-bold mb-0">Academic & Medical Information (Optional)</h5>
               </div>
               <div class="card-body">
-                <h6 class="fw-bold mb-3 text-primary">Academic Information</h6>
-                <div class="row">
-                  <div class="col-md-4">
-                    <label>UPI Number</label>
-                    {{ form.upi_number }}
-                    <small class="text-muted">NEMIS/Ministry of Education ID</small>
-                  </div>
-                  <div class="col-md-4">
-                    <label>Assessment Number</label>
-                    {{ form.assessment_number }}
-                    <small class="text-muted">Exam/Assessment ID</small>
-                  </div>
+                <div class="alert alert-info">
+                  <i class="mdi mdi-information-outline"></i>
+                  <strong>All fields below are optional.</strong> You can skip this section and add details later if needed.
                 </div>
 
-                <div class="row mt-3">
+                <h6 class="fw-bold mb-3 text-primary">Academic Information</h6>
+                <div class="row">
                   <div class="col-md-6">
                     <label>Previous School</label>
                     {{ form.previous_school }}
                   </div>
                   <div class="col-md-6">
-                    <label>Residence</label>
+                    <label>Residence Area</label>
                     {{ form.residence }}
-                    <small class="text-muted">Area/Estate where student lives</small>
                   </div>
                 </div>
 
@@ -221,32 +208,9 @@
                       </label>
                     </div>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-9">
                     <label>Transport Route/Destination</label>
                     {{ form.transport_route }}
-                  </div>
-                  <div class="col-md-5">
-                    <label>Pick-up Person</label>
-                    {{ form.transport_pickup_person }}
-                    <small class="text-muted">Authorized person to pick up from bus</small>
-                  </div>
-                </div>
-
-                <hr class="my-4">
-
-                <h6 class="fw-bold mb-3 text-primary">Special Needs</h6>
-                <div class="row">
-                  <div class="col-md-3">
-                    <div class="form-check form-switch">
-                      {{ form.has_special_needs }}
-                      <label class="form-check-label" for="{{ form.has_special_needs.id_for_label }}">
-                        Has Special Needs
-                      </label>
-                    </div>
-                  </div>
-                  <div class="col-md-9">
-                    <label>Special Needs Details</label>
-                    {{ form.special_needs_details }}
                   </div>
                 </div>
 
@@ -283,74 +247,27 @@
                   <i class="mdi mdi-arrow-left me-1"></i> Back to Student Info
                 </button>
                 <button type="button" class="btn btn-primary" onclick="goToStep(3)">
-                  Next: Parents/Guardians <i class="mdi mdi-arrow-right ms-1"></i>
+                  Next: Parent/Guardian <i class="mdi mdi-arrow-right ms-1"></i>
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- STEP 3: PARENTS/GUARDIANS -->
+          <!-- STEP 3: PARENT/GUARDIAN -->
           <div class="step-pane" id="step-3">
             <div class="card mb-4">
               <div class="card-header bg-light">
                 <h5 class="fw-bold mb-0">Parent/Guardian Information</h5>
               </div>
               <div class="card-body">
-                <div class="row mb-4">
-                  <div class="col-md-12">
-                    <div class="alert alert-info">
-                      <i class="mdi mdi-information-outline"></i>
-                      <strong>Parent/Guardian information is optional.</strong> You can add up to 2 parents/guardians. 
-                      At least one is recommended for emergency contacts.
-                    </div>
-                    
-                    <div class="row mb-4">
-                      <div class="col-md-6">
-                        <div class="form-check card-option">
-                          <input class="form-check-input" type="radio" name="parentCount" 
-                                 id="parentSingle" value="1" checked onclick="toggleParent2(false)">
-                          <label class="form-check-label" for="parentSingle">
-                            <div class="option-content">
-                              <i class="mdi mdi-account-check text-primary" style="font-size: 24px;"></i>
-                              <div>
-                                <strong>Single Parent/Guardian</strong><br>
-                                <small class="text-muted">Primary contact only</small>
-                              </div>
-                            </div>
-                          </label>
-                        </div>
-                      </div>
-                      <div class="col-md-6">
-                        <div class="form-check card-option">
-                          <input class="form-check-input" type="radio" name="parentCount" 
-                                 id="parentBoth" value="2" onclick="toggleParent2(true)">
-                          <label class="form-check-label" for="parentBoth">
-                            <div class="option-content">
-                              <i class="mdi mdi-account-multiple-check text-primary" style="font-size: 24px;"></i>
-                              <div>
-                                <strong>Both Parents/Guardians</strong><br>
-                                <small class="text-muted">Primary and secondary contacts</small>
-                              </div>
-                            </div>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Quick Actions -->
-                    <div class="d-flex gap-2 mb-4" id="parent-actions">
-                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyParent1ToParent2()">
-                        <i class="mdi mdi-content-copy me-1"></i> Copy Primary to Parent 2
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearParent2()">
-                        <i class="mdi mdi-close-circle me-1"></i> Clear Parent 2
-                      </button>
-                    </div>
-                  </div>
+                <div class="alert alert-info">
+                  <i class="mdi mdi-information-outline"></i>
+                  <strong>Parent/Guardian information is optional but recommended.</strong> 
+                  You can add parent details later if needed.
                 </div>
 
-                <!-- ===== PARENT 1 ===== -->
-                <div class="card mb-4">
+                <!-- ===== SIMPLE PARENT FORM ===== -->
+                <div class="card">
                   <div class="card-header bg-primary bg-opacity-10">
                     <h6 class="fw-bold mb-0 text-primary">
                       <i class="mdi mdi-account-star me-1"></i> Primary Parent/Guardian
@@ -395,114 +312,22 @@
                     </div>
 
                     <div class="row mt-3">
-                      <div class="col-md-3">
-                        <label>Gender</label>
-                        {{ parent_form_1.gender }}
-                      </div>
-                      <div class="col-md-3">
-                        <label>ID Number</label>
-                        {{ parent_form_1.id_number }}
-                      </div>
                       <div class="col-md-6">
-                        <label>Primary Phone <span class="text-danger">*</span></label>
+                        <label>Phone Number <span class="text-danger">*</span></label>
                         {{ parent_form_1.phone_primary }}
                         {% if parent_form_1.phone_primary.errors %}
                           <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
                         {% endif %}
-                        <small class="text-muted">Format: +254712345678</small>
+                        <small class="text-muted">Enter 10 digits (0712345678 or 712345678)</small>
                       </div>
                     </div>
-
-                    <div class="row mt-3">
-                      <div class="col-md-6">
-                        <label>Email</label>
-                        {{ parent_form_1.email }}
-                      </div>
-                      <div class="col-md-6">
-                        <label>Town</label>
-                        {{ parent_form_1.town }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- ===== PARENT 2 (Hidden by default) ===== -->
-                <div class="card mb-4" id="parent2-section" style="display: none;">
-                  <div class="card-header bg-info bg-opacity-10">
-                    <h6 class="fw-bold mb-0 text-info">
-                      <i class="mdi mdi-account-multiple me-1"></i> Second Parent/Guardian
-                      <span class="badge bg-info ms-2">Optional</span>
-                    </h6>
-                  </div>
-                  <div class="card-body">
-                    {% if parent_form_2.errors %}
-                      <div class="alert alert-warning">
-                        <strong>Parent 2 errors:</strong>
-                        <ul class="mb-0">
-                          {% for field, errors in parent_form_2.errors.items %}
-                            {% for error in errors %}
-                              <li>{{ field|title }}: {{ error }}</li>
-                            {% endfor %}
-                          {% endfor %}
-                        </ul>
-                      </div>
-                    {% endif %}
                     
-                    <div class="row">
-                      <div class="col-md-4">
-                        <label>First Name</label>
-                        {{ parent_form_2.first_name }}
-                        {% if parent_form_2.first_name.errors %}
-                          <div class="text-danger small">{{ parent_form_2.first_name.errors }}</div>
-                        {% endif %}
-                      </div>
-                      <div class="col-md-4">
-                        <label>Last Name</label>
-                        {{ parent_form_2.last_name }}
-                        {% if parent_form_2.last_name.errors %}
-                          <div class="text-danger small">{{ parent_form_2.last_name.errors }}</div>
-                        {% endif %}
-                      </div>
-                      <div class="col-md-4">
-                        <label>Relationship</label>
-                        {{ parent_form_2.relationship }}
-                      </div>
-                    </div>
-
-                    <div class="row mt-3">
-                      <div class="col-md-6">
-                        <label>Primary Phone</label>
-                        {{ parent_form_2.phone_primary }}
-                        {% if parent_form_2.phone_primary.errors %}
-                          <div class="text-danger small">{{ parent_form_2.phone_primary.errors }}</div>
-                        {% endif %}
-                        <small class="text-muted">Format: +254712345678</small>
-                      </div>
-                      <div class="col-md-6">
-                        <label>Email</label>
-                        {{ parent_form_2.email }}
-                        {% if parent_form_2.email.errors %}
-                          <div class="text-danger small">{{ parent_form_2.email.errors }}</div>
-                        {% endif %}
-                      </div>
-                    </div>
-
-                    <div class="row mt-3">
-                      <div class="col-md-6">
-                        <label>ID Number</label>
-                        {{ parent_form_2.id_number }}
-                      </div>
-                      <div class="col-md-6">
-                        <label>Town</label>
-                        {{ parent_form_2.town }}
-                      </div>
-                    </div>
-
-                    <div class="form-check mt-3">
-                      <input class="form-check-input" type="checkbox" id="sameAddress" onclick="copyAddressToParent2()">
-                      <label class="form-check-label" for="sameAddress">
-                        <i class="mdi mdi-home me-1"></i> Use same address as primary parent
-                      </label>
+                    <div class="alert alert-warning mt-3">
+                      <small>
+                        <i class="mdi mdi-alert-circle"></i>
+                        <strong>Note:</strong> Phone number is only required if you're adding parent information.
+                        If you don't have parent details now, you can leave all fields blank.
+                      </small>
                     </div>
                   </div>
                 </div>
@@ -516,7 +341,7 @@
                   <i class="mdi mdi-arrow-left me-1"></i> Back to Academic & Medical
                 </button>
                 <button type="submit" class="btn btn-success" id="submitBtn">
-                  <i class="mdi mdi-content-save me-1"></i> Complete Registration
+                  <i class="mdi mdi-check-circle me-1"></i> Complete Registration
                 </button>
               </div>
             </div>
@@ -534,7 +359,7 @@
                      src="{% if form.instance.photo %}{{ form.instance.photo.url }}{% else %}{% static 'assets/images/faces/default-pp.jpeg' %}{% endif %}"
                      class="avatar-preview mb-2">
                 {{ form.photo }}
-                <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-primary mt-2">
+                <label for="{{ form.photo.id_for_label }}" class="btn btn-sm btn-outline-primary mt-2">
                   Change Photo
                 </label>
               </div>
@@ -565,7 +390,6 @@
                   <div class="col-md-3">
                     <label>Status</label>
                     {{ form.status }}
-                    <small class="text-muted">Financial records are preserved</small>
                   </div>
                 </div>
                 
@@ -623,21 +447,7 @@
 
           <!-- ACADEMIC & MEDICAL TAB (Edit Mode) -->
           <div class="tab-pane fade" id="academic-info">
-            <!-- Same content as step 2 above -->
             <div class="row">
-              <div class="col-md-4">
-                <label>UPI Number</label>
-                {{ form.upi_number }}
-                <small class="text-muted">NEMIS/Ministry of Education ID</small>
-              </div>
-              <div class="col-md-4">
-                <label>Assessment Number</label>
-                {{ form.assessment_number }}
-                <small class="text-muted">Exam/Assessment ID</small>
-              </div>
-            </div>
-
-            <div class="row mt-3">
               <div class="col-md-6">
                 <label>Previous School</label>
                 {{ form.previous_school }}
@@ -645,7 +455,6 @@
               <div class="col-md-6">
                 <label>Residence</label>
                 {{ form.residence }}
-                <small class="text-muted">Area/Estate where student lives</small>
               </div>
             </div>
 
@@ -661,32 +470,9 @@
                   </label>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-9">
                 <label>Transport Route/Destination</label>
                 {{ form.transport_route }}
-              </div>
-              <div class="col-md-5">
-                <label>Pick-up Person</label>
-                {{ form.transport_pickup_person }}
-                <small class="text-muted">Authorized person to pick up from bus</small>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <h6 class="fw-bold mb-3">Special Needs</h6>
-            <div class="row">
-              <div class="col-md-3">
-                <div class="form-check">
-                  {{ form.has_special_needs }}
-                  <label class="form-check-label" for="{{ form.has_special_needs.id_for_label }}">
-                    Has Special Needs
-                  </label>
-                </div>
-              </div>
-              <div class="col-md-9">
-                <label>Special Needs Details</label>
-                {{ form.special_needs_details }}
               </div>
             </div>
 
@@ -717,8 +503,7 @@
 
           <!-- PARENTS TAB (Edit Mode) -->
           <div class="tab-pane fade" id="parent-info">
-            <!-- Same parent content as original -->
-            <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-muted">(Optional)</span></h6>
+            <h6 class="fw-bold mb-3">Parent / Guardian</h6>
             {% if parent_form_1.errors %}
               <div class="alert alert-danger">
                 <strong>Please fix the following errors:</strong>
@@ -755,80 +540,14 @@
               </div>
             </div>
 
-            <div class="row mt-2">
-              <div class="col-md-4">
-                <label>Gender</label>
-                {{ parent_form_1.gender }}
-              </div>
-              <div class="col-md-4">
-                <label>ID Number</label>
-                {{ parent_form_1.id_number }}
-              </div>
-              <div class="col-md-4">
-                <label>Primary Phone</label>
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label>Phone Number</label>
                 {{ parent_form_1.phone_primary }}
                 {% if parent_form_1.phone_primary.errors %}
                   <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
                 {% endif %}
                 <small class="text-muted">Format: +254712345678</small>
-              </div>
-            </div>
-
-            <hr class="my-4">
-
-            <h6 class="fw-bold mb-3">Parent / Guardian 2 <span class="text-muted">(Optional)</span></h6>
-            {% if parent_form_2.errors %}
-              <div class="alert alert-warning">
-                <strong>Parent 2 errors:</strong>
-                <ul class="mb-0">
-                  {% for field, errors in parent_form_2.errors.items %}
-                    {% for error in errors %}
-                      <li>{{ field|title }}: {{ error }}</li>
-                    {% endfor %}
-                  {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
-            <div class="row">
-              <div class="col-md-4">
-                <label>First Name</label>
-                {{ parent_form_2.first_name }}
-                {% if parent_form_2.first_name.errors %}
-                  <div class="text-danger small">{{ parent_form_2.first_name.errors }}</div>
-                {% endif %}
-              </div>
-              <div class="col-md-4">
-                <label>Last Name</label>
-                {{ parent_form_2.last_name }}
-                {% if parent_form_2.last_name.errors %}
-                  <div class="text-danger small">{{ parent_form_2.last_name.errors }}</div>
-                {% endif %}
-              </div>
-              <div class="col-md-4">
-                <label>Relationship</label>
-                {{ parent_form_2.relationship }}
-              </div>
-            </div>
-
-            <div class="row mt-2">
-              <div class="col-md-4">
-                <label>Primary Phone</label>
-                {{ parent_form_2.phone_primary }}
-                {% if parent_form_2.phone_primary.errors %}
-                  <div class="text-danger small">{{ parent_form_2.phone_primary.errors }}</div>
-                {% endif %}
-                <small class="text-muted">Format: +254712345678</small>
-              </div>
-              <div class="col-md-4">
-                <label>Email</label>
-                {{ parent_form_2.email }}
-                {% if parent_form_2.email.errors %}
-                  <div class="text-danger small">{{ parent_form_2.email.errors }}</div>
-                {% endif %}
-              </div>
-              <div class="col-md-4">
-                <label>Town</label>
-                {{ parent_form_2.town }}
               </div>
             </div>
           </div>
@@ -943,11 +662,11 @@
   /* Step content */
   .step-pane {
     display: none;
-    animation: fadeIn 0.3s ease;
   }
   
   .step-pane.active {
     display: block;
+    animation: fadeIn 0.3s ease;
   }
   
   @keyframes fadeIn {
@@ -958,54 +677,26 @@
   /* Card improvements */
   .card {
     border: 1px solid #e0e0e0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    border-radius: 10px;
+    border-radius: 8px;
     margin-bottom: 1.5rem;
   }
   
   .card-header {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: #f8f9fa;
     border-bottom: 1px solid #e0e0e0;
-    border-radius: 10px 10px 0 0 !important;
     padding: 1rem 1.5rem;
   }
   
   /* Form improvements */
   .form-control:focus, .form-select:focus {
-    border-color: #4dabf7;
-    box-shadow: 0 0 0 0.25rem rgba(77, 171, 247, 0.25);
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
   }
   
   /* Required field indicator */
-  label[for]:has(+ input[required]):after,
-  label[for]:has(+ select[required]):after {
+  .required:after {
     content: ' *';
     color: #dc3545;
-  }
-  
-  /* Parent card option */
-  .card-option .form-check-input {
-    margin-top: 0.5rem;
-  }
-  
-  .card-option .form-check-label {
-    width: 100%;
-    padding: 1rem;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-  
-  .card-option .form-check-input:checked + .form-check-label {
-    border-color: #0d6efd;
-    background-color: rgba(13, 110, 253, 0.05);
-  }
-  
-  .card-option .option-content {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
   }
   
   /* Step actions */
@@ -1015,12 +706,6 @@
     padding: 1.5rem 0;
     border-top: 1px solid #e0e0e0;
     margin-top: 1rem;
-  }
-  
-  /* Form switch */
-  .form-switch .form-check-input {
-    height: 1.5em;
-    width: 3em;
   }
   
   /* Responsive adjustments */
@@ -1043,40 +728,6 @@
       width: 120px;
       height: 120px;
     }
-    
-    .card-option .option-content {
-      flex-direction: column;
-      text-align: center;
-      gap: 0.5rem;
-    }
-  }
-  
-  /* Parent actions */
-  #parent-actions {
-    flex-wrap: wrap;
-  }
-  
-  /* Alert improvements */
-  .alert {
-    border-radius: 8px;
-    border: 1px solid transparent;
-  }
-  
-  /* Nav pills for edit mode */
-  .nav-pills .nav-link {
-    color: #6c757d;
-    border-radius: 6px;
-    padding: 0.5rem 1rem;
-    margin-right: 0.5rem;
-  }
-  
-  .nav-pills .nav-link.active {
-    background-color: #0d6efd;
-    color: white;
-  }
-  
-  .text-danger {
-    font-size: 0.75rem;
   }
 </style>
 
@@ -1094,57 +745,103 @@
     });
   }
 
-  // Initialize based on edit mode
+  // Initialize on page load
   document.addEventListener('DOMContentLoaded', function() {
-    {% if is_edit %}
-      // Edit mode: Use Bootstrap tabs
-      const tabButtons = document.querySelectorAll('.nav-pills .nav-link');
-      const tabPanes = document.querySelectorAll('.tab-pane');
+    {% if not is_edit %}
+      // Set today's date for admission date
+      const today = new Date().toISOString().split('T')[0];
+      const admissionDateField = document.getElementById('id_admission_date');
+      if (admissionDateField && !admissionDateField.value) {
+        admissionDateField.value = today;
+      }
       
-      tabButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-          e.preventDefault();
-          const targetId = this.getAttribute('data-bs-target');
-          
-          // Remove active class from all buttons and panes
-          tabButtons.forEach(btn => btn.classList.remove('active'));
-          tabPanes.forEach(pane => pane.classList.remove('show', 'active'));
-          
-          // Add active class to clicked button and corresponding pane
-          this.classList.add('active');
-          const targetPane = document.querySelector(targetId);
-          if (targetPane) {
-            targetPane.classList.add('show', 'active');
-          }
-        });
-      });
-    {% else %}
-      // Create mode: Initialize step wizard
+      // Initialize step wizard
       updateStepIndicator();
-      
-      // Hide parent actions initially
-      document.getElementById('parent-actions').style.display = 'none';
     {% endif %}
     
-    // Form validation feedback
-    document.querySelectorAll('.form-control').forEach(field => {
+    // Auto-format phone numbers
+    const phoneFields = document.querySelectorAll('input[name$="phone_primary"], input[name="emergency_contact_phone"]');
+    phoneFields.forEach(field => {
+      // Format on blur
       field.addEventListener('blur', function() {
-        if (this.value.trim() === '' && this.hasAttribute('required')) {
-          this.classList.add('is-invalid');
-        } else {
-          this.classList.remove('is-invalid');
-          if (this.value.trim() !== '') {
-            this.classList.add('is-valid');
-          }
+        this.value = normalizePhoneNumber(this.value);
+      });
+      
+      // Also format on input for real-time feedback
+      field.addEventListener('input', function() {
+        const cursorPos = this.selectionStart;
+        const formatted = formatPhoneNumber(this.value);
+        if (formatted !== this.value) {
+          this.value = formatted;
+          // Restore cursor position
+          this.setSelectionRange(cursorPos, cursorPos);
         }
       });
     });
+    
+    // Mark required fields
+    document.querySelectorAll('input[required], select[required]').forEach(field => {
+      const label = document.querySelector(`label[for="${field.id}"]`);
+      if (label) {
+        label.classList.add('required');
+      }
+    });
   });
 
-  // ================= STEP NAVIGATION FUNCTIONS =================
+  // ================= PHONE NUMBER NORMALIZATION =================
+  function normalizePhoneNumber(phone) {
+    if (!phone) return '';
+    
+    // Remove all non-digit characters
+    let digits = phone.replace(/\D/g, '');
+    
+    // If empty, return empty
+    if (digits.length === 0) return '';
+    
+    // Handle Kenyan phone numbers
+    if (digits.startsWith('254')) {
+      // Already in +254 format
+      if (digits.length === 12) {
+        return '+' + digits;
+      }
+    } else if (digits.startsWith('0')) {
+      // Remove leading 0 and add +254
+      digits = digits.substring(1);
+      if (digits.length === 9) {
+        return '+254' + digits;
+      }
+    } else if (digits.length === 9 && (digits.startsWith('7') || digits.startsWith('1'))) {
+      // 9-digit number starting with 7 or 1
+      return '+254' + digits;
+    }
+    
+    // If we can't normalize, return the original (cleaned)
+    return phone.replace(/\D/g, '');
+  }
+  
+  function formatPhoneNumber(phone) {
+    if (!phone) return '';
+    
+    let digits = phone.replace(/\D/g, '');
+    
+    if (digits.length === 0) return '';
+    
+    // Format as user types
+    if (digits.length <= 3) {
+      return digits;
+    } else if (digits.length <= 6) {
+      return digits.substring(0, 3) + ' ' + digits.substring(3);
+    } else if (digits.length <= 9) {
+      return digits.substring(0, 3) + ' ' + digits.substring(3, 6) + ' ' + digits.substring(6);
+    } else {
+      return digits.substring(0, 3) + ' ' + digits.substring(3, 6) + ' ' + digits.substring(6, 9) + ' ' + digits.substring(9, 12);
+    }
+  }
+
+  // ================= STEP NAVIGATION =================
   function goToStep(step) {
     // Validate current step before moving
-    if (!validateStep(currentStep)) {
+    if (step > currentStep && !validateStep(currentStep)) {
       return;
     }
     
@@ -1180,7 +877,6 @@
   
   function validateStep(step) {
     let isValid = true;
-    const errorMessages = [];
     
     if (step === 1) {
       // Validate student info required fields
@@ -1197,131 +893,39 @@
         const element = document.getElementById(field.id);
         if (element && !element.value.trim()) {
           element.classList.add('is-invalid');
-          errorMessages.push(`${field.label} is required`);
           isValid = false;
+        } else if (element) {
+          element.classList.remove('is-invalid');
         }
       });
-    }
-    
-    if (step === 3) {
-      // Validate at least one parent phone if any parent info is provided
-      const parent1Phone = document.getElementById('id_parent1-phone_primary').value;
-      const parent2Phone = document.getElementById('id_parent2-phone_primary').value;
-      const parent1FirstName = document.getElementById('id_parent1-first_name').value;
-      const parent1LastName = document.getElementById('id_parent1-last_name').value;
       
-      // If any parent info is filled, phone is required
-      if ((parent1FirstName || parent1LastName) && !parent1Phone) {
-        document.getElementById('id_parent1-phone_primary').classList.add('is-invalid');
-        errorMessages.push('Primary parent phone is required if name is provided');
-        isValid = false;
+      if (!isValid) {
+        alert('Please fill in all required student information before proceeding.');
       }
-    }
-    
-    if (!isValid && errorMessages.length > 0) {
-      alert('Please fix the following errors:\n\n' + errorMessages.join('\n'));
     }
     
     return isValid;
   }
-  
-  // ================= PARENT MANAGEMENT FUNCTIONS =================
-  function toggleParent2(show) {
-    const parent2Section = document.getElementById('parent2-section');
-    const parentActions = document.getElementById('parent-actions');
-    
-    if (show) {
-      parent2Section.style.display = 'block';
-      parentActions.style.display = 'flex';
-    } else {
-      parent2Section.style.display = 'none';
-      parentActions.style.display = 'none';
-    }
-  }
-  
-  function copyParent1ToParent2() {
-    const fieldsToCopy = ['first_name', 'last_name', 'gender', 'id_number', 'phone_primary', 'email', 'town'];
-    fieldsToCopy.forEach(field => {
-      const source = document.getElementById(`id_parent1-${field}`);
-      const target = document.getElementById(`id_parent2-${field}`);
-      if (source && target) {
-        target.value = source.value;
-        target.classList.add('is-valid');
-      }
-    });
-    
-    // Show success feedback
-    showToast('Copied primary parent info to parent 2', 'success');
-  }
-  
-  function clearParent2() {
-    const parent2Fields = document.querySelectorAll('[id^="id_parent2-"]');
-    parent2Fields.forEach(field => {
-      field.value = '';
-      field.classList.remove('is-valid', 'is-invalid');
-    });
-    
-    // Uncheck same address
-    document.getElementById('sameAddress').checked = false;
-    
-    showToast('Cleared parent 2 information', 'info');
-  }
-  
-  function copyAddressToParent2() {
-    const sameAddress = document.getElementById('sameAddress');
-    if (sameAddress.checked) {
-      const townField = document.getElementById('id_parent2-town');
-      const sourceTown = document.getElementById('id_parent1-town');
-      if (townField && sourceTown) {
-        townField.value = sourceTown.value;
-        townField.classList.add('is-valid');
-      }
-    }
-  }
-  
-  function showToast(message, type = 'info') {
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-bg-${type} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.setAttribute('aria-live', 'assertive');
-    toast.setAttribute('aria-atomic', 'true');
-    
-    toast.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">
-          <i class="mdi mdi-${type === 'success' ? 'check-circle' : 'information'} me-2"></i>
-          ${message}
-        </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-      </div>
-    `;
-    
-    // Add to container
-    const container = document.querySelector('.content-wrapper');
-    container.appendChild(toast);
-    
-    // Initialize and show
-    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
-    bsToast.show();
-    
-    // Remove after hiding
-    toast.addEventListener('hidden.bs.toast', () => {
-      toast.remove();
-    });
-  }
-  
-  // ================= FORM SUBMISSION HANDLER =================
+
+  // ================= FORM SUBMISSION =================
   const form = document.getElementById('studentForm');
   const submitBtn = document.getElementById('submitBtn');
   
   if (form && submitBtn) {
     form.addEventListener('submit', function(e) {
+      // Normalize all phone numbers before submission
+      const phoneFields = document.querySelectorAll('input[name$="phone_primary"], input[name="emergency_contact_phone"]');
+      phoneFields.forEach(field => {
+        if (field.value) {
+          field.value = normalizePhoneNumber(field.value);
+        }
+      });
+      
       // For new students, validate all steps
       {% if not is_edit %}
       if (!validateAllSteps()) {
         e.preventDefault();
-        alert('Please complete all required fields before submitting.');
+        alert('Please fill in all required fields before submitting.');
         // Go to first step with errors
         for (let i = 1; i <= totalSteps; i++) {
           if (!validateStep(i, true)) {
@@ -1336,7 +940,7 @@
       // Show loading state
       submitBtn.disabled = true;
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin"></i> Processing...';
+      submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin"></i> Saving Student...';
       
       // Re-enable after 10 seconds as fallback
       setTimeout(() => {
@@ -1353,35 +957,6 @@
       }
     }
     return true;
-  }
-  
-  // Validation only (no alert)
-  function validateStep(step, silent = false) {
-    let isValid = true;
-    
-    if (step === 1) {
-      const requiredFields = ['id_first_name', 'id_last_name', 'id_gender', 'id_date_of_birth', 'id_admission_date', 'id_current_class'];
-      requiredFields.forEach(fieldId => {
-        const field = document.getElementById(fieldId);
-        if (field && !field.value.trim()) {
-          field.classList.add('is-invalid');
-          isValid = false;
-        }
-      });
-    }
-    
-    if (step === 3) {
-      const parent1Phone = document.getElementById('id_parent1-phone_primary').value;
-      const parent1FirstName = document.getElementById('id_parent1-first_name').value;
-      const parent1LastName = document.getElementById('id_parent1-last_name').value;
-      
-      if ((parent1FirstName || parent1LastName) && !parent1Phone) {
-        document.getElementById('id_parent1-phone_primary').classList.add('is-invalid');
-        isValid = false;
-      }
-    }
-    
-    return isValid;
   }
 </script>
 {% endblock %}
