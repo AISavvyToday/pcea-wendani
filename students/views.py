@@ -437,6 +437,8 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         total_paid = student.payments.filter(
             status='completed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        context['credit_balance'] = student.credit_balance
         context['total_paid'] = total_paid
 
         
