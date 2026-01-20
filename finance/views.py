@@ -1059,7 +1059,9 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         invoice_number = invoice.invoice_number
 
         try:
-            restored_credit = InvoiceService.delete_invoice(invoice)
+            result = InvoiceService.delete_invoice(invoice)
+            restored_credit = result["restored_credit"]
+            restored_balance_bf = result["restored_balance_bf"]
 
             messages.success(
                 request,
@@ -1068,7 +1070,13 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
                     f" Restored KES {restored_credit} to student credit."
                     if restored_credit > 0 else ""
                 )
+                + (
+                    f" Restored KES {restored_balance_bf} to student balance brought forward."
+                    if restored_balance_bf > 0 else ""
+                )
             )
+            
+            return redirect("students:detail", pk=student.pk)
 
         except ValueError as e:
             messages.error(request, str(e))
@@ -1077,8 +1085,6 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         except Exception as e:
             messages.error(request, f"Failed to delete invoice: {str(e)}")
             return redirect("finance:invoice_detail", pk=pk)
-
-        return redirect("students:detail", pk=student.pk)
 
 
 

@@ -463,7 +463,7 @@ class InvoiceService:
         invoice.delete()
 
         # 4. Recompute outstanding balance from canonical sources
-        student.recompute_outstanding_balance()
+        # student.recompute_outstanding_balance()
 
         return {
             "restored_credit": restored_credit,

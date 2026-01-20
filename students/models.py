@@ -249,10 +249,7 @@ class Student(BaseModel):
         )['total'] or Decimal('0.00')
 
         # 🔑 Add historical debt ONCE
-        self.outstanding_balance = (
-            (self.balance_bf_original or Decimal("0.00"))
-            + invoice_total
-        )
+        self.outstanding_balance = invoice_total
 
         self.save(update_fields=['outstanding_balance'])
         return self.outstanding_balance
