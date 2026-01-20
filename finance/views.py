@@ -1058,10 +1058,9 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         student = invoice.student
         invoice_number = invoice.invoice_number
 
-        InvoiceService.delete_invoice(invoice)
-
-        # try:
-        #     result = InvoiceService.delete_invoice(invoice)
+        try:
+            InvoiceService.delete_invoice(invoice)
+            # result = InvoiceService.delete_invoice(invoice)
         #     restored_credit = result["restored_credit"]
         #     restored_balance_bf = result["restored_balance_bf"]
 
