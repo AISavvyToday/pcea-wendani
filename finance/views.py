@@ -1036,15 +1036,10 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
 
 
 
-from django.shortcuts import get_object_or_404, redirect
-from django.views import View
-from django.contrib import messages
-
 class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     """
-    Safely delete an invoice.
-    - POST: perform delete
-    - GET: redirect safely (no 404)
+    Delete invoice via GET or POST.
+    Always redirects to student detail after delete.
     """
 
     allowed_roles = [
@@ -1053,17 +1048,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         UserRole.ACCOUNTANT
     ]
 
-    def get(self, request, pk, *args, **kwargs):
-        """
-        Gracefully handle browser clicks.
-        """
-        messages.info(
-            request,
-            "To delete an invoice, please use the delete button."
-        )
-        return redirect("finance:invoice_detail", pk=pk)
-
-    def post(self, request, pk, *args, **kwargs):
+    def _delete_and_redirect(self, request, pk):
         invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
         student = invoice.student
@@ -1083,13 +1068,21 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
 
         except ValueError as e:
             messages.error(request, str(e))
-            return redirect("finance:invoice_detail", pk=pk)
 
         except Exception as e:
-            messages.error(request, f"Failed to delete invoice: {str(e)}")
-            return redirect("finance:invoice_detail", pk=pk)
+            messages.error(
+                request,
+                f"Failed to delete invoice: {str(e)}"
+            )
 
+        # ✅ ALWAYS redirect to student detail
         return redirect("students:detail", pk=student.pk)
+
+    def post(self, request, pk, *args, **kwargs):
+        return self._delete_and_redirect(request, pk)
+
+    def get(self, request, pk, *args, **kwargs):
+        return self._delete_and_redirect(request, pk)
 
 
 
