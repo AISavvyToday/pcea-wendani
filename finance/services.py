@@ -438,7 +438,7 @@ class InvoiceService:
                 f"Cannot delete invoice {invoice.invoice_number}: it has payments applied."
             )
 
-        # student = invoice.student
+        student = invoice.student
 
         # restored_credit = 0
         # if invoice.prepayment:
@@ -457,11 +457,7 @@ class InvoiceService:
         # ])
 
         invoice.delete()
-
-        # return {
-        #     "restored_credit": restored_credit,
-        #     "restored_balance_bf": restored_balance_bf
-        # }
+        student.recompute_outstanding_balance(student)
 
 
 

@@ -1035,7 +1035,6 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('finance:invoice_list')
 
 
-
 class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     """
     Safely delete an invoice.
@@ -1056,36 +1055,65 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         invoice = get_object_or_404(Invoice, pk=pk)
 
         student = invoice.student
-        invoice_number = invoice.invoice_number
-
         try:
-            InvoiceService.delete_invoice(invoice)
-            # result = InvoiceService.delete_invoice(invoice)
-        #     restored_credit = result["restored_credit"]
-        #     restored_balance_bf = result["restored_balance_bf"]
-
-        #     messages.success(
-        #         request,
-        #         f"Invoice {invoice_number} deleted successfully."
-        #         + (
-        #             f" Restored KES {restored_credit} to student credit."
-        #             if restored_credit > 0 else ""
-        #         )
-        #         + (
-        #             f" Restored KES {restored_balance_bf} to student balance brought forward."
-        #             if restored_balance_bf > 0 else ""
-        #         )
-        #     )
+            InvoiceService.delete_invoice(invoice)            
             
-        #     return redirect("students:detail", pk=student.pk)
-
-        # except ValueError as e:
-        #     messages.error(request, str(e))
-        #     return redirect("finance:invoice_detail", pk=pk)
 
         except Exception as e:
             messages.error(request, f"Failed to delete invoice: {str(e)}")
-            return redirect("finance:invoice_detail", pk=pk)
+            return redirect("students:detail", pk=student.pk)
+
+        return redirect("students:detail", pk=student.pk)
+
+# class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+#     """
+#     Safely delete an invoice.
+#     Only works if amount_paid == 0.
+#     """
+
+#     allowed_roles = [
+#         UserRole.SUPER_ADMIN,
+#         UserRole.SCHOOL_ADMIN,
+#         UserRole.ACCOUNTANT
+#     ]
+
+#     def post(self, request, pk, *args, **kwargs):
+#         print(f"Trying to delete invoice with PK: {pk}")
+#         print(f"Request path: {request.path}")
+#         print(f"Request full path: {request.get_full_path()}")
+
+#         invoice = get_object_or_404(Invoice, pk=pk)
+
+#         student = invoice.student
+#         invoice_number = invoice.invoice_number
+
+#         try:
+#             result = InvoiceService.delete_invoice(invoice)
+#             restored_credit = result["restored_credit"]
+#             restored_balance_bf = result["restored_balance_bf"]
+
+#             messages.success(
+#                 request,
+#                 f"Invoice {invoice_number} deleted successfully."
+#                 + (
+#                     f" Restored KES {restored_credit} to student credit."
+#                     if restored_credit > 0 else ""
+#                 )
+#                 + (
+#                     f" Restored KES {restored_balance_bf} to student balance brought forward."
+#                     if restored_balance_bf > 0 else ""
+#                 )
+#             )
+            
+#             return redirect("students:detail", pk=student.pk)
+
+#         except ValueError as e:
+#             messages.error(request, str(e))
+#             return redirect("students:detail", pk=student.pk)
+
+#         except Exception as e:
+#             messages.error(request, f"Failed to delete invoice: {str(e)}")
+#             return redirect("finance:invoice_detail", pk=pk)
 
 
 
