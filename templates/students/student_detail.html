@@ -417,7 +417,7 @@
                               <i class="mdi mdi-file-document"></i>
                             </a>
                             <!-- Delete (POST) -->
-    {% if inv.amount_paid == 0 %}
+    <!-- {% if inv.amount_paid == 0 %}
       <form method="post"
             action="{% url 'finance:invoice_delete' inv.pk %}"
             onsubmit="return confirm('Are you sure you want to delete this invoice?');"
@@ -429,7 +429,7 @@
           <i class="mdi mdi-delete"></i>
         </button>
       </form>
-    {% endif %}
+    {% endif %} -->
                           </div>
                         </td>
                       </tr>
