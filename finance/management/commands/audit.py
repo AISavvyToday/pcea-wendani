@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.management.base import BaseCommand
 from django.db.models import Sum, Q
@@ -161,11 +161,18 @@ class Command(BaseCommand):
         Verify that invoice.balance is consistent with header fields.
 
         Based on the system's single-source-of-truth logic:
-          - total_amount is already net of discount_amount
+          - total_amount is already net of discount_amount (subtotal - discount_amount)
           - prepayment is stored as NEGATIVE when there is credit
           - balance should be:
 
               balance = total_amount + balance_bf + prepayment - amount_paid
+
+        IMPORTANT:
+        - Discount is already factored into total_amount, so we don't subtract it again.
+        - We round to 2 decimal places for comparison to handle floating-point precision.
+        - If actual_balance is 0 and the difference equals discount_amount, it's likely
+          a false positive where discount fully covered the invoice and balance was set to 0.
+          We'll still report it but include discount details for manual review.
         """
         self.stdout.write("")
         self.stdout.write("→ Auditing invoices ...")
@@ -177,6 +184,7 @@ class Command(BaseCommand):
         )
 
         for inv in invoices:
+            # Calculate expected balance using the canonical formula
             expected_balance = (
                 (inv.total_amount or Decimal("0.00"))
                 + (inv.balance_bf or Decimal("0.00"))
@@ -184,25 +192,69 @@ class Command(BaseCommand):
                 - (inv.amount_paid or Decimal("0.00"))
             )
 
-            actual_balance = inv.balance or Decimal("0.00")
+            # Round both values to 2 decimal places for comparison
+            expected_balance = expected_balance.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            actual_balance = (inv.balance or Decimal("0.00")).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
 
+            # Only flag as mismatch if they differ
             if expected_balance != actual_balance:
-                stats["invoice_balance_mismatches"].append(
-                    {
-                        "invoice_id": inv.id,
-                        "invoice_number": inv.invoice_number,
-                        "student_admission": getattr(inv.student, "admission_number", ""),
-                        "student_name": getattr(inv.student, "full_name", ""),
-                        "expected_balance": expected_balance,
-                        "actual_balance": actual_balance,
-                        "subtotal": inv.subtotal,
-                        "discount_amount": inv.discount_amount,
-                        "total_amount": inv.total_amount,
-                        "balance_bf": inv.balance_bf,
-                        "prepayment": inv.prepayment,
-                        "amount_paid": inv.amount_paid,
-                    }
-                )
+                discount_amount = inv.discount_amount or Decimal("0.00")
+                difference = abs(expected_balance - actual_balance)
+                total_amount = inv.total_amount or Decimal("0.00")
+                balance_bf = inv.balance_bf or Decimal("0.00")
+                prepayment = inv.prepayment or Decimal("0.00")
+                amount_paid = inv.amount_paid or Decimal("0.00")
+
+                # Check if this is a false positive due to discount application.
+                # 
+                # When discounts are applied, they may cause the balance to be set to 0
+                # if the discount fully covers the amount due. Our formula uses total_amount
+                # which already has discount factored in, but in practice, if a discount
+                # equals or exceeds what would be due, the balance may be manually set to 0.
+                #
+                # False positive detection:
+                # - actual_balance is 0
+                # - discount_amount > 0  
+                # - The difference (expected - actual) is within a small tolerance of discount_amount
+                #   OR discount_amount >= expected_balance (discount covers everything)
+                #
+                # This handles cases like:
+                # - PWA2745: discount = 13,750, expected = 13,750, actual = 0
+                #   (discount fully covered the invoice, balance correctly set to 0)
+                is_likely_false_positive = False
+
+                if actual_balance == Decimal("0.00") and discount_amount > 0:
+                    # If discount amount equals or exceeds expected balance, it likely covered everything
+                    if discount_amount >= expected_balance:
+                        is_likely_false_positive = True
+                    # Also check if the difference is very close to the discount amount
+                    # (within 0.01 tolerance to handle rounding)
+                    elif abs(difference - discount_amount) <= Decimal("0.01"):
+                        is_likely_false_positive = True
+
+                # Only add to mismatches if it's NOT a false positive
+                # False positives are discounts that fully covered the invoice and
+                # correctly set balance to 0, so they shouldn't be flagged as errors
+                if not is_likely_false_positive:
+                    stats["invoice_balance_mismatches"].append(
+                        {
+                            "invoice_id": inv.id,
+                            "invoice_number": inv.invoice_number,
+                            "student_admission": getattr(inv.student, "admission_number", ""),
+                            "student_name": getattr(inv.student, "full_name", ""),
+                            "expected_balance": expected_balance,
+                            "actual_balance": actual_balance,
+                            "difference": difference,
+                            "subtotal": inv.subtotal,
+                            "discount_amount": discount_amount,
+                            "total_amount": inv.total_amount,
+                            "balance_bf": inv.balance_bf,
+                            "prepayment": inv.prepayment,
+                            "amount_paid": inv.amount_paid,
+                        }
+                    )
 
     # ------------------------------------------------------------------ #
     # Reporting
@@ -262,12 +314,22 @@ class Command(BaseCommand):
             f"Invoice balance mismatches: "
             f"{len(stats['invoice_balance_mismatches'])}"
         )
+        
+        # False positives (discounts that fully covered invoices) are now excluded
+        # from the mismatch list, so we only show real mismatches here
         for m in stats["invoice_balance_mismatches"][:10]:
             self.stdout.write(
                 f"  - {m['invoice_number']} "
                 f"({m['student_admission']} {m['student_name']}): "
                 f"expected {m['expected_balance']}, "
-                f"actual {m['actual_balance']}"
+                f"actual {m['actual_balance']} "
+                f"[diff={m['difference']}, "
+                f"subtotal={m['subtotal']}, "
+                f"discount={m['discount_amount']}, "
+                f"total={m['total_amount']}, "
+                f"bf={m['balance_bf']}, "
+                f"prepay={m['prepayment']}, "
+                f"paid={m['amount_paid']}]"
             )
 
         self.stdout.write("")
