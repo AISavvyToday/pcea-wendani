@@ -1038,8 +1038,8 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
 
 class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     """
-    Delete invoice via GET or POST.
-    Always redirects to student detail after delete.
+    Safely delete an invoice.
+    Only works if amount_paid == 0.
     """
 
     allowed_roles = [
@@ -1048,7 +1048,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         UserRole.ACCOUNTANT
     ]
 
-    def _delete_and_redirect(self, request, pk):
+    def post(self, request, pk, *args, **kwargs):
         invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
 
         student = invoice.student
@@ -1068,22 +1068,13 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
 
         except ValueError as e:
             messages.error(request, str(e))
+            return redirect("finance:invoice_detail", pk=pk)
 
         except Exception as e:
-            messages.error(
-                request,
-                f"Failed to delete invoice: {str(e)}"
-            )
+            messages.error(request, f"Failed to delete invoice: {str(e)}")
+            return redirect("finance:invoice_detail", pk=pk)
 
-        # ✅ ALWAYS redirect to student detail
         return redirect("students:detail", pk=student.pk)
-
-    def post(self, request, pk, *args, **kwargs):
-        return self._delete_and_redirect(request, pk)
-
-    def get(self, request, pk, *args, **kwargs):
-        return self._delete_and_redirect(request, pk)
-
 
 
 
