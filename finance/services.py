@@ -427,9 +427,10 @@ class InvoiceService:
         Safely delete an invoice.
 
         Rules:
-        - Block deletion if amount_paid > 0
-        - Restore student.credit_balance if invoice consumed credit
-        - Ensure opening balance (balance_bf_original) is NOT double-counted
+        - Block deletion if payments exist
+        - Restore any prepayment back to student's credit balance
+        - Restore any balance_bf back to student's balance_bf_original
+        - Recompute outstanding balance AFTER restoration
         """
 
         if invoice.amount_paid > 0:
@@ -439,42 +440,35 @@ class InvoiceService:
 
         student = invoice.student
 
-        # --------------------------------------------------
-        # Restore credit consumed during invoice generation
-        # --------------------------------------------------
-        credit_used = Decimal("0.00")
-        if invoice.prepayment and invoice.prepayment != 0:
-            credit_used = abs(invoice.prepayment)
-            student.credit_balance += credit_used
+        # 1. Restore prepayment (credit consumed by invoice)
+        restored_credit = 0
+        if invoice.prepayment:
+            restored_credit = abs(invoice.prepayment)
+            student.credit_balance += restored_credit
 
-        # --------------------------------------------------
-        # 🔑 CRITICAL FIX:
-        # If this invoice carried the opening balance,
-        # it must NOT be reintroduced after deletion.
-        # Opening balance has already been "consumed" historically.
-        # --------------------------------------------------
-        if invoice.balance_bf and invoice.balance_bf > 0:
-            student.balance_bf_original = Decimal("0.00")
+        # 2. Restore balance brought forward (historical debt)
+        restored_balance_bf = 0
+        if invoice.balance_bf:
+            restored_balance_bf = invoice.balance_bf
+            student.balance_bf_original += restored_balance_bf
 
-        # Persist student-side reversals BEFORE deletion
+        # Persist student financial state BEFORE invoice deletion
         student.save(update_fields=[
             'credit_balance',
             'balance_bf_original',
             'updated_at'
         ])
 
-        # --------------------------------------------------
-        # Delete invoice (items + allocations cascade)
-        # --------------------------------------------------
+        # 3. Delete invoice (items & allocations cascade)
         invoice.delete()
 
-        # --------------------------------------------------
-        # Recompute student aggregates from remaining invoices
-        # --------------------------------------------------
+        # 4. Recompute outstanding balance from canonical sources
         student.recompute_outstanding_balance()
 
-        return credit_used
-
+        return {
+            "restored_credit": restored_credit,
+            "restored_balance_bf": restored_balance_bf
+        }
 
 
 
