@@ -450,7 +450,7 @@ class InvoiceService:
         restored_balance_bf = 0
         if invoice.balance_bf:
             restored_balance_bf = invoice.balance_bf
-            student.balance_bf_original += restored_balance_bf
+            student.outstanding_balance += restored_balance_bf
 
         # Persist student financial state BEFORE invoice deletion
         student.save(update_fields=[
