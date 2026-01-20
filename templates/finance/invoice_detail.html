@@ -59,11 +59,11 @@
             <a href="{% url 'finance:invoice_edit' invoice.pk %}" class="btn btn-outline-secondary ms-2">
     <i class="mdi mdi-pencil"></i> Edit Invoice
   </a>
-  {% if invoice.amount_paid == 0 %}
+  <!-- {% if invoice.amount_paid == 0 %}
   <a href="{% url 'finance:invoice_delete' invoice.pk %}" class="btn btn-outline-danger ms-2">
     <i class="mdi mdi-delete"></i> Delete Invoice
   </a>
-  {% endif %}
+  {% endif %} -->
     <a href="{% url 'finance:payment_record' %}?invoice={{ invoice.pk }}" class="btn btn-primary ms-2">
         <i class="mdi mdi-plus"></i> Record Payment
     </a>

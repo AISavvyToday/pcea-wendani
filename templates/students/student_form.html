@@ -43,7 +43,7 @@
           </div>
           <div class="step" data-step="3">
             <span class="step-number">3</span>
-            <span class="step-label">Parent/Guardian</span>
+            <span class="step-label">Parents/Guardians</span>
           </div>
         </div>
         {% endif %}
@@ -63,7 +63,7 @@
           </li>
           <li class="nav-item">
             <button class="nav-link" data-bs-toggle="pill" data-bs-target="#parent-info">
-              Parent / Guardian
+              Parents / Guardians
             </button>
           </li>
         </ul>
@@ -247,30 +247,30 @@
                   <i class="mdi mdi-arrow-left me-1"></i> Back to Student Info
                 </button>
                 <button type="button" class="btn btn-primary" onclick="goToStep(3)">
-                  Next: Parent/Guardian <i class="mdi mdi-arrow-right ms-1"></i>
+                  Next: Parents/Guardians <i class="mdi mdi-arrow-right ms-1"></i>
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- STEP 3: PARENT/GUARDIAN -->
+          <!-- STEP 3: PARENTS/GUARDIANS -->
           <div class="step-pane" id="step-3">
             <div class="card mb-4">
               <div class="card-header bg-light">
-                <h5 class="fw-bold mb-0">Parent/Guardian Information</h5>
+                <h5 class="fw-bold mb-0">Parent/Guardian Information (Optional)</h5>
               </div>
               <div class="card-body">
-                <div class="alert alert-info">
+                <div class="alert alert-info mb-4">
                   <i class="mdi mdi-information-outline"></i>
-                  <strong>Parent/Guardian information is optional but recommended.</strong> 
-                  You can add parent details later if needed.
+                  <strong>Parent/Guardian information is optional.</strong> 
+                  You can add up to 2 parents/guardians now or later. All fields are optional.
                 </div>
 
-                <!-- ===== SIMPLE PARENT FORM ===== -->
-                <div class="card">
+                <!-- ===== PARENT 1 ===== -->
+                <div class="card mb-4">
                   <div class="card-header bg-primary bg-opacity-10">
                     <h6 class="fw-bold mb-0 text-primary">
-                      <i class="mdi mdi-account-star me-1"></i> Primary Parent/Guardian
+                      <i class="mdi mdi-account-star me-1"></i> Parent/Guardian 1 (Optional)
                     </h6>
                   </div>
                   <div class="card-body">
@@ -313,7 +313,7 @@
 
                     <div class="row mt-3">
                       <div class="col-md-6">
-                        <label>Phone Number <span class="text-danger">*</span></label>
+                        <label>Phone Number</label>
                         {{ parent_form_1.phone_primary }}
                         {% if parent_form_1.phone_primary.errors %}
                           <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
@@ -321,13 +321,60 @@
                         <small class="text-muted">Enter 10 digits (0712345678 or 712345678)</small>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <!-- ===== PARENT 2 ===== -->
+                <div class="card mb-4">
+                  <div class="card-header bg-info bg-opacity-10">
+                    <h6 class="fw-bold mb-0 text-info">
+                      <i class="mdi mdi-account-multiple me-1"></i> Parent/Guardian 2 (Optional)
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    {% if parent_form_2.errors %}
+                      <div class="alert alert-warning">
+                        <strong>Parent 2 errors:</strong>
+                        <ul class="mb-0">
+                          {% for field, errors in parent_form_2.errors.items %}
+                            {% for error in errors %}
+                              <li>{{ field|title }}: {{ error }}</li>
+                            {% endfor %}
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    {% endif %}
                     
-                    <div class="alert alert-warning mt-3">
-                      <small>
-                        <i class="mdi mdi-alert-circle"></i>
-                        <strong>Note:</strong> Phone number is only required if you're adding parent information.
-                        If you don't have parent details now, you can leave all fields blank.
-                      </small>
+                    <div class="row">
+                      <div class="col-md-4">
+                        <label>First Name</label>
+                        {{ parent_form_2.first_name }}
+                        {% if parent_form_2.first_name.errors %}
+                          <div class="text-danger small">{{ parent_form_2.first_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Last Name</label>
+                        {{ parent_form_2.last_name }}
+                        {% if parent_form_2.last_name.errors %}
+                          <div class="text-danger small">{{ parent_form_2.last_name.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-4">
+                        <label>Relationship</label>
+                        {{ parent_form_2.relationship }}
+                      </div>
+                    </div>
+
+                    <div class="row mt-3">
+                      <div class="col-md-6">
+                        <label>Phone Number</label>
+                        {{ parent_form_2.phone_primary }}
+                        {% if parent_form_2.phone_primary.errors %}
+                          <div class="text-danger small">{{ parent_form_2.phone_primary.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">Enter 10 digits (0712345678 or 712345678)</small>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -503,7 +550,8 @@
 
           <!-- PARENTS TAB (Edit Mode) -->
           <div class="tab-pane fade" id="parent-info">
-            <h6 class="fw-bold mb-3">Parent / Guardian</h6>
+            <!-- ===== PARENT 1 ===== -->
+            <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-muted">(Optional)</span></h6>
             {% if parent_form_1.errors %}
               <div class="alert alert-danger">
                 <strong>Please fix the following errors:</strong>
@@ -540,12 +588,60 @@
               </div>
             </div>
 
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label>Phone Number</label>
+            <div class="row mt-2">
+              <div class="col-md-4">
+                <label>Primary Phone</label>
                 {{ parent_form_1.phone_primary }}
                 {% if parent_form_1.phone_primary.errors %}
                   <div class="text-danger small">{{ parent_form_1.phone_primary.errors }}</div>
+                {% endif %}
+                <small class="text-muted">Format: +254712345678</small>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- ===== PARENT 2 ===== -->
+            <h6 class="fw-bold mb-3">Parent / Guardian 2 <span class="text-muted">(Optional)</span></h6>
+            {% if parent_form_2.errors %}
+              <div class="alert alert-warning">
+                <strong>Parent 2 errors:</strong>
+                <ul class="mb-0">
+                  {% for field, errors in parent_form_2.errors.items %}
+                    {% for error in errors %}
+                      <li>{{ field|title }}: {{ error }}</li>
+                    {% endfor %}
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            <div class="row">
+              <div class="col-md-4">
+                <label>First Name</label>
+                {{ parent_form_2.first_name }}
+                {% if parent_form_2.first_name.errors %}
+                  <div class="text-danger small">{{ parent_form_2.first_name.errors }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-4">
+                <label>Last Name</label>
+                {{ parent_form_2.last_name }}
+                {% if parent_form_2.last_name.errors %}
+                  <div class="text-danger small">{{ parent_form_2.last_name.errors }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-4">
+                <label>Relationship</label>
+                {{ parent_form_2.relationship }}
+              </div>
+            </div>
+
+            <div class="row mt-2">
+              <div class="col-md-4">
+                <label>Primary Phone</label>
+                {{ parent_form_2.phone_primary }}
+                {% if parent_form_2.phone_primary.errors %}
+                  <div class="text-danger small">{{ parent_form_2.phone_primary.errors }}</div>
                 {% endif %}
                 <small class="text-muted">Format: +254712345678</small>
               </div>

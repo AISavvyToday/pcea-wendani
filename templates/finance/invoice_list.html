@@ -154,7 +154,7 @@
                                         <a href="{% url 'finance:invoice_edit' invoice.pk %}" class="btn btn-sm btn-outline-warning" title="Edit" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
                                             <i class="mdi mdi-pencil"></i>
                                         </a>
-                                        {% if invoice.amount_paid == 0 %}
+                                        <!-- {% if invoice.amount_paid == 0 %}
 <form method="post"
       action="{% url 'finance:invoice_delete' invoice.pk %}"
       style="display:inline;"
@@ -167,7 +167,7 @@
         <i class="mdi mdi-delete"></i>
     </button>
 </form>
-{% endif %}
+{% endif %} -->
                                     </div>
                                 </td>
                             </tr>
