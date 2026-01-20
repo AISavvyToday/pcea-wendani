@@ -259,8 +259,8 @@ class Student(BaseModel):
             self.credit_balance = self.prepayment_original
 
         self.save(update_fields=['outstanding_balance', 'credit_balance'])
-        
-    return self.outstanding_balance 
+
+        return self.outstanding_balance 
 
 
     def save(self, *args, **kwargs):
