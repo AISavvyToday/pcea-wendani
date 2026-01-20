@@ -238,21 +238,29 @@ class Student(BaseModel):
 
 
     def recompute_outstanding_balance(self):
-        invoice_total = self.invoices.filter(
-            status__in=[
-                InvoiceStatus.OVERDUE,
-                InvoiceStatus.PARTIALLY_PAID
-            ],
-            is_active=True
-        ).aggregate(
-            total=Sum('balance')
-        )['total'] or Decimal('0.00')
+        # Check if student has any active invoices
+        has_active_invoices = self.invoices.filter(is_active=True).exists()
 
-        # 🔑 Add historical debt ONCE
-        self.outstanding_balance = invoice_total
+        if has_active_invoices:
+            # Sum balances of all active invoices with specific statuses
+            invoice_total = self.invoices.filter(
+                status__in=[
+                    InvoiceStatus.OVERDUE,
+                    InvoiceStatus.PARTIALLY_PAID,
+                ],
+                is_active=True
+            ).aggregate(
+                total=Sum('balance')
+            )['total'] or Decimal('0.00')
+            
+            self.outstanding_balance = invoice_total
+        else:
+            self.outstanding_balance = self.balance_bf_original
+            self.credit_balance = self.prepayment_original
 
-        self.save(update_fields=['outstanding_balance'])
-        return self.outstanding_balance
+        self.save(update_fields=['outstanding_balance', 'credit_balance'])
+        
+    return self.outstanding_balance 
 
 
     def save(self, *args, **kwargs):

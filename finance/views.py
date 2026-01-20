@@ -1058,29 +1058,31 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         student = invoice.student
         invoice_number = invoice.invoice_number
 
-        try:
-            result = InvoiceService.delete_invoice(invoice)
-            restored_credit = result["restored_credit"]
-            restored_balance_bf = result["restored_balance_bf"]
+        InvoiceService.delete_invoice(invoice)
 
-            messages.success(
-                request,
-                f"Invoice {invoice_number} deleted successfully."
-                + (
-                    f" Restored KES {restored_credit} to student credit."
-                    if restored_credit > 0 else ""
-                )
-                + (
-                    f" Restored KES {restored_balance_bf} to student balance brought forward."
-                    if restored_balance_bf > 0 else ""
-                )
-            )
+        # try:
+        #     result = InvoiceService.delete_invoice(invoice)
+        #     restored_credit = result["restored_credit"]
+        #     restored_balance_bf = result["restored_balance_bf"]
+
+        #     messages.success(
+        #         request,
+        #         f"Invoice {invoice_number} deleted successfully."
+        #         + (
+        #             f" Restored KES {restored_credit} to student credit."
+        #             if restored_credit > 0 else ""
+        #         )
+        #         + (
+        #             f" Restored KES {restored_balance_bf} to student balance brought forward."
+        #             if restored_balance_bf > 0 else ""
+        #         )
+        #     )
             
-            return redirect("students:detail", pk=student.pk)
+        #     return redirect("students:detail", pk=student.pk)
 
-        except ValueError as e:
-            messages.error(request, str(e))
-            return redirect("finance:invoice_detail", pk=pk)
+        # except ValueError as e:
+        #     messages.error(request, str(e))
+        #     return redirect("finance:invoice_detail", pk=pk)
 
         except Exception as e:
             messages.error(request, f"Failed to delete invoice: {str(e)}")

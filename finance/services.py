@@ -438,37 +438,30 @@ class InvoiceService:
                 f"Cannot delete invoice {invoice.invoice_number}: it has payments applied."
             )
 
-        student = invoice.student
+        # student = invoice.student
 
-        # 1. Restore prepayment (credit consumed by invoice)
-        restored_credit = 0
-        if invoice.prepayment:
-            restored_credit = abs(invoice.prepayment)
-            student.credit_balance += restored_credit
+        # restored_credit = 0
+        # if invoice.prepayment:
+        #     restored_credit = abs(invoice.prepayment)
+        #     student.credit_balance += restored_credit
 
-        # 2. Restore balance brought forward (historical debt)
-        restored_balance_bf = 0
-        if invoice.balance_bf:
-            restored_balance_bf = invoice.balance_bf
-            student.outstanding_balance += restored_balance_bf
+        # restored_balance_bf = 0
+        # if invoice.balance_bf:
+        #     restored_balance_bf = invoice.balance_bf
+        #     student.outstanding_balance += restored_balance_bf
 
-        # Persist student financial state BEFORE invoice deletion
-        student.save(update_fields=[
-            'credit_balance',
-            'balance_bf_original',
-            'updated_at'
-        ])
+        # student.save(update_fields=[
+        #     'credit_balance',
+        #     'balance_bf_original',
+        #     'updated_at'
+        # ])
 
-        # 3. Delete invoice (items & allocations cascade)
         invoice.delete()
 
-        # 4. Recompute outstanding balance from canonical sources
-        # student.recompute_outstanding_balance()
-
-        return {
-            "restored_credit": restored_credit,
-            "restored_balance_bf": restored_balance_bf
-        }
+        # return {
+        #     "restored_credit": restored_credit,
+        #     "restored_balance_bf": restored_balance_bf
+        # }
 
 
 
