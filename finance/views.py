@@ -1052,8 +1052,8 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         print(f"Trying to delete invoice with PK: {pk}")
         print(f"Request path: {request.path}")
         print(f"Request full path: {request.get_full_path()}")
-        
-        invoice = get_object_or_404(Invoice, pk=pk, is_active=True)
+
+        invoice = get_object_or_404(Invoice, pk=pk)
 
         student = invoice.student
         invoice_number = invoice.invoice_number
