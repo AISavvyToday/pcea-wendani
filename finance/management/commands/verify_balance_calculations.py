@@ -133,11 +133,20 @@ class Command(BaseCommand):
     
     def verify_invoice_balance(self, student, invoice, results, dry_run, fix_invoice_balances):
         """Verify invoice.balance calculation using correct formula."""
-        # CORRECT FORMULA: balance = (total_amount + balance_bf) - (prepayment + amount_paid + discount_amount)
-        # All values are positive in DB, prepayment is subtracted (credit)
-        
-        expected_balance = (invoice.total_amount + invoice.balance_bf) - \
-                          (invoice.prepayment + invoice.amount_paid + invoice.discount_amount)
+        # CORRECT FORMULA (matches Invoice._recalculate_balance):
+        #   balance = total_amount + balance_bf + prepayment - amount_paid
+        #
+        # NOTES:
+        # - total_amount is already net of discount_amount, so discount MUST NOT
+        #   be subtracted again here.
+        # - prepayment is stored as negative when there is credit, so adding it
+        #   reduces the balance.
+        expected_balance = (
+            invoice.total_amount
+            + invoice.balance_bf
+            + invoice.prepayment
+            - invoice.amount_paid
+        )
         
         # Round to 2 decimal places for comparison
         expected_balance = expected_balance.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -155,7 +164,10 @@ class Command(BaseCommand):
                 'prepayment': invoice.prepayment,
                 'amount_paid': invoice.amount_paid,
                 'discount_amount': invoice.discount_amount,
-                'formula': f'({invoice.total_amount} + {invoice.balance_bf}) - ({invoice.prepayment} + {invoice.amount_paid} + {invoice.discount_amount}) = {expected_balance}'
+                'formula': (
+                    f'({invoice.total_amount} + {invoice.balance_bf} + '
+                    f'{invoice.prepayment}) - {invoice.amount_paid} = {expected_balance}'
+                )
             }
             results['invoice_balance_mismatches'].append(mismatch)
             
@@ -230,12 +242,17 @@ class Command(BaseCommand):
                 try:
                     # Update invoice total amount
                     invoice.total_amount = items_total
-                    
-                    # Recalculate balance with new total amount
-                    new_balance = (items_total + invoice.balance_bf) - \
-                                 (invoice.prepayment + invoice.amount_paid + invoice.discount_amount)
+
+                    # Recalculate balance with new total amount using the same
+                    # formula as Invoice._recalculate_balance
+                    new_balance = (
+                        items_total
+                        + invoice.balance_bf
+                        + invoice.prepayment
+                        - invoice.amount_paid
+                    )
                     invoice.balance = new_balance
-                    
+
                     invoice.save(update_fields=['total_amount', 'balance'])
                     mismatch['fixed'] = True
                     results['fixes_applied'] += 1

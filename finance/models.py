@@ -223,15 +223,23 @@ class Invoice(BaseModel):
     def _recalculate_balance(self):
         """
         SINGLE SOURCE OF TRUTH.
+
+        Balance is derived ONLY from:
+          - total_amount (already net of discount_amount)
+          - balance_bf (opening balance)
+          - prepayment (stored as negative credit)
+          - amount_paid (sum of allocations)
+
+        IMPORTANT:
+        - Do NOT subtract discount_amount again here; it is already reflected
+          in total_amount. Subtracting it a second time would double-count
+          the discount and understate the balance.
         """
         self.balance = (
             (self.balance_bf or Decimal("0.00"))
             + (self.total_amount or Decimal("0.00"))
-        ) - (
-            (self.prepayment or Decimal("0.00"))
-            + (self.amount_paid or Decimal("0.00"))
-            + (self.discount_amount or Decimal("0.00"))
-        )
+            + (self.prepayment or Decimal("0.00"))
+        ) - (self.amount_paid or Decimal("0.00"))
 
     def _recalculate_status(self):
         from datetime import date

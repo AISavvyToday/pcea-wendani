@@ -547,13 +547,13 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             invoice_list = self.object_list
         for invoice in invoice_list:
             invoice.prepayment_abs = abs(invoice.prepayment) if invoice.prepayment else Decimal('0.00')
+            # Total due BEFORE any payments:
+            #   total_amount (already net of discount) + opening balance + prepayment (credit is negative)
             invoice.total_due = (
-                        (invoice.total_amount or Decimal("0.00")) +
-                        (invoice.balance_bf or Decimal("0.00"))
-                    ) - (
-                        (invoice.prepayment or Decimal("0.00")) +
-                        (invoice.discount_amount or Decimal("0.00"))
-                    )
+                (invoice.total_amount or Decimal("0.00"))
+                + (invoice.balance_bf or Decimal("0.00"))
+                + (invoice.prepayment or Decimal("0.00"))
+            )
 
         return context
 
@@ -639,14 +639,16 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Calculate totals for display
         total_invoiced = invoice.total_amount or Decimal('0.00')
         total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
-        # Account for balance_bf and prepayment (prepayment stored as negative, so adding it reduces the balance)
+        # Account for balance_bf and prepayment.
+        # NOTE: invoice.prepayment is stored as NEGATIVE when there is credit,
+        # so adding it reduces the balance.
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
-        # Net total after balance_bf and prepayment adjustments
-        net_after_adjustments = total_invoiced + balance_bf - prepayment
-        # Use the same formula as invoice model: total_amount + balance_bf + prepayment - amount_paid
-        total_balance = total_invoiced + balance_bf - prepayment - total_paid
+        # Net total before payments (same shape as model formula)
+        net_after_adjustments = total_invoiced + balance_bf + prepayment
+        # Outstanding balance = total_amount + balance_bf + prepayment - total_paid
+        total_balance = total_invoiced + balance_bf + prepayment - total_paid
 
         # paid percentage
         paid_percentage = 0
@@ -970,17 +972,18 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Totals
         total_invoiced = invoice.total_amount or Decimal('0.00')
-        
-        # Important: Outstanding balance for invoice should NOT include payments
-        # It's just: invoice amount + balance_bf + prepayment
-        # Prepayment is stored as negative, so adding it reduces the balance
+
+        # Important: Outstanding balance for invoice BEFORE payments:
+        #   total_amount (already net of discount) + balance_bf + prepayment (credit stored as negative)
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
-        # Net total after balance_bf and prepayment adjustments
-        net_after_adjustments = total_invoiced + balance_bf - prepayment
-        # Outstanding balance: total_amount + balance_bf + prepayment (NO payments deducted)
-        outstanding_balance = total_invoiced + balance_bf - prepayment
+
+        # Net total after balance_bf and prepayment adjustments (no payments yet)
+        net_after_adjustments = total_invoiced + balance_bf + prepayment
+
+        # Outstanding balance before any payments (same as net_after_adjustments)
+        outstanding_balance = net_after_adjustments
 
         # Bank details & logos from settings (fallback to hardcoded)
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1365,16 +1368,14 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             if total_prepayment < 0
             else Decimal('0.00')
         )
-        total_discount = current_invoices.aggregate(
-            total=Sum('discount_amount')
-        )['total'] or Decimal('0.00')
-
-        student_balance_at_payment = (total_invoice_amount + total_balance_bf) - (total_prepayment + total_discount)
-        
-        # Outstanding AFTER this payment
-        outstanding_balance_after = (
-            student_balance_at_payment - payment.amount
+        # Overall student balance at the moment of this payment, BEFORE this payment:
+        #   total_amount (already net of discount) + balance_bf + prepayment
+        student_balance_at_payment = (
+            total_invoice_amount + total_balance_bf + total_prepayment
         )
+
+        # Outstanding AFTER this payment
+        outstanding_balance_after = student_balance_at_payment - payment.amount
         
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -2069,25 +2070,19 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                 discount_amount = form.cleaned_data.get('discount_amount', Decimal('0.00'))
                 if discount_amount is None:
                     discount_amount = Decimal('0.00')
-                
-                # Recalculate invoice totals from all items
+
+                # Recalculate invoice totals from all items (subtotal & per‑item discounts)
                 self.recalculate_invoice_totals(invoice)
-                
-                # Override discount_amount with form value if provided
+
+                # Override discount_amount with form value if provided and
+                # recompute totals. total_amount must always be net of discount.
                 if discount_amount is not None:
                     invoice.discount_amount = discount_amount
-                    # Recalculate total_amount with the discount
                     invoice.total_amount = invoice.subtotal - discount_amount
-                    # Recompute balance
-                    balance_bf = invoice.balance_bf or Decimal('0.00')
-                    prepayment = invoice.prepayment or Decimal('0.00')
-                    amount_paid = invoice.amount_paid or Decimal('0.00')
-                    # prepayment is stored as negative (credit), so adding it reduces balance
-                    invoice.balance = (invoice.total_amount + balance_bf + prepayment) - amount_paid
-                    if invoice.balance < Decimal('0.00'):
-                        invoice.prepayment = invoice.balance  # Store as negative
-                        invoice.balance = Decimal('0.00')
-                    invoice.save(update_fields=['discount_amount', 'total_amount', 'balance', 'prepayment'])
+
+                    # Let Invoice.save() apply the SINGLE SOURCE OF TRUTH
+                    # balance formula (see Invoice._recalculate_balance).
+                    invoice.save(update_fields=['subtotal', 'discount_amount', 'total_amount', 'prepayment', 'amount_paid', 'balance_bf'])
 
                 # Update payment status
                 invoice.update_payment_status()
@@ -2120,23 +2115,11 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         invoice.discount_amount = total_discount
         invoice.total_amount = subtotal - total_discount
 
-        # Recompute balance using the correct formula
-        balance_bf = invoice.balance_bf or Decimal('0.00')
-        prepayment = invoice.prepayment or Decimal('0.00')
-        amount_paid = invoice.amount_paid or Decimal('0.00')
-
-        # Formula: (total + balance_bf + prepayment) - amount_paid
-        invoice.balance = (invoice.total_amount + balance_bf ) - (amount_paid + prepayment + invoice.discount_amount)
-
-        # Ensure balance is not negative due to overpayment
-        if invoice.balance < Decimal('0.00'):
-            # If overpaid, set balance to 0 and adjust prepayment (store as negative)
-            invoice.prepayment = invoice.balance  # Store as negative
-            invoice.balance = Decimal('0.00')
-
+        # Delegate balance/status calculation to Invoice.save(), which uses
+        # Invoice._recalculate_balance as the single source of truth.
         invoice.save(update_fields=[
             'subtotal', 'discount_amount', 'total_amount',
-            'balance', 'prepayment', 'updated_at'
+            'prepayment', 'amount_paid', 'balance_bf', 'updated_at'
         ])
 
         logger.info(f"Recalculated totals for invoice {invoice.invoice_number}: "
