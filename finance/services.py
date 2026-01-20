@@ -440,22 +440,6 @@ class InvoiceService:
 
         student = invoice.student
 
-        # restored_credit = 0
-        # if invoice.prepayment:
-        #     restored_credit = abs(invoice.prepayment)
-        #     student.credit_balance += restored_credit
-
-        # restored_balance_bf = 0
-        # if invoice.balance_bf:
-        #     restored_balance_bf = invoice.balance_bf
-        #     student.outstanding_balance += restored_balance_bf
-
-        # student.save(update_fields=[
-        #     'credit_balance',
-        #     'balance_bf_original',
-        #     'updated_at'
-        # ])
-
         invoice.delete()
         student.recompute_outstanding_balance()
 
