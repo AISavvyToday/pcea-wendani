@@ -263,13 +263,45 @@ class Student(BaseModel):
         return self.outstanding_balance 
 
 
+    from django.db.models import Sum
+    from decimal import Decimal
+
     def save(self, *args, **kwargs):
-        """Override save to auto-generate admission_number if not provided."""
+        """Override save to auto-generate admission_number if not provided and recompute balances."""
+
         # Auto-generate admission_number if not set
         if not self.admission_number:
             from .services import StudentService
             self.admission_number = StudentService.generate_admission_number()
+
+        # --- Compute balances ---
+        active_invoices = self.invoices.filter(is_active=True)
+        if active_invoices.exists():
+            # Sum balances of relevant active invoices
+            invoice_total = active_invoices.filter(
+                status__in=[
+                    InvoiceStatus.OVERDUE,
+                    InvoiceStatus.PARTIALLY_PAID,
+                ]
+            ).aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+
+            self.outstanding_balance = invoice_total
+            # Do not touch credit_balance, it’s invoice-driven
+        else:
+            # No active invoices → restore frozen BF / prepayment
+            self.outstanding_balance = self.balance_bf_original
+            self.credit_balance = self.prepayment_original
+
         super().save(*args, **kwargs)
+
+
+    # def save(self, *args, **kwargs):
+    #     """Override save to auto-generate admission_number if not provided."""
+    #     # Auto-generate admission_number if not set
+    #     if not self.admission_number:
+    #         from .services import StudentService
+    #         self.admission_number = StudentService.generate_admission_number()
+    #     super().save(*args, **kwargs)
 
 class StudentParent(models.Model):
     """

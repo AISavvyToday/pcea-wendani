@@ -17,13 +17,7 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
     Freeze opening balances for a new term based on the previous term's
     final invoice balance.
 
-    This function MUST be run ONCE per term rollover,
-    BEFORE generating invoices for the new term.
-
-    Rules:
-    - balance_bf_original > 0  => student owes money
-    - prepayment_original > 0  => student has overpaid
-    - These values are frozen for the entire term
+    MUST be run ONCE per term rollover, before new invoices are generated.
     """
 
     stats = {
@@ -68,14 +62,15 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     # Student owes money
                     student.balance_bf_original = final_balance
                     student.prepayment_original = Decimal('0.00')
-                    student.credit_balance = final_balance
+                    student.credit_balance = Decimal('0.00')
                     stats['with_outstanding'] += 1
 
                 elif final_balance < 0:
                     # Student overpaid
+                    credit = abs(final_balance)
                     student.balance_bf_original = Decimal('0.00')
-                    student.prepayment_original = abs(final_balance)
-                    student.credit_balance = final_balance
+                    student.prepayment_original = credit
+                    student.credit_balance = credit
                     stats['with_overpayment'] += 1
 
                 else:
@@ -85,23 +80,29 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     student.credit_balance = Decimal('0.00')
                     stats['fully_paid'] += 1
 
+                # Deactivate ALL previous-term invoices
+                if not dry_run:
+                    Invoice.objects.filter(
+                        student=student,
+                        term=previous_term,
+                        is_active=True
+                    ).update(is_active=False)
+
             # ===============================
             # CASE 2: No invoice in previous term
             # ===============================
             else:
                 stats['no_invoice'] += 1
 
-                if student.credit_balance > 0:
-                    student.balance_bf_original = student.credit_balance
-                    student.prepayment_original = Decimal('0.00')
-
-                elif student.credit_balance < 0:
+                if old_credit > 0:
                     student.balance_bf_original = Decimal('0.00')
-                    student.prepayment_original = abs(student.credit_balance)
+                    student.prepayment_original = old_credit
+                    student.credit_balance = old_credit
 
                 else:
                     student.balance_bf_original = Decimal('0.00')
                     student.prepayment_original = Decimal('0.00')
+                    student.credit_balance = Decimal('0.00')
 
             changed = (
                 old_balance_bf != student.balance_bf_original or
@@ -127,7 +128,7 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
 
                 stats['updated'] += 1
 
-        except Exception as e:
+        except Exception:
             logger.exception(
                 f"Term transition failed for {student.admission_number}"
             )
