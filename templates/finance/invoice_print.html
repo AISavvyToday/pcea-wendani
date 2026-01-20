@@ -130,19 +130,22 @@
                         <th colspan="2">Totals</th>
                         <th class="text-right">KES {{ invoice.subtotal|default:total_invoiced|intcomma }}</th>
                         <th class="text-right">{% if invoice.discount_amount > 0 %}<span style="color:#080">-KES {{ invoice.discount_amount|intcomma }}</span>{% else %}-{% endif %}</th>
-                        <th class="text-right">KES {{ net_after_adjustments|intcomma }}</th>
+                        <th class="text-right">KES {{ invoice.total_amount|intcomma }}</th>
                     </tr>
                     <tr>
                         <th colspan="4" class="text-right">Outstanding Balance:</th>
-                        <th class="text-right">
-                            {% if outstanding_balance < 0 %}
-                                <span style="color:#080">KES {{ outstanding_balance|intcomma }}</span>
-                            {% elif outstanding_balance > 0 %}
-                                <span style="color:#c00">KES {{ outstanding_balance|intcomma }}</span>
-                            {% else %}
-                                <span>KES {{ outstanding_balance|intcomma }}</span>
-                            {% endif %}
-                        </th>
+                        <tr>
+    <th colspan="4" class="text-right">Outstanding Balance:</th>
+    <th class="text-right">
+        {% if invoice.balance < 0 %}
+            <span style="color:#080">KES {{ invoice.balance|intcomma }}</span>
+        {% elif invoice.balance > 0 %}
+            <span style="color:#c00">KES {{ invoice.balance|intcomma }}</span>
+        {% else %}
+            <span>KES {{ invoice.balance|intcomma }}</span>
+        {% endif %}
+    </th>
+</tr>
                     </tr>
                 </tfoot>
             </table>

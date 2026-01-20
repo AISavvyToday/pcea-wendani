@@ -648,7 +648,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Net total before payments (same shape as model formula)
         net_after_adjustments = total_invoiced + balance_bf + prepayment
         # Outstanding balance = total_amount + balance_bf + prepayment - total_paid
-        total_balance = total_invoiced + balance_bf + prepayment - total_paid
+        total_balance = invoice.balance
 
         # paid percentage
         paid_percentage = 0
@@ -983,7 +983,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         net_after_adjustments = total_invoiced + balance_bf + prepayment
 
         # Outstanding balance before any payments (same as net_after_adjustments)
-        outstanding_balance = net_after_adjustments
+        outstanding_balance = invoice.balance
 
         # Bank details & logos from settings (fallback to hardcoded)
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
