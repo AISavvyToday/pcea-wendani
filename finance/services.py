@@ -457,7 +457,7 @@ class InvoiceService:
         # ])
 
         invoice.delete()
-        student.recompute_outstanding_balance(student)
+        student.recompute_outstanding_balance()
 
 
 
