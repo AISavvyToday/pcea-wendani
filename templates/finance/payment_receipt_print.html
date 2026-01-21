@@ -78,6 +78,7 @@
 
         .meta-info .col {
             flex: 1;
+            font-weight: bold;
         }
 
         .meta-info strong {
@@ -91,11 +92,13 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 14px;
+            font-weight: bold;
         }
 
         th, td {
             padding: 6px 8px;
             border: 1px solid #ddd;
+            font-weight: bold;
         }
 
         th {
@@ -118,11 +121,13 @@
         .status-box h4 {
             margin: 0 0 6px;
             font-size: 15px;
+            font-weight: bold;
         }
 
         .status-box p {
             margin: 4px 0 0;
             font-size: 12px;
+            font-weight: bold;
         }
 
         /* NOTES */
@@ -132,6 +137,7 @@
             background: #fafafa;
             font-size: 13px;
             margin-bottom: 6px;
+            font-weight: bold;
         }
 
         /* SIGNATURE */
@@ -146,6 +152,7 @@
             width: 45%;
             text-align: center;
             font-size: 13px;
+            font-weight: bold;
         }
 
         .sig-line {
@@ -174,8 +181,8 @@
     <div class="header">
         <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
         <div class="school-title">
-            <h2>{{ school_name }}</h2>
-            <h3>OFFICIAL PAYMENT RECEIPT</h3>
+            <h2><strong>{{ school_name }}</strong></h2>
+            <h3><strong>OFFICIAL PAYMENT RECEIPT</strong></h3>
         </div>
         <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
     </div>
@@ -184,15 +191,15 @@
     <div class="meta-info">
         <div class="col">
             <strong>Receipt No.</strong>
-            {{ payment.receipt_number|default:payment.payment_reference }}
+            <strong>{{ payment.receipt_number|default:payment.payment_reference }}</strong>
         </div>
         <div class="col">
             <strong>Date</strong>
-            {{ payment.payment_date|date:"d M Y H:i" }}
+            <strong>{{ payment.payment_date|date:"d M Y H:i" }}</strong>
         </div>
         <div class="col">
             <strong>Source</strong>
-            {{ payment.get_payment_source_display }}
+            <strong>{{ payment.get_payment_source_display }}</strong>
         </div>
     </div>
 
@@ -200,80 +207,86 @@
     <div class="meta-info">
         <div class="col">
             <strong>Student</strong>
-            {{ payment.student.full_name }}
+            <strong>{{ payment.student.full_name }}</strong>
         </div>
         <div class="col">
             <strong>Adm No.</strong>
-            {{ payment.student.admission_number }}
+            <strong>{{ payment.student.admission_number }}</strong>
         </div>
         <div class="col">
             <strong>Grade</strong>
-            {{ payment.student.current_class|default:"-" }}
+            <strong>{{ payment.student.current_class|default:"-" }}</strong>
         </div>
     </div>
     {% endif %}
 
     <!-- SUMMARY -->
     <div class="status-box">
-        <h4>Payment Summary</h4>
+        <h4><strong>Payment Summary</strong></h4>
         <table>
             {% if balance_bf > 0 %}
             <tr>
-                <th>Balance B/F</th>
-                <td class="text-right">KES {{ balance_bf|intcomma }}</td>
+                <th><strong>Balance B/F</strong></th>
+                <td class="text-right"><strong>KES {{ balance_bf|intcomma }}</strong></td>
             </tr>
             {% endif %}
             {% if prepayment > 0 %}
             <tr>
-                <th>Prepayment</th>
-                <td class="text-right" style="color:#080;">KES {{ prepayment|intcomma }}</td>
+                <th><strong>Prepayment</strong></th>
+                <td class="text-right" style="color:#080;">
+                    <strong>KES {{ prepayment|intcomma }}</strong>
+                </td>
             </tr>
             {% endif %}
             <tr>
-                <th>Student Balance</th>
+                <th><strong>Student Balance</strong></th>
                 <td class="text-right">
                     {% if student_balance_at_payment < 0 %}
-                        <span style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</span>
+                        <strong style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</strong>
                     {% elif student_balance_at_payment > 0 %}
-                        <span style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</span>
+                        <strong style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</strong>
                     {% else %}
-                        KES {{ student_balance_at_payment|intcomma }}
+                        <strong>KES {{ student_balance_at_payment|intcomma }}</strong>
                     {% endif %}
                 </td>
             </tr>
             <tr>
-                <th>Amount Paid</th>
+                <th><strong>Amount Paid</strong></th>
                 <td class="text-right"><strong>KES {{ payment.amount|intcomma }}</strong></td>
             </tr>
             <tr>
-                <th>Outstanding</th>
+                <th><strong>Outstanding</strong></th>
                 <td class="text-right">
                     {% if outstanding_balance_at_payment < 0 %}
-                        <span style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                        <strong style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</strong>
                     {% elif outstanding_balance_at_payment > 0 %}
-                        <span style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</span>
+                        <strong style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</strong>
                     {% else %}
-                        KES {{ outstanding_balance_at_payment|intcomma }}
+                        <strong>KES {{ outstanding_balance_at_payment|intcomma }}</strong>
                     {% endif %}
                 </td>
             </tr>
         </table>
-        <p>Payments made are not refundable.</p>
+        <p><strong>Payments made are not refundable.</strong></p>
     </div>
 
     {% if notes %}
     <div class="notes">
-        <strong>Notes:</strong> {{ notes }}
+        <strong>Notes:</strong> <strong>{{ notes }}</strong>
     </div>
     {% endif %}
 
     <!-- SIGNATURE -->
     <div class="signature-area">
         <div class="sig-box">
-            <div class="sig-line">Received By: {{ printed_by|default:"School Bursar" }}</div>
+            <div class="sig-line">
+                <strong>Received By: {{ printed_by|default:"School Bursar" }}</strong>
+            </div>
         </div>
         <div class="sig-box">
-            <div class="sig-line">Signature / Stamp</div>
+            <div class="sig-line">
+                <strong>Signature / Stamp</strong>
+            </div>
         </div>
     </div>
 
