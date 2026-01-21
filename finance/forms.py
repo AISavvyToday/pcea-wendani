@@ -216,7 +216,7 @@ class PaymentRecordForm(forms.Form):
     """Form for manually recording payments."""
 
     student = forms.ModelChoiceField(
-        queryset=Student.objects.filter(is_active=True, status__in=['active', 'graduated']),
+        queryset=Student.objects.filter(is_active=True, status__in=['active', 'graduated', 'transferred']),
         widget=forms.Select(attrs={'class': 'form-control select2'}),
         help_text="Select student"
     )
