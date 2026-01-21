@@ -162,11 +162,7 @@ class Command(BaseCommand):
 
         Based on the system's single-source-of-truth logic:
           - total_amount is already net of discount_amount (subtotal - discount_amount)
-          - prepayment is stored as NEGATIVE when there is credit
-          - balance should be:
-
-              balance = total_amount + balance_bf + prepayment - amount_paid
-
+          
         IMPORTANT:
         - Discount is already factored into total_amount, so we don't subtract it again.
         - We round to 2 decimal places for comparison to handle floating-point precision.
@@ -186,11 +182,11 @@ class Command(BaseCommand):
         for inv in invoices:
             # Calculate expected balance using the canonical formula
             expected_balance = (
-                (inv.total_amount or Decimal("0.00"))
-                + (inv.balance_bf or Decimal("0.00"))
-                + (inv.prepayment or Decimal("0.00"))
-                - (inv.amount_paid or Decimal("0.00"))
-            )
+                    (inv.total_amount or Decimal("0.00"))
+                    + (inv.balance_bf or Decimal("0.00"))
+                    - (inv.prepayment or Decimal("0.00"))
+                    - (inv.amount_paid or Decimal("0.00"))
+                )
 
             # Round both values to 2 decimal places for comparison
             expected_balance = expected_balance.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
