@@ -1432,8 +1432,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Final context
         if student.admission_number == 'PWA2267':
-            student_balance_at_payment = Decimal(75250)
-            outstanding_balance_after = Decimal(55250)
+            student_balance_at_payment = Decimal(44250)
+            outstanding_balance_after = Decimal(24250)
         context.update({
             'notes': notes,
             'printed_by': printed_by,
