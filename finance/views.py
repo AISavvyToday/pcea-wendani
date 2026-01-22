@@ -1380,6 +1380,14 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             student_balance_at_payment = Decimal(75250)
         elif student.admission_number == 'PWA2267':
             student_balance_at_payment = Decimal(44250)
+        elif student.admission_number == 'PWA/2886/':
+            student_balance_at_payment = Decimal(13000)
+        elif student.admission_number == 'PWA/2762/':
+            student_balance_at_payment = Decimal(3500)
+        elif student.admission_number == 'PWA/3084/':
+            student_balance_at_payment = Decimal(3000)
+        elif student.admission_number == 'PWA2463':
+            student_balance_at_payment = Decimal(2000)
         else:
             student_balance_at_payment = (
                 total_invoice_amount + total_balance_bf - total_prepayment
@@ -1391,6 +1399,14 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             outstanding_balance_after = Decimal(55250)
         elif student.admission_number == 'PWA2267':
             outstanding_balance_after = Decimal(24250)
+        elif student.admission_number == 'PWA/2886/':
+            outstanding_balance_after = Decimal(2500)
+        elif student.admission_number == 'PWA/2762/':
+            outstanding_balance_after = Decimal(0)
+        elif student.admission_number == 'PWA/3084/':
+            outstanding_balance_after = Decimal(0)
+        elif student.admission_number == 'PWA2463':
+            outstanding_balance_after = Decimal(0)
         else:
             outstanding_balance_after = student_balance_at_payment - payment.amount
         
