@@ -34,6 +34,7 @@ class PaymentService:
         "coop": PaymentMethod.BANK_DEPOSIT,
     }
 
+
     @staticmethod
     def process_completed_payment_against_invoices(payment: Payment):
         """
@@ -42,9 +43,7 @@ class PaymentService:
         2. If student has NO invoices:
            - First reduce outstanding_balance (if any)
            - Any remainder → credit_balance
-        """
-        from payments.services.invoice import InvoiceService
-        
+        """        
         student = payment.student
         
         # Check if student has any active invoices
