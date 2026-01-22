@@ -5,6 +5,8 @@ from django.db.models import Sum, Q
 
 from students.models import Student
 from finance.models import Invoice
+from payments.models import Payment
+from core.models import PaymentStatus
 
 
 class Command(BaseCommand):
@@ -71,8 +73,8 @@ class Command(BaseCommand):
                • credit_balance reflects overpayments (payments allocation handles this).
 
         2) If a student has NO active invoices:
-           - outstanding_balance MUST equal balance_bf_original
-           - credit_balance MUST equal prepayment_original
+           - outstanding_balance MUST equal balance_bf_original - payments made
+           - credit_balance MUST equal prepayment_original + overpayments
         """
         students = Student.objects.all().prefetch_related("invoices")
         stats["students_total"] = students.count()
@@ -130,11 +132,43 @@ class Command(BaseCommand):
                 )
 
     def _check_student_without_invoices(self, student, stats):
-        expected_outstanding = student.balance_bf_original or Decimal("0.00")
-        expected_credit = student.prepayment_original or Decimal("0.00")
+        # For students without invoices:
+        # - Total payments made by the student
+        total_paid = Payment.objects.filter(
+            student=student,
+            is_active=True,
+            status=PaymentStatus.COMPLETED
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Starting balances (frozen at term start)
+        balance_bf_original = student.balance_bf_original or Decimal('0.00')
+        prepayment_original = student.prepayment_original or Decimal('0.00')
+        
+        # Calculate expected values based on payment allocation logic:
+        # 1. Payments first reduce balance_bf_original
+        # 2. Any excess becomes credit_balance
+        # 3. prepayment_original is added to credit_balance
+        
+        # How much of balance_bf_original is remaining after payments
+        remaining_balance_bf = max(Decimal('0.00'), balance_bf_original - total_paid)
+        
+        # Any overpayment (when total_paid > balance_bf_original)
+        overpayment = max(Decimal('0.00'), total_paid - balance_bf_original)
+        
+        # Expected outstanding balance = remaining balance_bf
+        expected_outstanding = remaining_balance_bf
+        
+        # Expected credit = prepayment_original + overpayment
+        expected_credit = prepayment_original + overpayment
 
         actual_outstanding = student.outstanding_balance or Decimal("0.00")
         actual_credit = student.credit_balance or Decimal("0.00")
+
+        # Round to 2 decimal places for comparison
+        expected_outstanding = expected_outstanding.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        expected_credit = expected_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        actual_outstanding = actual_outstanding.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        actual_credit = actual_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         if (
             expected_outstanding != actual_outstanding
@@ -149,6 +183,9 @@ class Command(BaseCommand):
                     "actual_outstanding": actual_outstanding,
                     "expected_credit": expected_credit,
                     "actual_credit": actual_credit,
+                    "balance_bf_original": balance_bf_original,
+                    "prepayment_original": prepayment_original,
+                    "total_paid": total_paid,
                 }
             )
 
@@ -299,6 +336,8 @@ class Command(BaseCommand):
         for m in stats["no_invoice_invariant_violations"][:10]:
             self.stdout.write(
                 f"  - {m['admission']} {m['name']}: "
+                f"balance_bf_original={m['balance_bf_original']}, "
+                f"total_paid={m['total_paid']}, "
                 f"outstanding (exp {m['expected_outstanding']}, "
                 f"act {m['actual_outstanding']}), "
                 f"credit (exp {m['expected_credit']}, "
@@ -330,5 +369,3 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         self.stdout.write("✅ Audit completed (no data was modified).")
-
-
