@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 class InvoiceService:
     """Service for managing invoice updates from payments (allocation-only model)."""
 
+    # NOTE: Balance B/F is treated as a synthetic fee category so that
+    # payments can clear arrears using the same allocation engine.
+    # It is given highest priority so historical debt is paid first.
     PRIORITY_ORDER = [
+        "balance_bf",   # synthetic category for Balance B/F invoice item
         "tuition",
         "meals",
         "examination",
@@ -73,10 +77,10 @@ class InvoiceService:
 
         invoice.amount_paid = allocations_total
         invoice.balance = (
-            invoice.total_amount
-            + invoice.balance_bf
-            + invoice.prepayment
-            - invoice.amount_paid
+            (invoice.total_amount or Decimal("0.00"))
+            + (invoice.balance_bf or Decimal("0.00"))
+            - (invoice.prepayment or Decimal("0.00"))
+            - (invoice.amount_paid or Decimal("0.00"))
         )
 
         today = date_cls.today()
@@ -144,6 +148,57 @@ class InvoiceService:
             remaining -= applied
 
         return allocated_total
+
+
+    @staticmethod
+    @db_transaction.atomic
+    def allocate_payment_to_single_invoice(
+        payment: Payment,
+        invoice: Invoice,
+        amount_to_apply: Decimal,
+    ) -> Decimal:
+        """
+        Allocate a payment ONLY to the given invoice.
+
+        Used for:
+        - Internal "credit consumption" payments created from Student.credit_balance
+          during invoice generation.
+        - Any future flows that must not spill over to other invoices.
+
+        Returns the amount actually allocated to this invoice.
+        """
+        if not payment or not payment.is_active:
+            return Decimal("0.00")
+
+        if payment.status != PaymentStatus.COMPLETED:
+            logger.info(
+                f"Payment {payment.payment_reference} not COMPLETED; "
+                f"skipping single-invoice allocation."
+            )
+            return Decimal("0.00")
+
+        if amount_to_apply <= 0:
+            return Decimal("0.00")
+
+        # Lock invoice row while allocating to avoid races
+        invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+
+        # Ensure invoice fields are up to date before we start
+        InvoiceService._recalculate_invoice_fields(invoice)
+
+        if invoice.balance <= 0:
+            return Decimal("0.00")
+
+        amount_for_invoice = min(amount_to_apply, invoice.balance)
+
+        allocated = InvoiceService._allocate_amount_to_invoice_items(
+            payment=payment,
+            invoice=invoice,
+            amount_to_apply=amount_for_invoice,
+        )
+
+        InvoiceService._recalculate_invoice_fields(invoice)
+        return allocated
 
 
     @staticmethod
@@ -318,7 +373,7 @@ class InvoiceService:
         # Remaining → student credit
         # -----------------------------------------------------
         if remaining > 0:
-            student.credit_balance -= remaining
+            student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
             student.save(update_fields=["credit_balance", "updated_at"])
 
             note = f" | Unapplied credit: KES {remaining}"

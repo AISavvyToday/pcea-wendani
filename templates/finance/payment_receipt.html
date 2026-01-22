@@ -326,7 +326,7 @@
             </div>
 
             <!-- Allocations -->
-            {% if payment.allocations.exists %}
+            {% if payment.allocations.all %}
             <div style="margin-top: 16px;">
                 <h4 style="margin-bottom: 12px; font-size: 16px; font-weight: bold;">Payment Allocations</h4>
                 <table>
@@ -353,7 +353,9 @@
                     <tfoot>
                         <tr>
                             <th colspan="4" class="text-right">Total Allocated:</th>
-                            <th class="text-right">KES {{ payment.amount|intcomma }}</th>
+                            <th class="text-right">
+                                KES {{ payment.amount|intcomma }}
+                            </th>
                         </tr>
                     </tfoot>
                 </table>

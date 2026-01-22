@@ -235,11 +235,9 @@ class Invoice(BaseModel):
           in total_amount. Subtracting it a second time would double-count
           the discount and understate the balance.
         """
-        self.balance = (
-            (self.balance_bf or Decimal("0.00"))
-            + (self.total_amount or Decimal("0.00"))
-            + (self.prepayment or Decimal("0.00"))
-        ) - (self.amount_paid or Decimal("0.00"))
+        total = (self.balance_bf or Decimal("0.00")) + (self.total_amount or Decimal("0.00"))
+        deductions = (self.prepayment or Decimal("0.00")) + (self.amount_paid or Decimal("0.00"))
+        self.balance = total - deductions
 
     def _recalculate_status(self):
         from datetime import date

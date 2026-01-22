@@ -552,7 +552,7 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
             invoice.total_due = (
                 (invoice.total_amount or Decimal("0.00"))
                 + (invoice.balance_bf or Decimal("0.00"))
-                + (invoice.prepayment or Decimal("0.00"))
+                - (invoice.prepayment or Decimal("0.00"))
             )
 
         return context
@@ -639,15 +639,13 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Calculate totals for display
         total_invoiced = invoice.total_amount or Decimal('0.00')
         total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
-        # Account for balance_bf and prepayment.
-        # NOTE: invoice.prepayment is stored as NEGATIVE when there is credit,
-        # so adding it reduces the balance.
+        # Account for balance_bf and prepayment (stored as POSITIVE credit).
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
         # Net total before payments (same shape as model formula)
-        net_after_adjustments = total_invoiced + balance_bf + prepayment
-        # Outstanding balance = total_amount + balance_bf + prepayment - total_paid
+        net_after_adjustments = total_invoiced + balance_bf - prepayment
+        # Outstanding balance = total_amount + balance_bf - prepayment - total_paid
         total_balance = invoice.balance
 
         # paid percentage
@@ -974,13 +972,13 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         total_invoiced = invoice.total_amount or Decimal('0.00')
 
         # Important: Outstanding balance for invoice BEFORE payments:
-        #   total_amount (already net of discount) + balance_bf + prepayment (credit stored as negative)
+        #   total_amount (already net of discount) + balance_bf - prepayment (credit stored as positive)
         balance_bf = invoice.balance_bf or Decimal('0.00')
         prepayment = invoice.prepayment or Decimal('0.00')
         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
 
         # Net total after balance_bf and prepayment adjustments (no payments yet)
-        net_after_adjustments = total_invoiced + balance_bf + prepayment
+        net_after_adjustments = total_invoiced + balance_bf - prepayment
 
         # Outstanding balance before any payments (same as net_after_adjustments)
         outstanding_balance = invoice.balance
@@ -1369,9 +1367,9 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             else Decimal('0.00')
         )
         # Overall student balance at the moment of this payment, BEFORE this payment:
-        #   total_amount (already net of discount) + balance_bf + prepayment
+        #   total_amount (already net of discount) + balance_bf - prepayment
         student_balance_at_payment = (
-            total_invoice_amount + total_balance_bf + total_prepayment
+            total_invoice_amount + total_balance_bf - total_prepayment
         )
 
         # Outstanding AFTER this payment

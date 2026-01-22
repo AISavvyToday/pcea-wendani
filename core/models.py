@@ -67,6 +67,8 @@ class PaymentSource(models.TextChoices):
     EQUITY_BANK = 'equity_bank', 'Equity Bank'
     COOP_BANK = 'coop_bank', 'Co-operative Bank'
     MPESA = 'mpesa', 'Mpesa'
+    # Internal/system sources (no external cash movement)
+    CREDIT = 'credit', 'Student Credit'
 
 
 
@@ -121,6 +123,9 @@ class FeeCategory(models.TextChoices):
     DEVELOPMENT = 'development', 'Development Levy'
     ADMISSION = 'admission', 'Admission Fee'
     OTHER = 'other', 'Other'
+    # Special synthetic categories for accounting
+    BALANCE_BF = 'balance_bf', 'Balance Brought Forward'
+    PREPAYMENT_CREDIT = 'prepayment', 'Prepayment / Credit'
 
 class StreamChoices(models.TextChoices):
     EAST = 'EAST', 'East'

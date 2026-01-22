@@ -238,25 +238,20 @@ class Student(BaseModel):
 
 
     def recompute_outstanding_balance(self):
-        # Check if student has any active invoices
-        has_active_invoices = self.invoices.filter(is_active=True).exists()
+        active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
 
-        if has_active_invoices:
-            # Sum balances of all active invoices with specific statuses
-            invoice_total = self.invoices.filter(
-                status__in=[
-                    InvoiceStatus.OVERDUE,
-                    InvoiceStatus.PARTIALLY_PAID,
-                ],
-                is_active=True
-            ).aggregate(
+        if active_invoices.exists():
+            invoice_total = active_invoices.aggregate(
                 total=Sum('balance')
             )['total'] or Decimal('0.00')
-            
             self.outstanding_balance = invoice_total
+            # Ensure credit_balance never goes negative
+            self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
         else:
-            self.outstanding_balance = self.balance_bf_original
-            self.credit_balance = self.prepayment_original
+            self.outstanding_balance = self.balance_bf_original or Decimal('0.00')
+            baseline_credit = self.prepayment_original or Decimal('0.00')
+            current_credit = self.credit_balance or Decimal('0.00')
+            self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
 
         self.save(update_fields=['outstanding_balance', 'credit_balance'])
 
@@ -275,22 +270,20 @@ class Student(BaseModel):
             self.admission_number = StudentService.generate_admission_number()
 
         # --- Compute balances ---
-        active_invoices = self.invoices.filter(is_active=True)
+        active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
         if active_invoices.exists():
-            # Sum balances of relevant active invoices
-            invoice_total = active_invoices.filter(
-                status__in=[
-                    InvoiceStatus.OVERDUE,
-                    InvoiceStatus.PARTIALLY_PAID,
-                ]
-            ).aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+            # Sum balances of all active, non-cancelled invoices
+            invoice_total = active_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
 
             self.outstanding_balance = invoice_total
-            # Do not touch credit_balance, it’s invoice-driven
+            # Do not touch credit_balance, ensure non-negative
+            self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
         else:
             # No active invoices → restore frozen BF / prepayment
             self.outstanding_balance = self.balance_bf_original
-            self.credit_balance = self.prepayment_original
+            baseline_credit = self.prepayment_original or Decimal('0.00')
+            current_credit = self.credit_balance or Decimal('0.00')
+            self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
 
         super().save(*args, **kwargs)
 

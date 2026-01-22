@@ -424,9 +424,14 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # FINANCE DATA
         # ----------------------------
         invoices = student.invoices.select_related('term').order_by('-issue_date')[:25]
-        # Add prepayment_abs to each invoice for template display
+        # Add helper fields to each invoice for template display (keep in sync with finance.InvoiceListView)
         for inv in invoices:
             inv.prepayment_abs = abs(inv.prepayment) if inv.prepayment else Decimal('0.00')
+            inv.total_due = (
+                (inv.total_amount or Decimal("0.00"))
+                + (inv.balance_bf or Decimal("0.00"))
+                - (inv.prepayment or Decimal("0.00"))
+            )
         
         payments = student.payments.order_by('-payment_date')[:25]
 

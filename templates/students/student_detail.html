@@ -378,9 +378,11 @@
                     <tr>
                       <th>Invoice</th>
                       <th>Term</th>
-                      <th class="text-end">Bal B/f</th>
+                      <th class="text-end">Bal B/F</th>
                       <th class="text-end">Prepayment</th>
-                      <th class="text-end">Amount</th>
+                      <th class="text-end">Billed</th>
+                      <th class="text-end">Discount</th>
+                      <th class="text-end">Total</th>
                       <th class="text-end">Paid</th>
                       <th class="text-end">Balance</th>
                       <th>Status</th>
@@ -396,7 +398,13 @@
                           </a>
                         </td>
                         <td>{{ inv.term }}</td>
-                        <td class="text-end">{{ inv.balance_bf|default:"0.00" }}</td>
+                        <td class="text-end">
+                          {% if inv.balance_bf and inv.balance_bf > 0 %}
+                            KES {{ inv.balance_bf|floatformat:0|intcomma }}
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
                         <td class="text-end {% if inv.prepayment and inv.prepayment != 0 %}text-success{% endif %}">
                           {% if inv.prepayment and inv.prepayment != 0 %}
                             KES {{ inv.prepayment_abs|floatformat:0|intcomma }}
@@ -404,9 +412,19 @@
                             -
                           {% endif %}
                         </td>
-                        <td class="text-end">{{ inv.total_amount }}</td>
-                        <td class="text-end">{{ inv.amount_paid }}</td>
-                        <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">{{ inv.balance }}</td>
+                        <td class="text-end">KES {{ inv.subtotal|default:inv.total_amount|floatformat:0|intcomma }}</td>
+                        <td class="text-end">
+                          {% if inv.discount_amount and inv.discount_amount > 0 %}
+                            KES {{ inv.discount_amount|floatformat:0|intcomma }}
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+                        <td class="text-end">KES {{ inv.total_due|floatformat:0|intcomma }}</td>
+                        <td class="text-end">KES {{ inv.amount_paid|floatformat:0|intcomma }}</td>
+                        <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                          KES {{ inv.balance|floatformat:0|intcomma }}
+                        </td>
                         <td>{{ inv.get_status_display }}</td>
                         <td class="text-center">
                           <div class="btn-group btn-group-sm">

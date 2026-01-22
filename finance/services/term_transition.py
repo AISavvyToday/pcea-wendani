@@ -98,6 +98,11 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     student.balance_bf_original = Decimal('0.00')
                     student.prepayment_original = old_credit
                     student.credit_balance = old_credit
+                elif old_credit < 0:
+                    # Treat negative credit as debt
+                    student.balance_bf_original = abs(old_credit)
+                    student.prepayment_original = Decimal('0.00')
+                    student.credit_balance = Decimal('0.00')
 
                 else:
                     student.balance_bf_original = Decimal('0.00')

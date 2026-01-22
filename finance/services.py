@@ -13,13 +13,17 @@ from datetime import timedelta, date
 
 from payments.services.payment import logger
 from .models import (
-    FeeStructure, FeeItem, Invoice, InvoiceItem,
-     StudentDiscount
+    FeeStructure,
+    FeeItem,
+    Invoice,
+    InvoiceItem,
+    StudentDiscount,
 )
 
 from payments.models import Payment, PaymentAllocation, BankTransaction
 from students.models import Student
 from academics.models import Term
+from core.models import PaymentStatus, PaymentSource
 
 
 class InvoiceService:
@@ -158,43 +162,116 @@ class InvoiceService:
             subtotal += item_amount
 
         # --------------------------------------------------
-        # Finalize totals
+        # Finalize term-fee totals (EXCLUDES B/F & prepayment)
         # --------------------------------------------------
         invoice.subtotal = subtotal
         invoice.discount_amount = (
-            invoice.items.aggregate(total=Sum('discount_applied'))['total']
-            or Decimal('0.00')
+            invoice.items.aggregate(total=Sum("discount_applied"))["total"]
+            or Decimal("0.00")
         )
         invoice.total_amount = invoice.subtotal - invoice.discount_amount
 
         # --------------------------------------------------
-        # CORE FIX: Apply frozen opening balances
+        # Opening balances (frozen fields) mirrored on invoice
         # --------------------------------------------------
-        opening_balance = student.balance_bf_original or Decimal('0.00')
-        opening_prepayment = student.prepayment_original or Decimal('0.00')
+        opening_balance = student.balance_bf_original or Decimal("0.00")
+        opening_prepayment = student.prepayment_original or Decimal("0.00")
 
+        # These header fields remain as immutable snapshots for the term
         invoice.balance_bf = opening_balance
-        invoice.prepayment = -opening_prepayment if opening_prepayment > 0 else Decimal('0.00')
+        invoice.prepayment = opening_prepayment  # stored as POSITIVE credit
         invoice.balance_bf_original = opening_balance
 
         # --------------------------------------------------
-        # Consume live credit_balance once
+        # Represent B/F and Prepayment as synthetic invoice items
         # --------------------------------------------------
-        available_credit = student.credit_balance or Decimal('0.00')
+        # NOTE:
+        # - Balance B/F item is a positive debit line.
+        # - Prepayment item is a negative credit line (amount < 0),
+        #   so allocation engine naturally ignores it (no positive due).
+        #
+        # These items are NOT included in subtotal/discount_amount/total_amount
+        # which remain term-fee-only; they exist for allocation + statement
+        # purposes so all exposure is itemised.
+        bf_item = None
+        if opening_balance > 0:
+            bf_item = InvoiceItem.objects.create(
+                invoice=invoice,
+                fee_item=None,
+                category="balance_bf",
+                description="Balance B/F from previous term",
+                amount=opening_balance,
+                discount_applied=Decimal("0.00"),
+                net_amount=opening_balance,
+            )
 
-        exposure = opening_balance + invoice.total_amount - opening_prepayment
-        credit_to_apply = min(available_credit, exposure)
-
-        if credit_to_apply > 0:
-            invoice.prepayment -= credit_to_apply
-            student.credit_balance = available_credit - credit_to_apply
+        prepay_item = None
+        if opening_prepayment > 0:
+            prepay_item = InvoiceItem.objects.create(
+                invoice=invoice,
+                fee_item=None,
+                category="prepayment",
+                description="Prepayment / Credit from previous term",
+                # Negative amount so net_amount < 0 (credit)
+                amount=-opening_prepayment,
+                discount_applied=Decimal("0.00"),
+                net_amount=-opening_prepayment,
+            )
 
         # --------------------------------------------------
-        # Persist
+        # Persist base invoice before any credit allocations
         # --------------------------------------------------
         invoice.save()
-        student.save(update_fields=['credit_balance', 'updated_at'])
 
+        # --------------------------------------------------
+        # Consume live Student.credit_balance via INTERNAL payment
+        # --------------------------------------------------
+        from payments.services.invoice import InvoiceService as PaymentsInvoiceService
+
+        available_credit = student.credit_balance or Decimal("0.00")
+
+        # Exposure here is the full invoice balance (term fees + B/F - prepayments)
+        # as currently calculated by the Invoice model.
+        invoice.refresh_from_db()
+        exposure = max(Decimal("0.00"), invoice.balance or Decimal("0.00"))
+        credit_to_apply = min(available_credit, exposure)
+
+        internal_allocated = Decimal("0.00")
+        internal_payment = None
+
+        if credit_to_apply > 0:
+            internal_payment = Payment.objects.create(
+                student=student,
+                invoice=invoice,
+                amount=credit_to_apply,
+                payment_method="bank_deposit",  # reuse existing method enum
+                payment_source=PaymentSource.CREDIT,
+                status=PaymentStatus.COMPLETED,
+                payment_date=timezone.now(),
+                payer_name="System Credit",
+                payer_phone="",
+                transaction_reference="CREDIT-AUTO",
+                received_by=generated_by,
+                notes="Auto-applied from existing credit balance",
+                is_reconciled=True,
+                reconciled_by=generated_by,
+                reconciled_at=timezone.now(),
+            )
+
+            internal_allocated = PaymentsInvoiceService.allocate_payment_to_single_invoice(
+                payment=internal_payment,
+                invoice=invoice,
+                amount_to_apply=credit_to_apply,
+            )
+
+        # Decrement student's live credit BALANCE ONLY by what was actually applied
+        if internal_allocated > 0:
+            new_credit = (student.credit_balance or Decimal("0.00")) - internal_allocated
+            student.credit_balance = max(Decimal("0.00"), new_credit)
+        # Persist student changes (even if no internal allocation, updated_at is still useful)
+        student.save(update_fields=["credit_balance", "updated_at"])
+
+        # Recompute outstanding balance snapshot on the student
         student.recompute_outstanding_balance()
 
         return invoice, True
@@ -439,8 +516,14 @@ class InvoiceService:
             )
 
         student = invoice.student
+        restored_credit = invoice.prepayment or Decimal("0.00")
 
         invoice.delete()
+
+        if restored_credit > 0:
+            student.credit_balance = (student.credit_balance or Decimal("0.00")) + restored_credit
+            student.save(update_fields=["credit_balance", "updated_at"])
+
         student.recompute_outstanding_balance()
 
 
