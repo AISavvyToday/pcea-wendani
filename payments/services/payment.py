@@ -21,7 +21,7 @@ from students.models import Student
 from finance.models import Invoice
 from core.models import PaymentMethod, PaymentStatus, PaymentSource
 from payments.exceptions import PaymentProcessingError
-
+from payments.services.invoice import InvoiceService
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +33,6 @@ class PaymentService:
         "equity": PaymentMethod.BANK_DEPOSIT,
         "coop": PaymentMethod.BANK_DEPOSIT,
     }
-
 
     @staticmethod
     def process_completed_payment_against_invoices(payment: Payment):
