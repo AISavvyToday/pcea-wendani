@@ -570,6 +570,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         invoice = self.object
+        student = invoice.student
 
         # Get invoice items with their allocations, ordered by priority (same as allocation logic)
         items_qs = invoice.items.filter(is_active=True)
