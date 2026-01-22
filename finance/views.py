@@ -1389,7 +1389,7 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         elif student.admission_number == 'PWA2463':
             student_balance_at_payment = Decimal(2000)
         else:
-            student_balance_at_payment = total_invoice_amount 
+            student_balance_at_payment = student.outstanding_balance
             # student_balance_at_payment = (
             #     total_invoice_amount + total_balance_bf - total_prepayment
             # )

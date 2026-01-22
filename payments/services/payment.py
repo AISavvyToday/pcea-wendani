@@ -34,15 +34,6 @@ class PaymentService:
         "coop": PaymentMethod.BANK_DEPOSIT,
     }
 
-    # @staticmethod
-    # def process_completed_payment_against_invoices(payment: Payment):
-    #     """
-    #     Apply any COMPLETED payment to invoices oldest-first.
-    #     Safe to call for bank + manual flows.
-    #     """
-    #     from payments.services.invoice import InvoiceService  # local import to avoid circulars
-    #     return InvoiceService.apply_payment_to_student_arrears(payment)
-
     @staticmethod
     def process_completed_payment_against_invoices(payment: Payment):
         """
