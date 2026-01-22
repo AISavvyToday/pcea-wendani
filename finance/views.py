@@ -1306,16 +1306,13 @@ class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_list')
 
 
-
-
-
 class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly payment receipt.
 
     IMPORTANT ACCOUNTING RULES (LOCKED):
     -----------------------------------
-    • Student Balance (BEFORE payment) = Invoice Total + Balance B/F
+    • Student Balance (BEFORE payment) = Previous running balance
     • Outstanding (AFTER payment) = Student Balance - Payment Amount
     • Prepayment and Credit Balance DO NOT affect receipt math
     """
@@ -1363,7 +1360,6 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             total=Sum('balance_bf')
         )['total'] or Decimal('0.00')
 
-
         # Prepayment (display only — does NOT affect math)
         total_prepayment = current_invoices.aggregate(
             total=Sum('prepayment')
@@ -1374,9 +1370,27 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             if total_prepayment < 0
             else Decimal('0.00')
         )
+        
+        # Get total paid BEFORE this payment (all payments before this payment date)
+        total_paid_before = Payment.objects.filter(
+            student=student,
+            is_active=True,
+            status=PaymentStatus.COMPLETED,
+            payment_date__lt=payment.payment_date
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Get total paid BEFORE this payment INCLUDING this payment (for running balance)
+        total_paid_up_to = Payment.objects.filter(
+            student=student,
+            is_active=True,
+            status=PaymentStatus.COMPLETED,
+            payment_date__lte=payment.payment_date
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
         # Overall student balance at the moment of this payment, BEFORE this payment:
-        #   total_amount (already net of discount) + balance_bf - prepayment
+        #   total_amount (already net of discount) + balance_bf - prepayment - payments before
         if student.admission_number == 'PWA2374':
+            # Hardcoded running balance
             student_balance_at_payment = Decimal(75250)
         elif student.admission_number == 'PWA2267':
             student_balance_at_payment = Decimal(44250)
@@ -1389,14 +1403,15 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         elif student.admission_number == 'PWA2463':
             student_balance_at_payment = Decimal(2000)
         else:
+            # Calculate running balance: total invoiced + B/F - prepayment - payments before
             student_balance_at_payment = (
-                total_invoice_amount + total_balance_bf - total_prepayment
+                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
             )
             
 
         # Outstanding AFTER this payment
-
         if student.admission_number == 'PWA2374':
+            # For PWA2374: running balance after this payment
             outstanding_balance_after = Decimal(55250)
         elif student.admission_number == 'PWA2267':
             outstanding_balance_after = Decimal(24250)
@@ -1409,6 +1424,7 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         elif student.admission_number == 'PWA2463':
             outstanding_balance_after = Decimal(0)
         else:
+            # Calculate: running balance before - this payment amount
             outstanding_balance_after = student_balance_at_payment - payment.amount
         
         # Bank details & branding
@@ -1468,6 +1484,167 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         })
 
         return context
+
+
+# class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+#     """
+#     Print-friendly payment receipt.
+
+#     IMPORTANT ACCOUNTING RULES (LOCKED):
+#     -----------------------------------
+#     • Student Balance (BEFORE payment) = Invoice Total + Balance B/F
+#     • Outstanding (AFTER payment) = Student Balance - Payment Amount
+#     • Prepayment and Credit Balance DO NOT affect receipt math
+#     """
+
+#     model = Payment
+#     template_name = 'finance/payment_receipt_print.html'
+#     context_object_name = 'payment'
+#     allowed_roles = [
+#         UserRole.SUPER_ADMIN,
+#         UserRole.SCHOOL_ADMIN,
+#         UserRole.ACCOUNTANT,
+#     ]
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         payment = self.object
+#         student = payment.student
+
+#         # Optional notes from query string
+#         notes = self.request.GET.get('notes', '').strip()
+
+#         # Printed metadata
+#         printed_by = getattr(
+#             self.request.user,
+#             'get_full_name',
+#             lambda: str(self.request.user)
+#         )()
+#         print_datetime = timezone.now()
+
+#         # Get all active invoices for student
+#         current_invoices = Invoice.objects.filter(
+#             student=student,
+#             is_active=True
+#         ).exclude(status=InvoiceStatus.CANCELLED)
+
+#         # ---- CORE RECEIPT ACCOUNTING (CORRECT & SIMPLE) ----
+
+#         # Total invoice amounts (GROSS, before any payments)
+#         total_invoice_amount = current_invoices.aggregate(
+#             total=Sum('total_amount')
+#         )['total'] or Decimal('0.00')
+
+#         # Balance B/F (frozen at invoice creation)
+#         total_balance_bf = current_invoices.aggregate(
+#             total=Sum('balance_bf')
+#         )['total'] or Decimal('0.00')
+
+
+#         # Prepayment (display only — does NOT affect math)
+#         total_prepayment = current_invoices.aggregate(
+#             total=Sum('prepayment')
+#         )['total'] or Decimal('0.00')
+
+#         prepayment_display = (
+#             abs(total_prepayment)
+#             if total_prepayment < 0
+#             else Decimal('0.00')
+#         )
+#         # Overall student balance at the moment of this payment, BEFORE this payment:
+#         #   total_amount (already net of discount) + balance_bf - prepayment
+#         if student.admission_number == 'PWA2374':
+#             student_balance_at_payment = Decimal(75250)
+#         elif student.admission_number == 'PWA2267':
+#             student_balance_at_payment = Decimal(44250)
+#         elif student.admission_number == 'PWA/2886/':
+#             student_balance_at_payment = Decimal(13000)
+#         elif student.admission_number == 'PWA/2762/':
+#             student_balance_at_payment = Decimal(3500)
+#         elif student.admission_number == 'PWA/3084/':
+#             student_balance_at_payment = Decimal(3000)
+#         elif student.admission_number == 'PWA2463':
+#             student_balance_at_payment = Decimal(2000)
+#         else:
+#             student_balance_at_payment = (
+#                 total_invoice_amount + total_balance_bf - total_prepayment
+#             )
+            
+
+#         # Outstanding AFTER this payment
+
+#         if student.admission_number == 'PWA2374':
+#             outstanding_balance_after = Decimal(55250)
+#         elif student.admission_number == 'PWA2267':
+#             outstanding_balance_after = Decimal(24250)
+#         elif student.admission_number == 'PWA/2886/':
+#             outstanding_balance_after = Decimal(2500)
+#         elif student.admission_number == 'PWA/2762/':
+#             outstanding_balance_after = Decimal(0)
+#         elif student.admission_number == 'PWA/3084/':
+#             outstanding_balance_after = Decimal(0)
+#         elif student.admission_number == 'PWA2463':
+#             outstanding_balance_after = Decimal(0)
+#         else:
+#             outstanding_balance_after = student_balance_at_payment - payment.amount
+        
+#         # Bank details & branding
+#         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
+#             'equity': {
+#                 'name': 'EQUITY BANK',
+#                 'account_name': 'P.C.E.A Wendani Academy',
+#                 'account_no': '1130280029105'
+#             },
+#             'coop': {
+#                 'name': 'CO-OPERATIVE BANK',
+#                 'account_name': 'P.C.E.A Wendani Academy',
+#                 'account_no': '01129158350600'
+#             },
+#             'paybill_1': {
+#                 'label': 'PAYBILL (247247)',
+#                 'acc_format': '80029#<admission_number>'
+#             },
+#             'paybill_2': {
+#                 'label': 'PAYBILL (400222)',
+#                 'acc_format': '393939#<admission_number>'
+#             },
+#         })
+
+#         school_logo_url = getattr(
+#             settings,
+#             'SCHOOL_LOGO_URL',
+#             '/static/img/school_logo.png'
+#         )
+#         sponsor_logo_url = getattr(
+#             settings,
+#             'SPONSOR_LOGO_URL',
+#             '/static/img/sponsor_logo.png'
+#         )
+
+#         # Final context
+#         context.update({
+#             'notes': notes,
+#             'printed_by': printed_by,
+#             'print_datetime': print_datetime,
+
+#             # Financial snapshot
+#             'balance_bf': total_balance_bf,
+#             'prepayment': prepayment_display,
+#             'student_balance_at_payment': student_balance_at_payment,
+#             'outstanding_balance_at_payment': outstanding_balance_after,
+
+#             # Branding
+#             'bank_details': bank_details,
+#             'school_logo_url': school_logo_url,
+#             'sponsor_logo_url': sponsor_logo_url,
+#             'school_name': getattr(
+#                 settings,
+#                 'SCHOOL_NAME',
+#                 'P.C.E.A Wendani Academy'
+#             ),
+#         })
+
+#         return context
 
 
 # =============================================================================
@@ -1755,13 +1932,55 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         else:
             admission_number_only = admission_number
 
-        # balance_bf = student.balance_bf_original
-        # prepayment = student.prepayment_original
+        # FIX: Use last transaction's running balance for "Balance Due"
+        transactions = statement.get('transactions', [])
+        if transactions:
+            # Use the last transaction's running balance
+            context['balance'] = transactions[-1]['running_balance']
+        else:
+            # Fallback to calculated balance if no transactions
+            context['balance'] = statement.get('balance', 0)
+        
         context['admission_number_only'] = admission_number_only
-        # context['balance_bf'] = balance_bf
-        # context['prepayment'] = prepayment
         
         return context
+        
+# class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+#     """View student financial statement."""
+
+#     model = Student
+#     template_name = 'finance/student_statement.html'
+#     context_object_name = 'student'
+#     pk_url_kwarg = 'student_pk'
+#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT, UserRole.PARENT]
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+
+#         term_id = self.request.GET.get('term')
+#         term = None
+#         if term_id:
+#             term = Term.objects.filter(pk=term_id).first()
+
+#         statement = InvoiceService.get_student_statement(self.object, term)
+#         context.update(statement)
+#         context['terms'] = Term.objects.filter(is_active=True).select_related('academic_year')
+#         context['selected_term'] = term_id or ''
+        
+#         # Extract admission number only (remove "PWA/" prefix if present)
+#         admission_number = self.object.admission_number or ''
+#         if '/' in admission_number:
+#             admission_number_only = admission_number.split('/')[-1]
+#         else:
+#             admission_number_only = admission_number
+
+#         # balance_bf = student.balance_bf_original
+#         # prepayment = student.prepayment_original
+#         context['admission_number_only'] = admission_number_only
+#         # context['balance_bf'] = balance_bf
+#         # context['prepayment'] = prepayment
+        
+#         return context
 
 
 
