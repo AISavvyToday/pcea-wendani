@@ -1305,6 +1305,7 @@ class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
 
         return redirect('finance:payment_list')
 
+
 class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly payment receipt.
@@ -1354,22 +1355,6 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             total=Sum('total_amount')
         )['total'] or Decimal('0.00')
 
-        # Balance B/F from invoices (frozen at invoice creation)
-        total_balance_bf = current_invoices.aggregate(
-            total=Sum('balance_bf')
-        )['total'] or Decimal('0.00')
-
-        # Prepayment from invoices (display only — does NOT affect math)
-        total_prepayment = current_invoices.aggregate(
-            total=Sum('prepayment')
-        )['total'] or Decimal('0.00')
-
-        prepayment_display = (
-            abs(total_prepayment)
-            if total_prepayment < 0
-            else Decimal('0.00')
-        )
-        
         # Get total paid BEFORE this payment (all payments before this payment date)
         total_paid_before = Payment.objects.filter(
             student=student,
@@ -1386,19 +1371,49 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             payment_date__lte=payment.payment_date
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
-        # FIX: Handle students with no invoices
+        # FIX 1: Determine if this is FIRST receipt (no previous payments)
+        is_first_receipt = total_paid_before == 0
+
+        # FIX 2: Handle students with no invoices
         if not current_invoices.exists():
-            # Student has NO invoices - use student's balance_bf_original as starting point
-            # For first payment: student_balance_at_payment = student.balance_bf_original
-            # For subsequent payments: student_balance_at_payment = student.balance_bf_original - total_paid_before
+            # Student has NO invoices
+            # For first receipt: show balance_bf and prepayment from student
+            # For subsequent receipts: don't show them
+            if is_first_receipt:
+                balance_bf_display = student.balance_bf_original or Decimal('0.00')
+                prepayment_display = student.prepayment_original or Decimal('0.00')
+            else:
+                balance_bf_display = Decimal('0.00')
+                prepayment_display = Decimal('0.00')
+                
+            # Calculate running balance: balance_bf - prepayment - payments before
             student_balance_at_payment = max(
                 Decimal('0.00'),
-                (student.balance_bf_original or Decimal('0.00')) - total_paid_before
+                (student.balance_bf_original or Decimal('0.00')) - 
+                (student.prepayment_original or Decimal('0.00')) - 
+                total_paid_before
             )
         else:
-            # Student HAS invoices - use existing formula
-            # Overall student balance at the moment of this payment, BEFORE this payment:
-            #   total_amount (already net of discount) + balance_bf - prepayment - payments before
+            # Student HAS invoices
+            # Balance B/F and prepayment from invoices
+            total_balance_bf = current_invoices.aggregate(
+                total=Sum('balance_bf')
+            )['total'] or Decimal('0.00')
+            
+            total_prepayment = current_invoices.aggregate(
+                total=Sum('prepayment')
+            )['total'] or Decimal('0.00')
+            
+            # For first receipt: show balance_bf and prepayment
+            # For subsequent receipts: don't show them
+            if is_first_receipt:
+                balance_bf_display = total_balance_bf
+                prepayment_display = abs(total_prepayment) if total_prepayment < 0 else Decimal('0.00')
+            else:
+                balance_bf_display = Decimal('0.00')
+                prepayment_display = Decimal('0.00')
+            
+            # Calculate running balance: total_invoiced + balance_bf - prepayment - payments before
             student_balance_at_payment = (
                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
             )
@@ -1440,19 +1455,14 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         )
 
         # Final context
-        # Keep hardcoded part for PWA2267
-        # if student.admission_number == 'PWA2267':
-        #     student_balance_at_payment = Decimal(44250)
-        #     outstanding_balance_after = Decimal(24250)
-            
         context.update({
             'notes': notes,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
 
             # Financial snapshot
-            'balance_bf': total_balance_bf,
-            'prepayment': prepayment_display,
+            'balance_bf': balance_bf_display,  # Will be 0 for subsequent receipts
+            'prepayment': prepayment_display,  # Will be 0 for subsequent receipts
             'student_balance_at_payment': student_balance_at_payment,
             'outstanding_balance_at_payment': outstanding_balance_after,
 
@@ -1468,7 +1478,6 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         })
 
         return context
-
 # class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #     """
 #     Print-friendly payment receipt.
@@ -1518,12 +1527,12 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #             total=Sum('total_amount')
 #         )['total'] or Decimal('0.00')
 
-#         # Balance B/F (frozen at invoice creation)
+#         # Balance B/F from invoices (frozen at invoice creation)
 #         total_balance_bf = current_invoices.aggregate(
 #             total=Sum('balance_bf')
 #         )['total'] or Decimal('0.00')
 
-#         # Prepayment (display only — does NOT affect math)
+#         # Prepayment from invoices (display only — does NOT affect math)
 #         total_prepayment = current_invoices.aggregate(
 #             total=Sum('prepayment')
 #         )['total'] or Decimal('0.00')
@@ -1550,12 +1559,22 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #             payment_date__lte=payment.payment_date
 #         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
-#         # Overall student balance at the moment of this payment, BEFORE this payment:
-#         #   total_amount (already net of discount) + balance_bf - prepayment - payments before
-#         student_balance_at_payment = (
-#             total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
-#         )
-            
+#         # FIX: Handle students with no invoices
+#         if not current_invoices.exists():
+#             # Student has NO invoices - use student's balance_bf_original as starting point
+#             # For first payment: student_balance_at_payment = student.balance_bf_original
+#             # For subsequent payments: student_balance_at_payment = student.balance_bf_original - total_paid_before
+#             student_balance_at_payment = max(
+#                 Decimal('0.00'),
+#                 (student.balance_bf_original or Decimal('0.00')) - total_paid_before
+#             )
+#         else:
+#             # Student HAS invoices - use existing formula
+#             # Overall student balance at the moment of this payment, BEFORE this payment:
+#             #   total_amount (already net of discount) + balance_bf - prepayment - payments before
+#             student_balance_at_payment = (
+#                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
+#             )
 
 #         # Outstanding AFTER this payment
 #         outstanding_balance_after = student_balance_at_payment - payment.amount
@@ -1594,9 +1613,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         )
 
 #         # Final context
-#         if student.admission_number == 'PWA2267':
-#             student_balance_at_payment = Decimal(44250)
-#             outstanding_balance_after = Decimal(24250)
+
+            
 #         context.update({
 #             'notes': notes,
 #             'printed_by': printed_by,
@@ -1620,6 +1638,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         })
 
 #         return context
+
+
 
 # class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #     """
