@@ -1894,10 +1894,10 @@ class StudentBalanceAPIView(LoginRequiredMixin, View):
 
 
 
-
 # =============================================================================
 # Student Statement Views
 # =============================================================================
+
 
 class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """View student financial statement."""
@@ -1942,8 +1942,8 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             payments = Payment.objects.filter(
                 student=self.object,
                 is_active=True,
-                status=PaymentStatus.COMPLETED,
-                # Get payments allocated to this term's invoices OR payments with no invoice (standalone)
+                status=PaymentStatus.COMPLETED
+            ).filter(
                 Q(allocations__invoice_item__invoice__term=term) | Q(invoice__isnull=True)
             ).distinct().aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         else:
@@ -1957,7 +1957,6 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['admission_number_only'] = admission_number_only
         
         return context
-
 # class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #     """View student financial statement."""
 
