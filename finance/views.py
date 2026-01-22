@@ -558,7 +558,6 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-
 class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """View invoice details with comprehensive allocation breakdown."""
 
@@ -640,12 +639,8 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # Calculate totals for display
         total_invoiced = invoice.total_amount or Decimal('0.00')
 
-        if student.admission_number == 'PWA2374':
-            total_paid = Decimal(20000)
-        else:
-            total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
-
-
+        # Use invoice.amount_paid which is already calculated from allocations
+        total_paid = invoice.amount_paid or Decimal('0.00')
 
         # Account for balance_bf and prepayment (stored as POSITIVE credit).
         balance_bf = invoice.balance_bf or Decimal('0.00')
@@ -676,6 +671,124 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         })
 
         return context
+
+# class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+#     """View invoice details with comprehensive allocation breakdown."""
+
+#     model = Invoice
+#     template_name = 'finance/invoice_detail.html'
+#     context_object_name = 'invoice'
+#     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         invoice = self.object
+#         student = invoice.student
+
+#         # Get invoice items with their allocations, ordered by priority (same as allocation logic)
+#         items_qs = invoice.items.filter(is_active=True)
+
+#         # Build priority mapping from InvoiceService
+#         priority_order = {cat: i for i, cat in enumerate(PaymentsInvoiceService.PRIORITY_ORDER)}
+
+#         def priority_key(it):
+#             return (priority_order.get(it.category, 999), it.id)
+
+#         items = sorted(list(items_qs), key=priority_key)
+
+#         # Enhanced items with allocation details
+#         enhanced_items = []
+#         for item in items:
+#             total_allocated = PaymentAllocation.objects.filter(
+#                 invoice_item=item,
+#                 is_active=True,
+#                 payment__is_active=True,
+#                 payment__status=PaymentStatus.COMPLETED
+#             ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+
+#             allocations = PaymentAllocation.objects.filter(
+#                 invoice_item=item,
+#                 is_active=True,
+#                 payment__is_active=True,
+#                 payment__status=PaymentStatus.COMPLETED
+#             ).select_related('payment').order_by('-created_at')
+
+#             enhanced_items.append({
+#                 'item': item,
+#                 'total_allocated': total_allocated,
+#                 'balance': (item.net_amount or Decimal('0.00')) - total_allocated,
+#                 'is_fully_paid': total_allocated >= (item.net_amount or Decimal('0.00')),
+#                 'allocations': allocations,
+#                 'payment_count': allocations.count(),
+#             })
+
+#         context['enhanced_items'] = enhanced_items
+
+#         # Get all payments for this invoice (via allocations or legacy Payment.invoice link)
+#         payments_qs = Payment.objects.filter(
+#             is_active=True,
+#             status=PaymentStatus.COMPLETED
+#         ).filter(
+#             Q(invoice=invoice) | Q(allocations__invoice_item__invoice=invoice)
+#         ).distinct().select_related('student').prefetch_related('allocations').order_by('-payment_date')
+
+#         # Enhance payments with allocation details for THIS invoice
+#         enhanced_payments = []
+#         for p in payments_qs:
+#             payment_allocations = p.allocations.filter(
+#                 is_active=True,
+#                 invoice_item__invoice=invoice
+#             ).select_related('invoice_item')
+
+#             total_from_payment = payment_allocations.aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+
+#             enhanced_payments.append({
+#                 'payment': p,
+#                 'allocations': payment_allocations,
+#                 'total_allocated': total_from_payment,
+#             })
+
+#         context['enhanced_payments'] = enhanced_payments
+
+#         # Calculate totals for display
+#         total_invoiced = invoice.total_amount or Decimal('0.00')
+
+#         if student.admission_number == 'PWA2374':
+#             total_paid = Decimal(20000)
+#         else:
+#             total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
+
+
+
+#         # Account for balance_bf and prepayment (stored as POSITIVE credit).
+#         balance_bf = invoice.balance_bf or Decimal('0.00')
+#         prepayment = invoice.prepayment or Decimal('0.00')
+#         prepayment_abs = abs(prepayment) if prepayment else Decimal('0.00')
+#         # Net total before payments (same shape as model formula)
+#         net_after_adjustments = total_invoiced + balance_bf - prepayment
+#         # Outstanding balance = total_amount + balance_bf - prepayment - total_paid
+#         total_balance = invoice.balance
+
+#         # paid percentage
+#         paid_percentage = 0
+#         try:
+#             if total_invoiced > 0:
+#                 paid_percentage = (total_paid / total_invoiced) * 100
+#         except Exception:
+#             paid_percentage = 0
+
+#         context.update({
+#             'total_invoiced': total_invoiced,
+#             'total_paid': total_paid,
+#             'total_balance': total_balance,
+#             'prepayment_abs': prepayment_abs,
+#             'net_after_adjustments': net_after_adjustments,
+#             'payment_count': len(enhanced_payments),
+#             'paid_percentage': paid_percentage,
+#             'today': timezone.now().date(),
+#         })
+
+#         return context
 
 
 
@@ -1389,43 +1502,13 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Overall student balance at the moment of this payment, BEFORE this payment:
         #   total_amount (already net of discount) + balance_bf - prepayment - payments before
-        if student.admission_number == 'PWA2374':
-            # Hardcoded running balance
-            student_balance_at_payment = Decimal(75250)
-        elif student.admission_number == 'PWA2267':
-            student_balance_at_payment = Decimal(44250)
-        elif student.admission_number == 'PWA/2886/':
-            student_balance_at_payment = Decimal(13000)
-        elif student.admission_number == 'PWA/2762/':
-            student_balance_at_payment = Decimal(3500)
-        elif student.admission_number == 'PWA/3084/':
-            student_balance_at_payment = Decimal(3000)
-        elif student.admission_number == 'PWA2463':
-            student_balance_at_payment = Decimal(2000)
-        else:
-            # Calculate running balance: total invoiced + B/F - prepayment - payments before
-            student_balance_at_payment = (
-                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
-            )
+        student_balance_at_payment = (
+            total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
+        )
             
 
         # Outstanding AFTER this payment
-        if student.admission_number == 'PWA2374':
-            # For PWA2374: running balance after this payment
-            outstanding_balance_after = Decimal(55250)
-        elif student.admission_number == 'PWA2267':
-            outstanding_balance_after = Decimal(24250)
-        elif student.admission_number == 'PWA/2886/':
-            outstanding_balance_after = Decimal(2500)
-        elif student.admission_number == 'PWA/2762/':
-            outstanding_balance_after = Decimal(0)
-        elif student.admission_number == 'PWA/3084/':
-            outstanding_balance_after = Decimal(0)
-        elif student.admission_number == 'PWA2463':
-            outstanding_balance_after = Decimal(0)
-        else:
-            # Calculate: running balance before - this payment amount
-            outstanding_balance_after = student_balance_at_payment - payment.amount
+        outstanding_balance_after = student_balance_at_payment - payment.amount
         
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1485,14 +1568,13 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         return context
 
-
 # class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #     """
 #     Print-friendly payment receipt.
 
 #     IMPORTANT ACCOUNTING RULES (LOCKED):
 #     -----------------------------------
-#     • Student Balance (BEFORE payment) = Invoice Total + Balance B/F
+#     • Student Balance (BEFORE payment) = Previous running balance
 #     • Outstanding (AFTER payment) = Student Balance - Payment Amount
 #     • Prepayment and Credit Balance DO NOT affect receipt math
 #     """
@@ -1540,7 +1622,6 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #             total=Sum('balance_bf')
 #         )['total'] or Decimal('0.00')
 
-
 #         # Prepayment (display only — does NOT affect math)
 #         total_prepayment = current_invoices.aggregate(
 #             total=Sum('prepayment')
@@ -1551,9 +1632,27 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #             if total_prepayment < 0
 #             else Decimal('0.00')
 #         )
+        
+#         # Get total paid BEFORE this payment (all payments before this payment date)
+#         total_paid_before = Payment.objects.filter(
+#             student=student,
+#             is_active=True,
+#             status=PaymentStatus.COMPLETED,
+#             payment_date__lt=payment.payment_date
+#         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+#         # Get total paid BEFORE this payment INCLUDING this payment (for running balance)
+#         total_paid_up_to = Payment.objects.filter(
+#             student=student,
+#             is_active=True,
+#             status=PaymentStatus.COMPLETED,
+#             payment_date__lte=payment.payment_date
+#         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
 #         # Overall student balance at the moment of this payment, BEFORE this payment:
-#         #   total_amount (already net of discount) + balance_bf - prepayment
+#         #   total_amount (already net of discount) + balance_bf - prepayment - payments before
 #         if student.admission_number == 'PWA2374':
+#             # Hardcoded running balance
 #             student_balance_at_payment = Decimal(75250)
 #         elif student.admission_number == 'PWA2267':
 #             student_balance_at_payment = Decimal(44250)
@@ -1566,14 +1665,15 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         elif student.admission_number == 'PWA2463':
 #             student_balance_at_payment = Decimal(2000)
 #         else:
+#             # Calculate running balance: total invoiced + B/F - prepayment - payments before
 #             student_balance_at_payment = (
-#                 total_invoice_amount + total_balance_bf - total_prepayment
+#                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
 #             )
             
 
 #         # Outstanding AFTER this payment
-
 #         if student.admission_number == 'PWA2374':
+#             # For PWA2374: running balance after this payment
 #             outstanding_balance_after = Decimal(55250)
 #         elif student.admission_number == 'PWA2267':
 #             outstanding_balance_after = Decimal(24250)
@@ -1586,6 +1686,7 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         elif student.admission_number == 'PWA2463':
 #             outstanding_balance_after = Decimal(0)
 #         else:
+#             # Calculate: running balance before - this payment amount
 #             outstanding_balance_after = student_balance_at_payment - payment.amount
         
 #         # Bank details & branding
@@ -1645,6 +1746,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         })
 
 #         return context
+
+
 
 
 # =============================================================================
@@ -1944,7 +2047,7 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         context['admission_number_only'] = admission_number_only
         
         return context
-        
+
 # class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #     """View student financial statement."""
 
