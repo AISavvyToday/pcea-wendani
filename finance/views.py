@@ -1892,6 +1892,9 @@ class StudentBalanceAPIView(LoginRequiredMixin, View):
         return JsonResponse({'balance': float(total_balance)})
 
 
+
+
+
 # =============================================================================
 # Student Statement Views
 # =============================================================================
@@ -1934,6 +1937,23 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             # Fallback to calculated balance if no transactions
             context['balance'] = statement.get('balance', 0)
         
+        # FIX: Ensure total_paid includes all payments even when no invoices exist
+        if term:
+            payments = Payment.objects.filter(
+                student=self.object,
+                is_active=True,
+                status=PaymentStatus.COMPLETED,
+                # Get payments allocated to this term's invoices OR payments with no invoice (standalone)
+                Q(allocations__invoice_item__invoice__term=term) | Q(invoice__isnull=True)
+            ).distinct().aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        else:
+            payments = Payment.objects.filter(
+                student=self.object,
+                is_active=True,
+                status=PaymentStatus.COMPLETED
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        context['total_paid'] = payments
         context['admission_number_only'] = admission_number_only
         
         return context
@@ -1967,13 +1987,19 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 #         else:
 #             admission_number_only = admission_number
 
-#         # balance_bf = student.balance_bf_original
-#         # prepayment = student.prepayment_original
+#         # FIX: Use last transaction's running balance for "Balance Due"
+#         transactions = statement.get('transactions', [])
+#         if transactions:
+#             # Use the last transaction's running balance
+#             context['balance'] = transactions[-1]['running_balance']
+#         else:
+#             # Fallback to calculated balance if no transactions
+#             context['balance'] = statement.get('balance', 0)
+        
 #         context['admission_number_only'] = admission_number_only
-#         # context['balance_bf'] = balance_bf
-#         # context['prepayment'] = prepayment
         
 #         return context
+
 
 
 
