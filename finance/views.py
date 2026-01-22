@@ -1441,9 +1441,9 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Final context
         # Keep hardcoded part for PWA2267
-        if student.admission_number == 'PWA2267':
-            student_balance_at_payment = Decimal(44250)
-            outstanding_balance_after = Decimal(24250)
+        # if student.admission_number == 'PWA2267':
+        #     student_balance_at_payment = Decimal(44250)
+        #     outstanding_balance_after = Decimal(24250)
             
         context.update({
             'notes': notes,
