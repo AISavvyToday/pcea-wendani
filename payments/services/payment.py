@@ -42,6 +42,7 @@ class PaymentService:
     #     """
     #     from payments.services.invoice import InvoiceService  # local import to avoid circulars
     #     return InvoiceService.apply_payment_to_student_arrears(payment)
+
     @staticmethod
     def process_completed_payment_against_invoices(payment: Payment):
         """
@@ -73,10 +74,6 @@ class PaymentService:
                 student.outstanding_balance -= amount_to_reduce
                 remaining -= amount_to_reduce
                 
-                # Also reduce the source: balance_bf_original
-                if student.balance_bf_original > 0:
-                    reduction = min(amount_to_reduce, student.balance_bf_original)
-                    student.balance_bf_original -= reduction
             
             # Second: Any remainder goes to credit_balance
             if remaining > 0:
