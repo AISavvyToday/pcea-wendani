@@ -10,7 +10,7 @@ Single source of truth for:
 import logging
 from decimal import Decimal
 from uuid import uuid4
-
+from core.models import InvoiceStatus
 from django.utils import timezone
 from django.db import transaction as db_transaction
 from django.db import IntegrityError
