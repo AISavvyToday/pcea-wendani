@@ -1370,6 +1370,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         #   total_amount (already net of discount) + balance_bf - prepayment
         if student.admission_number == 'PWA2374':
             student_balance_at_payment = Decimal(75250)
+        elif student.admission_number == 'PWA2267':
+            student_balance_at_payment = Decimal(44250)
         else:
             student_balance_at_payment = (
                 total_invoice_amount + total_balance_bf - total_prepayment
@@ -1379,6 +1381,8 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         if student.admission_number == 'PWA2374':
             outstanding_balance_after = Decimal(55250)
+        elif student.admission_number == 'PWA2267':
+            outstanding_balance_after = Decimal(24250)
         else:
             outstanding_balance_after = student_balance_at_payment - payment.amount
         
