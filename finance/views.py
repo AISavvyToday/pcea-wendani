@@ -1216,6 +1216,44 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_detail', pk=payment.pk)
 
 
+class PaymentDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+    """
+    Safely delete a payment.
+    Reverses all allocations and restores balances.
+    """
+
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN
+    ]
+
+    def post(self, request, pk, *args, **kwargs):
+        logger.info(f"PaymentDeleteView: Attempting to delete payment with PK: {pk}")
+        
+        payment = get_object_or_404(Payment, pk=pk)
+        student = payment.student
+        
+        try:
+            # Use the InvoiceService to safely delete the payment
+            from payments.services.invoice import InvoiceService
+            InvoiceService.delete_payment(payment)
+            
+            logger.info(f"Payment {payment.payment_reference} deleted successfully for student {student.admission_number}")
+            messages.success(request, f'Payment {payment.payment_reference} deleted successfully. All balances have been restored.')
+            
+        except Exception as e:
+            logger.error(f"Failed to delete payment {pk}: {str(e)}", exc_info=True)
+            messages.error(request, f'Failed to delete payment: {str(e)}')
+        
+        # Redirect back to where the delete was initiated
+        # Check if we came from student detail or payment list
+        referer = request.META.get('HTTP_REFERER', '')
+        
+        if 'student' in referer and student:
+            return redirect('students:detail', pk=student.pk)
+        else:
+            return redirect('finance:payment_list')
+
 class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
     """Record a payment from a parent with multiple children.
     

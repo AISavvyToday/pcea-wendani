@@ -42,7 +42,8 @@ class PaymentService:
         2. If student has NO invoices:
            - First reduce outstanding_balance (if any)
            - Any remainder → credit_balance
-        """        
+        """
+        
         student = payment.student
         
         # Check if student has any active invoices
@@ -56,6 +57,10 @@ class PaymentService:
         else:
             # Student has NO invoices → handle outstanding_balance directly
             remaining = payment.amount
+            
+            # FIX: Track how much was allocated to outstanding_balance vs credit_balance
+            # This will help during deletion
+            amount_to_reduce = Decimal("0.00")
             
             # First: Reduce outstanding_balance if any exists
             if student.outstanding_balance and student.outstanding_balance > 0:
@@ -71,23 +76,83 @@ class PaymentService:
             # Save student
             student.save(update_fields=[
                 "outstanding_balance", 
-                "balance_bf_original", 
                 "credit_balance", 
                 "updated_at"
             ])
             
-            # Add note to payment
-            note = f" | Applied to outstanding balance (no invoices)"
+            # FIX: Store allocation details in payment notes for accurate deletion
+            note_parts = []
+            if amount_to_reduce > 0:
+                note_parts.append(f"reduced outstanding balance by {amount_to_reduce}")
+            if remaining > 0:
+                note_parts.append(f"added to credit balance: {remaining}")
+            
+            note = f" | Applied to outstanding balance (no invoices): {', '.join(note_parts)}"
             payment.notes = (payment.notes or "") + note
             payment.save(update_fields=["notes", "updated_at"])
             
             logger.info(
                 f"Payment {payment.payment_reference} for student with NO invoices: "
-                f"Reduced outstanding_balance by {payment.amount - remaining}, "
+                f"Reduced outstanding_balance by {amount_to_reduce}, "
                 f"Added to credit: {remaining}"
             )
             
             return remaining  # This is the amount added to credit_balance
+
+    # @staticmethod
+    # def process_completed_payment_against_invoices(payment: Payment):
+    #     """
+    #     Apply any COMPLETED payment:
+    #     1. If student has invoices → allocate to invoices (existing logic)
+    #     2. If student has NO invoices:
+    #        - First reduce outstanding_balance (if any)
+    #        - Any remainder → credit_balance
+    #     """        
+    #     student = payment.student
+        
+    #     # Check if student has any active invoices
+    #     has_invoices = student.invoices.filter(is_active=True).exclude(
+    #         status=InvoiceStatus.CANCELLED
+    #     ).exists()
+        
+    #     if has_invoices:
+    #         # Student has invoices → use existing invoice allocation logic
+    #         return InvoiceService.apply_payment_to_student_arrears(payment)
+    #     else:
+    #         # Student has NO invoices → handle outstanding_balance directly
+    #         remaining = payment.amount
+            
+    #         # First: Reduce outstanding_balance if any exists
+    #         if student.outstanding_balance and student.outstanding_balance > 0:
+    #             amount_to_reduce = min(remaining, student.outstanding_balance)
+    #             student.outstanding_balance -= amount_to_reduce
+    #             remaining -= amount_to_reduce
+                
+            
+    #         # Second: Any remainder goes to credit_balance
+    #         if remaining > 0:
+    #             student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
+            
+    #         # Save student
+    #         student.save(update_fields=[
+    #             "outstanding_balance", 
+    #             "balance_bf_original", 
+    #             "credit_balance", 
+    #             "updated_at"
+    #         ])
+            
+    #         # Add note to payment
+    #         note = f" | Applied to outstanding balance (no invoices)"
+    #         payment.notes = (payment.notes or "") + note
+    #         payment.save(update_fields=["notes", "updated_at"])
+            
+    #         logger.info(
+    #             f"Payment {payment.payment_reference} for student with NO invoices: "
+    #             f"Reduced outstanding_balance by {payment.amount - remaining}, "
+    #             f"Added to credit: {remaining}"
+    #         )
+            
+    #         return remaining  # This is the amount added to credit_balance
 
     @staticmethod
     @db_transaction.atomic

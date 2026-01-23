@@ -483,10 +483,29 @@
                         <td>{{ p.payment_source|default:"-" }}</td>
                         <td class="small-muted">{{ p.payment_date|date:"d M Y H:i" }}</td>
                         <td class="text-center">
-                          <a href="{% url 'finance:payment_receipt' p.pk %}?copies=2" target="_blank" class="btn btn-outline-secondary btn-sm" title="Print Receipt">
-                            <i class="mdi mdi-printer"></i>
-                          </a>
-                        </td>
+                    <!-- Print Receipt Button -->
+                    <a href="{% url 'finance:payment_receipt' p.pk %}?copies=2" 
+                       target="_blank" 
+                       class="btn btn-outline-secondary btn-sm" 
+                       title="Print Receipt">
+                        <i class="mdi mdi-printer"></i>
+                    </a>
+                    
+                    <!-- Delete Payment Button -->
+                    {% if request.user.role.name == 'SUPER_ADMIN' or request.user.role.name == 'SCHOOL_ADMIN' %}
+<form method="post" 
+      action="{% url 'finance:payment_delete' p.pk %}" 
+      class="d-inline"
+      onsubmit="return confirm('Are you sure you want to delete this payment? This action cannot be undone.');">
+    {% csrf_token %}
+    <button type="submit" 
+            class="btn btn-outline-danger btn-sm ms-1" 
+            title="Delete Payment">
+        <i class="mdi mdi-delete"></i>
+    </button>
+</form>
+{% endif %}
+                </td>
                       </tr>
                     {% endfor %}
                   </tbody>

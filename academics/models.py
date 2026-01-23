@@ -417,6 +417,3 @@ class Timetable(BaseModel):
 
     def __str__(self):
         return f"{self.class_obj.name} - {self.get_day_of_week_display()} - {self.subject.name}"
-
-
-# Transport models have been moved to transport app
