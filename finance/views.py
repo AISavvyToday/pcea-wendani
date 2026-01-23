@@ -1224,8 +1224,10 @@ class PaymentDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
 
     allowed_roles = [
         UserRole.SUPER_ADMIN,
-        UserRole.SCHOOL_ADMIN
+        UserRole.SCHOOL_ADMIN,
+        UserRole.ACCOUNTANT
     ]
+
 
     def post(self, request, pk, *args, **kwargs):
         logger.info(f"PaymentDeleteView: Attempting to delete payment with PK: {pk}")

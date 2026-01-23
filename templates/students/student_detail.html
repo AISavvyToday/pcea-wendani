@@ -492,7 +492,7 @@
                     </a>
                     
                     <!-- Delete Payment Button -->
-                    {% if request.user.role.name == 'SUPER_ADMIN' or request.user.role.name == 'SCHOOL_ADMIN' %}
+                    {% if request.user.is_authenticated and request.user.role.name in ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'] %}
 <form method="post" 
       action="{% url 'finance:payment_delete' p.pk %}" 
       class="d-inline"
