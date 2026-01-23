@@ -288,13 +288,6 @@ class Student(BaseModel):
         super().save(*args, **kwargs)
 
 
-    # def save(self, *args, **kwargs):
-    #     """Override save to auto-generate admission_number if not provided."""
-    #     # Auto-generate admission_number if not set
-    #     if not self.admission_number:
-    #         from .services import StudentService
-    #         self.admission_number = StudentService.generate_admission_number()
-    #     super().save(*args, **kwargs)
 
 class StudentParent(models.Model):
     """
