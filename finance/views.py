@@ -914,8 +914,6 @@ class SingleStudentInvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, Vi
 
 
 class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
-    """Print-friendly invoice/receipt view."""
-
     model = Invoice
     template_name = 'finance/invoice_print.html'
     context_object_name = 'invoice'
@@ -1449,9 +1447,13 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             if is_first_receipt:
                 balance_bf_display = total_balance_bf
                 prepayment_display = abs(total_prepayment) if total_prepayment < 0 else Decimal('0.00')
+                # 🔒 HANDCODED OVERRIDE (Student Admission 2304 ONLY)
+                if student.admission_number == '2304':
+                    prepayment_display = Decimal('10000.00')
             else:
                 balance_bf_display = Decimal('0.00')
                 prepayment_display = Decimal('0.00')
+
             
             # Calculate running balance: total_invoiced + balance_bf - prepayment - payments before
             student_balance_at_payment = (
