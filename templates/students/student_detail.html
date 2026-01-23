@@ -491,7 +491,6 @@
                         <i class="mdi mdi-printer"></i>
                     </a>
                     
-                   !-- Delete Payment Button -->
                     {% if request.user.is_authenticated %}
                     <form method="post" 
                           action="{% url 'finance:payment_delete' p.pk %}" 
