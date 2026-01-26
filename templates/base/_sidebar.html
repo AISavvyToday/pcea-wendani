@@ -138,7 +138,21 @@
 <!--          </div>-->
 <!--        </li>-->
 
+        <!-- Settings (Admin Only) -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:settings_overview' %}">
+            <span class="menu-title">Settings</span>
+            <i class="mdi mdi-cog menu-icon"></i>
+          </a>
+        </li>
 
+        <!-- Logout -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'portal:logout' %}">
+            <span class="menu-title">Logout</span>
+            <i class="mdi mdi-logout menu-icon"></i>
+          </a>
+        </li>
 
       <!-- ============================================================== -->
       <!-- TEACHER - Academic Focused -->
