@@ -841,7 +841,7 @@ def resources_overview(request):
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
 def settings_overview(request):
     # Get all terms for selection
-    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-name")
+    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-term")
     current_term = _get_current_term()
     
     links = [
