@@ -309,10 +309,14 @@ class Command(BaseCommand):
         Verify that the sum of PaymentAllocation amounts for each invoice
         matches the invoice.amount_paid field.
         
-        NOTE: Payments to balance_bf may not have PaymentAllocation records
-        because they are handled differently (balance_bf is paid directly
-        without creating invoice item allocations). We account for this by
-        checking if the difference equals the balance_bf amount.
+        NOTE: Discrepancies can occur due to:
+        1. balance_bf payments - tracked in amount_paid but may not have 
+           PaymentAllocation records (amount_paid > allocations)
+        2. prepayment allocations - credit applied via allocation but not 
+           counted in amount_paid (allocations > amount_paid)
+           
+        We account for this by checking if the difference can be explained
+        by balance_bf or prepayment amounts.
         """
         self.stdout.write("")
         self.stdout.write("→ Auditing payment allocation integrity ...")
@@ -331,6 +335,7 @@ class Command(BaseCommand):
 
             invoice_amount_paid = inv.amount_paid or Decimal("0.00")
             balance_bf = inv.balance_bf or Decimal("0.00")
+            prepayment = abs(inv.prepayment or Decimal("0.00"))  # prepayment stored as positive
 
             # Round for comparison
             allocations_total = allocations_total.quantize(
@@ -342,26 +347,32 @@ class Command(BaseCommand):
             balance_bf = balance_bf.quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
+            prepayment = prepayment.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
 
             if allocations_total != invoice_amount_paid:
                 difference = abs(allocations_total - invoice_amount_paid)
                 
-                # Check if this is a false positive due to balance_bf handling
-                # Payments to balance_bf are tracked in amount_paid but may not
-                # have corresponding PaymentAllocation records
+                # Check if this is a false positive due to balance_bf or prepayment handling
                 #
                 # Case 1: amount_paid > allocations (balance_bf was paid without allocation)
-                # Case 2: amount_paid < allocations (shouldn't normally happen)
+                #         difference should be <= balance_bf
                 #
-                # If the difference is within balance_bf amount, it's expected
-                is_balance_bf_related = False
-                if balance_bf > 0:
-                    # Check if difference can be explained by balance_bf payments
-                    # (within small tolerance for rounding)
-                    if difference <= balance_bf + Decimal("0.01"):
-                        is_balance_bf_related = True
+                # Case 2: allocations > amount_paid (prepayment allocated but not in amount_paid)
+                #         difference should be <= prepayment
+                #
+                # Combined: difference should be <= (balance_bf + prepayment)
+                is_expected_discrepancy = False
+                max_expected_diff = balance_bf + prepayment
                 
-                if not is_balance_bf_related:
+                if max_expected_diff > 0:
+                    # Check if difference can be explained by balance_bf or prepayment
+                    # (within small tolerance for rounding)
+                    if difference <= max_expected_diff + Decimal("0.01"):
+                        is_expected_discrepancy = True
+                
+                if not is_expected_discrepancy:
                     stats["payment_allocation_mismatches"].append(
                         {
                             "invoice_id": inv.id,
@@ -371,6 +382,7 @@ class Command(BaseCommand):
                             "invoice_amount_paid": invoice_amount_paid,
                             "difference": difference,
                             "balance_bf": balance_bf,
+                            "prepayment": prepayment,
                         }
                     )
 
@@ -584,7 +596,8 @@ class Command(BaseCommand):
                 f"allocations_sum={m['allocations_total']}, "
                 f"invoice.amount_paid={m['invoice_amount_paid']}, "
                 f"diff={m['difference']}, "
-                f"balance_bf={m.get('balance_bf', 0)}"
+                f"balance_bf={m.get('balance_bf', 0)}, "
+                f"prepayment={m.get('prepayment', 0)}"
             )
 
         # Balance_bf item issues
