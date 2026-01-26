@@ -58,7 +58,7 @@
             {% endif %}
             |
             {% if current_term %}
-              {{ current_term.name }}
+              {{ current_term.get_term_display }}
             {% else %}
               <span class="text-danger">No current term set!</span>
             {% endif %}

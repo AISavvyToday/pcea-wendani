@@ -1015,7 +1015,7 @@ def term_transition(request):
     """
     from finance.services import transition_frozen_balances
     
-    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-name")
+    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-term")
     current_term = _get_current_term()
     
     # Default to selecting the previous term

@@ -10,7 +10,7 @@
         <div>
             <h3 class="page-title mb-0">Finance Dashboard</h3>
             {% if current_term %}
-                <small class="text-muted">Current term: {{ current_term.name }} ({{ current_term.academic_year.year }})</small>
+                <small class="text-muted">Current term: {{ current_term.get_term_display }} ({{ current_term.academic_year.year }})</small>
             {% endif %}
         </div>
 
@@ -209,7 +209,7 @@
                                 <small class="text-muted">
                                     {{ inv.student.admission_number }} •
                                     {% if inv.term %}
-                                        {{ inv.term.name }}
+                                        {{ inv.term.get_term_display }}
                                     {% else %}
                                         &mdash;
                                     {% endif %}

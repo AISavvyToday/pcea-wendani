@@ -63,7 +63,7 @@
               {% for term in terms %}
               <option value="{{ term.pk }}" 
                       {% if previous_term_selected and previous_term_selected.pk == term.pk %}selected{% endif %}>
-                {{ term.academic_year }} - {{ term.name }}
+                {{ term.academic_year }} - {{ term.get_term_display }}
               </option>
               {% endfor %}
             </select>
@@ -77,7 +77,7 @@
               {% for term in terms %}
               <option value="{{ term.pk }}"
                       {% if new_term_selected and new_term_selected.pk == term.pk %}selected{% elif current_term and current_term.pk == term.pk and not new_term_selected %}selected{% endif %}>
-                {{ term.academic_year }} - {{ term.name }}
+                {{ term.academic_year }} - {{ term.get_term_display }}
                 {% if term.is_current %} (Current){% endif %}
               </option>
               {% endfor %}
