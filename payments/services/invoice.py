@@ -204,11 +204,19 @@ class InvoiceService:
     def delete_payment(payment: Payment):
         """
         Hard-delete a payment and its allocations and restore all derived state.
+        
+        Handles two cases:
+        1. Payments allocated to invoices - reverse allocations
+        2. Payments applied directly to outstanding_balance (no invoices) - 
+           parse notes and reverse those changes
         """
+        import re
+        
         if not payment:
             return
 
         student = payment.student
+        payment_notes = payment.notes or ""
 
         # 1. Capture allocations BEFORE deletion
         allocations = list(payment.allocations.all())
@@ -226,35 +234,91 @@ class InvoiceService:
         # 3. Delete payment
         Payment.objects.filter(pk=payment.pk).delete()
 
-        # 4. CORRECTLY restore student balances
-        # Payment creation ADDED unapplied credit; deletion must SUBTRACT it
-        unapplied_credit = max(
-            Decimal("0.00"),
-            payment.amount - allocated_total
-        )
-
-        # FIX: Use correct logic for credit balance
-        # During payment creation: credit_balance += unapplied_credit
-        # During payment deletion: credit_balance -= unapplied_credit
-        if unapplied_credit > 0:
-            student.credit_balance = (student.credit_balance or Decimal("0.00")) - unapplied_credit
-            # Ensure credit balance doesn't go negative
-            student.credit_balance = max(student.credit_balance, Decimal("0.00"))
+        # 4. Check if this was a no-invoice payment (applied directly to outstanding_balance)
+        no_invoice_marker = "Applied to outstanding balance (no invoices)"
         
-        # 5. Recalculate affected invoices
-        for invoice in Invoice.objects.select_for_update().filter(
-            id__in=invoice_ids
-        ):
-            InvoiceService._recalculate_invoice_fields(invoice)
-        
-        # 6. Recompute student's overall balances
-        student.save(update_fields=["credit_balance", "updated_at"])
-        student.recompute_outstanding_balance()
+        if no_invoice_marker in payment_notes and allocated_total == 0:
+            # This payment was applied directly to student balances (no invoices)
+            # Parse the notes to extract amounts
+            outstanding_reduced = Decimal("0.00")
+            credit_added = Decimal("0.00")
+            
+            # Parse: "reduced outstanding balance by {amount}"
+            outstanding_match = re.search(
+                r"reduced outstanding balance by ([\d.]+)", 
+                payment_notes
+            )
+            if outstanding_match:
+                try:
+                    outstanding_reduced = Decimal(outstanding_match.group(1))
+                except:
+                    outstanding_reduced = Decimal("0.00")
+            
+            # Parse: "added to credit balance: {amount}"
+            credit_match = re.search(
+                r"added to credit balance: ([\d.]+)", 
+                payment_notes
+            )
+            if credit_match:
+                try:
+                    credit_added = Decimal(credit_match.group(1))
+                except:
+                    credit_added = Decimal("0.00")
+            
+            # Reverse the changes
+            if outstanding_reduced > 0:
+                student.outstanding_balance = (
+                    student.outstanding_balance or Decimal("0.00")
+                ) + outstanding_reduced
+            
+            if credit_added > 0:
+                student.credit_balance = (
+                    student.credit_balance or Decimal("0.00")
+                ) - credit_added
+                # Ensure credit balance doesn't go negative
+                student.credit_balance = max(student.credit_balance, Decimal("0.00"))
+            
+            student.save(update_fields=[
+                "outstanding_balance", "credit_balance", "updated_at"
+            ])
+            
+            logger.info(
+                f"Payment {payment.payment_reference} deleted (no-invoice payment). "
+                f"Outstanding restored=+{outstanding_reduced}, Credit adjusted=-{credit_added}"
+            )
+        else:
+            # Standard case: payment was allocated to invoices
+            # 4. CORRECTLY restore student balances
+            # Payment creation ADDED unapplied credit; deletion must SUBTRACT it
+            unapplied_credit = max(
+                Decimal("0.00"),
+                payment.amount - allocated_total
+            )
 
-        logger.info(
-            f"Payment {payment.payment_reference} deleted. "
-            f"Allocated={allocated_total}, Credit adjusted=-{unapplied_credit}"
-        )
+            # FIX: Use correct logic for credit balance
+            # During payment creation: credit_balance += unapplied_credit
+            # During payment deletion: credit_balance -= unapplied_credit
+            if unapplied_credit > 0:
+                student.credit_balance = (
+                    student.credit_balance or Decimal("0.00")
+                ) - unapplied_credit
+                # Ensure credit balance doesn't go negative
+                student.credit_balance = max(student.credit_balance, Decimal("0.00"))
+            
+            # 5. Recalculate affected invoices
+            for invoice in Invoice.objects.select_for_update().filter(
+                id__in=invoice_ids
+            ):
+                InvoiceService._recalculate_invoice_fields(invoice)
+            
+            # 6. Recompute student's overall balances
+            student.save(update_fields=["credit_balance", "updated_at"])
+            student.recompute_outstanding_balance()
+
+            logger.info(
+                f"Payment {payment.payment_reference} deleted. "
+                f"Allocated={allocated_total}, Credit adjusted=-{unapplied_credit}"
+            )
 
 
     # @staticmethod

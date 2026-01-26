@@ -12,14 +12,45 @@
 </div>
 {% endblock %}
 {% block content %}
+<!-- Financial Operations -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h5 class="text-muted mb-3">
+      <i class="mdi mdi-cash-multiple me-2"></i>Financial Operations
+    </h5>
+  </div>
+  <div class="col-md-4 grid-margin stretch-card">
+    <div class="card border-warning">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <span class="page-title-icon bg-gradient-warning text-white me-2" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+            <i class="mdi mdi-calendar-sync"></i>
+          </span>
+          <h4 class="card-title mb-0">Term Transition</h4>
+        </div>
+        <p class="text-muted">Carry forward student balances from one term to the next. Sets up balance_bf and prepayment for new term.</p>
+        <a href="{% url 'portal:term_transition' %}" class="btn btn-sm btn-gradient-warning">
+          <i class="mdi mdi-arrow-right me-1"></i>Run Transition
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- General Settings -->
 <div class="row">
+  <div class="col-12">
+    <h5 class="text-muted mb-3">
+      <i class="mdi mdi-cog me-2"></i>General Settings
+    </h5>
+  </div>
   {% for setting in settings_links %}
   <div class="col-md-4 grid-margin stretch-card">
     <div class="card">
       <div class="card-body">
         <h4 class="card-title">{{ setting.title }}</h4>
         <p class="text-muted">{{ setting.description }}</p>
-        <a href="#" class="btn btn-sm btn-gradient-primary">{{ setting.cta }}</a>
+        <a href="{{ setting.url }}" class="btn btn-sm btn-gradient-primary">{{ setting.cta }}</a>
       </div>
     </div>
   </div>

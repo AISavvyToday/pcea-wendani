@@ -639,11 +639,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         # Calculate totals for display
         total_invoiced = invoice.total_amount or Decimal('0.00')
-
-        if student.admission_number == 'PWA2374':
-            total_paid = Decimal(20000)
-        else:
-            total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
+        total_paid = sum(i['total_allocated'] for i in enhanced_items) if enhanced_items else Decimal('0.00')
 
 
 

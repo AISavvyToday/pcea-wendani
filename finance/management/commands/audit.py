@@ -4,8 +4,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import Sum, Q
 
 from students.models import Student
-from finance.models import Invoice
-from payments.models import Payment
+from finance.models import Invoice, InvoiceItem
+from payments.models import Payment, PaymentAllocation
 from core.models import PaymentStatus
 
 
@@ -15,7 +15,10 @@ class Command(BaseCommand):
         "- student.outstanding_balance vs sum of active invoice balances\n"
         "- student.credit_balance invariants with/without invoices\n"
         "- invoice.balance correctness vs header fields (subtotal, discount, "
-        "balance_bf, prepayment, amount_paid)"
+        "balance_bf, prepayment, amount_paid)\n"
+        "- Payment allocation integrity (sum of allocations vs invoice.amount_paid)\n"
+        "- balance_bf and prepayment invoice item verification\n"
+        "- Term transition readiness checks"
     )
 
     def add_arguments(self, parser):
@@ -53,10 +56,18 @@ class Command(BaseCommand):
             "credit_invariant_violations": [],
             "no_invoice_invariant_violations": [],
             "invoice_balance_mismatches": [],
+            # New checks
+            "payment_allocation_mismatches": [],
+            "balance_bf_item_issues": [],
+            "prepayment_item_issues": [],
+            "term_transition_issues": [],
         }
 
         self._audit_students(stats)
         self._audit_invoices(stats)
+        self._audit_payment_allocations(stats)
+        self._audit_invoice_items(stats)
+        self._audit_term_transition_readiness(stats)
         self._print_summary(stats)
 
     # ------------------------------------------------------------------ #
@@ -290,6 +301,172 @@ class Command(BaseCommand):
                     )
 
     # ------------------------------------------------------------------ #
+    # Payment Allocation Integrity
+    # ------------------------------------------------------------------ #
+
+    def _audit_payment_allocations(self, stats):
+        """
+        Verify that the sum of PaymentAllocation amounts for each invoice
+        matches the invoice.amount_paid field.
+        """
+        self.stdout.write("")
+        self.stdout.write("→ Auditing payment allocation integrity ...")
+
+        invoices = (
+            Invoice.objects.filter(is_active=True)
+            .exclude(status="cancelled")
+            .select_related("student")
+        )
+
+        for inv in invoices:
+            # Sum of all allocations for this invoice
+            allocations_total = PaymentAllocation.objects.filter(
+                invoice_item__invoice=inv
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+            invoice_amount_paid = inv.amount_paid or Decimal("0.00")
+
+            # Round for comparison
+            allocations_total = allocations_total.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            invoice_amount_paid = invoice_amount_paid.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+
+            if allocations_total != invoice_amount_paid:
+                stats["payment_allocation_mismatches"].append(
+                    {
+                        "invoice_id": inv.id,
+                        "invoice_number": inv.invoice_number,
+                        "student_admission": getattr(inv.student, "admission_number", ""),
+                        "allocations_total": allocations_total,
+                        "invoice_amount_paid": invoice_amount_paid,
+                        "difference": abs(allocations_total - invoice_amount_paid),
+                    }
+                )
+
+    # ------------------------------------------------------------------ #
+    # Invoice Item Verification
+    # ------------------------------------------------------------------ #
+
+    def _audit_invoice_items(self, stats):
+        """
+        Verify:
+        1. balance_bf items have POSITIVE amounts (representing debt)
+        2. prepayment items have NEGATIVE amounts (representing credit applied)
+        """
+        self.stdout.write("")
+        self.stdout.write("→ Auditing invoice items (balance_bf/prepayment) ...")
+
+        # Check balance_bf items
+        balance_bf_items = InvoiceItem.objects.filter(
+            category="balance_bf",
+            invoice__is_active=True
+        ).exclude(invoice__status="cancelled").select_related("invoice", "invoice__student")
+
+        for item in balance_bf_items:
+            if item.amount and item.amount < 0:
+                stats["balance_bf_item_issues"].append(
+                    {
+                        "invoice_number": item.invoice.invoice_number,
+                        "student_admission": getattr(item.invoice.student, "admission_number", ""),
+                        "item_amount": item.amount,
+                        "issue": "balance_bf item should be positive (debt), found negative",
+                    }
+                )
+
+        # Check prepayment items
+        prepayment_items = InvoiceItem.objects.filter(
+            category="prepayment",
+            invoice__is_active=True
+        ).exclude(invoice__status="cancelled").select_related("invoice", "invoice__student")
+
+        for item in prepayment_items:
+            if item.amount and item.amount > 0:
+                stats["prepayment_item_issues"].append(
+                    {
+                        "invoice_number": item.invoice.invoice_number,
+                        "student_admission": getattr(item.invoice.student, "admission_number", ""),
+                        "item_amount": item.amount,
+                        "issue": "prepayment item should be negative (credit), found positive",
+                    }
+                )
+
+    # ------------------------------------------------------------------ #
+    # Term Transition Readiness
+    # ------------------------------------------------------------------ #
+
+    def _audit_term_transition_readiness(self, stats):
+        """
+        Check for issues that could cause problems during term transition:
+        1. Students with credit_balance > 0 AND outstanding invoices (should not happen)
+        2. Students with negative outstanding_balance (data issue)
+        3. Students where outstanding_balance doesn't match invoice balances
+        """
+        self.stdout.write("")
+        self.stdout.write("→ Auditing term transition readiness ...")
+
+        active_students = Student.objects.filter(status="active")
+
+        for student in active_students:
+            invoices_qs = student.invoices.filter(is_active=True).exclude(
+                status="cancelled"
+            )
+            has_invoices = invoices_qs.exists()
+            
+            credit_balance = student.credit_balance or Decimal("0.00")
+            outstanding_balance = student.outstanding_balance or Decimal("0.00")
+
+            # Check 1: Credit balance > 0 with outstanding invoices
+            if has_invoices and credit_balance > 0:
+                unpaid_exists = invoices_qs.filter(balance__gt=0).exists()
+                if unpaid_exists:
+                    stats["term_transition_issues"].append(
+                        {
+                            "student_id": student.id,
+                            "admission": student.admission_number,
+                            "name": student.full_name,
+                            "credit_balance": credit_balance,
+                            "outstanding_balance": outstanding_balance,
+                            "issue": "Has credit_balance > 0 with unpaid invoices",
+                        }
+                    )
+
+            # Check 2: Negative outstanding_balance (shouldn't happen)
+            if outstanding_balance < 0:
+                stats["term_transition_issues"].append(
+                    {
+                        "student_id": student.id,
+                        "admission": student.admission_number,
+                        "name": student.full_name,
+                        "credit_balance": credit_balance,
+                        "outstanding_balance": outstanding_balance,
+                        "issue": "Negative outstanding_balance (should be >= 0)",
+                    }
+                )
+
+            # Check 3: If no invoices, check if balances are consistent
+            if not has_invoices:
+                balance_bf_original = student.balance_bf_original or Decimal("0.00")
+                prepayment_original = student.prepayment_original or Decimal("0.00")
+                
+                # Warn if student has no invoices but has positive balance_bf_original
+                # that doesn't match outstanding_balance
+                if balance_bf_original > 0 and outstanding_balance != balance_bf_original:
+                    stats["term_transition_issues"].append(
+                        {
+                            "student_id": student.id,
+                            "admission": student.admission_number,
+                            "name": student.full_name,
+                            "credit_balance": credit_balance,
+                            "outstanding_balance": outstanding_balance,
+                            "balance_bf_original": balance_bf_original,
+                            "issue": f"No invoices but outstanding_balance ({outstanding_balance}) != balance_bf_original ({balance_bf_original})",
+                        }
+                    )
+
+    # ------------------------------------------------------------------ #
     # Reporting
     # ------------------------------------------------------------------ #
 
@@ -367,5 +544,75 @@ class Command(BaseCommand):
                 f"paid={m['amount_paid']}]"
             )
 
+        # Payment allocation mismatches
+        self.stdout.write("")
+        self.stdout.write(
+            f"Payment allocation mismatches (allocations vs invoice.amount_paid): "
+            f"{len(stats['payment_allocation_mismatches'])}"
+        )
+        for m in stats["payment_allocation_mismatches"][:10]:
+            self.stdout.write(
+                f"  - {m['invoice_number']} ({m['student_admission']}): "
+                f"allocations_sum={m['allocations_total']}, "
+                f"invoice.amount_paid={m['invoice_amount_paid']}, "
+                f"diff={m['difference']}"
+            )
+
+        # Balance_bf item issues
+        self.stdout.write("")
+        self.stdout.write(
+            f"Balance_bf item issues (should be positive): "
+            f"{len(stats['balance_bf_item_issues'])}"
+        )
+        for m in stats["balance_bf_item_issues"][:10]:
+            self.stdout.write(
+                f"  - {m['invoice_number']} ({m['student_admission']}): "
+                f"amount={m['item_amount']}, {m['issue']}"
+            )
+
+        # Prepayment item issues
+        self.stdout.write("")
+        self.stdout.write(
+            f"Prepayment item issues (should be negative): "
+            f"{len(stats['prepayment_item_issues'])}"
+        )
+        for m in stats["prepayment_item_issues"][:10]:
+            self.stdout.write(
+                f"  - {m['invoice_number']} ({m['student_admission']}): "
+                f"amount={m['item_amount']}, {m['issue']}"
+            )
+
+        # Term transition issues
+        self.stdout.write("")
+        self.stdout.write(
+            f"Term transition readiness issues: "
+            f"{len(stats['term_transition_issues'])}"
+        )
+        for m in stats["term_transition_issues"][:10]:
+            self.stdout.write(
+                f"  - {m['admission']} {m['name']}: {m['issue']}"
+            )
+
+        # Summary totals
+        self.stdout.write("")
+        self.stdout.write("=" * 80)
+        total_issues = (
+            len(stats['outstanding_mismatches']) +
+            len(stats['credit_invariant_violations']) +
+            len(stats['no_invoice_invariant_violations']) +
+            len(stats['invoice_balance_mismatches']) +
+            len(stats['payment_allocation_mismatches']) +
+            len(stats['balance_bf_item_issues']) +
+            len(stats['prepayment_item_issues']) +
+            len(stats['term_transition_issues'])
+        )
+        
+        if total_issues == 0:
+            self.stdout.write(self.style.SUCCESS("✅ All checks passed! No issues found."))
+        else:
+            self.stdout.write(
+                self.style.WARNING(f"⚠️  Found {total_issues} total issue(s) across all checks.")
+            )
+        
         self.stdout.write("")
         self.stdout.write("✅ Audit completed (no data was modified).")

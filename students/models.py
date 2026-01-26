@@ -238,9 +238,18 @@ class Student(BaseModel):
 
 
     def recompute_outstanding_balance(self):
+        """
+        Recompute student's outstanding_balance based on invoices.
+        
+        Rules:
+        - If student has active invoices: outstanding_balance = sum(invoice.balance)
+        - If student has NO active invoices: DO NOT reset outstanding_balance
+          (payments may have been applied directly to outstanding_balance)
+        """
         active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
 
         if active_invoices.exists():
+            # Student HAS invoices - outstanding_balance is sum of invoice balances
             invoice_total = active_invoices.aggregate(
                 total=Sum('balance')
             )['total'] or Decimal('0.00')
@@ -248,10 +257,13 @@ class Student(BaseModel):
             # Ensure credit_balance never goes negative
             self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
         else:
-            self.outstanding_balance = self.balance_bf_original or Decimal('0.00')
+            # Student has NO active invoices - preserve current outstanding_balance
+            # (payments may have been applied directly to it)
+            # Only ensure credit_balance is at least prepayment_original
             baseline_credit = self.prepayment_original or Decimal('0.00')
             current_credit = self.credit_balance or Decimal('0.00')
             self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
+            # DO NOT reset outstanding_balance to balance_bf_original
 
         self.save(update_fields=['outstanding_balance', 'credit_balance'])
 
@@ -262,7 +274,14 @@ class Student(BaseModel):
     from decimal import Decimal
 
     def save(self, *args, **kwargs):
-        """Override save to auto-generate admission_number if not provided and recompute balances."""
+        """
+        Override save to auto-generate admission_number if not provided.
+        
+        Balance computation rules:
+        - If student has active invoices: outstanding_balance = sum(invoice.balance)
+        - If student has NO active invoices: DO NOT reset outstanding_balance
+          (payments may have been applied directly to outstanding_balance)
+        """
 
         # Auto-generate admission_number if not set
         if not self.admission_number:
@@ -270,20 +289,30 @@ class Student(BaseModel):
             self.admission_number = StudentService.generate_admission_number()
 
         # --- Compute balances ---
-        active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
-        if active_invoices.exists():
-            # Sum balances of all active, non-cancelled invoices
-            invoice_total = active_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        # Check if we're in initial creation (no PK yet) or update
+        is_new = self.pk is None
+        
+        if not is_new:
+            active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
+            if active_invoices.exists():
+                # Sum balances of all active, non-cancelled invoices
+                invoice_total = active_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
 
-            self.outstanding_balance = invoice_total
-            # Do not touch credit_balance, ensure non-negative
-            self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
+                self.outstanding_balance = invoice_total
+                # Ensure credit_balance is non-negative
+                self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
+            else:
+                # No active invoices - preserve current outstanding_balance
+                # (payments may have been applied directly to it)
+                # Only ensure credit_balance is at least prepayment_original
+                baseline_credit = self.prepayment_original or Decimal('0.00')
+                current_credit = self.credit_balance or Decimal('0.00')
+                self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
+                # DO NOT reset outstanding_balance to balance_bf_original
         else:
-            # No active invoices → restore frozen BF / prepayment
-            self.outstanding_balance = self.balance_bf_original
-            baseline_credit = self.prepayment_original or Decimal('0.00')
-            current_credit = self.credit_balance or Decimal('0.00')
-            self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
+            # New student - ensure fields have proper defaults
+            self.outstanding_balance = self.outstanding_balance or Decimal('0.00')
+            self.credit_balance = self.credit_balance or Decimal('0.00')
 
         super().save(*args, **kwargs)
 

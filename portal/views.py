@@ -840,14 +840,21 @@ def resources_overview(request):
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
 def settings_overview(request):
-    # sample
+    # Get all terms for selection
+    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-name")
+    current_term = _get_current_term()
+    
     links = [
-        {"title": "School Profile", "description": "Update school information", "url": "#"},
-        {"title": "Academic Years", "description": "Manage academic years and terms", "url": "#"},
-        {"title": "User Management", "description": "Manage staff and user accounts", "url": "#"},
-        {"title": "System Configuration", "description": "General system settings", "url": "#"},
+        {"title": "School Profile", "description": "Update school information", "url": "#", "cta": "Configure"},
+        {"title": "Academic Years", "description": "Manage academic years and terms", "url": "#", "cta": "Manage"},
+        {"title": "User Management", "description": "Manage staff and user accounts", "url": "#", "cta": "Manage"},
+        {"title": "System Configuration", "description": "General system settings", "url": "#", "cta": "Configure"},
     ]
-    return render(request, "sections/settings.html", {"settings_links": links})
+    return render(request, "sections/settings.html", {
+        "settings_links": links,
+        "terms": terms,
+        "current_term": current_term,
+    })
 
 
 @login_required
@@ -989,3 +996,79 @@ def _get_summaries(user):
             {"title": "Upcoming Events", "description": "This month", "value": "3", "trend": "View calendar", "trend_class": "primary"},
             {"title": "Unread Messages", "description": "From school", "value": "2", "trend": "New", "trend_class": "warning"},
         ]
+
+
+# =============================================================================
+# TERM TRANSITION
+# =============================================================================
+
+@login_required
+@role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
+def term_transition(request):
+    """
+    Handle term transition - carry forward balances from one term to the next.
+    
+    This view allows admins to:
+    1. Select previous and new term
+    2. Preview changes (dry run)
+    3. Execute the transition
+    """
+    from finance.services import transition_frozen_balances
+    
+    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-name")
+    current_term = _get_current_term()
+    
+    # Default to selecting the previous term
+    previous_terms = terms.exclude(id=current_term.id) if current_term else terms
+    
+    context = {
+        "terms": terms,
+        "current_term": current_term,
+        "previous_terms": previous_terms,
+    }
+    
+    if request.method == "POST":
+        previous_term_id = request.POST.get("previous_term")
+        new_term_id = request.POST.get("new_term")
+        action = request.POST.get("action", "preview")  # "preview" or "execute"
+        
+        try:
+            previous_term = Term.objects.get(pk=previous_term_id)
+            new_term = Term.objects.get(pk=new_term_id)
+            
+            if previous_term.id == new_term.id:
+                messages.error(request, "Previous term and new term cannot be the same.")
+                return render(request, "sections/term_transition.html", context)
+            
+            # Run transition (dry_run for preview, actual for execute)
+            is_dry_run = (action == "preview")
+            stats = transition_frozen_balances(previous_term, new_term, dry_run=is_dry_run)
+            
+            context["previous_term_selected"] = previous_term
+            context["new_term_selected"] = new_term
+            context["stats"] = stats
+            context["is_preview"] = is_dry_run
+            
+            if is_dry_run:
+                messages.info(
+                    request,
+                    f"Preview complete. {stats['updated']} student(s) would be updated. "
+                    f"Review the summary below and click 'Execute Transition' to apply changes."
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Term transition completed successfully! "
+                    f"{stats['updated']} student(s) updated. "
+                    f"{stats['with_outstanding']} with outstanding balances, "
+                    f"{stats['with_overpayment']} with overpayments, "
+                    f"{stats['fully_paid']} fully paid."
+                )
+                
+        except Term.DoesNotExist:
+            messages.error(request, "Invalid term selection. Please try again.")
+        except Exception as e:
+            logger.exception(f"Error during term transition: {e}")
+            messages.error(request, f"An error occurred during transition: {str(e)}")
+    
+    return render(request, "sections/term_transition.html", context)

@@ -1,0 +1,248 @@
+<!-- templates/sections/term_transition.html -->
+{% extends 'base/base.html' %}
+{% load humanize %}
+{% block title %}Term Transition · PWASMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-warning text-white me-2">
+      <i class="mdi mdi-calendar-sync"></i>
+    </span>
+    Term Balance Transition
+  </h3>
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'portal:settings_overview' %}">Settings</a></li>
+      <li class="breadcrumb-item active">Term Transition</li>
+    </ol>
+  </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12 grid-margin">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">
+          <i class="mdi mdi-information-outline text-info me-2"></i>
+          About Term Transition
+        </h4>
+        <p class="text-muted">
+          This process carries forward student balances from one term to the next:
+        </p>
+        <ul class="text-muted">
+          <li><strong>Outstanding Balances:</strong> If a student owes money at the end of a term, this becomes their <code>balance_bf_original</code> for the new term.</li>
+          <li><strong>Overpayments:</strong> If a student paid more than owed, the excess becomes their <code>prepayment_original</code> (credit) for the new term.</li>
+          <li><strong>Fully Paid:</strong> Students with zero balance start the new term with clean slates.</li>
+        </ul>
+        <div class="alert alert-warning" role="alert">
+          <i class="mdi mdi-alert me-2"></i>
+          <strong>Important:</strong> This operation updates student financial records. Always preview changes before executing.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">
+          <i class="mdi mdi-calendar-arrow-right me-2"></i>
+          Select Terms
+        </h4>
+        <form method="post">
+          {% csrf_token %}
+          
+          <div class="form-group">
+            <label for="previous_term"><strong>Previous Term</strong></label>
+            <select name="previous_term" id="previous_term" class="form-control" required>
+              <option value="">-- Select Previous Term --</option>
+              {% for term in terms %}
+              <option value="{{ term.pk }}" 
+                      {% if previous_term_selected and previous_term_selected.pk == term.pk %}selected{% endif %}>
+                {{ term.academic_year }} - {{ term.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">The term from which balances will be carried forward.</small>
+          </div>
+          
+          <div class="form-group mt-3">
+            <label for="new_term"><strong>New Term</strong></label>
+            <select name="new_term" id="new_term" class="form-control" required>
+              <option value="">-- Select New Term --</option>
+              {% for term in terms %}
+              <option value="{{ term.pk }}"
+                      {% if new_term_selected and new_term_selected.pk == term.pk %}selected{% elif current_term and current_term.pk == term.pk and not new_term_selected %}selected{% endif %}>
+                {{ term.academic_year }} - {{ term.name }}
+                {% if term.is_current %} (Current){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">The term to which balances will be applied.</small>
+          </div>
+          
+          <div class="mt-4">
+            <button type="submit" name="action" value="preview" class="btn btn-outline-primary">
+              <i class="mdi mdi-eye me-1"></i> Preview Changes
+            </button>
+            {% if stats and is_preview %}
+            <button type="submit" name="action" value="execute" class="btn btn-warning ms-2"
+                    onclick="return confirm('Are you sure you want to execute this transition? This will update {{ stats.updated }} student records.');">
+              <i class="mdi mdi-play me-1"></i> Execute Transition
+            </button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  {% if stats %}
+  <div class="col-md-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">
+          <i class="mdi mdi-chart-box me-2"></i>
+          {% if is_preview %}Preview Results{% else %}Transition Results{% endif %}
+        </h4>
+        
+        {% if is_preview %}
+        <div class="alert alert-info" role="alert">
+          <i class="mdi mdi-information me-2"></i>
+          This is a <strong>preview</strong>. No changes have been made yet.
+        </div>
+        {% else %}
+        <div class="alert alert-success" role="alert">
+          <i class="mdi mdi-check-circle me-2"></i>
+          Transition completed successfully!
+        </div>
+        {% endif %}
+        
+        <div class="table-responsive">
+          <table class="table table-bordered">
+            <tbody>
+              <tr>
+                <td><strong>Total Students Processed</strong></td>
+                <td class="text-end">{{ stats.total_students|intcomma }}</td>
+              </tr>
+              <tr>
+                <td><strong>Students to be Updated</strong></td>
+                <td class="text-end">
+                  <span class="badge bg-primary">{{ stats.updated|intcomma }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>With Outstanding Balance</td>
+                <td class="text-end">
+                  <span class="badge bg-warning">{{ stats.with_outstanding|intcomma }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>With Overpayment (Credit)</td>
+                <td class="text-end">
+                  <span class="badge bg-success">{{ stats.with_overpayment|intcomma }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>Fully Paid (Zero Balance)</td>
+                <td class="text-end">
+                  <span class="badge bg-info">{{ stats.fully_paid|intcomma }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>No Previous Invoice</td>
+                <td class="text-end">
+                  <span class="badge bg-secondary">{{ stats.no_invoice|intcomma }}</span>
+                </td>
+              </tr>
+              {% if stats.errors > 0 %}
+              <tr class="table-danger">
+                <td><strong>Errors</strong></td>
+                <td class="text-end">
+                  <span class="badge bg-danger">{{ stats.errors|intcomma }}</span>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="mt-3">
+          <small class="text-muted">
+            <i class="mdi mdi-information me-1"></i>
+            Students without a previous term invoice will have their existing balance_bf/prepayment 
+            values used for the new term.
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">
+          <i class="mdi mdi-frequently-asked-questions me-2"></i>
+          Frequently Asked Questions
+        </h5>
+        
+        <div class="accordion" id="faqAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                When should I run term transition?
+              </button>
+            </h2>
+            <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body">
+                Run term transition at the start of a new academic term, after all payments for the 
+                previous term have been recorded and before generating new term invoices.
+              </div>
+            </div>
+          </div>
+          
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                What happens to student balances?
+              </button>
+            </h2>
+            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li><strong>Outstanding balance:</strong> Stored in <code>balance_bf_original</code> and added to the new term invoice.</li>
+                  <li><strong>Overpayment:</strong> Stored in <code>prepayment_original</code> and <code>credit_balance</code> to offset new term fees.</li>
+                  <li><strong>Fully paid:</strong> All balance fields are reset to zero.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                Can I undo a term transition?
+              </button>
+            </h2>
+            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body">
+                No, term transitions cannot be automatically undone. Always use the preview feature 
+                to verify changes before executing. If you need to fix issues, you may need to 
+                manually adjust individual student records or re-import data.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

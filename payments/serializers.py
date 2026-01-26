@@ -127,7 +127,17 @@ class EquityValidationResponseSerializer(serializers.Serializer):
 
 
 class EquityNotificationRequestSerializer(serializers.Serializer):
-    """Validates incoming Equity payment notification"""
+    """
+    Validates incoming Equity payment notification.
+    
+    NOTE: Equity Bank sends different field names than documented:
+    - debitcustname instead of customerName
+    - phonenumber (lowercase) instead of phoneNumber
+    - debitaccount for the payer's bank account
+    - paymentMode for the payment channel
+    
+    The to_internal_value() method normalizes these to our expected field names.
+    """
     billNumber = serializers.CharField(
         max_length=50,
         required=True,
@@ -167,6 +177,50 @@ class EquityNotificationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         default=''
     )
+    # Additional fields from actual Equity payload
+    debitAccount = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text="Payer's bank account number"
+    )
+    tranParticular = serializers.CharField(
+        max_length=200,
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text="Transaction description/particular"
+    )
+
+    def to_internal_value(self, data):
+        """
+        Normalize Equity's actual field names to our expected field names.
+        Runs BEFORE validation.
+        """
+        data = dict(data)
+        
+        # debitcustname -> customerName
+        if "customerName" not in data or not data.get("customerName"):
+            if "debitcustname" in data:
+                data["customerName"] = data.get("debitcustname", "")
+        
+        # phonenumber (lowercase) -> phoneNumber
+        if "phoneNumber" not in data or not data.get("phoneNumber"):
+            if "phonenumber" in data:
+                data["phoneNumber"] = data.get("phonenumber", "")
+        
+        # debitaccount -> debitAccount
+        if "debitAccount" not in data or not data.get("debitAccount"):
+            if "debitaccount" in data:
+                data["debitAccount"] = data.get("debitaccount", "")
+        
+        # paymentMode -> paymentChannel
+        if "paymentChannel" not in data or not data.get("paymentChannel"):
+            if "paymentMode" in data:
+                data["paymentChannel"] = data.get("paymentMode", "")
+        
+        return super().to_internal_value(data)
 
 
 class EquityNotificationResponseSerializer(serializers.Serializer):

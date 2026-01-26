@@ -29,6 +29,7 @@ urlpatterns = [
     path('sections/communications/', views.communications_overview, name='communications_overview'),
     path('sections/resources/', views.resources_overview, name='resources_overview'),
     path('sections/settings/', views.settings_overview, name='settings_overview'),
+    path('sections/settings/term-transition/', views.term_transition, name='term_transition'),
     path('pages/blank/', views.blank_page, name='blank_page'),
 
     # =========================================================================

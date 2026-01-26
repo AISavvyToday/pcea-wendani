@@ -81,6 +81,20 @@ class BankTransactionService:
 
         # amount is already a Decimal from the serializer
         amount = payload["amount"]
+        
+        # Extract payer info from validated payload
+        # The serializer normalizes: debitcustname -> customerName, debitaccount -> debitAccount
+        payer_name = payload.get("customerName", "") or ""
+        payer_account = payload.get("debitAccount", "") or ""
+        payment_channel = payload.get("paymentChannel", "") or ""
+        
+        # Build a description from available info
+        description_parts = []
+        if payment_channel:
+            description_parts.append(f"Channel: {payment_channel}")
+        if payload.get("tranParticular"):
+            description_parts.append(payload.get("tranParticular"))
+        bank_description = " | ".join(description_parts) if description_parts else "Payment notification received"
 
         bank_tx = BankTransaction.objects.create(
             gateway="equity",
@@ -88,10 +102,10 @@ class BankTransactionService:
             transaction_reference=payload.get("billNumber", ""),
             amount=amount,
             currency="KES",
-            payer_account="",
-            payer_name="",
+            payer_account=payer_account[:50] if payer_account else "",
+            payer_name=payer_name[:100] if payer_name else "",
             bank_status="SUCCESS",
-            bank_status_description="Payment notification received",
+            bank_status_description=bank_description,
             bank_timestamp=bank_timestamp,
             raw_request=request_data,
             raw_response={},

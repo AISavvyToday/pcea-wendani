@@ -806,46 +806,61 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
             old_balance_bf = student.balance_bf_original
             old_prepayment = student.prepayment_original
             old_credit = student.credit_balance
+            old_outstanding = student.outstanding_balance
             
             if prev_invoice:
                 # Use invoice balance as new term-start position
                 if prev_invoice.balance > 0:
-                    # Student owes money
+                    # Student owes money - carry forward as balance_bf_original
                     student.balance_bf_original = prev_invoice.balance
                     student.prepayment_original = Decimal('0.00')
-                    student.credit_balance = prev_invoice.balance
+                    student.credit_balance = Decimal('0.00')  # No credit if student owes
+                    student.outstanding_balance = prev_invoice.balance  # Set outstanding to match
                     stats['with_outstanding'] += 1
                 elif prev_invoice.balance < 0:
-                    # Student overpaid
+                    # Student overpaid - carry forward as prepayment/credit
                     student.balance_bf_original = Decimal('0.00')
                     student.prepayment_original = abs(prev_invoice.balance)
-                    student.credit_balance = prev_invoice.balance
+                    student.credit_balance = abs(prev_invoice.balance)  # Positive credit amount
+                    student.outstanding_balance = Decimal('0.00')  # No outstanding if overpaid
                     stats['with_overpayment'] += 1
                 else:
-                    # Fully paid
+                    # Fully paid - reset all balances
                     student.balance_bf_original = Decimal('0.00')
                     student.prepayment_original = Decimal('0.00')
                     student.credit_balance = Decimal('0.00')
+                    student.outstanding_balance = Decimal('0.00')
                     stats['fully_paid'] += 1
             else:
-                # No invoice - use existing credit_balance (may have been set manually or from import)
+                # No invoice - check existing outstanding_balance and credit_balance
                 stats['no_invoice'] += 1
-                if student.credit_balance > 0:
-                    student.balance_bf_original = student.credit_balance
+                current_outstanding = student.outstanding_balance or Decimal('0.00')
+                current_credit = student.credit_balance or Decimal('0.00')
+                
+                if current_outstanding > 0:
+                    # Student has outstanding balance from previous term
+                    student.balance_bf_original = current_outstanding
                     student.prepayment_original = Decimal('0.00')
-                elif student.credit_balance < 0:
+                    student.credit_balance = Decimal('0.00')
+                    # outstanding_balance stays as is
+                elif current_credit > 0:
+                    # Student has credit balance (overpayment)
                     student.balance_bf_original = Decimal('0.00')
-                    student.prepayment_original = abs(student.credit_balance)
+                    student.prepayment_original = current_credit
+                    # credit_balance stays as is
+                    student.outstanding_balance = Decimal('0.00')
                 else:
-                    # Zero balance - reset frozen fields too
+                    # Zero balance - reset frozen fields
                     student.balance_bf_original = Decimal('0.00')
                     student.prepayment_original = Decimal('0.00')
+                    student.outstanding_balance = Decimal('0.00')
             
             # Check if values changed
             changed = (
                 old_balance_bf != student.balance_bf_original or
                 old_prepayment != student.prepayment_original or
-                old_credit != student.credit_balance
+                old_credit != student.credit_balance or
+                old_outstanding != student.outstanding_balance
             )
             
             if changed:
@@ -853,12 +868,14 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     f"{student.admission_number}: "
                     f"balance_bf_original: {old_balance_bf} -> {student.balance_bf_original}, "
                     f"prepayment_original: {old_prepayment} -> {student.prepayment_original}, "
-                    f"credit_balance: {old_credit} -> {student.credit_balance}"
+                    f"credit_balance: {old_credit} -> {student.credit_balance}, "
+                    f"outstanding_balance: {old_outstanding} -> {student.outstanding_balance}"
                 )
                 
                 if not dry_run:
                     student.save(update_fields=[
-                        'balance_bf_original', 'prepayment_original', 'credit_balance'
+                        'balance_bf_original', 'prepayment_original', 
+                        'credit_balance', 'outstanding_balance'
                     ])
                 stats['updated'] += 1
                 
