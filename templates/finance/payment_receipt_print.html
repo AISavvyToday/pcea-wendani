@@ -225,16 +225,18 @@
         <h4><strong>Payment Summary</strong></h4>
         <table>
             {% if balance_bf > 0 %}
-            <tr>
-                <th><strong>Balance B/F</strong></th>
-                <td class="text-right"><strong>KES {{ balance_bf|intcomma }}</strong></td>
+            <tr style="background: #fff3cd;">
+                <th style="background: #fff3cd;"><strong>Balance B/F (Previous Term)</strong></th>
+                <td class="text-right" style="background: #fff3cd; color:#856404;">
+                    <strong>KES {{ balance_bf|floatformat:0|intcomma }}</strong>
+                </td>
             </tr>
             {% endif %}
             {% if prepayment > 0 %}
-            <tr>
-                <th><strong>Prepayment</strong></th>
-                <td class="text-right" style="color:#080;">
-                    <strong>KES {{ prepayment|intcomma }}</strong>
+            <tr style="background: #d4edda;">
+                <th style="background: #d4edda;"><strong>Prepayment (Credit)</strong></th>
+                <td class="text-right" style="background: #d4edda; color:#155724;">
+                    <strong>(KES {{ prepayment|floatformat:0|intcomma }})</strong>
                 </td>
             </tr>
             {% endif %}
@@ -242,27 +244,27 @@
                 <th><strong>Student Balance</strong></th>
                 <td class="text-right">
                     {% if student_balance_at_payment < 0 %}
-                        <strong style="color:#080;">KES {{ student_balance_at_payment|intcomma }}</strong>
+                        <strong style="color:#080;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% elif student_balance_at_payment > 0 %}
-                        <strong style="color:#c00;">KES {{ student_balance_at_payment|intcomma }}</strong>
+                        <strong style="color:#c00;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% else %}
-                        <strong>KES {{ student_balance_at_payment|intcomma }}</strong>
+                        <strong>KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% endif %}
                 </td>
             </tr>
             <tr>
                 <th><strong>Amount Paid</strong></th>
-                <td class="text-right"><strong>KES {{ payment.amount|intcomma }}</strong></td>
+                <td class="text-right"><strong>KES {{ payment.amount|floatformat:0|intcomma }}</strong></td>
             </tr>
-            <tr>
-                <th><strong>Outstanding</strong></th>
-                <td class="text-right">
+            <tr style="background: #f8f9fa;">
+                <th style="background: #f8f9fa;"><strong>Outstanding Balance</strong></th>
+                <td class="text-right" style="background: #f8f9fa;">
                     {% if outstanding_balance_at_payment < 0 %}
-                        <strong style="color:#080;">KES {{ outstanding_balance_at_payment|intcomma }}</strong>
+                        <strong style="color:#080;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% elif outstanding_balance_at_payment > 0 %}
-                        <strong style="color:#c00;">KES {{ outstanding_balance_at_payment|intcomma }}</strong>
+                        <strong style="color:#c00;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% else %}
-                        <strong>KES {{ outstanding_balance_at_payment|intcomma }}</strong>
+                        <strong>KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% endif %}
                 </td>
             </tr>
