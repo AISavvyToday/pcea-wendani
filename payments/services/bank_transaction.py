@@ -82,14 +82,23 @@ class BankTransactionService:
         # amount is already a Decimal from the serializer
         amount = payload["amount"]
         
-        # Extract payer info from validated payload
-        # The serializer normalizes: debitcustname -> customerName, debitaccount -> debitAccount
-        payer_name = payload.get("customerName", "") or ""
-        payer_account = payload.get("debitAccount", "") or ""
-        payment_channel = payload.get("paymentChannel", "") or ""
+        # Extract payer info from Equity payload
+        # IMPORTANT: debitcustname is the SCHOOL's account name, NOT the payer!
+        # The actual payer info available:
+        # - phonenumber: Payer's phone (may be masked like "********7132")
+        # - billNumber: What the payer typed as student reference
+        # - paymentMode: How they paid (cash deposit, etc.)
         
-        # Build a description from available info
+        payer_phone = payload.get("phoneNumber", "") or ""  # Normalized from phonenumber
+        bill_number = payload.get("billNumber", "") or ""
+        payment_channel = payload.get("paymentChannel", "") or ""  # Normalized from paymentMode
+        
+        # Build a comprehensive description for matching
         description_parts = []
+        if bill_number:
+            description_parts.append(f"Bill #: {bill_number}")
+        if payer_phone:
+            description_parts.append(f"Phone: {payer_phone}")
         if payment_channel:
             description_parts.append(f"Channel: {payment_channel}")
         if payload.get("tranParticular"):
@@ -99,11 +108,11 @@ class BankTransactionService:
         bank_tx = BankTransaction.objects.create(
             gateway="equity",
             transaction_id=transaction_id,
-            transaction_reference=payload.get("billNumber", ""),
+            transaction_reference=bill_number,  # This is the student reference
             amount=amount,
             currency="KES",
-            payer_account=payer_account[:50] if payer_account else "",
-            payer_name=payer_name[:100] if payer_name else "",
+            payer_account=payer_phone[:50] if payer_phone else "",  # Phone is the payer identifier
+            payer_name="",  # Equity doesn't provide payer name
             bank_status="SUCCESS",
             bank_status_description=bank_description,
             bank_timestamp=bank_timestamp,

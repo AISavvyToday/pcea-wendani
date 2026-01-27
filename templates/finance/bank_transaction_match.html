@@ -38,14 +38,6 @@
                             <td>{{ transaction.get_gateway_display|default:transaction.gateway }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Payer Name:</td>
-                            <td>{{ transaction.payer_name|default:"N/A" }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Payer Account:</td>
-                            <td>{{ transaction.payer_account|default:"N/A" }}</td>
-                        </tr>
-                        <tr>
                             <td class="text-muted">Bank Status:</td>
                             <td><span class="badge bg-secondary">{{ transaction.bank_status|default:"N/A" }}</span></td>
                         </tr>
@@ -68,6 +60,49 @@
                             <td>{{ transaction.callback_received_at|date:"d M Y H:i"|default:transaction.created_at|date:"d M Y H:i" }}</td>
                         </tr>
                     </table>
+                    
+                    <!-- Matching Hints - KEY INFO for finding the student -->
+                    {% with hints=transaction.get_matching_hints %}
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <h6 class="alert-heading mb-2">
+                            <i class="mdi mdi-magnify"></i> Matching Hints
+                        </h6>
+                        <div class="row">
+                            {% if hints.student_hint %}
+                            <div class="col-6 mb-2">
+                                <small class="text-muted d-block">Student Ref:</small>
+                                <code class="fs-6">{{ hints.student_hint }}</code>
+                            </div>
+                            {% endif %}
+                            {% if hints.payer_phone %}
+                            <div class="col-6 mb-2">
+                                <small class="text-muted d-block">Payer Phone:</small>
+                                <code>{{ hints.payer_phone }}</code>
+                            </div>
+                            {% endif %}
+                            {% if hints.payer_name %}
+                            <div class="col-6 mb-2">
+                                <small class="text-muted d-block">Payer Name:</small>
+                                <strong>{{ hints.payer_name }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if hints.payment_channel %}
+                            <div class="col-6 mb-2">
+                                <small class="text-muted d-block">Channel:</small>
+                                <span class="badge bg-info">{{ hints.payment_channel }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if hints.all_references %}
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1">All References:</small>
+                            {% for ref in hints.all_references %}
+                                <span class="badge bg-dark me-1">{{ ref }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endwith %}
 
                     {% if transaction.payment %}
                     <div class="alert alert-warning mt-3 mb-0">

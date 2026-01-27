@@ -197,11 +197,12 @@ class EquityNotificationView(APIView):
 
             # Step 3: Create Payment record + allocate (OPTION A)
             # NOTE: create_payment_from_bank_transaction() already calls the allocator
+            # Equity payload doesn't include payer name - only phone number (if provided)
             payment = PaymentService.create_payment_from_bank_transaction(
                 bank_tx=bank_tx,
                 student=student,
                 invoice=None,
-                payer_name=validated_data.get("customerName", ""),
+                payer_name="",  # Equity doesn't provide payer name in payload
                 payer_phone=validated_data.get("phoneNumber", ""),
                 payment_source=PaymentSource.EQUITY_BANK
             )

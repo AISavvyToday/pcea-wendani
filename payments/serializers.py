@@ -130,18 +130,19 @@ class EquityNotificationRequestSerializer(serializers.Serializer):
     """
     Validates incoming Equity payment notification.
     
-    NOTE: Equity Bank sends different field names than documented:
-    - debitcustname instead of customerName
-    - phonenumber (lowercase) instead of phoneNumber
-    - debitaccount for the payer's bank account
-    - paymentMode for the payment channel
+    IMPORTANT: Equity Bank payload field clarifications:
+    - debitcustname: This is the SCHOOL's account name (receiving account), NOT the payer!
+    - debitaccount: This is the SCHOOL's account number, NOT the payer's account!
+    - phonenumber: This IS the payer's phone number (sometimes masked)
+    - billNumber: What the payer typed as student reference (admission number)
+    - paymentMode: Payment channel (cash deposit, etc.)
     
-    The to_internal_value() method normalizes these to our expected field names.
+    The to_internal_value() method normalizes field names (lowercase -> camelCase).
     """
     billNumber = serializers.CharField(
         max_length=50,
         required=True,
-        help_text="Student admission number or invoice number"
+        help_text="Student admission number or invoice number (what payer typed)"
     )
     amount = serializers.DecimalField(
         max_digits=12,
@@ -159,61 +160,52 @@ class EquityNotificationRequestSerializer(serializers.Serializer):
         input_formats=['%Y-%m-%d %H:%M:%S', 'iso-8601'],
         help_text="Transaction date and time"
     )
-    customerName = serializers.CharField(
-        max_length=200,
-        required=False,
-        allow_blank=True,
-        default=''
-    )
+    # Payer's phone number (the only real payer identifier from Equity)
     phoneNumber = serializers.CharField(
-        max_length=20,
-        required=False,
-        allow_blank=True,
-        default=''
-    )
-    paymentChannel = serializers.CharField(
-        max_length=50,
-        required=False,
-        allow_blank=True,
-        default=''
-    )
-    # Additional fields from actual Equity payload
-    debitAccount = serializers.CharField(
         max_length=50,
         required=False,
         allow_blank=True,
         default='',
-        help_text="Payer's bank account number"
+        help_text="Payer's phone number (may be masked)"
     )
+    # Payment channel/mode
+    paymentChannel = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text="Payment channel (cash deposit, etc.)"
+    )
+    # Transaction particular/description
     tranParticular = serializers.CharField(
         max_length=200,
         required=False,
         allow_blank=True,
         default='',
-        help_text="Transaction description/particular"
+        help_text="Transaction description (usually 'BILL PAYMENT')"
+    )
+    # Customer reference (usually same as billNumber)
+    CustomerRefNumber = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text="Customer reference number"
     )
 
     def to_internal_value(self, data):
         """
         Normalize Equity's actual field names to our expected field names.
         Runs BEFORE validation.
+        
+        Equity sends lowercase field names, we normalize to camelCase.
         """
         data = dict(data)
-        
-        # debitcustname -> customerName
-        if "customerName" not in data or not data.get("customerName"):
-            if "debitcustname" in data:
-                data["customerName"] = data.get("debitcustname", "")
         
         # phonenumber (lowercase) -> phoneNumber
         if "phoneNumber" not in data or not data.get("phoneNumber"):
             if "phonenumber" in data:
                 data["phoneNumber"] = data.get("phonenumber", "")
-        
-        # debitaccount -> debitAccount
-        if "debitAccount" not in data or not data.get("debitAccount"):
-            if "debitaccount" in data:
-                data["debitAccount"] = data.get("debitaccount", "")
         
         # paymentMode -> paymentChannel
         if "paymentChannel" not in data or not data.get("paymentChannel"):

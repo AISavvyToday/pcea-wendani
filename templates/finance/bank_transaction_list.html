@@ -105,8 +105,20 @@
             </td>
 
             <td>
-              <small class="d-block">{{ transaction.payer_name|default:"-" }}</small>
-              <small class="text-muted">{{ transaction.payer_account|default:"-" }}</small>
+              {% with hints=transaction.get_matching_hints %}
+              {% if hints.student_hint %}
+                <small class="d-block"><strong>Ref:</strong> <code>{{ hints.student_hint }}</code></small>
+              {% endif %}
+              {% if hints.payer_name %}
+                <small class="d-block">{{ hints.payer_name|truncatechars:30 }}</small>
+              {% endif %}
+              {% if hints.payer_phone %}
+                <small class="text-muted d-block">📱 {{ hints.payer_phone }}</small>
+              {% endif %}
+              {% if not hints.student_hint and not hints.payer_name and not hints.payer_phone %}
+                <small class="text-muted">-</small>
+              {% endif %}
+              {% endwith %}
             </td>
 
             <td>

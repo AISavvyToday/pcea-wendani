@@ -209,6 +209,122 @@ class BankTransaction(BaseModel):
     def __str__(self):
         return f"{self.gateway} - {self.transaction_id} - KES {self.amount}"
 
+    def get_matching_hints(self):
+        """
+        Extract useful information from raw_request to help with manual matching.
+        Returns a dict with gateway-specific fields that can help identify the student.
+        """
+        import re
+        hints = {
+            'bill_reference': '',
+            'payer_phone': '',
+            'payer_name': '',
+            'payment_channel': '',
+            'student_hint': '',  # Best guess at student identifier
+            'all_references': [],  # All reference-like values found
+        }
+        
+        if not self.raw_request:
+            return hints
+        
+        raw = self.raw_request
+        
+        if self.gateway == 'equity':
+            # Equity Bank payload fields
+            bill_number = raw.get('billNumber', '') or raw.get('CustomerRefNumber', '')
+            hints['bill_reference'] = bill_number
+            hints['payer_phone'] = raw.get('phonenumber', '') or ''
+            hints['payment_channel'] = raw.get('paymentMode', '') or ''
+            # debitcustname is the SCHOOL's name, not useful for matching
+            # tranParticular is typically "BILL PAYMENT"
+            
+            # Student hint is whatever they typed as bill number
+            hints['student_hint'] = bill_number
+            
+            # Collect all reference-like values
+            refs = []
+            if bill_number:
+                refs.append(f"Bill #: {bill_number}")
+            if raw.get('CustomerRefNumber') and raw.get('CustomerRefNumber') != bill_number:
+                refs.append(f"Cust Ref: {raw.get('CustomerRefNumber')}")
+            if raw.get('phonenumber'):
+                refs.append(f"Phone: {raw.get('phonenumber')}")
+            hints['all_references'] = refs
+            
+        elif self.gateway == 'coop':
+            # Co-op Bank payload - info is in narration fields
+            narration = raw.get('Narration', '') or raw.get('CustMemo', '')
+            memo_lines = [
+                raw.get('CustMemoLine1', '') or raw.get('Narration1', ''),
+                raw.get('CustMemoLine2', '') or raw.get('Narration2', ''),
+                raw.get('CustMemoLine3', '') or raw.get('Narration3', ''),
+            ]
+            
+            # Combine all text for parsing
+            all_text = ' '.join([narration] + memo_lines)
+            
+            # Try to extract phone number (254... or 07...)
+            phone_match = re.search(r'(254\d{9}|07\d{8}|01\d{8})', all_text)
+            if phone_match:
+                hints['payer_phone'] = phone_match.group(1)
+            
+            # Try to extract admission number patterns
+            # Common patterns: 393939#StudentName, or just numbers
+            admission_match = re.search(r'(\d{4,8})#([A-Za-z,\s]+)', all_text)
+            if admission_match:
+                hints['student_hint'] = admission_match.group(1)
+                hints['payer_name'] = admission_match.group(2).replace(',', ' ').strip()
+            
+            # Look for payer name after phone number pattern
+            # Format: "phone~MPESAC2B_400222~PAYER NAME"
+            payer_match = re.search(r'MPESAC2B[_\d]*~([A-Z\s]+)$', all_text)
+            if payer_match:
+                hints['payer_name'] = payer_match.group(1).strip()
+            
+            # Payment channel from narration
+            if 'MPESAC2B' in all_text:
+                hints['payment_channel'] = 'M-PESA C2B'
+            elif 'RTGS' in all_text:
+                hints['payment_channel'] = 'RTGS'
+            elif 'EFT' in all_text:
+                hints['payment_channel'] = 'EFT'
+            
+            # Collect all references
+            refs = []
+            if hints['student_hint']:
+                refs.append(f"Admission #: {hints['student_hint']}")
+            if hints['payer_name']:
+                refs.append(f"Payer: {hints['payer_name']}")
+            if hints['payer_phone']:
+                refs.append(f"Phone: {hints['payer_phone']}")
+            if raw.get('PaymentRef') or raw.get('MessageReference'):
+                refs.append(f"Ref: {raw.get('PaymentRef') or raw.get('MessageReference')}")
+            hints['all_references'] = refs
+            
+            # Use narration as fallback description
+            hints['bill_reference'] = raw.get('PaymentRef', '') or raw.get('MessageReference', '')
+        
+        return hints
+    
+    @property
+    def matching_summary(self):
+        """
+        Returns a human-readable summary of matching hints for display in templates.
+        """
+        hints = self.get_matching_hints()
+        parts = []
+        
+        if hints['student_hint']:
+            parts.append(f"Student Ref: {hints['student_hint']}")
+        if hints['payer_name']:
+            parts.append(f"Payer: {hints['payer_name']}")
+        if hints['payer_phone']:
+            parts.append(f"Phone: {hints['payer_phone']}")
+        if hints['payment_channel']:
+            parts.append(f"Channel: {hints['payment_channel']}")
+            
+        return ' | '.join(parts) if parts else 'No matching info available'
+
 
 class PaymentAllocation(BaseModel):
     """
