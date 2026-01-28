@@ -126,21 +126,36 @@ class Command(BaseCommand):
                 }
             )
 
-        # Credit invariant:
-        # - If credit_balance > 0, all invoices should be effectively paid
-        #   (balance <= 0). Overpayments should have been pushed into credit_balance
-        #   via payment allocation logic.
+        # Credit invariant (STRICT):
+        # - If credit_balance > 0, then:
+        #   1. ALL invoices must be fully paid (balance <= 0)
+        #   2. outstanding_balance must be 0
+        # - This ensures credit only exists when there's nothing left to pay
         credit_balance = student.credit_balance or Decimal("0.00")
+        outstanding_balance = student.outstanding_balance or Decimal("0.00")
+        
         if credit_balance > 0:
+            # Check 1: No unpaid invoices
             unpaid_exists = invoices_qs.filter(balance__gt=0).exists()
-            if unpaid_exists:
+            # Check 2: Outstanding balance must be 0
+            has_outstanding = outstanding_balance > 0
+            
+            if unpaid_exists or has_outstanding:
+                # Get sum of unpaid invoice balances for reporting
+                unpaid_total = invoices_qs.filter(balance__gt=0).aggregate(
+                    total=Sum("balance")
+                )["total"] or Decimal("0.00")
+                
                 stats["credit_invariant_violations"].append(
                     {
                         "student_id": student.id,
                         "admission": student.admission_number,
                         "name": student.full_name,
                         "credit_balance": credit_balance,
-                        "has_unpaid_invoices": True,
+                        "outstanding_balance": outstanding_balance,
+                        "unpaid_invoice_total": unpaid_total,
+                        "has_unpaid_invoices": unpaid_exists,
+                        "has_outstanding": has_outstanding,
                     }
                 )
 
@@ -199,6 +214,24 @@ class Command(BaseCommand):
                     "balance_bf_original": balance_bf_original,
                     "prepayment_original": prepayment_original,
                     "total_paid": total_paid,
+                }
+            )
+        
+        # STRICT credit invariant for students without invoices:
+        # If credit_balance > 0, outstanding_balance MUST be 0
+        # (You can't have credit AND debt at the same time)
+        if actual_credit > 0 and actual_outstanding > 0:
+            stats["credit_invariant_violations"].append(
+                {
+                    "student_id": student.id,
+                    "admission": student.admission_number,
+                    "name": student.full_name,
+                    "credit_balance": actual_credit,
+                    "outstanding_balance": actual_outstanding,
+                    "unpaid_invoice_total": Decimal("0.00"),
+                    "has_unpaid_invoices": False,
+                    "has_outstanding": True,
+                    "note": "No invoices but has both credit and outstanding",
                 }
             )
 
@@ -575,13 +608,22 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         self.stdout.write(
-            f"Student credit_balance invariants (with invoices) violated: "
+            f"Student credit_balance invariant violations: "
             f"{len(stats['credit_invariant_violations'])}"
         )
+        self.stdout.write(
+            "  (credit > 0 requires: outstanding = 0 AND no unpaid invoices)"
+        )
         for m in stats["credit_invariant_violations"][:10]:
+            details = []
+            if m.get('has_outstanding'):
+                details.append(f"outstanding={m.get('outstanding_balance', 0)}")
+            if m.get('has_unpaid_invoices'):
+                details.append(f"unpaid_invoices={m.get('unpaid_invoice_total', 0)}")
+            detail_str = ", ".join(details) if details else "unknown issue"
             self.stdout.write(
                 f"  - {m['admission']} {m['name']}: "
-                f"credit_balance={m['credit_balance']} with unpaid invoices"
+                f"credit={m['credit_balance']}, {detail_str}"
             )
 
         self.stdout.write("")
