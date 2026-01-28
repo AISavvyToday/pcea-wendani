@@ -496,7 +496,16 @@ class InvoiceService:
             student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
             student.save(update_fields=["credit_balance", "updated_at"])
 
-            note = f" | Unapplied credit: KES {remaining}"
+            total_allocated = payment.amount - remaining
+            
+            # Create a clear note explaining why funds went to credit balance
+            if total_allocated == Decimal("0.00"):
+                # FULL payment went to credit - invoices exist but nothing was allocatable
+                note = f" | ⚠️ Unapplied credit: KES {remaining} (no allocatable invoice items - invoices may be fully paid or items inactive)"
+            else:
+                # Partial overpayment - normal case
+                note = f" | Unapplied credit: KES {remaining}"
+            
             if note.strip() not in (payment.notes or ""):
                 payment.notes = (payment.notes or "") + note
                 payment.save(update_fields=["notes", "updated_at"])

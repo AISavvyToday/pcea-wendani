@@ -101,7 +101,8 @@ class PaymentService:
             if remaining > 0:
                 note_parts.append(f"added to credit balance: {remaining}")
             
-            note = f" | Applied to outstanding balance (no invoices): {', '.join(note_parts)}"
+            # Clear note indicating why payment went to credit balance
+            note = f" | ⚠️ NO ACTIVE INVOICES at time of payment. Applied to outstanding balance (no invoices): {', '.join(note_parts)}"
             payment.notes = (payment.notes or "") + note
             payment.save(update_fields=["notes", "updated_at"])
             
@@ -200,6 +201,16 @@ class PaymentService:
                     PaymentSource.MPESA,  # default fallback
                 )
 
+            # Check if student has active invoices BEFORE creating payment
+            # This allows us to set a clear note about credit balance allocation
+            has_active_invoices = student.invoices.filter(is_active=True).exclude(
+                status=InvoiceStatus.CANCELLED
+            ).exists()
+            
+            initial_note = f"Auto-created from {bank_tx.gateway.upper()} transaction {bank_tx.transaction_id}"
+            if not has_active_invoices:
+                initial_note += " | ⚠️ Student has no active invoices - will be applied to credit balance"
+            
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,  # payment may clear multiple invoices; don't pin to one invoice
@@ -211,7 +222,7 @@ class PaymentService:
                 payer_name=payer_name or bank_tx.payer_name or "",
                 payer_phone=(payer_phone or bank_tx.payer_account or ""),
                 transaction_reference=bank_tx.transaction_id,
-                notes=f"Auto-created from {bank_tx.gateway.upper()} transaction {bank_tx.transaction_id}",
+                notes=initial_note,
                 is_reconciled=True,
                 reconciled_by=reconciled_by,
                 reconciled_at=timezone.now(),
@@ -256,6 +267,16 @@ class PaymentService:
             if payment_source is None:
                 payment_source = PaymentSource.MPESA  # default for manual payments
             
+            # Check if student has active invoices BEFORE creating payment
+            has_active_invoices = student.invoices.filter(is_active=True).exclude(
+                status=InvoiceStatus.CANCELLED
+            ).exists()
+            
+            # Build initial note
+            initial_note = notes or "Manual payment"
+            if not has_active_invoices:
+                initial_note += " | ⚠️ Student has no active invoices - will be applied to credit balance"
+            
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,
@@ -268,7 +289,7 @@ class PaymentService:
                 payer_phone=payer_phone or "",
                 transaction_reference=transaction_reference or "",
                 received_by=received_by,
-                notes=notes or "Manual payment",
+                notes=initial_note,
                 is_reconciled=True,
                 reconciled_by=received_by,
                 reconciled_at=timezone.now(),
