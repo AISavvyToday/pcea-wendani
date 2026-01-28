@@ -1,14 +1,14 @@
 """
-Fix balance_bf allocation issues for students with credit_balance > 0 and unpaid invoices.
+Fix balance_bf allocation issues for invoices and students.
 
 The issue: Invoice has balance_bf field set, but NO InvoiceItem with category='balance_bf' exists.
 This causes payments to not allocate to the balance_bf portion, leaving it unpaid while
 excess payment goes to credit_balance.
 
-Fix:
-1. Create missing balance_bf InvoiceItem if invoice.balance_bf > 0 but no item exists
-2. Re-allocate payments from credit_balance to the balance_bf item
-3. Update invoice and student balances
+Fix modes:
+1. Default: Fix students with credit_balance > 0 AND unpaid invoices (reallocate credit)
+2. --proactive: Create missing balance_bf items for ALL invoices that need them
+   (prevents future allocation issues when payments arrive)
 """
 
 from decimal import Decimal
@@ -37,10 +37,17 @@ class Command(BaseCommand):
             nargs='*',
             help='Specific admission numbers to fix (default: auto-detect)',
         )
+        parser.add_argument(
+            '--proactive',
+            action='store_true',
+            default=False,
+            help='Create missing balance_bf items for ALL invoices (not just those with credit to reallocate)',
+        )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
         specific_students = options.get('students')
+        proactive = options.get('proactive', False)
 
         self.stdout.write("")
         self.stdout.write("=" * 70)
@@ -50,7 +57,21 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - No changes will be made"))
 
-        # Find affected students
+        if proactive:
+            self.stdout.write(self.style.WARNING("PROACTIVE MODE - Creating missing items for ALL invoices"))
+
+        # PROACTIVE MODE: Fix ALL invoices with balance_bf but no item
+        if proactive:
+            items_created = self._fix_all_missing_items(dry_run, specific_students)
+            self.stdout.write("")
+            self.stdout.write("=" * 70)
+            if dry_run:
+                self.stdout.write(f"Would create {items_created} missing balance_bf item(s)")
+            else:
+                self.stdout.write(self.style.SUCCESS(f"✅ Created {items_created} missing balance_bf item(s)"))
+            return
+
+        # DEFAULT MODE: Fix students with credit to reallocate
         if specific_students:
             students = Student.objects.filter(admission_number__in=specific_students)
         else:
@@ -97,6 +118,52 @@ class Command(BaseCommand):
             self.stdout.write(f"Would fix {fixed_count} student(s)")
         else:
             self.stdout.write(self.style.SUCCESS(f"✅ Fixed {fixed_count} student(s)"))
+
+    def _fix_all_missing_items(self, dry_run, specific_students=None):
+        """Create missing balance_bf InvoiceItems for ALL invoices that need them."""
+        
+        # Find all invoices with balance_bf > 0 but no balance_bf item
+        invoices = Invoice.objects.filter(
+            is_active=True,
+            balance_bf__gt=0,
+        ).exclude(status='cancelled').select_related('student')
+
+        if specific_students:
+            invoices = invoices.filter(student__admission_number__in=specific_students)
+
+        items_created = 0
+
+        for invoice in invoices:
+            has_bf_item = invoice.items.filter(category='balance_bf', is_active=True).exists()
+            
+            if not has_bf_item:
+                self.stdout.write("")
+                self.stdout.write(f"Missing balance_bf item: {invoice.student.admission_number} {invoice.student.full_name}")
+                self.stdout.write(f"  Invoice: {invoice.invoice_number}")
+                self.stdout.write(f"  balance_bf: {invoice.balance_bf}")
+
+                if not dry_run:
+                    self._create_balance_bf_item(invoice)
+                    items_created += 1
+                else:
+                    self.stdout.write(self.style.WARNING("  Would create balance_bf item..."))
+
+        return items_created
+
+    @transaction.atomic
+    def _create_balance_bf_item(self, invoice):
+        """Create a balance_bf InvoiceItem for an invoice."""
+        bf_item = InvoiceItem.objects.create(
+            invoice=invoice,
+            fee_item=None,
+            category='balance_bf',
+            description='Balance B/F from previous term',
+            amount=invoice.balance_bf,
+            discount_applied=Decimal("0.00"),
+            net_amount=invoice.balance_bf,
+        )
+        self.stdout.write(f"  ✓ Created balance_bf InvoiceItem (id={bf_item.id})")
+        return bf_item
 
     @transaction.atomic
     def _fix_student(self, student, invoice):
