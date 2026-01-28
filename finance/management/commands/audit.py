@@ -60,6 +60,7 @@ class Command(BaseCommand):
             "payment_allocation_mismatches": [],
             "balance_bf_item_issues": [],
             "prepayment_item_issues": [],
+            "missing_balance_bf_items": [],  # NEW: invoices with balance_bf but no item
             "term_transition_issues": [],
             "inactive_invoice_issues": [],
         }
@@ -430,6 +431,8 @@ class Command(BaseCommand):
         Verify:
         1. balance_bf items have POSITIVE amounts (representing debt)
         2. prepayment items have NEGATIVE amounts (representing credit applied)
+        3. Invoices with balance_bf > 0 MUST have a corresponding balance_bf InvoiceItem
+           (otherwise payments cannot be allocated to clear the balance_bf)
         """
         self.stdout.write("")
         self.stdout.write("→ Auditing invoice items (balance_bf/prepayment) ...")
@@ -465,6 +468,29 @@ class Command(BaseCommand):
                         "student_admission": getattr(item.invoice.student, "admission_number", ""),
                         "item_amount": item.amount,
                         "issue": "prepayment item should be negative (credit), found positive",
+                    }
+                )
+
+        # CRITICAL CHECK: Invoices with balance_bf > 0 but NO balance_bf InvoiceItem
+        # This is the ROOT CAUSE of the credit invariant violations - payments cannot
+        # be allocated to balance_bf if there's no InvoiceItem to allocate to
+        invoices_with_balance_bf = (
+            Invoice.objects.filter(is_active=True, balance_bf__gt=0)
+            .exclude(status="cancelled")
+            .select_related("student")
+        )
+
+        for inv in invoices_with_balance_bf:
+            has_bf_item = inv.items.filter(category="balance_bf", is_active=True).exists()
+            if not has_bf_item:
+                stats["missing_balance_bf_items"].append(
+                    {
+                        "invoice_id": inv.id,
+                        "invoice_number": inv.invoice_number,
+                        "student_admission": getattr(inv.student, "admission_number", ""),
+                        "student_name": getattr(inv.student, "full_name", ""),
+                        "balance_bf": inv.balance_bf,
+                        "issue": f"Invoice has balance_bf={inv.balance_bf} but NO balance_bf InvoiceItem! Payments CANNOT allocate to this.",
                     }
                 )
 
@@ -705,6 +731,27 @@ class Command(BaseCommand):
                 f"amount={m['item_amount']}, {m['issue']}"
             )
 
+        # CRITICAL: Missing balance_bf InvoiceItems
+        self.stdout.write("")
+        self.stdout.write(
+            f"Invoices with balance_bf but MISSING balance_bf item (CRITICAL): "
+            f"{len(stats['missing_balance_bf_items'])}"
+        )
+        if stats['missing_balance_bf_items']:
+            self.stdout.write(
+                self.style.ERROR(
+                    "  ⚠️  These invoices CANNOT have payments allocated to balance_bf!"
+                )
+            )
+            self.stdout.write(
+                "  Run: python manage.py fix_balance_bf_allocations --dry-run"
+            )
+        for m in stats["missing_balance_bf_items"][:10]:
+            self.stdout.write(
+                f"  - {m['invoice_number']} ({m['student_admission']} {m['student_name']}): "
+                f"balance_bf={m['balance_bf']}"
+            )
+
         # Term transition issues
         self.stdout.write("")
         self.stdout.write(
@@ -740,6 +787,7 @@ class Command(BaseCommand):
             len(stats['payment_allocation_mismatches']) +
             len(stats['balance_bf_item_issues']) +
             len(stats['prepayment_item_issues']) +
+            len(stats['missing_balance_bf_items']) +  # NEW: critical check
             len(stats['term_transition_issues']) +
             len(stats['inactive_invoice_issues'])
         )
