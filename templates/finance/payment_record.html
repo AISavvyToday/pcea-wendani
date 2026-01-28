@@ -42,6 +42,9 @@
                                 <div class="text-danger small">{{ form.student.errors }}</div>
                             {% endif %}
                             <div class="form-text">Start typing to search student</div>
+                            
+                            <!-- Invoice status alert - shown dynamically via JS -->
+                            <div id="invoice-status-alert" class="mt-2" style="display: none;"></div>
                         </div>
                     </div>
 
@@ -171,11 +174,87 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
+    const studentSelect = $('#{{ form.student.id_for_label }}');
+    const alertContainer = document.getElementById('invoice-status-alert');
+
     // Searchable student dropdown
-    $('#{{ form.student.id_for_label }}').select2({
+    studentSelect.select2({
         placeholder: 'Search student...',
         allowClear: true,
         width: '100%'
+    });
+
+    // Check invoice status when student is selected
+    studentSelect.on('change', function() {
+        const studentId = $(this).val();
+        
+        // Clear previous alert
+        alertContainer.style.display = 'none';
+        alertContainer.innerHTML = '';
+        
+        if (!studentId) {
+            return;
+        }
+        
+        // Fetch invoice status from API
+        fetch(`/finance/api/student/${studentId}/invoice-status/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+                
+                let alertHtml = '';
+                let alertClass = '';
+                
+                if (!data.has_active_invoices) {
+                    // No active invoices - show warning
+                    alertClass = 'alert-warning';
+                    alertHtml = `
+                        <i class="mdi mdi-alert-circle"></i>
+                        <strong>Notice:</strong> This student has no active invoices. 
+                        The payment will be applied directly to their <strong>credit balance</strong>.
+                    `;
+                    
+                    if (data.has_inactive_invoices) {
+                        alertHtml += `
+                            <hr class="my-2">
+                            <small class="text-muted">
+                                <i class="mdi mdi-information"></i> 
+                                This student has inactive/deleted invoices. 
+                                Please verify if any invoices need to be reactivated.
+                            </small>
+                        `;
+                    }
+                } else {
+                    // Has active invoices - show info
+                    alertClass = 'alert-info';
+                    const outstanding = new Intl.NumberFormat('en-KE').format(data.total_outstanding);
+                    alertHtml = `
+                        <i class="mdi mdi-information"></i>
+                        <strong>Outstanding Balance:</strong> KES ${outstanding}
+                        <small class="text-muted ms-2">(Payment will be allocated to oldest invoices first)</small>
+                    `;
+                    
+                    if (data.credit_balance > 0) {
+                        const credit = new Intl.NumberFormat('en-KE').format(data.credit_balance);
+                        alertHtml += `
+                            <br>
+                            <small><i class="mdi mdi-wallet"></i> Current credit balance: KES ${credit}</small>
+                        `;
+                    }
+                }
+                
+                if (alertHtml) {
+                    alertContainer.className = `alert ${alertClass} py-2 small`;
+                    alertContainer.innerHTML = alertHtml;
+                    alertContainer.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Failed to fetch invoice status:', error);
+            });
     });
 
     // Auto-fill payment date if empty
@@ -189,6 +268,11 @@ document.addEventListener('DOMContentLoaded', function () {
             pad(now.getDate()) + 'T' +
             pad(now.getHours()) + ':' +
             pad(now.getMinutes());
+    }
+
+    // Trigger change event if student is pre-selected
+    if (studentSelect.val()) {
+        studentSelect.trigger('change');
     }
 
 });

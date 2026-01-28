@@ -52,6 +52,10 @@ urlpatterns = [
     path('payments/<uuid:pk>/', views.PaymentDetailView.as_view(), name='payment_detail'),
     path('payments/<uuid:pk>/receipt/', views.PaymentReceiptView.as_view(), name='payment_receipt'),
     path('payments/<uuid:pk>/delete/', views.PaymentDeleteView.as_view(), name='payment_delete'),
+    
+    # API Endpoints
+    path('api/student/<uuid:student_pk>/invoice-status/', views.StudentInvoiceStatusAPIView.as_view(), 
+         name='student_invoice_status_api'),
 
     # Bank Transactions
     path('bank-transactions/', views.BankTransactionListView.as_view(), name='bank_transaction_list'),

@@ -61,6 +61,7 @@ class Command(BaseCommand):
             "balance_bf_item_issues": [],
             "prepayment_item_issues": [],
             "term_transition_issues": [],
+            "inactive_invoice_issues": [],
         }
 
         self._audit_students(stats)
@@ -68,6 +69,7 @@ class Command(BaseCommand):
         self._audit_payment_allocations(stats)
         self._audit_invoice_items(stats)
         self._audit_term_transition_readiness(stats)
+        self._audit_inactive_invoices(stats)
         self._print_summary(stats)
 
     # ------------------------------------------------------------------ #
@@ -507,6 +509,43 @@ class Command(BaseCommand):
                     )
 
     # ------------------------------------------------------------------ #
+    # Inactive Invoice Check
+    # ------------------------------------------------------------------ #
+
+    def _audit_inactive_invoices(self, stats):
+        """
+        Check for active students who have inactive (soft-deleted) invoices.
+        This is a data integrity issue - active students should not have 
+        inactive invoices as it can cause payment allocation problems.
+        """
+        self.stdout.write("")
+        self.stdout.write("→ Auditing for inactive invoices on active students ...")
+
+        active_students = Student.objects.filter(status="active")
+
+        for student in active_students:
+            # Check for inactive invoices
+            inactive_invoices = student.invoices.filter(is_active=False)
+            
+            if inactive_invoices.exists():
+                # Get details of inactive invoices
+                inactive_list = list(
+                    inactive_invoices.values_list('invoice_number', flat=True)[:5]
+                )
+                total_inactive = inactive_invoices.count()
+                
+                stats["inactive_invoice_issues"].append(
+                    {
+                        "student_id": student.id,
+                        "admission": student.admission_number,
+                        "name": student.full_name,
+                        "inactive_count": total_inactive,
+                        "invoice_numbers": inactive_list,
+                        "issue": f"Active student has {total_inactive} inactive invoice(s)",
+                    }
+                )
+
+    # ------------------------------------------------------------------ #
     # Reporting
     # ------------------------------------------------------------------ #
 
@@ -635,6 +674,19 @@ class Command(BaseCommand):
                 f"  - {m['admission']} {m['name']}: {m['issue']}"
             )
 
+        # Inactive invoice issues
+        self.stdout.write("")
+        self.stdout.write(
+            f"Active students with inactive invoices: "
+            f"{len(stats['inactive_invoice_issues'])}"
+        )
+        for m in stats["inactive_invoice_issues"][:10]:
+            invoice_nums = ', '.join(m['invoice_numbers'])
+            self.stdout.write(
+                f"  - {m['admission']} {m['name']}: {m['inactive_count']} inactive invoice(s) "
+                f"[{invoice_nums}{'...' if m['inactive_count'] > 5 else ''}]"
+            )
+
         # Summary totals
         self.stdout.write("")
         self.stdout.write("=" * 80)
@@ -646,7 +698,8 @@ class Command(BaseCommand):
             len(stats['payment_allocation_mismatches']) +
             len(stats['balance_bf_item_issues']) +
             len(stats['prepayment_item_issues']) +
-            len(stats['term_transition_issues'])
+            len(stats['term_transition_issues']) +
+            len(stats['inactive_invoice_issues'])
         )
         
         if total_issues == 0:

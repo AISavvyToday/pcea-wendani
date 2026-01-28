@@ -1210,6 +1210,44 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_detail', pk=payment.pk)
 
 
+class StudentInvoiceStatusAPIView(LoginRequiredMixin, RoleRequiredMixin, View):
+    """
+    API endpoint to check if a student has active invoices.
+    Returns JSON with invoice status to inform user before recording payment.
+    """
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get(self, request, student_pk):
+        try:
+            student = Student.objects.get(pk=student_pk)
+        except Student.DoesNotExist:
+            return JsonResponse({'error': 'Student not found'}, status=404)
+
+        # Check for active invoices with balance > 0
+        active_invoices = student.invoices.filter(
+            is_active=True,
+            balance__gt=0
+        ).exclude(status='cancelled')
+
+        has_active_invoices = active_invoices.exists()
+        total_outstanding = active_invoices.aggregate(
+            total=Sum('balance')
+        )['total'] or Decimal('0.00')
+
+        # Also check for inactive invoices (data integrity warning)
+        has_inactive_invoices = student.invoices.filter(is_active=False).exists()
+
+        return JsonResponse({
+            'student_id': str(student.pk),
+            'student_name': student.full_name,
+            'admission_number': student.admission_number,
+            'has_active_invoices': has_active_invoices,
+            'total_outstanding': float(total_outstanding),
+            'has_inactive_invoices': has_inactive_invoices,
+            'credit_balance': float(student.credit_balance or 0),
+        })
+
+
 class PaymentDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
     """
     Safely delete a payment.
