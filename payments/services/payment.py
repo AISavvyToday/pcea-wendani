@@ -55,7 +55,21 @@ class PaymentService:
             # Student has invoices → use existing invoice allocation logic
             return InvoiceService.apply_payment_to_student_arrears(payment)
         else:
-            # Student has NO invoices → handle outstanding_balance directly
+            # Student has NO ACTIVE invoices → handle outstanding_balance directly
+            # 
+            # SAFETY CHECK: Warn if student has INACTIVE invoices
+            # This catches the case where invoices were accidentally soft-deleted
+            inactive_invoices = student.invoices.filter(is_active=False).exclude(
+                status=InvoiceStatus.CANCELLED
+            )
+            if inactive_invoices.exists():
+                logger.error(
+                    f"PAYMENT ALLOCATION WARNING: Student {student.admission_number} has "
+                    f"{inactive_invoices.count()} INACTIVE invoice(s) but payment "
+                    f"{payment.payment_reference} ({payment.amount}) is being applied to "
+                    f"outstanding_balance/credit instead. Check if invoices should be restored!"
+                )
+            
             remaining = payment.amount
             
             # FIX: Track how much was allocated to outstanding_balance vs credit_balance

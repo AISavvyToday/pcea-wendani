@@ -506,4 +506,28 @@ class InvoiceService:
                 f"Unapplied credit={remaining}"
             )
 
+        # -----------------------------------------------------
+        # SAFETY CHECK: Warn if payment went fully to credit but
+        # student has INACTIVE invoices that might need payment
+        # -----------------------------------------------------
+        total_allocated = payment.amount - remaining
+        if total_allocated == Decimal("0.00") and remaining > 0:
+            # Check for inactive invoices with positive balances
+            inactive_invoices = (
+                Invoice.objects.filter(
+                    student=student,
+                    is_active=False,  # Soft-deleted invoices
+                )
+                .exclude(status=InvoiceStatus.CANCELLED)
+            )
+            if inactive_invoices.exists():
+                inactive_count = inactive_invoices.count()
+                logger.error(
+                    f"ALLOCATION WARNING: Payment {payment.payment_reference} for "
+                    f"{student.admission_number} allocated NOTHING to invoices! "
+                    f"Full amount ({payment.amount}) went to credit_balance. "
+                    f"Student has {inactive_count} INACTIVE invoice(s) that may need "
+                    f"to be restored. Check if invoices were accidentally soft-deleted."
+                )
+
         return remaining
