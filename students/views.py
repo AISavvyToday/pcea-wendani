@@ -379,6 +379,31 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
                         
                         messages.info(self.request, ' '.join(msg_parts))
             
+            # Handle invoice restoration when student is reactivated
+            # This prevents the bug where invoices remain inactive after status is changed back
+            if original_status in ['graduated', 'transferred', 'suspended', 'expelled', 'withdrawn', 'inactive'] and new_status == 'active':
+                student = form.instance
+                current_term = Term.objects.filter(is_current=True).first()
+                
+                if current_term:
+                    # Restore soft-deleted invoices for current term
+                    inactive_invoices = Invoice.objects.filter(
+                        student=student,
+                        term=current_term,
+                        is_active=False
+                    ).exclude(status=InvoiceStatus.CANCELLED)
+                    
+                    restored_count = inactive_invoices.update(is_active=True)
+                    
+                    if restored_count > 0:
+                        # Recompute student balances after restoring invoices
+                        student.recompute_outstanding_balance()
+                        messages.info(
+                            self.request,
+                            f'{restored_count} invoice(s) restored for current term. '
+                            f'Outstanding balance recalculated.'
+                        )
+            
             # Add a note about who changed the status
             current_reason = form.instance.status_reason or ''
             change_note = f"Status changed from {original_status} to {new_status} by {self.request.user.get_full_name()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}"

@@ -73,12 +73,13 @@ class InvoiceItemInline(admin.TabularInline):
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = (
         'invoice_number', 'student', 'term', 'subtotal_display',
-        'discount_display', 'total_display', 'paid_display', 'balance_display', 'status'
+        'discount_display', 'total_display', 'paid_display', 'balance_display', 'status', 'is_active'
     )
-    list_filter = ('status', 'term__academic_year', 'term', 'issue_date')
+    list_filter = ('status', 'term__academic_year', 'term', 'issue_date', 'is_active')
     search_fields = ('invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name')
     autocomplete_fields = ['student', 'term']
-    readonly_fields = ('invoice_number', 'balance', 'generated_by', 'created_at', 'updated_at')
+    # is_active is read-only to prevent accidental deactivation which can cause payment allocation issues
+    readonly_fields = ('invoice_number', 'balance', 'generated_by', 'created_at', 'updated_at', 'is_active')
     date_hierarchy = 'issue_date'
     inlines = [InvoiceItemInline]
     
