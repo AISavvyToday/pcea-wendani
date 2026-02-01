@@ -8,7 +8,7 @@ from .models import User, AuditLog
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'full_name', 'role', 'is_active', 'is_verified', 'is_locked_display', 'date_joined')
+    list_display = ('email', 'full_name', 'role', 'organization', 'is_active', 'is_verified', 'is_locked_display', 'date_joined')
     list_filter = ('role', 'is_staff', 'is_active', 'is_verified', 'date_joined')
     search_fields = ('email', 'first_name', 'last_name', 'phone_number')
     ordering = ('-date_joined',)
@@ -17,6 +17,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'phone_number', 'profile_photo')}),
+        ('Organization', {'fields': ('organization',)}),
         ('Role & Permissions', {'fields': ('role', 'is_active', 'is_staff', 'is_superuser', 'is_verified', 'groups', 'user_permissions')}),
         ('Security', {'fields': ('failed_login_attempts', 'locked_until', 'must_change_password', 'password_changed_at')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
@@ -25,9 +26,11 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'first_name', 'last_name', 'phone_number', 'role', 'password1', 'password2'),
+            'fields': ('email', 'first_name', 'last_name', 'phone_number', 'role', 'organization', 'password1', 'password2'),
         }),
     )
+    
+    list_filter = ('role', 'is_staff', 'is_active', 'is_verified', 'organization', 'date_joined')
     
     def full_name(self, obj):
         return obj.full_name

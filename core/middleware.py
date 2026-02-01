@@ -21,9 +21,9 @@ class OrganizationMiddleware:
         self.get_response = get_response
     
     def __call__(self, request):
-        # Skip middleware for login/logout/register pages to avoid redirect loops
-        login_paths = ['/auth/login/', '/auth/logout/', '/auth/register/', '/login/', '/logout/', '/register/']
-        if any(request.path.startswith(path) for path in login_paths):
+        # Skip middleware for login/logout/register pages and Django admin to avoid redirect loops
+        skip_paths = ['/auth/login/', '/auth/logout/', '/auth/register/', '/login/', '/logout/', '/register/', '/admin/']
+        if any(request.path.startswith(path) for path in skip_paths):
             request.organization = None
             response = self.get_response(request)
             return response

@@ -398,9 +398,23 @@ def dashboard_admin(request):
     Finance stats are pulled from DB for current term + academic year.
     """
     organization = getattr(request, 'organization', None)
+    # Allow superusers/staff to access even without organization (for setup/migration)
     if not organization:
-        messages.error(request, 'Your account is not assigned to an organization.')
-        return redirect('portal:login')
+        if request.user.is_superuser or request.user.is_staff:
+            messages.warning(request, 'Your account is not assigned to an organization. Please assign one in Django admin.')
+            # Show empty dashboard or redirect to admin
+            from core.models import Organization
+            orgs = Organization.objects.all()
+            if orgs.exists():
+                messages.info(request, f'Available organizations: {", ".join([o.name for o in orgs])}')
+            return render(request, "dashboard/admin.html", {
+                "current_term": None,
+                "current_academic_year": None,
+                "stat_cards": [],
+            })
+        else:
+            messages.error(request, 'Your account is not assigned to an organization.')
+            return redirect('portal:login')
     
     kpis = _finance_kpis(organization=organization)
 
