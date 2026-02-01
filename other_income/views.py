@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
 
-from core.mixins import RoleRequiredMixin
+from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import UserRole
 from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
 from .forms import OtherIncomeInvoiceForm, OtherIncomeItemFormSet, OtherIncomePaymentForm
@@ -15,7 +15,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 
 
-class OtherIncomeListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
+class OtherIncomeListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
     template_name = 'other_income/invoice_list.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -51,7 +51,7 @@ class OtherIncomeListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
         return context
 
 
-class OtherIncomeCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class OtherIncomeCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     model = OtherIncomeInvoice
     form_class = OtherIncomeInvoiceForm
     template_name = 'other_income/invoice_form.html'
@@ -91,7 +91,7 @@ class OtherIncomeCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
             return self.render_to_response(self.get_context_data(form=form))
 
 
-class OtherIncomeDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class OtherIncomeDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = OtherIncomeInvoice
     template_name = 'other_income/invoice_detail.html'
     context_object_name = 'invoice'
@@ -105,7 +105,7 @@ class OtherIncomeDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
-class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = OtherIncomeInvoice
     template_name = 'other_income/invoice_print.html'
     context_object_name = 'invoice'
@@ -141,7 +141,7 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailV
         return context
 
 
-class OtherIncomeRecordPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class OtherIncomeRecordPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     template_name = 'other_income/payment_record.html'
     form_class = OtherIncomePaymentForm
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
@@ -181,7 +181,7 @@ class OtherIncomeRecordPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormVi
             return self.render_to_response(self.get_context_data(form=form))
 
 
-class OtherIncomePaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """Print-friendly receipt for other income payments."""
     model = OtherIncomePayment
     template_name = 'other_income/payment_receipt.html'

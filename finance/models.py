@@ -12,6 +12,16 @@ class FeeStructure(BaseModel):
     Fee structure definition per grade level and term.
     Defines what fees apply to which students.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='fee_structures',
+        null=True,
+        blank=True,
+        help_text="Organization this fee structure belongs to"
+    )
+    
     name = models.CharField(max_length=100)  # e.g., "Grade 1-3 Term 1 Fees 2025"
     academic_year = models.ForeignKey(
         'academics.AcademicYear', on_delete=models.CASCADE, related_name='fee_structures'
@@ -68,6 +78,16 @@ class Discount(BaseModel):
     Discount/Scholarship definitions.
     Can be percentage or fixed amount.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='discounts',
+        null=True,
+        blank=True,
+        help_text="Organization this discount belongs to"
+    )
+    
     name = models.CharField(max_length=100)  # e.g., "Sibling Discount", "Staff Child"
     
     DISCOUNT_TYPES = [
@@ -152,6 +172,15 @@ class Invoice(BaseModel):
     """
     Fee invoice for a student for a specific term.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='invoices',
+        null=True,
+        blank=True,
+        help_text="Organization this invoice belongs to"
+    )
 
     invoice_number = models.CharField(max_length=20, unique=True)
 

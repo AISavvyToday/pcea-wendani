@@ -19,7 +19,6 @@ Unmatched bank transactions:
 
 import logging
 from decimal import Decimal
-from decimal import Decimal
 from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce
 from django.contrib import messages
@@ -80,10 +79,12 @@ def _get_current_term():
     return term
 
 
-def _get_active_students_qs():
+def _get_active_students_qs(organization=None):
     qs = Student.objects.all()
     if _model_has_field(Student, "is_active"):
         qs = qs.filter(is_active=True)
+    if organization:
+        qs = qs.filter(organization=organization)
     return qs
 
 
@@ -105,8 +106,8 @@ def _get_staff_count():
         return qs.count()
 
 
-def _invoice_base_qs():
-    return (
+def _invoice_base_qs(organization=None):
+    qs = (
         Invoice.objects.filter(
             is_active=True, 
             student__status='active'
@@ -114,6 +115,9 @@ def _invoice_base_qs():
         .exclude(status=InvoiceStatus.CANCELLED)
         .select_related("student", "term", "term__academic_year")
     )
+    if organization:
+        qs = qs.filter(organization=organization)
+    return qs
 
 
 def _completed_payments_base_qs():
@@ -166,12 +170,12 @@ def _collected_for_invoices(invoice_qs):
     return Decimal(str(collected))
 
 
-def _finance_kpis(term=None):
+def _finance_kpis(term=None, organization=None):
 
     term = term or _get_current_term()
     academic_year = getattr(term, "academic_year", None) if term else None
 
-    base = _invoice_base_qs()
+    base = _invoice_base_qs(organization=organization)
     term_invoices = base.filter(term=term) if term else base.none()
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
 
@@ -202,6 +206,8 @@ def _finance_kpis(term=None):
         # This ensures dashboard Balance B/F and Prepayment stats remain constant
         # regardless of invoice generation, payment, or invoice deletion
         active_students = Student.objects.filter(status='active')
+        if organization:
+            active_students = active_students.filter(organization=organization)
         
         # Balance B/F: Sum of balance_bf_original from all active students
         # balance_bf_original is a positive value representing debt from previous term
@@ -355,7 +361,7 @@ def role_redirect(request):
     dashboard_map = {
         UserRole.SUPER_ADMIN: "portal:dashboard_admin",
         UserRole.SCHOOL_ADMIN: "portal:dashboard_admin",
-        UserRole.ACCOUNTANT: "portal:dashboard_bursar",
+        UserRole.ACCOUNTANT: "portal:dashboard_admin",  # Accountants use admin dashboard
         UserRole.TEACHER: "portal:dashboard_teacher",
         UserRole.PARENT: "portal:dashboard_parent",
         UserRole.STUDENT: "portal:dashboard_parent",
@@ -391,7 +397,12 @@ def dashboard_admin(request):
     Administrator dashboard with full system overview.
     Finance stats are pulled from DB for current term + academic year.
     """
-    kpis = _finance_kpis()
+    organization = getattr(request, 'organization', None)
+    if not organization:
+        messages.error(request, 'Your account is not assigned to an organization.')
+        return redirect('portal:login')
+    
+    kpis = _finance_kpis(organization=organization)
 
     term = kpis["term"]
     academic_year = kpis["academic_year"]
@@ -399,7 +410,7 @@ def dashboard_admin(request):
     year_stats = kpis["year_stats"]
 
     # Get active students (status='active')
-    active_students_qs = Student.objects.filter(status='active')
+    active_students_qs = Student.objects.filter(status='active', organization=organization)
     total_students = active_students_qs.count()
     
     # Calculate new students (registered within current term)
@@ -411,10 +422,10 @@ def dashboard_admin(request):
         ).count()
     
     # Calculate graduated students (status='graduated')
-    graduated_students = Student.objects.filter(status='graduated').count()
+    graduated_students = Student.objects.filter(status='graduated', organization=organization).count()
     
     # Calculate transferred students (status='transferred')
-    transferred_students = Student.objects.filter(status='transferred').count()
+    transferred_students = Student.objects.filter(status='transferred', organization=organization).count()
     
     staff_count = _get_staff_count()
 
@@ -537,179 +548,235 @@ def dashboard_admin(request):
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT])
 def dashboard_bursar(request):
     """
-    Bursar/Accountant dashboard focused on finance.
-    Uses DB data (invoices/payments/bank txns).
+    DEPRECATED: Bursar dashboard - redirects to admin dashboard.
+    Accountants should use admin dashboard.
     """
-    kpis = _finance_kpis()
-    term = kpis["term"]
-    term_stats = kpis["term_stats"]
-
-    billed = Decimal(str(term_stats["billed"] or 0))
-    collected = Decimal(str(term_stats["collected"] or 0))
-    outstanding = Decimal(str(term_stats["outstanding"] or 0))
-    students_outstanding = term_stats["students_outstanding"] or 0
-
-    collection_rate = (collected / billed * 100) if billed > 0 else Decimal("0")
-
-    invoices_url = _safe_reverse("finance:invoice_list", default=_safe_reverse("finance:dashboard"))
-    payments_url = _safe_reverse("finance:payment_list", default=_safe_reverse("finance:dashboard"))
-    bank_url = _safe_reverse("finance:bank_transaction_list", default=_safe_reverse("finance:dashboard"))
-    record_payment_url = _safe_reverse("finance:payment_record", default=payments_url)
-    outstanding_url = _safe_reverse("finance:outstanding_report", default=invoices_url)
-
-    term_qs = f"?term={term.pk}" if term else ""
-    invoices_term_url = f"{invoices_url}"
-    outstanding_term_url = f"{invoices_url}"
-
-    # Top outstanding balances (current term) - based on Invoice.balance
-    top_invoices = _invoice_base_qs()
-    if term:
-        top_invoices = top_invoices.filter(term=term)
-    top_invoices = top_invoices.filter(balance__gt=0).order_by("-balance")[:10]
-
-    def _priority(amount):
-        amount = Decimal(str(amount or 0))
-        if amount >= 50000:
-            return ("High", "danger")
-        if amount >= 20000:
-            return ("Medium", "warning")
-        return ("Low", "info")
-
-    balances = []
-    for inv in top_invoices:
-        student = inv.student
-        pr_label, pr_class = _priority(inv.balance)
-
-        student_class = (
-            getattr(student, "classroom", None)
-            or getattr(student, "current_class", None)
-            or getattr(student, "grade_level", None)
-            or getattr(student, "grade", None)
-            or ""
-        )
-        guardian = (
-            getattr(student, "guardian_name", None)
-            or getattr(student, "parent_name", None)
-            or getattr(student, "contacts", None)
-            or "-"
-        )
-
-        balances.append(
-            {
-                "student": getattr(student, "full_name", str(student)),
-                "class": str(student_class),
-                "guardian": str(guardian),
-                "amount": _fmt_kes(inv.balance),
-                "priority": pr_label,
-                "priority_class": pr_class,
-                "invoice_number": getattr(inv, "invoice_number", ""),
-                "invoice_url": _safe_reverse("finance:invoice_detail", default="#", kwargs={"pk": inv.pk}),
-            }
-        )
-
-    # Recent payments (latest)
-    pay_qs = _completed_payments_base_qs()
-    recent_payments = pay_qs.select_related("student", "invoice").order_by("-payment_date")[:10]
-
-    context = {
-        "current_term": term,
-        "finance_widgets": [
-            {
-                "label": "Total Billed",
-                "value": _fmt_kes(billed),
-                "accent": "primary",
-                "helper": "Current term invoices",
-                "url": invoices_term_url,
-            },
-            {
-                "label": "Collected",
-                "value": _fmt_kes(collected),
-                "accent": "success",
-                "helper": f"{collection_rate:.1f}% collection rate",
-                "url": payments_url,
-            },
-            {
-                "label": "Outstanding",
-                "value": _fmt_kes(outstanding),
-                "accent": "warning",
-                "helper": f"{students_outstanding} student(s)",
-                "url": outstanding_term_url,
-            },
-            {
-                "label": "Unmatched Bank Txns",
-                "value": f"{kpis['unmatched_bank_transactions']:,}",
-                "accent": "danger",
-                "helper": "Not linked to any payment/student",
-                "url": bank_url,
-            },
-            {
-                "label": "Record Payment",
-                "value": "",
-                "accent": "info",
-                "helper": "Manual payment entry",
-                "url": record_payment_url,
-            },
-        ],
-        "balances": balances,
-        "recent_payments": recent_payments,
-        # keep sample fee events (allowed)
-        "fee_events": [
-            {"title": "Term fees deadline", "date": "Dec 15, 2025"},
-            {"title": "Transport fee review", "date": "Dec 20, 2025"},
-            {"title": "Bursary applications close", "date": "Jan 5, 2026"},
-        ],
-    }
-
-    return render(request, "dashboard/bursar.html", context)
+    return redirect('portal:dashboard_admin')
 
 
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.TEACHER])
 def dashboard_teacher(request):
-    # sample
+    """
+    Teacher dashboard with real data.
+    Shows assigned classes, pending grade entries, today's schedule, attendance to take.
+    """
+    organization = getattr(request, 'organization', None)
+    if not organization:
+        messages.error(request, 'Your account is not assigned to an organization.')
+        return redirect('portal:login')
+    
+    from academics.models import Staff, ClassSubject, Timetable, Exam, Grade, Attendance
+    from students.models import Student
+    from academics.models import Subject
+    from django.utils import timezone
+    from datetime import date
+    
+    try:
+        staff = Staff.objects.get(user=request.user, organization=organization)
+    except Staff.DoesNotExist:
+        messages.error(request, "You don't have a staff profile.")
+        return render(request, 'portal/dashboard_teacher.html', {
+            'title': 'Teacher Dashboard',
+            'staff': None,
+        })
+    
+    # Get assigned classes
+    from academics.models import Class as ClassModel
+    assigned_classes = ClassModel.objects.filter(
+        class_subjects__teacher=staff,
+        organization=organization
+    ).distinct()
+    
+    # Get today's schedule
+    today = date.today()
+    day_of_week = today.weekday()  # 0=Monday, 4=Friday
+    current_term = _get_current_term(organization=organization)
+    
+    today_schedule = []
+    if current_term:
+        today_schedule = Timetable.objects.filter(
+            teacher=staff,
+            term=current_term,
+            day_of_week=day_of_week,
+            organization=organization
+        ).select_related('class_obj', 'subject').order_by('start_time')
+    
+    # Get pending grade entries (exams with no grades for assigned classes)
+    pending_grade_entries = []
+    if current_term:
+        exams = Exam.objects.filter(
+            term=current_term,
+            classes__in=assigned_classes,
+            organization=organization
+        ).distinct()
+        
+        for exam in exams:
+            for class_obj in assigned_classes:
+                if exam.classes.filter(id=class_obj.id).exists():
+                    students = Student.objects.filter(
+                        current_class=class_obj,
+                        status='active',
+                        organization=organization
+                    )
+                    for student in students:
+                        # Check if any grades missing for this exam
+                        subjects = Subject.objects.filter(
+                            class_subjects__class_obj=class_obj,
+                            class_subjects__teacher=staff,
+                            organization=organization
+                        )
+                        for subject in subjects:
+                            if not Grade.objects.filter(
+                                student=student,
+                                exam=exam,
+                                subject=subject,
+                                organization=organization
+                            ).exists():
+                                pending_grade_entries.append({
+                                    'exam': exam,
+                                    'class': class_obj,
+                                    'student': student,
+                                    'subject': subject,
+                                })
+                                break
+    
+    # Get attendance to take (today's date, assigned classes)
+    attendance_to_take = []
+    for class_obj in assigned_classes:
+        students_count = Student.objects.filter(
+            current_class=class_obj,
+            status='active',
+            organization=organization
+        ).count()
+        attendance_taken = Attendance.objects.filter(
+            class_obj=class_obj,
+            date=today,
+            organization=organization
+        ).count()
+        if attendance_taken < students_count:
+            attendance_to_take.append({
+                'class': class_obj,
+                'students_count': students_count,
+                'attendance_taken': attendance_taken,
+            })
+    
     context = {
-        "teaching_cards": [
-            {"label": "My Classes", "value": "4", "icon": "mdi-google-classroom", "trend": "Active", "trend_class": "success"},
-            {"label": "Total Students", "value": "156", "icon": "mdi-account-group", "trend": "Across all classes", "trend_class": "muted"},
-            {"label": "Pending Marks", "value": "2", "icon": "mdi-file-document-edit", "trend": "Assessments", "trend_class": "warning"},
-        ],
-        "schedule": [
-            {"time": "8:00 - 8:40", "class_name": "Grade 8A", "room": "Room 12", "topic": "Mathematics"},
-            {"time": "8:45 - 9:25", "class_name": "Grade 7B", "room": "Room 8", "topic": "Mathematics"},
-            {"time": "10:00 - 10:40", "class_name": "Grade 9", "room": "Lab 2", "topic": "Science"},
-            {"time": "11:00 - 11:40", "class_name": "Grade 6A", "room": "Room 5", "topic": "Mathematics"},
-        ],
+        'title': 'Teacher Dashboard',
+        'staff': staff,
+        'assigned_classes': assigned_classes,
+        'today_schedule': today_schedule,
+        'pending_grade_entries': pending_grade_entries[:10],  # Limit to 10
+        'attendance_to_take': attendance_to_take,
+        'current_term': current_term,
     }
-    return render(request, "dashboard/teacher.html", context)
+    return render(request, 'portal/dashboard_teacher.html', context)
 
 
 @login_required
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.PARENT, UserRole.STUDENT])
 def dashboard_parent(request):
-    # sample
+    """
+    Parent dashboard with real data.
+    Shows children list, fee balances, recent announcements, attendance summary, grades.
+    """
+    organization = getattr(request, 'organization', None)
+    if not organization:
+        messages.error(request, 'Your account is not assigned to an organization.')
+        return redirect('portal:login')
+    
+    from students.models import Parent, Student, StudentParent
+    from finance.models import Invoice
+    from communications.models import Announcement
+    from academics.models import Attendance, Grade, Exam, ReportCard
+    from django.db.models import Sum, Q
+    from django.utils import timezone
+    from datetime import timedelta
+    from core.models import InvoiceStatus
+    
+    try:
+        parent = Parent.objects.get(user=request.user, organization=organization)
+    except Parent.DoesNotExist:
+        messages.error(request, "You don't have a parent profile.")
+        return render(request, 'portal/dashboard_parent.html', {
+            'title': 'Parent Dashboard',
+            'parent': None,
+        })
+    
+    # Get children
+    children = Student.objects.filter(
+        student_parents__parent=parent,
+        student_parents__is_active=True,
+        organization=organization
+    ).select_related('current_class').distinct()
+    
+    # Get fee balances for each child
+    children_data = []
+    current_term = _get_current_term(organization=organization)
+    
+    for child in children:
+        # Get outstanding balance
+        outstanding = Decimal('0.00')
+        if current_term:
+            invoices = Invoice.objects.filter(
+                student=child,
+                term=current_term,
+                organization=organization,
+                is_active=True
+            ).exclude(status=InvoiceStatus.CANCELLED)
+            outstanding = invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+        
+        # Get recent attendance (last 7 days)
+        recent_attendance = Attendance.objects.filter(
+            student=child,
+            date__gte=timezone.now().date() - timedelta(days=7),
+            organization=organization
+        ).order_by('-date')[:7]
+        
+        # Get recent grades
+        recent_grades = []
+        if current_term:
+            exams = Exam.objects.filter(
+                term=current_term,
+                organization=organization,
+                is_published=True
+            )
+            recent_grades = Grade.objects.filter(
+                student=child,
+                exam__in=exams,
+                organization=organization
+            ).select_related('subject', 'exam').order_by('-created_at')[:5]
+        
+        children_data.append({
+            'student': child,
+            'outstanding_balance': outstanding,
+            'recent_attendance': recent_attendance,
+            'recent_grades': recent_grades,
+        })
+    
+    # Get recent announcements
+    recent_announcements = Announcement.objects.filter(
+        organization=organization,
+        is_sent=True,
+        target_audience__in=['all', 'parents']
+    ).order_by('-sent_at')[:5]
+    
+    # Get published report cards
+    published_report_cards = ReportCard.objects.filter(
+        student__in=children,
+        is_published=True,
+        organization=organization
+    ).select_related('student', 'term').order_by('-published_at')[:5]
+    
     context = {
-        "children": [
-            {
-                "name": "James Mwangi",
-                "classroom": "Grade 8A",
-                "status": "Active",
-                "badge_class": "success",
-                "attendance": "94%",
-                "average": "B+",
-                "next_event": "End of Term Exams - Dec 10",
-            },
-            {
-                "name": "Grace Mwangi",
-                "classroom": "Grade 5B",
-                "status": "Active",
-                "badge_class": "success",
-                "attendance": "98%",
-                "average": "A-",
-                "next_event": "Sports Day - Dec 8",
-            },
-        ],
+        'title': 'Parent Dashboard',
+        'parent': parent,
+        'children_data': children_data,
+        'recent_announcements': recent_announcements,
+        'published_report_cards': published_report_cards,
+        'current_term': current_term,
     }
-    return render(request, "dashboard/parent.html", context)
+    return render(request, 'portal/dashboard_parent.html', context)
 
 
 # =============================================================================
@@ -736,10 +803,15 @@ def finance_overview(request):
     Finance section overview.
     Uses real DB counts for invoice/payment/bank queues.
     """
+    organization = getattr(request, 'organization', None)
+    if not organization:
+        messages.error(request, 'Your account is not assigned to an organization.')
+        return redirect('portal:login')
+    
     term = _get_current_term()
-    students_count = _get_active_students_qs().count()
+    students_count = _get_active_students_qs(organization=organization).count()
 
-    invoices_qs = _invoice_base_qs()
+    invoices_qs = _invoice_base_qs(organization=organization)
     if term:
         invoices_qs = invoices_qs.filter(term=term)
 
@@ -841,8 +913,12 @@ def resources_overview(request):
 @role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
 def settings_overview(request):
     # Get all terms for selection
-    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-term")
-    current_term = _get_current_term()
+    organization = getattr(request, 'organization', None)
+    terms = Term.objects.all().select_related("academic_year")
+    if organization:
+        terms = terms.filter(organization=organization)
+    terms = terms.order_by("-academic_year__year", "-term")
+    current_term = _get_current_term(organization=organization)
     
     links = [
         {"title": "School Profile", "description": "Update school information", "url": "#", "cta": "Configure"},
@@ -870,7 +946,12 @@ def _get_quick_stats(user):
     role = user.role
 
     if role == UserRole.ACCOUNTANT:
-        kpis = _finance_kpis()
+        # Note: request is not available in this helper function
+        # This would need to be passed or accessed differently
+        organization = None  # Will be set by middleware
+        kpis = _finance_kpis(organization=organization) if organization else None
+        if not kpis:
+            return []
         term_stats = kpis["term_stats"]
         billed = Decimal(str(term_stats["billed"] or 0))
         collected = Decimal(str(term_stats["collected"] or 0))

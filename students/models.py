@@ -15,6 +15,16 @@ class Parent(BaseModel):
     A parent can have multiple children (students).
     Links to User account for portal access.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='parents',
+        null=True,
+        blank=True,
+        help_text="Organization this parent belongs to"
+    )
+    
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, 
         related_name='parent_profile',
@@ -74,6 +84,16 @@ class Student(BaseModel):
     Student model - core entity of the system.
     Tracks all student information from admission to graduation.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='students',
+        null=True,
+        blank=True,
+        help_text="Organization this student belongs to"
+    )
+    
     # Link to user account (for student portal access, optional)
     user = models.OneToOneField(
         User, on_delete=models.SET_NULL,

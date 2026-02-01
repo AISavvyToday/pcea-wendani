@@ -7,6 +7,16 @@ from core.models import BaseModel, TermChoices
 
 class TransportRoute(BaseModel):
     """Transport route with route-specific fees per academic year/term."""
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='transport_routes',
+        null=True,
+        blank=True,
+        help_text="Organization this transport route belongs to"
+    )
+    
     name = models.CharField(max_length=100, default="Route")
     description = models.TextField(blank=True)
     pickup_points = models.TextField(blank=True, help_text="List of pickup points, one per line")
@@ -28,6 +38,16 @@ class TransportFee(BaseModel):
     - `half_amount` is optional and stores explicitly the half-trip amount if different.
     If `half_amount` is empty, half-trip will be computed as half of `amount`.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='transport_fees',
+        null=True,
+        blank=True,
+        help_text="Organization this transport fee belongs to"
+    )
+    
     route = models.ForeignKey(TransportRoute, on_delete=models.CASCADE, related_name='fees')
     academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.CASCADE, related_name='transport_fees')
     term = models.CharField(max_length=10, choices=TermChoices.choices)

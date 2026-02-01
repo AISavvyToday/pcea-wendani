@@ -36,6 +36,78 @@ class BaseModel(TimeStampedModel):
         self.save(update_fields=['is_active', 'updated_at'])
 
 
+# ============== ORGANIZATION MODEL ==============
+
+class Organization(BaseModel):
+    """
+    Multi-tenant organization model.
+    Each school/organization is isolated by organization FK on all models.
+    """
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, unique=True, help_text="Unique organization code")
+    
+    # Contact information
+    address = models.TextField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    logo_url = models.URLField(blank=True, help_text="URL to organization logo")
+    
+    # SMS Credits fields (for SMS integration)
+    sms_account_number = models.CharField(
+        max_length=50, 
+        unique=True, 
+        blank=True, 
+        null=True,
+        help_text="Unique SMS account number for KCB payments (e.g., SMS001)"
+    )
+    sms_balance = models.IntegerField(
+        default=0,
+        help_text="Current SMS credits balance"
+    )
+    sms_price_per_unit = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1.00,
+        help_text="Price per SMS credit in KSH"
+    )
+    imarabiz_shortcode = models.CharField(
+        max_length=50,
+        default='SWIFT_RE_TECH',
+        blank=True,
+        help_text="ImaraBiz SMS shortcode for this organization"
+    )
+    
+    class Meta:
+        db_table = 'organizations'
+        ordering = ['name']
+        verbose_name = 'Organization'
+        verbose_name_plural = 'Organizations'
+    
+    def __str__(self):
+        return self.name
+    
+    def add_sms_credits(self, count):
+        """Add SMS credits to organization balance."""
+        self.sms_balance += count
+        self.save(update_fields=['sms_balance', 'updated_at'])
+        return True
+    
+    def deduct_sms_credits(self, count):
+        """Deduct SMS credits from organization balance."""
+        if self.sms_balance < count:
+            return False
+        self.sms_balance -= count
+        self.save(update_fields=['sms_balance', 'updated_at'])
+        return True
+    
+    @classmethod
+    def get_current_organization(cls, user):
+        """Get organization for current user."""
+        if hasattr(user, 'organization') and user.organization:
+            return user.organization
+        return None
+
+
 # ============== CONSTANTS ==============
 
 class UserRole(models.TextChoices):

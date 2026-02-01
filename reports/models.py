@@ -27,6 +27,16 @@ class ReportRequest(models.Model):
     """
     Stores parameters for generated reports (helpful for audit/tracking).
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='report_requests',
+        null=True,
+        blank=True,
+        help_text="Organization this report request belongs to"
+    )
+    
     report_type = models.CharField(max_length=50, choices=REPORT_TYPE_CHOICES)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)

@@ -12,6 +12,16 @@ class OtherIncomeInvoice(BaseModel):
     """
     Invoice for non-student income (bus hire, ground hire, events, etc.)
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='other_income_invoices',
+        null=True,
+        blank=True,
+        help_text="Organization this other income invoice belongs to"
+    )
+    
     invoice_number = models.CharField(max_length=30, unique=True, blank=True)
     client_name = models.CharField(max_length=200)
     client_contact = models.CharField(max_length=100, blank=True)

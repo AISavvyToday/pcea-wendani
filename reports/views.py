@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
+from core.mixins import OrganizationFilterMixin
 from django.shortcuts import render
 from django.db.models import Sum, F, Value, Case, When, CharField, Q
 from django.db.models.functions import TruncDate, Coalesce
@@ -22,7 +23,7 @@ from transport.models import TransportFee
 from students.models import Student
 
 
-class InvoiceReportView(LoginRequiredMixin, View):
+class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/invoice_report.html'
 
     def get(self, request):
@@ -154,7 +155,7 @@ class InvoiceReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class FeesCollectionReportView(LoginRequiredMixin, View):
+class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/fees_collection_report.html'
 
     def get(self, request):
@@ -315,7 +316,7 @@ class FeesCollectionReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class OutstandingBalancesReportView(LoginRequiredMixin, View):
+class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/outstanding_report.html'
 
     def get(self, request):
@@ -484,7 +485,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class TransportReportView(LoginRequiredMixin, View):
+class TransportReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/transport_report.html'
 
     def get(self, request):
@@ -703,7 +704,7 @@ class TransportReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class TransferredStudentsReportView(LoginRequiredMixin, View):
+class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/transferred_students_report.html'
 
     def get(self, request):
@@ -812,7 +813,7 @@ class TransferredStudentsReportView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class AdmittedStudentsReportView(LoginRequiredMixin, View):
+class AdmittedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
     template_name = 'reports/admitted_students_report.html'
 
     def get(self, request):

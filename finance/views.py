@@ -35,7 +35,7 @@ from django.db.models import Q, Sum, Count
 from django.db import transaction as db_transaction, models
 from django.utils import timezone
 
-from core.mixins import RoleRequiredMixin
+from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import UserRole
 from .models import (
     FeeStructure, FeeItem, Discount, StudentDiscount,
@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 # Dashboard
 # =============================================================================
 
-class FinanceDashboardView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
+class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
     """Finance dashboard with key metrics and quick actions."""
 
     template_name = 'finance/dashboard.html'
@@ -115,7 +115,7 @@ class FinanceDashboardView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
 # Fee Structures
 # =============================================================================
 
-class FeeStructureListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class FeeStructureListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all fee structures."""
 
     model = FeeStructure
@@ -148,7 +148,7 @@ class FeeStructureListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class FeeStructureDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class FeeStructureDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View fee structure details with items."""
 
     model = FeeStructure
@@ -163,7 +163,7 @@ class FeeStructureDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
-class FeeStructureCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class FeeStructureCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     """Create a new fee structure with items."""
 
     model = FeeStructure
@@ -257,7 +257,7 @@ class FeeStructureCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         return reverse('finance:fee_structure_detail', kwargs={'pk': self.object.pk})
 
 
-class FeeStructureUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+class FeeStructureUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """Edit an existing fee structure."""
 
     model = FeeStructure
@@ -299,7 +299,7 @@ class FeeStructureUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
     def get_success_url(self):
         return reverse('finance:fee_structure_detail', kwargs={'pk': self.object.pk})
 
-class FeeStructureDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+class FeeStructureDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
     """Delete a fee structure."""
 
     model = FeeStructure
@@ -332,7 +332,7 @@ class FeeStructureDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 # Discounts
 # =============================================================================
 
-class DiscountListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class DiscountListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all discounts."""
 
     model = Discount
@@ -345,7 +345,7 @@ class DiscountListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return Discount.objects.filter(is_active=True).order_by('name')
 
 
-class DiscountCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class DiscountCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     """Create a new discount."""
 
     model = Discount
@@ -365,7 +365,7 @@ class DiscountCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class DiscountUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+class DiscountUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """Edit an existing discount."""
 
     model = Discount
@@ -386,7 +386,7 @@ class DiscountUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class DiscountDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+class DiscountDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
     """Delete a discount."""
 
     model = Discount
@@ -406,7 +406,7 @@ class DiscountDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 # Student Discounts
 # =============================================================================
 
-class StudentDiscountListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class StudentDiscountListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List student discount assignments."""
 
     model = StudentDiscount
@@ -437,7 +437,7 @@ class StudentDiscountListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class StudentDiscountCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class StudentDiscountCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     """Assign a discount to a student."""
 
     model = StudentDiscount
@@ -465,7 +465,7 @@ class StudentDiscountCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateVie
         return super().form_valid(form)
 
 
-class StudentDiscountApproveView(LoginRequiredMixin, RoleRequiredMixin, View):
+class StudentDiscountApproveView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Approve a student discount."""
 
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
@@ -489,7 +489,7 @@ class StudentDiscountApproveView(LoginRequiredMixin, RoleRequiredMixin, View):
 # Invoices
 # =============================================================================
 
-class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all invoices with filters."""
 
     model = Invoice
@@ -559,7 +559,7 @@ class InvoiceListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
 
 
 
-class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class InvoiceDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View invoice details with comprehensive allocation breakdown."""
 
     model = Invoice
@@ -675,7 +675,7 @@ class InvoiceDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
 
 
-class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class InvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Bulk generate invoices (NO OVERWRITE)."""
 
     template_name = 'finance/invoice_generate.html'
@@ -827,7 +827,7 @@ class InvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return self.render_to_response(context)
 
 
-class SingleStudentInvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, View):
+class SingleStudentInvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """
     Generate invoice for a single student.
     GET: Returns available terms (AJAX)
@@ -909,7 +909,7 @@ class SingleStudentInvoiceGenerateView(LoginRequiredMixin, RoleRequiredMixin, Vi
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
-class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class InvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = Invoice
     template_name = 'finance/invoice_print.html'
     context_object_name = 'invoice'
@@ -1016,7 +1016,7 @@ class InvoicePrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
-class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
+class InvoiceCancelView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Cancel an invoice."""
 
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
@@ -1038,7 +1038,7 @@ class InvoiceCancelView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('finance:invoice_list')
 
 
-class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """
     Safely delete an invoice.
     Only works if amount_paid == 0.
@@ -1072,7 +1072,7 @@ class InvoiceDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
 # Payments
 # =============================================================================
 
-class PaymentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all payments."""
 
     model = Payment
@@ -1131,7 +1131,7 @@ class PaymentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class PaymentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View payment details."""
 
     model = Payment
@@ -1153,7 +1153,7 @@ class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
-class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class PaymentRecordView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Manually record a payment.
 
     NOTE: PaymentRecordForm is a forms.Form, not a ModelForm, so do NOT call form.save().
@@ -1210,7 +1210,7 @@ class PaymentRecordView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect('finance:payment_detail', pk=payment.pk)
 
 
-class StudentInvoiceStatusAPIView(LoginRequiredMixin, RoleRequiredMixin, View):
+class StudentInvoiceStatusAPIView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """
     API endpoint to check if a student has active invoices.
     Returns JSON with invoice status to inform user before recording payment.
@@ -1248,7 +1248,7 @@ class StudentInvoiceStatusAPIView(LoginRequiredMixin, RoleRequiredMixin, View):
         })
 
 
-class PaymentDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """
     Safely delete a payment.
     Reverses all allocations and restores balances.
@@ -1288,7 +1288,7 @@ class PaymentDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         else:
             return redirect('finance:payment_list')
 
-class FamilyPaymentView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Record a payment from a parent with multiple children.
     
     Allows distributing a single payment across multiple students' invoices.
@@ -1904,7 +1904,7 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 # Bank Transaction Matching & Details
 # =============================================================================
 
-class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List unmatched bank transactions."""
 
     model = BankTransaction
@@ -1948,7 +1948,7 @@ class BankTransactionListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class BankTransactionMatchView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Match a bank transaction to a student (invoice selection is optional, but allocation is oldest-first)."""
 
     template_name = 'finance/bank_transaction_match.html'

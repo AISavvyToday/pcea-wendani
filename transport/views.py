@@ -6,13 +6,13 @@ from django.shortcuts import render, get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, View
 from django.db import transaction
-from core.mixins import RoleRequiredMixin
+from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import UserRole
 from .models import TransportRoute, TransportFee
 from .forms import TransportRouteForm, TransportFeeForm
 
 
-class TransportRouteListView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportRouteListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """List all transport routes and fees with modals for CRUD operations"""
     template_name = 'transport/transport_list.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
@@ -51,7 +51,7 @@ class TransportRouteListView(LoginRequiredMixin, RoleRequiredMixin, View):
         })
 
 
-class TransportRouteCreateView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportRouteCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Create a new transport route"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -76,7 +76,7 @@ class TransportRouteCreateView(LoginRequiredMixin, RoleRequiredMixin, View):
         }, status=400)
 
 
-class TransportRouteUpdateView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportRouteUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Update an existing transport route"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -102,7 +102,7 @@ class TransportRouteUpdateView(LoginRequiredMixin, RoleRequiredMixin, View):
         }, status=400)
 
 
-class TransportRouteDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportRouteDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Delete (soft delete) a transport route"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -132,7 +132,7 @@ class TransportRouteDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         })
 
 
-class TransportFeeCreateView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportFeeCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Create a new transport fee"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -161,7 +161,7 @@ class TransportFeeCreateView(LoginRequiredMixin, RoleRequiredMixin, View):
         }, status=400)
 
 
-class TransportFeeUpdateView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportFeeUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Update an existing transport fee"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -191,7 +191,7 @@ class TransportFeeUpdateView(LoginRequiredMixin, RoleRequiredMixin, View):
         }, status=400)
 
 
-class TransportFeeDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportFeeDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Delete (soft delete) a transport fee"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -204,7 +204,7 @@ class TransportFeeDeleteView(LoginRequiredMixin, RoleRequiredMixin, View):
         })
 
 
-class TransportRouteDetailView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportRouteDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Get route details for editing"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
@@ -219,7 +219,7 @@ class TransportRouteDetailView(LoginRequiredMixin, RoleRequiredMixin, View):
         })
 
 
-class TransportFeeDetailView(LoginRequiredMixin, RoleRequiredMixin, View):
+class TransportFeeDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Get fee details for editing"""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 

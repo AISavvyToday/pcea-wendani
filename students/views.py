@@ -16,7 +16,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.views.generic import DeleteView
 from django.contrib import messages
-from core.mixins import RoleRequiredMixin
+from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
 from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
@@ -28,7 +28,7 @@ from finance.models import Invoice
 logger = logging.getLogger(__name__)
 
 
-class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all students with search and filters"""
 
     model = Student
@@ -43,7 +43,8 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
     ]
 
     def get_queryset(self):
-        queryset = Student.objects.select_related('current_class').prefetch_related('parents')
+        queryset = super().get_queryset()  # OrganizationFilterMixin filters by organization
+        queryset = queryset.select_related('current_class').prefetch_related('parents')
 
         # Get filter parameters
         query = self.request.GET.get('query', '')
@@ -98,7 +99,7 @@ class StudentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     """Create a new student"""
 
     model = Student
@@ -288,7 +289,7 @@ class StudentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         return self.render_to_response(context)
 
 
-class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """Edit existing student - preserves financial records on status change"""
 
     model = Student
@@ -424,7 +425,7 @@ class StudentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
 
 
 
-class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class StudentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = Student
     template_name = 'students/student_detail.html'
     context_object_name = 'student'
@@ -502,7 +503,7 @@ class StudentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
         return context
 
-class StudentPromotionView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Bulk promote students to next class"""
 
     template_name = 'students/student_promotion.html'
@@ -564,7 +565,7 @@ class StudentPromotionView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return redirect(self.success_url)
 
 
-class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+class StudentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
     """
     View for soft-deleting a student record.
     Only accessible by Super Admin and School Admin.
@@ -618,7 +619,7 @@ class StudentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
 
 # students/views.py - Add these views at the end
 
-class ParentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all parents/guardians with search"""
 
     model = Parent
@@ -662,7 +663,7 @@ class ParentListView(LoginRequiredMixin, RoleRequiredMixin, ListView):
         return context
 
 
-class ParentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class ParentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """Parent profile with their children"""
 
     model = Parent
@@ -696,7 +697,7 @@ class ParentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         return context
 
 
-class ParentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
+class ParentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
     """Create a new parent/guardian"""
 
     model = Parent
@@ -719,7 +720,7 @@ class ParentCreateView(LoginRequiredMixin, RoleRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class ParentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+class ParentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """Edit existing parent/guardian"""
 
     model = Parent
@@ -742,7 +743,7 @@ class ParentUpdateView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class ParentDeleteView(LoginRequiredMixin, RoleRequiredMixin, DeleteView):
+class ParentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
     """Soft delete a parent/guardian"""
 
     model = Parent
@@ -829,7 +830,7 @@ class ParentChildrenAPIView(LoginRequiredMixin, View):
         })
 
 
-class StudentImportView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class StudentImportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """View for importing students from Excel file."""
     
     template_name = 'students/student_import.html'
@@ -899,7 +900,7 @@ class StudentImportView(LoginRequiredMixin, RoleRequiredMixin, FormView):
             return self.form_invalid(form)
 
 
-class StudentTemplateDownloadView(LoginRequiredMixin, RoleRequiredMixin, View):
+class StudentTemplateDownloadView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
     """Generate and download Excel template for student import."""
     
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]

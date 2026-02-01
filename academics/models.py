@@ -12,6 +12,16 @@ class AcademicYear(BaseModel):
     Academic year configuration.
     e.g., 2024, 2025
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='academic_years',
+        null=True,
+        blank=True,
+        help_text="Organization this academic year belongs to"
+    )
+    
     year = models.PositiveIntegerField(unique=True)  # e.g., 2025
     start_date = models.DateField()
     end_date = models.DateField()
@@ -36,6 +46,16 @@ class Term(BaseModel):
     Academic term within a year.
     Kenya has 3 terms per year.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='terms',
+        null=True,
+        blank=True,
+        help_text="Organization this term belongs to"
+    )
+    
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='terms')
     term = models.CharField(max_length=10, choices=TermChoices.choices)
     start_date = models.DateField()
@@ -65,6 +85,16 @@ class Department(BaseModel):
     Academic departments (for staff organization).
     e.g., Languages, Sciences, Humanities
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='departments',
+        null=True,
+        blank=True,
+        help_text="Organization this department belongs to"
+    )
+    
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)
     head = models.ForeignKey(
@@ -85,6 +115,16 @@ class Staff(BaseModel):
     """
     Staff members (teachers, admin, support staff).
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='staff',
+        null=True,
+        blank=True,
+        help_text="Organization this staff member belongs to"
+    )
+    
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='staff_profile'
     )
@@ -150,6 +190,16 @@ class Class(BaseModel):
     Class/Grade definition.
     e.g., Grade 1A, Grade 1B, Grade 7 Blue
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='classes',
+        null=True,
+        blank=True,
+        help_text="Organization this class belongs to"
+    )
+    
     name = models.CharField(max_length=50)  # e.g., "Grade 1A", "Grade 7 Blue"
     grade_level = models.CharField(max_length=20, choices=GradeLevel.choices)
     stream = models.CharField(max_length=10, choices=StreamChoices.choices, default=StreamChoices.EAST)
@@ -187,6 +237,16 @@ class Subject(BaseModel):
     Subject catalog.
     Aligned with CBC curriculum.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='subjects',
+        null=True,
+        blank=True,
+        help_text="Organization this subject belongs to"
+    )
+    
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=10, unique=True)
 
@@ -244,6 +304,16 @@ class Exam(BaseModel):
     """
     Examination definition.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='exams',
+        null=True,
+        blank=True,
+        help_text="Organization this exam belongs to"
+    )
+    
     name = models.CharField(max_length=100)  # e.g., "Mid-Term Exam", "End of Term Exam"
     term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='exams')
 
@@ -282,6 +352,16 @@ class Grade(BaseModel):
     """
     Student grades/marks for exams.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='grades',
+        null=True,
+        blank=True,
+        help_text="Organization this grade belongs to"
+    )
+    
     student = models.ForeignKey(
         'students.Student', on_delete=models.CASCADE, related_name='grades'
     )
@@ -356,6 +436,16 @@ class Attendance(BaseModel):
     """
     Daily student attendance tracking.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='attendance_records',
+        null=True,
+        blank=True,
+        help_text="Organization this attendance record belongs to"
+    )
+    
     student = models.ForeignKey(
         'students.Student', on_delete=models.CASCADE, related_name='attendance_records'
     )
@@ -387,6 +477,16 @@ class Timetable(BaseModel):
     """
     Class timetable entries.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='timetable_entries',
+        null=True,
+        blank=True,
+        help_text="Organization this timetable entry belongs to"
+    )
+    
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='timetable_entries')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='timetable_entries')
     teacher = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True, related_name='timetable_entries')
@@ -417,3 +517,127 @@ class Timetable(BaseModel):
 
     def __str__(self):
         return f"{self.class_obj.name} - {self.get_day_of_week_display()} - {self.subject.name}"
+
+
+# ============== REPORT CARDS ==============
+
+class ReportCard(BaseModel):
+    """
+    Student report card for a term.
+    """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='report_cards',
+        null=True,
+        blank=True,
+        help_text="Organization this report card belongs to"
+    )
+    
+    student = models.ForeignKey(
+        'students.Student', on_delete=models.CASCADE, related_name='report_cards'
+    )
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='report_cards')
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='report_cards')
+    class_obj = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True, related_name='report_cards')
+    
+    # Overall performance
+    overall_grade = models.CharField(max_length=10, blank=True, help_text="Overall grade (e.g., A, B+, B)")
+    position = models.PositiveIntegerField(null=True, blank=True, help_text="Class position")
+    total_marks = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0.00'))
+    average_marks = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    
+    # Comments
+    teacher_comments = models.TextField(blank=True)
+    principal_comments = models.TextField(blank=True)
+    
+    # Status
+    is_published = models.BooleanField(default=False, help_text="Published report cards are visible to parents")
+    published_at = models.DateTimeField(null=True, blank=True)
+    
+    # Generated by
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='report_cards_generated')
+    
+    class Meta:
+        db_table = 'report_cards'
+        unique_together = ['student', 'term']
+        ordering = ['-academic_year__year', '-term', 'student__last_name']
+    
+    def __str__(self):
+        return f"{self.student.admission_number} - {self.term} - {self.overall_grade}"
+
+
+class ReportCardItem(BaseModel):
+    """
+    Individual subject entry on a report card.
+    """
+    report_card = models.ForeignKey(ReportCard, on_delete=models.CASCADE, related_name='items')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='report_card_items')
+    
+    marks = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    grade = models.CharField(max_length=10, blank=True, help_text="Grade letter (e.g., A, B+, B)")
+    remarks = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'report_card_items'
+        unique_together = ['report_card', 'subject']
+        ordering = ['subject__name']
+    
+    def __str__(self):
+        return f"{self.report_card.student.admission_number} - {self.subject.name} - {self.marks}"
+
+
+# ============== LEAVE MANAGEMENT ==============
+
+class LeaveApplication(BaseModel):
+    """
+    Staff leave application.
+    """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='leave_applications',
+        null=True,
+        blank=True,
+        help_text="Organization this leave application belongs to"
+    )
+    
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name='leave_applications')
+    
+    LEAVE_TYPES = [
+        ('annual', 'Annual Leave'),
+        ('sick', 'Sick Leave'),
+        ('casual', 'Casual Leave'),
+        ('maternity', 'Maternity Leave'),
+        ('paternity', 'Paternity Leave'),
+        ('compassionate', 'Compassionate Leave'),
+        ('study', 'Study Leave'),
+        ('other', 'Other'),
+    ]
+    leave_type = models.CharField(max_length=20, choices=LEAVE_TYPES)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    reason = models.TextField()
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Approval
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='leave_applications_approved'
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'leave_applications'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.staff.staff_number} - {self.get_leave_type_display()} - {self.status}"

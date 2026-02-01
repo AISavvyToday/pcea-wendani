@@ -11,6 +11,16 @@ class Payment(BaseModel):
     """
     Payment record - tracks money received from parents.
     """
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='payments',
+        null=True,
+        blank=True,
+        help_text="Organization this payment belongs to"
+    )
+    
     # Payment reference (auto-generated)
     payment_reference = models.CharField(max_length=30, unique=True)
     

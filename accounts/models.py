@@ -45,6 +45,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Role-based access
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.PARENT)
     
+    # Multi-tenancy: Organization
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='users',
+        null=True,
+        blank=True,
+        help_text="Organization this user belongs to"
+    )
+    
     # Status flags
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)  # Can access admin site

@@ -7,9 +7,15 @@ Production-ready baseline for PWASMS (Purple theme integration).
 
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Add local swift_sms_credits package to Python path
+SMS_CREDITS_PACKAGE_PATH = BASE_DIR / 'swift-reside-tech-sms-credits'
+if str(SMS_CREDITS_PACKAGE_PATH) not in sys.path:
+    sys.path.insert(0, str(SMS_CREDITS_PACKAGE_PATH))
 
 # ------------------------------------------------------------------------------
 # Core security settings
@@ -56,6 +62,9 @@ INSTALLED_APPS = [
     "reports",
     "portal",
     "other_income",
+    
+    # SMS Credits package (local package)
+    "swift_sms_credits",
 
     "rest_framework",
 
@@ -72,6 +81,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.OrganizationMiddleware",  # Multi-tenancy: Set request.organization
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -235,3 +245,29 @@ SCHOOL_BANK_DETAILS = {
 }
 SCHOOL_STATEMENT_FOOTNOTE = "This statement is computer-generated and is valid without signature. For any queries, contact the school bursar."
 SCHOOL_NAME = "PCEA Wendani Academy"
+
+# =============================================================================
+# SMS CREDITS CONFIGURATION (Swift Reside Tech SMS Credits Package)
+# =============================================================================
+
+# Point to Organization model for SMS credits
+SMS_CREDITS_ORGANIZATION_MODEL = 'core.Organization'
+
+# ImaraBiz SMS API Configuration
+IMARABIZ_API_KEY = '069e58a8b3aaae79ac05dc94bc810c18'
+IMARABIZ_PARTNER_ID = '205'
+IMARABIZ_API_URL = 'https://sms.imarabiz.com/api/services/'
+
+# Swift Reside Tech KCB Integration (for SMS credit purchases)
+SWIFT_RESIDE_PAYBILL = '522533'
+SWIFT_RESIDE_TILL = 'SWIFTTECH'
+SWIFT_SMS_PRICE = 1.0  # KSH per SMS credit
+SWIFT_DEFAULT_SHORTCODE = 'SWIFT_RE_TECH'  # Default shortcode if organization doesn't have one
+SWIFT_KCB_PUBLIC_KEY_BASE64 = ''  # Set if needed for signature verification
+SWIFT_KCB_SIGNATURE_KEY = ''  # Set if needed
+SWIFT_KCB_SKIP_SIGNATURE_VERIFICATION = True  # Set to False in production
+
+# SMS Sending Configuration
+SMS_BATCH_SIZE = 50  # Max SMS per batch
+SMS_BATCH_DELAY = 1.0  # Seconds between batches
+SMS_ASYNC_ENABLED = True  # Enable async SMS sending

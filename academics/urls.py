@@ -46,4 +46,26 @@ urlpatterns = [
 
     # Reports
     path('reports/academic/', views.AcademicReportView.as_view(), name='academic_report'),
+    
+    # Report Cards
+    path('report-cards/generate/', views.ReportCardGenerateView.as_view(), name='report_card_generate'),
+    path('report-cards/<uuid:pk>/', views.ReportCardDetailView.as_view(), name='report_card_detail'),
+    path('report-cards/<uuid:pk>/publish/', views.ReportCardPublishView.as_view(), name='report_card_publish'),
+    
+    # Timetable
+    path('timetable/', views.TimetableListView.as_view(), name='timetable_list'),
+    path('timetable/create/', views.TimetableCreateView.as_view(), name='timetable_create'),
+    path('timetable/<uuid:pk>/edit/', views.TimetableUpdateView.as_view(), name='timetable_edit'),
+    path('timetable/teacher/<uuid:staff_id>/', views.TeacherScheduleView.as_view(), name='teacher_schedule'),
+    
+    # Staff Management
+    path('staff/', views.StaffListView.as_view(), name='staff_list'),
+    path('staff/create/', views.StaffCreateView.as_view(), name='staff_create'),
+    path('staff/<uuid:pk>/edit/', views.StaffUpdateView.as_view(), name='staff_edit'),
+    path('staff/<uuid:pk>/', views.StaffDetailView.as_view(), name='staff_detail'),
+    
+    # Leave Management
+    path('leave/', views.LeaveApplicationListView.as_view(), name='leave_application_list'),
+    path('leave/create/', views.LeaveApplicationCreateView.as_view(), name='leave_application_create'),
+    path('leave/<uuid:pk>/approve/', views.LeaveApplicationApproveView.as_view(), name='leave_application_approve'),
 ]

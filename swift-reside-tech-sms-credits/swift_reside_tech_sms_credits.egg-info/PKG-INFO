@@ -1,0 +1,307 @@
+Metadata-Version: 2.4
+Name: swift-reside-tech-sms-credits
+Version: 1.0.0
+Summary: Django package for SMS credits management with multi-tenancy and KCB payment integration
+Home-page: https://github.com/swiftresidetech/swift-reside-tech-sms-credits
+Author: Swift Reside Tech
+Author-email: info@swiftresidetech.com
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 3.2
+Classifier: Framework :: Django :: 4.0
+Classifier: Framework :: Django :: 4.1
+Classifier: Framework :: Django :: 4.2
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: Django>=3.2
+Requires-Dist: requests>=2.25.0
+Requires-Dist: cryptography>=3.4.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Swift Reside Tech SMS Credits
+
+A Django package for managing SMS credits with multi-tenancy support, KCB payment integration, and ImaraBiz SMS service.
+
+## Features
+
+- ✅ Multi-tenant SMS credits management
+- ✅ KCB Bank payment integration for SMS purchases
+- ✅ ImaraBiz SMS service integration with per-tenant shortcodes
+- ✅ SMS usage tracking and analytics
+- ✅ Automatic credit deduction on SMS send
+- ✅ Purchase transaction history
+- ✅ Admin UI for SMS settings and purchases
+
+## Installation
+
+```bash
+pip install swift-reside-tech-sms-credits
+```
+
+## Quick Start
+
+### 1. Add to INSTALLED_APPS
+
+```python
+# settings.py
+INSTALLED_APPS = [
+    # ... other apps
+    'swift_sms_credits',
+]
+```
+
+### 2. Configure Settings
+
+```python
+# settings.py
+
+# Point to your Organization model
+SMS_CREDITS_ORGANIZATION_MODEL = 'tenants.Organization'  # or 'your_app.Organization'
+
+# ImaraBiz SMS API (Company-level - shared across all tenants)
+IMARABIZ_API_KEY = 'your_api_key'
+IMARABIZ_PARTNER_ID = 'your_partner_id'
+IMARABIZ_API_URL = 'https://sms.imarabiz.com/api/services/'
+
+# Swift Reside Tech KCB Integration (for SMS credit purchases)
+SWIFT_RESIDE_PAYBILL = '522533'
+SWIFT_RESIDE_TILL = 'SWIFTTECH'  # Your actual till number
+SWIFT_SMS_PRICE = 1.0  # KSH per SMS credit
+SWIFT_KCB_PUBLIC_KEY_BASE64 = 'base64_encoded_public_key'
+SWIFT_KCB_SIGNATURE_KEY = 'hmac_secret_if_needed'
+SWIFT_KCB_SKIP_SIGNATURE_VERIFICATION = False  # Set to True for testing
+
+# SMS Sending Configuration
+SMS_BATCH_SIZE = 50  # Max SMS per batch
+SMS_BATCH_DELAY = 1.0  # Seconds between batches
+SMS_ASYNC_ENABLED = True  # Enable async SMS sending
+```
+
+### 3. Add SMS Fields to Your Organization Model
+
+Your Organization model must have these fields:
+
+```python
+# your_app/models.py
+class Organization(models.Model):
+    # ... existing fields
+    
+    # SMS Credits fields (required)
+    sms_account_number = models.CharField(max_length=50, unique=True)
+    sms_balance = models.IntegerField(default=0)
+    sms_price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    imarabiz_shortcode = models.CharField(max_length=50, default='SWIFT_TECH')
+    
+    # Optional helper methods
+    def add_sms_credits(self, count):
+        self.sms_balance += count
+        self.save(update_fields=['sms_balance'])
+        return True
+```
+
+### 4. Run Migrations
+
+```bash
+python manage.py migrate swift_sms_credits
+```
+
+### 5. Add URLs
+
+```python
+# urls.py
+from django.urls import path, include
+
+urlpatterns = [
+    # ... other URLs
+    path('sms-credits/', include('swift_sms_credits.urls')),
+]
+```
+
+### 6. Update Your SMS Service
+
+Your SMS service should check organization's shortcode:
+
+```python
+# notifications/sms.py or your SMS service
+from swift_sms_credits.utils import get_organization_model
+
+def send_sms(self, phone_number, message, organization=None, ...):
+    # Get shortcode from organization
+    if organization:
+        shortcode = getattr(organization, 'imarabiz_shortcode', None) or 'SWIFT_TECH'
+    else:
+        shortcode = 'SWIFT_TECH'
+    
+    # Use shortcode in API call
+    payload = {
+        'shortcode': shortcode,
+        # ... other fields
+    }
+```
+
+## Usage
+
+### SMS Settings UI
+
+Access SMS settings at: `/sms-credits/settings/sms/`
+
+- View current SMS balance
+- Purchase SMS credits via M-Pesa
+- View purchase history
+- View usage history
+
+### KCB Payment Endpoints
+
+The package provides these endpoints for KCB notifications:
+
+- `POST /sms-credits/api/sms-credits/kcb-notification/` - KCB payment notification
+- `POST /sms-credits/api/sms-credits/kcb-till-notification/` - KCB till notification
+
+**Account Format:** `SWIFT_TILL#ORG_SMS_ACCOUNT`
+
+Example: `SWIFTTECH#SMS001`
+
+### Programmatic Usage
+
+```python
+from swift_sms_credits.models import SMSPurchaseTransaction, SMSUsageLog
+
+# Get purchase history
+purchases = SMSPurchaseTransaction.objects.filter(
+    organization=my_org,
+    status='completed'
+)
+
+# Get usage logs
+usage = SMSUsageLog.objects.filter(
+    organization=my_org
+).order_by('-created_at')
+```
+
+## How It Works
+
+### 1. SMS Purchase Flow
+
+1. Admin goes to SMS Settings page
+2. Sees payment instructions: Paybill `522533`, Account `SWIFTTECH#SMS001`
+3. Pays via M-Pesa
+4. KCB sends notification to package endpoint
+5. Package extracts org SMS account, finds organization, credits balance
+6. Balance updates immediately
+
+### 2. SMS Sending Flow
+
+1. Your app calls SMS service
+2. Service checks organization's SMS balance
+3. Deducts credits atomically
+4. Sends SMS using organization's shortcode
+5. Refunds credits if send fails
+6. Logs usage in `SMSUsageLog`
+
+### 3. Per-Tenant Shortcodes
+
+Each organization can have its own ImaraBiz shortcode:
+
+- Set `imarabiz_shortcode` field on Organization model
+- Default: `SWIFT_TECH`
+- Example: `KALIMONI_FP`, `SCHOOL_A`, etc.
+
+## Integration with Existing Apps
+
+### Step 1: Install Package
+
+```bash
+pip install swift-reside-tech-sms-credits
+```
+
+### Step 2: Add SMS Fields to Organization
+
+Create a migration to add SMS fields:
+
+```python
+# your_app/migrations/XXXX_add_sms_fields.py
+from django.db import migrations, models
+
+class Migration(migrations.Migration):
+    dependencies = [
+        ('your_app', 'previous_migration'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='organization',
+            name='sms_account_number',
+            field=models.CharField(max_length=50, unique=True, null=True),
+        ),
+        migrations.AddField(
+            model_name='organization',
+            name='sms_balance',
+            field=models.IntegerField(default=0),
+        ),
+        migrations.AddField(
+            model_name='organization',
+            name='sms_price_per_unit',
+            field=models.DecimalField(max_digits=10, decimal_places=2, default=1.00),
+        ),
+        migrations.AddField(
+            model_name='organization',
+            name='imarabiz_shortcode',
+            field=models.CharField(max_length=50, default='SWIFT_TECH'),
+        ),
+    ]
+```
+
+### Step 3: Configure Settings
+
+Add package settings (see Quick Start section).
+
+### Step 4: Update SMS Service
+
+Modify your SMS service to:
+- Check organization's SMS balance before sending
+- Deduct credits on send
+- Use organization's shortcode
+- Refund on failure
+
+See example in "Update Your SMS Service" section above.
+
+### Step 5: Add URLs and Run Migrations
+
+```bash
+# Add to urls.py
+path('sms-credits/', include('swift_sms_credits.urls')),
+
+# Run migrations
+python manage.py migrate swift_sms_credits
+```
+
+## Requirements
+
+- Django >= 3.2
+- Python >= 3.8
+- requests >= 2.25.0
+- cryptography >= 3.4.0
+
+## License
+
+MIT License
+
+## Support
+
+For issues and questions, contact Swift Reside Tech.
+
