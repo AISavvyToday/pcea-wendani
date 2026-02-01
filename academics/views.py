@@ -178,13 +178,19 @@ class AttendanceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
     model = Attendance
     template_name = 'academics/attendance_list.html'
     context_object_name = 'attendance_records'
-    allowed_roles = ['teacher', 'super_admin', 'school_admin']
+    allowed_roles = [UserRole.TEACHER, UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def get_queryset(self):
+        queryset = super().get_queryset()
         # Teachers see attendance for their classes only
-        staff = get_object_or_404(Staff, user=self.request.user)
-        classes = Class.objects.filter(class_teacher=staff)
-        return Attendance.objects.filter(class_obj__in=classes).order_by('-date')
+        if self.request.user.role == UserRole.TEACHER:
+            try:
+                staff = Staff.objects.get(user=self.request.user, organization=self.request.organization)
+                classes = Class.objects.filter(class_teacher=staff, organization=self.request.organization)
+                queryset = queryset.filter(class_obj__in=classes)
+            except Staff.DoesNotExist:
+                queryset = queryset.none()
+        return queryset.order_by('-date')
 
 
 class AttendanceCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
@@ -418,6 +424,13 @@ class TimetableListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
             queryset = queryset.filter(term_id=term_id)
         
         return queryset.order_by('day_of_week', 'start_time')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['classes'] = Class.objects.filter(organization=self.request.organization)
+        context['terms'] = Term.objects.filter(organization=self.request.organization)
+        context['is_admin'] = self.request.user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+        return context
 
 
 class TimetableCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
@@ -549,6 +562,12 @@ class StaffListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMix
             queryset = queryset.filter(status=status)
         
         return queryset.order_by('staff_number')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import Department
+        context['departments'] = Department.objects.filter(organization=self.request.organization)
+        return context
 
 
 class StaffCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
@@ -609,6 +628,11 @@ class LeaveApplicationListView(LoginRequiredMixin, OrganizationFilterMixin, Role
             queryset = queryset.filter(status=status)
         
         return queryset.order_by('-created_at')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_admin'] = self.request.user.role in [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+        return context
 
 
 class LeaveApplicationCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
@@ -636,9 +660,9 @@ class LeaveApplicationApproveView(LoginRequiredMixin, OrganizationFilterMixin, R
     """Approve or reject leave application (for admins)."""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     
-    def post(self, request, pk):
+    def get(self, request, pk):
         leave = get_object_or_404(LeaveApplication, pk=pk, organization=request.organization)
-        action = request.POST.get('action')  # 'approve' or 'reject'
+        action = request.GET.get('action')  # 'approve' or 'reject'
         
         if action == 'approve':
             leave.status = 'approved'
@@ -650,7 +674,7 @@ class LeaveApplicationApproveView(LoginRequiredMixin, OrganizationFilterMixin, R
             leave.status = 'rejected'
             leave.approved_by = request.user
             leave.approved_at = timezone.now()
-            leave.rejection_reason = request.POST.get('rejection_reason', '')
+            leave.rejection_reason = request.GET.get('rejection_reason', '')
             leave.save()
             messages.success(request, f"Leave application rejected.")
         

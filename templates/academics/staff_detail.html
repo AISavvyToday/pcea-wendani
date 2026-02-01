@@ -1,0 +1,61 @@
+{% extends 'base/base.html' %}
+{% block title %}Staff Details{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3>Staff Details</h3>
+    <div>
+      <a href="{% url 'academics:staff_edit' object.pk %}" class="btn btn-primary">Edit</a>
+      <a href="{% url 'academics:staff_list' %}" class="btn btn-secondary">Back</a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <h5>Personal Information</h5>
+        <table class="table table-borderless">
+          <tr><th>Name:</th><td>{{ object.user.full_name|default:object.user.email }}</td></tr>
+          <tr><th>Staff Number:</th><td>{{ object.staff_number }}</td></tr>
+          <tr><th>Staff Type:</th><td>{{ object.get_staff_type_display }}</td></tr>
+          <tr><th>Department:</th><td>{{ object.department.name|default:"-" }}</td></tr>
+          <tr><th>ID Number:</th><td>{{ object.id_number|default:"-" }}</td></tr>
+          <tr><th>TSC Number:</th><td>{{ object.tsc_number|default:"-" }}</td></tr>
+          <tr><th>Date of Birth:</th><td>{{ object.date_of_birth|default:"-" }}</td></tr>
+          <tr><th>Gender:</th><td>{{ object.get_gender_display|default:"-" }}</td></tr>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <h5>Contact & Employment</h5>
+        <table class="table table-borderless">
+          <tr><th>Phone:</th><td>{{ object.phone_number|default:"-" }}</td></tr>
+          <tr><th>Email:</th><td>{{ object.user.email }}</td></tr>
+          <tr><th>Address:</th><td>{{ object.address|default:"-" }}</td></tr>
+          <tr><th>Date Joined:</th><td>{{ object.date_joined|default:"-" }}</td></tr>
+          <tr><th>Employment Type:</th><td>{{ object.get_employment_type_display|default:"-" }}</td></tr>
+          <tr><th>Status:</th><td>
+            {% if object.status == 'active' %}
+            <span class="badge bg-success">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">{{ object.get_status_display }}</span>
+            {% endif %}
+          </td></tr>
+        </table>
+      </div>
+      {% if object.qualifications %}
+      <div class="col-12">
+        <h5>Qualifications</h5>
+        <p>{{ object.qualifications }}</p>
+      </div>
+      {% endif %}
+      {% if object.specialization %}
+      <div class="col-12">
+        <h5>Specialization</h5>
+        <p>{{ object.specialization }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+

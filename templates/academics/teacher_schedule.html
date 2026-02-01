@@ -1,0 +1,92 @@
+{% extends 'base/base.html' %}
+{% block title %}Teacher Schedule{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>Schedule for {{ staff.user.full_name|default:staff.user.email }}</h3>
+    <p class="mb-0">Term: {{ term }}</p>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Monday</th>
+            <th>Tuesday</th>
+            <th>Wednesday</th>
+            <th>Thursday</th>
+            <th>Friday</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for day_name, entries in schedule.items %}
+          <tr>
+            <td>{{ entries.0.start_time|time:"H:i" }} - {{ entries.0.end_time|time:"H:i" }}</td>
+            <td>
+              {% for entry in entries %}
+              {% if entry.get_day_of_week_display == "Monday" %}
+              <div class="p-2 mb-1 bg-light rounded">
+                <strong>{{ entry.class_obj.name }}</strong><br>
+                {{ entry.subject.name }}<br>
+                <small>{{ entry.room|default:"No room" }}</small>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for entry in entries %}
+              {% if entry.get_day_of_week_display == "Tuesday" %}
+              <div class="p-2 mb-1 bg-light rounded">
+                <strong>{{ entry.class_obj.name }}</strong><br>
+                {{ entry.subject.name }}<br>
+                <small>{{ entry.room|default:"No room" }}</small>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for entry in entries %}
+              {% if entry.get_day_of_week_display == "Wednesday" %}
+              <div class="p-2 mb-1 bg-light rounded">
+                <strong>{{ entry.class_obj.name }}</strong><br>
+                {{ entry.subject.name }}<br>
+                <small>{{ entry.room|default:"No room" }}</small>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for entry in entries %}
+              {% if entry.get_day_of_week_display == "Thursday" %}
+              <div class="p-2 mb-1 bg-light rounded">
+                <strong>{{ entry.class_obj.name }}</strong><br>
+                {{ entry.subject.name }}<br>
+                <small>{{ entry.room|default:"No room" }}</small>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </td>
+            <td>
+              {% for entry in entries %}
+              {% if entry.get_day_of_week_display == "Friday" %}
+              <div class="p-2 mb-1 bg-light rounded">
+                <strong>{{ entry.class_obj.name }}</strong><br>
+                {{ entry.subject.name }}<br>
+                <small>{{ entry.room|default:"No room" }}</small>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center">No schedule entries found for this term.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

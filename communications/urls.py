@@ -24,5 +24,8 @@ urlpatterns = [
     # Notification Templates
     path('templates/', views.NotificationTemplateListView.as_view(), name='notification_template_list'),
     path('templates/create/', views.NotificationTemplateCreateView.as_view(), name='notification_template_create'),
+    
+    # SMS Settings
+    path('sms-settings/', views.SMSSettingsView.as_view(), name='sms_settings'),
 ]
 

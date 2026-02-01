@@ -1,0 +1,73 @@
+{% extends 'base/base.html' %}
+{% block title %}SMS Credits Settings{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>SMS Credits Management</h3>
+  </div>
+  <div class="card-body">
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card bg-primary text-white">
+          <div class="card-body">
+            <h5>Current Balance</h5>
+            <h2>{{ sms_balance }} SMS Credits</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card bg-info text-white">
+          <div class="card-body">
+            <h5>Account Number</h5>
+            <h4>{{ sms_account_number }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if payment_account %}
+    <div class="card mb-4">
+      <div class="card-header bg-success text-white">
+        <h5>Purchase SMS Credits</h5>
+      </div>
+      <div class="card-body">
+        <p><strong>Price:</strong> KSH {{ sms_price }} per SMS credit</p>
+        <p><strong>Payment Instructions:</strong></p>
+        <ol>
+          <li>Go to M-Pesa</li>
+          <li>Select "Pay Bill"</li>
+          <li>Enter Business Number: <strong>{{ paybill }}</strong></li>
+          <li>Enter Account Number: <strong>{{ payment_account }}</strong></li>
+          <li>Enter Amount (e.g., 100 for 100 SMS credits)</li>
+          <li>Complete payment</li>
+        </ol>
+        <div class="alert alert-info">
+          <strong>Note:</strong> Your SMS account number is <strong>{{ sms_account_number }}</strong>. 
+          Use the full account format above when making payment.
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+      <strong>Warning:</strong> SMS account number is not set. Please set it in Django Admin (Organization settings) before purchasing credits.
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">
+        <h5>How It Works</h5>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>SMS credits are deducted automatically when you send SMS messages</li>
+          <li>Each SMS costs KSH {{ sms_price }} per credit</li>
+          <li>After payment, credits are added automatically when payment is confirmed</li>
+          <li>You can view SMS history in the "SMS History" section</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

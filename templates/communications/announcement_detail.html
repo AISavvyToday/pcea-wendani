@@ -1,0 +1,50 @@
+{% extends 'base/base.html' %}
+{% block title %}Announcement Details{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3>{{ object.title }}</h3>
+    {% if not object.is_sent %}
+    <form method="post" action="{% url 'communications:announcement_send' object.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success">Send Announcement</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="mb-3">
+      <strong>Target Audience:</strong> {{ object.get_target_audience_display }}
+    </div>
+    <div class="mb-3">
+      <strong>Message:</strong>
+      <p class="mt-2">{{ object.message }}</p>
+    </div>
+    <div class="mb-3">
+      <strong>Send Options:</strong>
+      <ul>
+        <li>SMS: {% if object.send_sms %}Yes{% else %}No{% endif %}</li>
+        <li>Email: {% if object.send_email %}Yes{% else %}No{% endif %}</li>
+      </ul>
+    </div>
+    {% if object.is_sent %}
+    <div class="mb-3">
+      <strong>Sent:</strong> {{ object.sent_at|date:"M d, Y H:i" }}
+      <br>
+      <strong>SMS Count:</strong> {{ object.sms_count }}
+      <br>
+      <strong>Email Count:</strong> {{ object.email_count }}
+    </div>
+    {% endif %}
+    <div class="mb-3">
+      <strong>Created By:</strong> {{ object.created_by.full_name|default:object.created_by.email }}
+      <br>
+      <strong>Created On:</strong> {{ object.created_at|date:"M d, Y H:i" }}
+    </div>
+    <div>
+      <a href="{% url 'communications:announcement_list' %}" class="btn btn-secondary">Back</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

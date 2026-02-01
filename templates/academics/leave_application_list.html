@@ -1,0 +1,56 @@
+{% extends 'base/base.html' %}
+{% block title %}Leave Applications{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Leave Applications</h3>
+  {% if user.role == 'teacher' %}
+  <a href="{% url 'academics:leave_application_create' %}" class="btn btn-primary">Apply for Leave</a>
+  {% endif %}
+</div>
+
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>Staff Member</th>
+      <th>Leave Type</th>
+      <th>Start Date</th>
+      <th>End Date</th>
+      <th>Days</th>
+      <th>Status</th>
+      <th>Applied On</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for leave in leave_applications %}
+    <tr>
+      <td>{{ leave.staff.user.full_name|default:leave.staff.user.email }}</td>
+      <td>{{ leave.get_leave_type_display }}</td>
+      <td>{{ leave.start_date }}</td>
+      <td>{{ leave.end_date }}</td>
+      <td>{{ leave.number_of_days }}</td>
+      <td>
+        {% if leave.status == 'pending' %}
+        <span class="badge bg-warning">Pending</span>
+        {% elif leave.status == 'approved' %}
+        <span class="badge bg-success">Approved</span>
+        {% else %}
+        <span class="badge bg-danger">Rejected</span>
+        {% endif %}
+      </td>
+      <td>{{ leave.created_at|date:"M d, Y" }}</td>
+      <td>
+        {% if leave.status == 'pending' and is_admin %}
+        <a href="{% url 'academics:leave_application_approve' leave.pk %}?action=approve" class="btn btn-sm btn-success">Approve</a>
+        <a href="{% url 'academics:leave_application_approve' leave.pk %}?action=reject" class="btn btn-sm btn-danger">Reject</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" class="text-center">No leave applications found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+

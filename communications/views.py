@@ -7,7 +7,7 @@ import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, CreateView, DetailView, View
+from django.views.generic import ListView, CreateView, DetailView, View, TemplateView
 from django.urls import reverse_lazy
 from django.db.models import Q
 from django.utils import timezone
@@ -247,3 +247,27 @@ class NotificationTemplateCreateView(LoginRequiredMixin, OrganizationFilterMixin
     def form_valid(self, form):
         form.instance.organization = self.request.organization
         return super().form_valid(form)
+
+
+class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
+    """SMS Credits Settings and Purchase Instructions."""
+    template_name = 'communications/sms_settings.html'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            from django.conf import settings
+            context['organization'] = organization
+            context['sms_balance'] = organization.sms_balance
+            context['sms_account_number'] = organization.sms_account_number or 'Not Set'
+            context['paybill'] = getattr(settings, 'SWIFT_RESIDE_PAYBILL', '522533')
+            context['till'] = getattr(settings, 'SWIFT_RESIDE_TILL', 'SWIFTTECH')
+            context['sms_price'] = getattr(settings, 'SWIFT_SMS_PRICE', 1.0)
+            # Generate account format for payment
+            if organization.sms_account_number:
+                context['payment_account'] = f"{context['paybill']}#{context['till']}#{organization.sms_account_number}"
+            else:
+                context['payment_account'] = None
+        return context

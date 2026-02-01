@@ -72,8 +72,22 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:attendance_list' %}">Attendance</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:timetable_list' %}">Timetable</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:report_card_generate' %}">Report Cards</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:staff_list' %}">Staff Management</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:leave_application_list' %}">Leave Management</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <!-- Staff Management -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#staff-menu" aria-expanded="false" aria-controls="staff-menu">
+            <span class="menu-title">Staff</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-account-tie menu-icon"></i>
+          </a>
+          <div class="collapse" id="staff-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:staff_list' %}">All Staff</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:staff_create' %}">Add Staff</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:leave_application_list' %}">Leave Applications</a></li>
             </ul>
           </div>
         </li>
@@ -125,6 +139,7 @@
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_list' %}">Announcements</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_create' %}">Send Announcement</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_settings' %}">SMS Credits</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_notification_list' %}">SMS History</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:email_notification_list' %}">Email History</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:notification_template_list' %}">Templates</a></li>

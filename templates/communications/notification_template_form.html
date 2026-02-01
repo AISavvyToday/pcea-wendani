@@ -1,0 +1,48 @@
+{% extends 'base/base.html' %}
+{% block title %}{% if object %}Edit{% else %}Create{% endif %} Notification Template{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>{% if object %}Edit{% else %}Create{% endif %} Notification Template</h3>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Name</label>
+          {{ form.name }}
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Template Type</label>
+          {{ form.template_type }}
+        </div>
+        <div class="col-12 mb-3">
+          <label class="form-label">Subject</label>
+          {{ form.subject }}
+        </div>
+        <div class="col-12 mb-3">
+          <label class="form-label">Template Text</label>
+          {{ form.template_text }}
+          <small class="form-text text-muted">Use variables like {{ "{{" }} variable_name {{ "}}" }} in your template.</small>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="form-label">Variables</label>
+          {{ form.variables }}
+          <small class="form-text text-muted">Comma-separated list of available variables.</small>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="form-label">Description</label>
+          {{ form.description }}
+        </div>
+      </div>
+      <div class="d-flex justify-content-end">
+        <a href="{% url 'communications:notification_template_list' %}" class="btn btn-secondary me-2">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

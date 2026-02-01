@@ -1,0 +1,68 @@
+{% extends 'base/base.html' %}
+{% block title %}Timetable{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Timetable</h3>
+  {% if is_admin %}
+  <a href="{% url 'academics:timetable_create' %}" class="btn btn-primary">Add Timetable Entry</a>
+  {% endif %}
+</div>
+
+<div class="row mb-3">
+  <div class="col-md-4">
+    <select class="form-select" id="class-filter" onchange="filterTimetable()">
+      <option value="">All Classes</option>
+      {% for class in classes %}
+      <option value="{{ class.id }}">{{ class.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <select class="form-select" id="term-filter" onchange="filterTimetable()">
+      <option value="">All Terms</option>
+      {% for term in terms %}
+      <option value="{{ term.id }}">{{ term }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th>Time</th>
+      <th>Class</th>
+      <th>Subject</th>
+      <th>Teacher</th>
+      <th>Room</th>
+      <th>Term</th>
+      {% if is_admin %}
+      <th>Actions</th>
+      {% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in timetable_entries %}
+    <tr>
+      <td>{{ entry.get_day_of_week_display }}</td>
+      <td>{{ entry.start_time|time:"H:i" }} - {{ entry.end_time|time:"H:i" }}</td>
+      <td>{{ entry.class_obj.name }}</td>
+      <td>{{ entry.subject.name }}</td>
+      <td>{{ entry.teacher.user.full_name|default:entry.teacher.user.email }}</td>
+      <td>{{ entry.room|default:"-" }}</td>
+      <td>{{ entry.term }}</td>
+      {% if is_admin %}
+      <td>
+        <a href="{% url 'academics:timetable_edit' entry.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="{% if is_admin %}8{% else %}7{% endif %}" class="text-center">No timetable entries found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
