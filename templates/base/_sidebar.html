@@ -92,6 +92,28 @@
           </div>
         </li>
 
+        <!-- Payroll -->
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="collapse" href="#payroll-menu" aria-expanded="false" aria-controls="payroll-menu">
+            <span class="menu-title">Payroll</span>
+            <i class="menu-arrow"></i>
+            <i class="mdi mdi-cash-register menu-icon"></i>
+          </a>
+          <div class="collapse" id="payroll-menu">
+            <ul class="nav flex-column sub-menu">
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:salary_structure_list' %}">Salary Structures</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:allowance_list' %}">Allowances</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:deduction_list' %}">Deductions</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:staff_salary_list' %}">Staff Salaries</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:payroll_period_list' %}">Payroll Periods</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:payroll_generate' %}">Generate Payroll</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:payroll_list' %}">Payroll List</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:payslip_list' %}">Payslips</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'payroll:payroll_report' %}">Reports</a></li>
+            </ul>
+          </div>
+        </li>
+
         <!-- Transport -->
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="collapse" href="#transport-menu" aria-expanded="false" aria-controls="transport-menu">
@@ -139,10 +161,8 @@
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_list' %}">Announcements</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_create' %}">Send Announcement</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_settings' %}">SMS Credits</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:send_single_sms' %}">Send SMS</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_notification_list' %}">SMS History</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'communications:email_notification_list' %}">Email History</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'communications:notification_template_list' %}">Templates</a></li>
             </ul>
           </div>
         </li>

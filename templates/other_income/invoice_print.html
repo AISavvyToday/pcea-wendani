@@ -134,12 +134,20 @@
     <div class="page">
         <div class="receipt">
             <div class="header">
+                {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
                 <div><img src="{{ school_logo_url }}" class="logo" alt="School Logo" /></div>
+                {% else %}
+                <div></div>
+                {% endif %}
                 <div style="text-align:center;">
                     <h2 style="margin:0; font-size:20px; font-weight:bold;">{{ school_name }}</h2>
                     <h3 style="margin:6px 0 0; font-size:16px; font-weight:bold;">Other Income Receipt / Invoice</h3>
                 </div>
+                {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
                 <div><img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" /></div>
+                {% else %}
+                <div></div>
+                {% endif %}
             </div>
 
             <div class="meta">

@@ -29,11 +29,21 @@
               Send SMS
             </label>
           </div>
-          <div class="form-check">
-            {{ form.send_email }}
-            <label class="form-check-label" for="{{ form.send_email.id_for_label }}">
-              Send Email
-            </label>
+        </div>
+        <div class="col-12 mb-3">
+          <div class="alert alert-info">
+            <strong>Available Placeholders:</strong>
+            <ul class="mb-0 mt-2">
+              <li><code>{parent.name}</code> - Parent full name</li>
+              <li><code>{parent.first_name}</code> - Parent first name</li>
+              <li><code>{student.name}</code> - Student full name</li>
+              <li><code>{student.admission_number}</code> - Student admission number</li>
+              <li><code>{student.class}</code> - Student current class</li>
+              <li><code>{student.outstanding_balance}</code> - Student outstanding balance</li>
+              <li><code>{invoice.amount}</code> - Invoice amount</li>
+              <li><code>{invoice.due_date}</code> - Invoice due date</li>
+              <li><code>{invoice.term}</code> - Invoice term</li>
+            </ul>
           </div>
         </div>
       </div>

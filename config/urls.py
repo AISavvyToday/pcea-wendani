@@ -15,6 +15,7 @@ urlpatterns = [
     path('other-income/', include('other_income.urls', namespace='other_income')),
     path('reports/', include('reports.urls', namespace='reports')),
     path('communications/', include('communications.urls', namespace='communications')),
+    path('payroll/', include('payroll.urls', namespace='payroll')),
 ]
 
 # KCB SMS Credits callbacks - import inside try-except to handle import errors gracefully

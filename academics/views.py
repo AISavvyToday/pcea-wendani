@@ -349,6 +349,16 @@ class ReportCardGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRe
     """Generate report cards for a class/term."""
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     
+    def get(self, request):
+        """Show form to select class and term for report card generation."""
+        from django.shortcuts import render
+        classes = Class.objects.filter(organization=request.organization).order_by('name')
+        terms = Term.objects.filter(organization=request.organization).select_related('academic_year').order_by('-academic_year__year', '-term')
+        return render(request, 'academics/report_card_generate.html', {
+            'classes': classes,
+            'terms': terms,
+        })
+    
     def post(self, request):
         from .services.report_card_service import ReportCardService
         
@@ -356,8 +366,7 @@ class ReportCardGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRe
         term_id = request.POST.get('term_id')
         
         try:
-            from academics.models import Class as ClassModel
-            class_obj = get_object_or_404(ClassModel, pk=class_id, organization=request.organization)
+            class_obj = get_object_or_404(Class, pk=class_id, organization=request.organization)
             term = get_object_or_404(Term, pk=term_id, organization=request.organization)
             
             result = ReportCardService.generate_report_cards_for_class(
@@ -374,7 +383,7 @@ class ReportCardGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRe
             logger.error(f"Error generating report cards: {str(e)}", exc_info=True)
             messages.error(request, f"Error generating report cards: {str(e)}")
         
-        return redirect('academics:academic_report')
+        return redirect('academics:report_card_generate')
 
 
 class ReportCardDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):

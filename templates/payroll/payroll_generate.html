@@ -1,0 +1,35 @@
+{% extends 'base/base.html' %}
+{% block title %}Generate Payroll{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>Generate Payroll</h3>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Payroll Period</label>
+          <select name="period_id" class="form-select" required>
+            <option value="">Select a period</option>
+            {% for period in periods %}
+            <option value="{{ period.pk }}">{{ period }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="alert alert-info">
+        <strong>Note:</strong> This will generate payroll entries for all active staff with salary configurations.
+        Existing entries for this period will be updated.
+      </div>
+      <div class="d-flex justify-content-end">
+        <a href="{% url 'payroll:payroll_list' %}" class="btn btn-secondary me-2">Cancel</a>
+        <button type="submit" class="btn btn-primary">Generate Payroll</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

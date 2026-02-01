@@ -1,0 +1,60 @@
+{% extends 'base/base.html' %}
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Deduction{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>{% if object %}Edit{% else %}Add{% endif %} Deduction</h3>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Name</label>
+          {{ form.name }}
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Type</label>
+          {{ form.deduction_type }}
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Amount</label>
+          {{ form.amount }}
+          <small class="form-text text-muted">Fixed amount (if not percentage-based or calculated)</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="form-check mt-4">
+            {{ form.is_percentage }}
+            <label class="form-check-label" for="{{ form.is_percentage.id_for_label }}">
+              Is Percentage
+            </label>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Percentage</label>
+          {{ form.percentage }}
+          <small class="form-text text-muted">Percentage of gross salary (if is_percentage=True)</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="form-check mt-4">
+            {{ form.is_calculated }}
+            <label class="form-check-label" for="{{ form.is_calculated.id_for_label }}">
+              Is Calculated (e.g., NHIF, PAYE)
+            </label>
+          </div>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="form-label">Description</label>
+          {{ form.description }}
+        </div>
+      </div>
+      <div class="d-flex justify-content-end">
+        <a href="{% url 'payroll:deduction_list' %}" class="btn btn-secondary me-2">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

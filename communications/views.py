@@ -36,13 +36,14 @@ class AnnouncementCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRe
     """Create a new announcement."""
     model = Announcement
     template_name = 'communications/announcement_form.html'
-    fields = ['title', 'message', 'target_audience', 'send_sms', 'send_email']
+    fields = ['title', 'message', 'target_audience', 'send_sms']
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     success_url = reverse_lazy('communications:announcement_list')
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
         form.instance.organization = self.request.organization
+        form.instance.send_email = False  # Email disabled
         return super().form_valid(form)
 
 
@@ -70,47 +71,65 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
             sms_count = 0
             email_count = 0
             
-            # SMS sending is temporarily disabled - logic kept ready for future use
+            # SMS sending with placeholder replacement
             if announcement.send_sms:
+                from .services.sms_template_service import SMSTemplateService
+                template_service = SMSTemplateService()
+                
                 # TODO: Uncomment when ready to send SMS
                 # sms_service = SMSService()
-                # # Prepare recipients for package service (expects 'phone_number' and 'message' in each dict)
                 # bulk_recipients = []
+                # 
                 # for r in recipients:
                 #     if r.get('phone'):
-                #         # Get parent object if available
-                #         parent_obj = None
-                #         if r.get('student'):
-                #             parent_obj = r['student'].primary_parent
-                #         elif 'parent' in r:
-                #             # If parent object was passed directly
-                #             parent_obj = r['parent']
+                #         # Build context for placeholder replacement
+                #         context = {
+                #             'parent': r.get('parent'),
+                #             'student': r.get('student'),
+                #             'invoice': r.get('invoice'),
+                #             'attendance': r.get('attendance'),
+                #             'grade': r.get('grade'),
+                #         }
                 #         
+                #         # Replace placeholders in message
+                #         personalized_message = template_service.replace_placeholders(
+                #             announcement.message,
+                #             context
+                #         )
+                #         
+                #         parent_obj = r.get('parent')
                 #         bulk_recipients.append({
                 #             'phone_number': r['phone'],
-                #             'message': announcement.message,
-                #             'parent': parent_obj,  # Pass parent object if available
+                #             'message': personalized_message,
+                #             'parent': parent_obj,
                 #         })
                 # 
-                # # Package service returns list of SMSNotification instances if model provided
-                # # Since our model has different fields, we'll create our own records
+                # # Send SMS via package service
                 # sms_notifications = sms_service.send_bulk_sms(
                 #     recipients=bulk_recipients,
                 #     organization=request.organization,
                 #     user=request.user,
                 #     purpose='announcement',
-                #     sms_notification_model=None  # We'll create our own records
+                #     sms_notification_model=None
                 # )
                 # 
-                # # Create our own SMSNotification records and count successes
-                # # Package service deducts credits and sends SMS, we just track it
+                # # Create SMSNotification records
                 # for r in recipients:
                 #     if r.get('phone'):
+                #         context = {
+                #             'parent': r.get('parent'),
+                #             'student': r.get('student'),
+                #             'invoice': r.get('invoice'),
+                #         }
+                #         personalized_message = template_service.replace_placeholders(
+                #             announcement.message,
+                #             context
+                #         )
                 #         SMSNotification.objects.create(
                 #             organization=request.organization,
                 #             recipient_phone=r['phone'],
-                #             message=announcement.message,
-                #             status='sent',  # Assume sent if no exception
+                #             message=personalized_message,
+                #             status='sent',
                 #             sent_at=timezone.now(),
                 #             purpose='announcement',
                 #             related_announcement=announcement,
@@ -120,17 +139,8 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
                 messages.info(request, 'SMS sending is currently disabled. Logic is ready but commented out.')
                 sms_count = 0
             
-            if announcement.send_email:
-                email_service = EmailService()
-                email_notifications = email_service.send_bulk_email(
-                    recipients=[r['email'] for r in recipients if r.get('email')],
-                    subject=announcement.title,
-                    message=announcement.message,
-                    organization=request.organization,
-                    purpose='announcement',
-                    triggered_by=request.user
-                )
-                email_count = sum(1 for n in email_notifications if n.status == 'sent')
+            # Email sending removed - SMS only
+            email_count = 0
             
             announcement.is_sent = True
             announcement.sent_at = timezone.now()
@@ -138,7 +148,7 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
             announcement.email_count = email_count
             announcement.save()
             
-            messages.success(request, f'Announcement sent! SMS: {sms_count}, Email: {email_count}')
+            messages.success(request, f'Announcement sent! SMS: {sms_count}')
             logger.info(f"Announcement {announcement.id} sent by {request.user.email}")
         
         except Exception as e:
@@ -271,3 +281,125 @@ class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             else:
                 context['payment_account'] = None
         return context
+
+
+class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
+    """Send SMS to single or multiple phone numbers."""
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    
+    def get(self, request):
+        """Show form for sending single SMS."""
+        from .services.sms_template_service import SMSTemplateService
+        parents = Parent.objects.filter(organization=request.organization, is_active=True).order_by('last_name', 'first_name')[:100]
+        placeholders = SMSTemplateService.get_available_placeholders()
+        
+        return render(request, 'communications/send_single_sms.html', {
+            'parents': parents,
+            'placeholders': placeholders,
+        })
+    
+    def post(self, request):
+        """Send SMS to provided phone numbers."""
+        from .utils import parse_phone_numbers, normalize_phone_number
+        from .services.sms_template_service import SMSTemplateService
+        from swift_sms_credits.sms_service import SMSService
+        
+        phone_input = request.POST.get('phone_numbers', '').strip()
+        parent_ids = request.POST.getlist('parent_ids')
+        message = request.POST.get('message', '').strip()
+        
+        if not message:
+            messages.error(request, 'Message is required.')
+            return redirect('communications:send_single_sms')
+        
+        # Collect phone numbers
+        phone_numbers = []
+        
+        # Add phones from comma-separated input
+        if phone_input:
+            parsed_phones = parse_phone_numbers(phone_input)
+            phone_numbers.extend(parsed_phones)
+        
+        # Add phones from selected parents
+        if parent_ids:
+            parents = Parent.objects.filter(
+                pk__in=parent_ids,
+                organization=request.organization
+            )
+            for parent in parents:
+                if parent.phone_primary:
+                    normalized = normalize_phone_number(parent.phone_primary)
+                    if normalized and normalized not in phone_numbers:
+                        phone_numbers.append(normalized)
+        
+        if not phone_numbers:
+            messages.error(request, 'Please provide at least one valid phone number.')
+            return redirect('communications:send_single_sms')
+        
+        # TODO: Uncomment when ready to send SMS
+        # sms_service = SMSService()
+        # bulk_recipients = []
+        # 
+        # for phone in phone_numbers:
+        #     # Find parent if phone matches
+        #     parent_obj = None
+        #     try:
+        #         parent_obj = Parent.objects.filter(
+        #             organization=request.organization,
+        #             phone_primary=phone
+        #         ).first()
+        #     except:
+        #         pass
+        #     
+        #     # Replace placeholders if parent found
+        #     personalized_message = message
+        #     if parent_obj:
+        #         context = {'parent': parent_obj}
+        #         # Try to get student if parent has children (using related_name 'children')
+        #         student = parent_obj.children.first() if hasattr(parent_obj, 'children') and parent_obj.children.exists() else None
+        #         if student:
+        #             context['student'] = student
+        #         personalized_message = SMSTemplateService.replace_placeholders(message, context)
+        #     
+        #     bulk_recipients.append({
+        #         'phone_number': phone,
+        #         'message': personalized_message,
+        #         'parent': parent_obj,
+        #     })
+        # 
+        # # Send SMS
+        # sms_service.send_bulk_sms(
+        #     recipients=bulk_recipients,
+        #     organization=request.organization,
+        #     user=request.user,
+        #     purpose='manual',
+        #     sms_notification_model=None
+        # )
+        # 
+        # # Create notification records
+        # for phone in phone_numbers:
+        #     parent_obj = Parent.objects.filter(
+        #         organization=request.organization,
+        #         phone_primary=phone
+        #     ).first()
+        #     
+        #     context = {'parent': parent_obj}
+        #     if parent_obj:
+        #         student = parent_obj.children.first() if hasattr(parent_obj, 'children') and parent_obj.children.exists() else None
+        #         if student:
+        #             context['student'] = student
+        #     
+        #     personalized_message = SMSTemplateService.replace_placeholders(message, context)
+        #     
+        #     SMSNotification.objects.create(
+        #         organization=request.organization,
+        #         recipient_phone=phone,
+        #         message=personalized_message,
+        #         status='sent',
+        #         sent_at=timezone.now(),
+        #         purpose='manual',
+        #         triggered_by=request.user,
+        #     )
+        
+        messages.info(request, f'SMS sending is currently disabled. Would send to {len(phone_numbers)} recipient(s).')
+        return redirect('communications:send_single_sms')

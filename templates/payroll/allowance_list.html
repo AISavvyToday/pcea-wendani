@@ -1,0 +1,49 @@
+{% extends 'base/base.html' %}
+{% block title %}Allowances{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Allowances</h3>
+  <a href="{% url 'payroll:allowance_create' %}" class="btn btn-primary">Add Allowance</a>
+</div>
+
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Amount/Percentage</th>
+      <th>Taxable</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for allowance in allowances %}
+    <tr>
+      <td>{{ allowance.name }}</td>
+      <td>{{ allowance.get_allowance_type_display }}</td>
+      <td>
+        {% if allowance.is_percentage %}
+        {{ allowance.percentage }}%
+        {% else %}
+        KSH {{ allowance.amount|floatformat:2 }}
+        {% endif %}
+      </td>
+      <td>
+        {% if allowance.is_taxable %}
+        <span class="badge bg-warning">Yes</span>
+        {% else %}
+        <span class="badge bg-info">No</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{% url 'payroll:allowance_edit' allowance.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="text-center">No allowances found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+

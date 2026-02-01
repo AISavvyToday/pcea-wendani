@@ -943,6 +943,7 @@ def settings_overview(request):
         {"title": "School Profile", "description": "Update school information", "url": "#", "cta": "Configure"},
         {"title": "Academic Years", "description": "Manage academic years and terms", "url": "#", "cta": "Manage"},
         {"title": "User Management", "description": "Manage staff and user accounts", "url": "#", "cta": "Manage"},
+        {"title": "SMS Credits", "description": "View SMS balance and purchase credits", "url": reverse('communications:sms_settings'), "cta": "Manage"},
         {"title": "System Configuration", "description": "General system settings", "url": "#", "cta": "Configure"},
     ]
     return render(request, "sections/settings.html", {

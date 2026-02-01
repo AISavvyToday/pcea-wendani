@@ -27,5 +27,8 @@ urlpatterns = [
     
     # SMS Settings
     path('sms-settings/', views.SMSSettingsView.as_view(), name='sms_settings'),
+    
+    # Single SMS Sending
+    path('send-sms/', views.SendSingleSMSView.as_view(), name='send_single_sms'),
 ]
 
