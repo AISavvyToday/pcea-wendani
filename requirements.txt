@@ -13,3 +13,5 @@ openpyxl
 djangorestframework>=3.15.0
 openpyxl
 WeasyPrint
+requests>=2.25.0
+cryptography>=3.4.0
