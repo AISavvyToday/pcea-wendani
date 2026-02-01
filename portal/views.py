@@ -69,10 +69,15 @@ def _fmt_kes(amount) -> str:
     return f"KES {amount:,.0f}"
 
 
-def _get_current_term():
-    term = Term.objects.filter(is_current=True).select_related("academic_year").first()
+def _get_current_term(organization=None):
+    qs = Term.objects.filter(is_current=True).select_related("academic_year")
+    if organization:
+        qs = qs.filter(organization=organization)
+    term = qs.first()
     if not term:
         qs = Term.objects.all().select_related("academic_year")
+        if organization:
+            qs = qs.filter(organization=organization)
         if _model_has_field(Term, "is_active"):
             qs = qs.filter(is_active=True)
         term = qs.order_by("-id").first()

@@ -64,9 +64,16 @@
           </a>
           <div class="collapse" id="academics-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="{% url 'academics:class_list' %}">Grades</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:class_list' %}">Classes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:subject_list' %}">Subjects</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:academic_year_list' %}">Academic Years</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:term_list' %}">Terms</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:exam_list' %}">Exams</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:attendance_list' %}">Attendance</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:timetable_list' %}">Timetable</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:report_card_generate' %}">Report Cards</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:staff_list' %}">Staff Management</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:leave_application_list' %}">Leave Management</a></li>
             </ul>
           </div>
         </li>
@@ -116,8 +123,11 @@
           </a>
           <div class="collapse" id="comms-menu">
             <ul class="nav flex-column sub-menu">
-              <li class="nav-item"><a class="nav-link" href="">Send Message</a></li>
-              <li class="nav-item"><a class="nav-link" href="">Notifications History</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_list' %}">Announcements</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_create' %}">Send Announcement</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_notification_list' %}">SMS History</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:email_notification_list' %}">Email History</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:notification_template_list' %}">Templates</a></li>
             </ul>
           </div>
         </li>
@@ -178,8 +188,13 @@
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'students:my_students' %}">My Students</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'academics:attendance_list' %}">Attendance Records</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">My Timetable</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'portal:blank_page' %}">Grade Books</a></li>
+              {% if user.staff_profile %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:teacher_schedule' staff_id=user.staff_profile.id %}">My Timetable</a></li>
+              {% else %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:timetable_list' %}">Timetable</a></li>
+              {% endif %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:exam_list' %}">Exams</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'academics:leave_application_create' %}">Apply for Leave</a></li>
             </ul>
           </div>
         </li>

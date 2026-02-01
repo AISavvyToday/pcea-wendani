@@ -210,6 +210,10 @@
             <strong>Source</strong>
             <strong>{{ payment.get_payment_source_display }}</strong>
         </div>
+        <div class="col">
+            <strong>Ref</strong>
+            <strong>{{ payment.transaction_reference|default:"-" }}</strong>
+        </div>
     </div>
 
     {% if payment.student %}
@@ -253,9 +257,9 @@
                 <th><strong>Student Balance</strong></th>
                 <td class="text-right">
                     {% if student_balance_at_payment < 0 %}
-                        <strong style="color:#080;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#080; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% elif student_balance_at_payment > 0 %}
-                        <strong style="color:#c00;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#000; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% else %}
                         <strong>KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% endif %}
@@ -269,9 +273,9 @@
                 <th style="background: #f8f9fa;"><strong>Outstanding Balance</strong></th>
                 <td class="text-right" style="background: #f8f9fa;">
                     {% if outstanding_balance_at_payment < 0 %}
-                        <strong style="color:#080;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#080; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% elif outstanding_balance_at_payment > 0 %}
-                        <strong style="color:#c00;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#000; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% else %}
                         <strong>KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% endif %}
