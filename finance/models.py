@@ -293,6 +293,19 @@ class Invoice(BaseModel):
         if not self.invoice_number:
             self.invoice_number = self.generate_invoice_number()
 
+        # SAFETY CHECK: Transferred/graduated students should not have active invoices
+        # If invoice is being saved for a transferred/graduated student, deactivate it
+        if self.student.status in ['transferred', 'graduated']:
+            if self.is_active:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"Attempting to save active invoice {self.invoice_number} "
+                    f"for {self.student.status} student {self.student.admission_number}. "
+                    f"Setting is_active=False to prevent payment allocation issues."
+                )
+                self.is_active = False
+
         if self.balance_bf_original in (None, Decimal("0.00")):
             self.balance_bf_original = self.balance_bf
 
@@ -302,7 +315,9 @@ class Invoice(BaseModel):
         super().save(*args, **kwargs)
 
         # Student aggregate must depend on invoice balances only
-        self.student.recompute_outstanding_balance()
+        # Only recompute if student is active (transferred/graduated students handle balances differently)
+        if self.student.status not in ['transferred', 'graduated']:
+            self.student.recompute_outstanding_balance()
 
 
 
