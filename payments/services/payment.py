@@ -42,14 +42,28 @@ class PaymentService:
         2. If student has NO invoices:
            - First reduce outstanding_balance (if any)
            - Any remainder → credit_balance
+        
+        IMPORTANT: Transferred/graduated students should NOT have payments allocated to invoices.
+        Their invoices should be inactive, and payments should go directly to outstanding_balance.
         """
         
         student = payment.student
         
-        # Check if student has any active invoices
-        has_invoices = student.invoices.filter(is_active=True).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).exists()
+        # SAFETY CHECK: Transferred/graduated students should not have payments allocated to invoices
+        # Their invoices should be inactive, and payments should go directly to outstanding_balance
+        if student.status in ['transferred', 'graduated']:
+            logger.warning(
+                f"PAYMENT ALLOCATION: Student {student.admission_number} is {student.status}. "
+                f"Payment {payment.payment_reference} ({payment.amount}) will be applied directly "
+                f"to outstanding_balance instead of invoices."
+            )
+            # Force the no-invoice path
+            has_invoices = False
+        else:
+            # Check if student has any active invoices
+            has_invoices = student.invoices.filter(is_active=True).exclude(
+                status=InvoiceStatus.CANCELLED
+            ).exists()
         
         if has_invoices:
             # Student has invoices → use existing invoice allocation logic

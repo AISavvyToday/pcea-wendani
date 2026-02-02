@@ -2,6 +2,8 @@
 
 A Django package for managing SMS credits with multi-tenancy support, KCB payment integration, and ImaraBiz SMS service.
 
+> **📖 Quick Start**: See [REUSE_GUIDE.md](REUSE_GUIDE.md) for a concise guide on integrating this package into your multi-tenant Django apps.
+
 ## Features
 
 - ✅ Multi-tenant SMS credits management

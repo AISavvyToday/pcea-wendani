@@ -1446,9 +1446,10 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
         # FIX 1: Determine if this is FIRST receipt (no previous payments)
         is_first_receipt = total_paid_before == 0
 
-        # FIX 2: Handle students with no invoices
-        if not current_invoices.exists():
-            # Student has NO invoices
+        # FIX 2: Handle students with no invoices OR transferred/graduated students
+        # Transferred/graduated students should use student-level balances, not invoice balances
+        if not current_invoices.exists() or student.status in ['transferred', 'graduated']:
+            # Student has NO invoices OR is transferred/graduated
             # For first receipt: show balance_bf and prepayment from student
             # For subsequent receipts: don't show them
             if is_first_receipt:
@@ -1459,12 +1460,18 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
                 prepayment_display = Decimal('0.00')
                 
             # Calculate running balance: balance_bf - prepayment - payments before
-            student_balance_at_payment = max(
-                Decimal('0.00'),
-                (student.balance_bf_original or Decimal('0.00')) - 
-                (student.prepayment_original or Decimal('0.00')) - 
-                total_paid_before
-            )
+            # For transferred students, use outstanding_balance + payment amount as the balance before payment
+            if student.status in ['transferred', 'graduated']:
+                # Outstanding balance AFTER payment = outstanding_balance
+                # Outstanding balance BEFORE payment = outstanding_balance + payment.amount
+                student_balance_at_payment = (student.outstanding_balance or Decimal('0.00')) + payment.amount
+            else:
+                student_balance_at_payment = max(
+                    Decimal('0.00'),
+                    (student.balance_bf_original or Decimal('0.00')) - 
+                    (student.prepayment_original or Decimal('0.00')) - 
+                    total_paid_before
+                )
         else:
             # Student HAS invoices
             # Balance B/F and prepayment from invoices

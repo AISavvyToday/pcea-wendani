@@ -459,6 +459,18 @@ class InvoiceService:
         remaining = payment.amount
         student = payment.student
 
+        # SAFETY CHECK: Do not allocate payments to invoices for transferred/graduated students
+        # Their invoices should be inactive, and payments should go directly to outstanding_balance
+        if student.status in ['transferred', 'graduated']:
+            logger.error(
+                f"CRITICAL: Payment {payment.payment_reference} for {student.status} student "
+                f"{student.admission_number} attempted to allocate to invoices. "
+                f"This should not happen - student invoices should be inactive. "
+                f"Payment will be applied directly to outstanding_balance instead."
+            )
+            # Return full amount as unapplied - the payment service will handle it
+            return payment.amount
+
         invoices = (
             Invoice.objects.select_for_update()
             .filter(student=student, is_active=True)
