@@ -133,10 +133,12 @@ class Command(BaseCommand):
             self.stdout.write('\n1. Removing payment allocations...')
             if active_allocations.exists():
                 for alloc in active_allocations:
-                self.stdout.write(f'   Deleting allocation: {alloc.payment.payment_reference} -> '
-                                f'{alloc.invoice_item.category}: {alloc.amount}')
-                alloc.is_active = False
-                alloc.save(update_fields=['is_active', 'updated_at'])
+                    self.stdout.write(f'   Deleting allocation: {alloc.payment.payment_reference} -> '
+                                    f'{alloc.invoice_item.category}: {alloc.amount}')
+                    alloc.is_active = False
+                    alloc.save(update_fields=['is_active', 'updated_at'])
+            else:
+                self.stdout.write('   No active allocations to remove')
 
             # 2. Fix invoice
             self.stdout.write('\n2. Fixing invoice...')
