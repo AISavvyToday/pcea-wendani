@@ -79,18 +79,38 @@ class Command(BaseCommand):
         self.stdout.write(f'  Current balance_bf: {active_invoice.balance_bf}')
         self.stdout.write(f'  Current status: {active_invoice.status}')
 
-        # Get payment allocations for this invoice
+        # Get payment allocations for this invoice (both active and inactive)
         allocations = PaymentAllocation.objects.filter(
-            invoice_item__invoice=active_invoice,
-            is_active=True
+            invoice_item__invoice=active_invoice
         ).select_related('payment', 'invoice_item')
 
-        total_allocated = sum(a.amount for a in allocations)
-        self.stdout.write(f'\nFound {allocations.count()} payment allocation(s) totaling: {total_allocated}')
+        active_allocations = allocations.filter(is_active=True)
+        inactive_allocations = allocations.filter(is_active=False)
+        
+        total_allocated = sum(a.amount for a in active_allocations)
+        self.stdout.write(f'\nFound {active_allocations.count()} active allocation(s) totaling: {total_allocated}')
+        if inactive_allocations.exists():
+            self.stdout.write(f'Found {inactive_allocations.count()} inactive allocation(s) (already removed)')
 
-        if allocations.exists():
-            payment_refs = list(set(a.payment.payment_reference for a in allocations))
+        # Get payment references (initialize as empty list)
+        payment_refs = []
+        if active_allocations.exists():
+            payment_refs = list(set(a.payment.payment_reference for a in active_allocations))
             self.stdout.write(f'  Payments involved: {", ".join(payment_refs)}')
+        elif inactive_allocations.exists():
+            # If only inactive allocations, get those payment refs
+            payment_refs = list(set(a.payment.payment_reference for a in inactive_allocations))
+            self.stdout.write(f'  Payments from inactive allocations: {", ".join(payment_refs)}')
+        else:
+            # If no allocations at all, find payments that might have been allocated but are now inactive
+            # or find the payment that was made around the invoice date
+            payments = student.payments.filter(
+                is_active=True,
+                status=PaymentStatus.COMPLETED
+            ).order_by('-payment_date')
+            if payments.exists():
+                payment_refs = [p.payment_reference for p in payments[:5]]  # Get up to 5 most recent
+                self.stdout.write(f'  No allocations found. Recent payments: {", ".join(payment_refs)}')
 
         # Calculate what the invoice balance should be
         # balance = total_amount + balance_bf - prepayment - amount_paid
@@ -111,7 +131,8 @@ class Command(BaseCommand):
         if not dry_run:
             # 1. Remove payment allocations (soft delete)
             self.stdout.write('\n1. Removing payment allocations...')
-            for alloc in allocations:
+            if active_allocations.exists():
+                for alloc in active_allocations:
                 self.stdout.write(f'   Deleting allocation: {alloc.payment.payment_reference} -> '
                                 f'{alloc.invoice_item.category}: {alloc.amount}')
                 alloc.is_active = False
@@ -150,23 +171,26 @@ class Command(BaseCommand):
 
             # 4. Update payment notes to reflect what actually happened
             self.stdout.write('\n4. Updating payment notes...')
-            for payment_ref in payment_refs:
-                try:
-                    payment = Payment.objects.get(payment_reference=payment_ref)
-                    old_notes = payment.notes or ''
-                    # Remove any allocation-related notes and add correct note
-                    new_notes = old_notes
-                    if 'Unapplied credit' in new_notes:
-                        # Remove unapplied credit note since payment was applied to outstanding
-                        import re
-                        new_notes = re.sub(r'\s*\|\s*Unapplied credit: KES [\d,.]+', '', new_notes)
-                    if 'Applied to outstanding balance' not in new_notes:
-                        new_notes += f' | Applied to outstanding balance (no active invoices - student transferred)'
-                    payment.notes = new_notes
-                    payment.save(update_fields=['notes', 'updated_at'])
-                    self.stdout.write(f'   ✓ Updated payment {payment_ref}')
-                except Payment.DoesNotExist:
-                    self.stdout.write(self.style.WARNING(f'   Payment {payment_ref} not found'))
+            if payment_refs:
+                for payment_ref in payment_refs:
+                    try:
+                        payment = Payment.objects.get(payment_reference=payment_ref)
+                        old_notes = payment.notes or ''
+                        # Remove any allocation-related notes and add correct note
+                        new_notes = old_notes
+                        if 'Unapplied credit' in new_notes:
+                            # Remove unapplied credit note since payment was applied to outstanding
+                            import re
+                            new_notes = re.sub(r'\s*\|\s*Unapplied credit: KES [\d,.]+', '', new_notes)
+                        if 'Applied to outstanding balance' not in new_notes:
+                            new_notes += f' | Applied to outstanding balance (no active invoices - student transferred)'
+                        payment.notes = new_notes
+                        payment.save(update_fields=['notes', 'updated_at'])
+                        self.stdout.write(f'   ✓ Updated payment {payment_ref}')
+                    except Payment.DoesNotExist:
+                        self.stdout.write(self.style.WARNING(f'   Payment {payment_ref} not found'))
+            else:
+                self.stdout.write('   No payments to update (no allocations found)')
 
             self.stdout.write(self.style.SUCCESS('\n✓ Fix completed successfully!'))
         else:
