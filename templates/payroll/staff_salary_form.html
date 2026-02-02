@@ -2,49 +2,150 @@
 {% block title %}{% if object %}Edit{% else %}Assign{% endif %} Staff Salary{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>{% if object %}Edit{% else %}Assign{% endif %} Staff Salary</h3>
+<div class="content-wrapper">
+  <!-- Header -->
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">
+        {% if object %}Edit{% else %}Assign{% endif %} Staff Salary
+      </h3>
+      <small class="text-muted">
+        {% if object %}
+          Update staff salary configuration, allowances, and deductions.
+        {% else %}
+          Assign a salary structure to a staff member with allowances and deductions.
+        {% endif %}
+      </small>
+    </div>
+    <a href="{% url 'payroll:staff_salary_list' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to List
+    </a>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Staff</label>
-          {{ form.staff }}
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}
+              <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Staff Member <span class="text-danger">*</span></label>
+            {{ form.staff }}
+            {% if form.staff.errors %}
+              <div class="text-danger small mt-1">{{ form.staff.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Salary Structure <span class="text-danger">*</span></label>
+            {{ form.salary_structure }}
+            {% if form.salary_structure.errors %}
+              <div class="text-danger small mt-1">{{ form.salary_structure.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Select the grade/salary structure for this staff member</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Effective Date <span class="text-danger">*</span></label>
+            {{ form.effective_date }}
+            {% if form.effective_date.errors %}
+              <div class="text-danger small mt-1">{{ form.effective_date.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Date when this salary becomes effective</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">End Date</label>
+            {{ form.end_date }}
+            {% if form.end_date.errors %}
+              <div class="text-danger small mt-1">{{ form.end_date.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Optional: Date when this salary assignment ends</small>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Allowances</label>
+            <div class="border rounded p-3 bg-light">
+              <small class="text-muted d-block mb-2">Select allowances to apply to this staff member</small>
+              <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
+                {% for checkbox in form.allowances %}
+                  <div class="col">
+                    <div class="form-check">
+                      {{ checkbox.tag }}
+                      <label class="form-check-label">
+                        {{ checkbox.choice_label }}
+                      </label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% if form.allowances.errors %}
+              <div class="text-danger small mt-1">{{ form.allowances.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Deductions</label>
+            <div class="border rounded p-3 bg-light">
+              <small class="text-muted d-block mb-2">Select deductions to apply to this staff member</small>
+              <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
+                {% for checkbox in form.deductions %}
+                  <div class="col">
+                    <div class="form-check">
+                      {{ checkbox.tag }}
+                      <label class="form-check-label">
+                        {{ checkbox.choice_label }}
+                      </label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% if form.deductions.errors %}
+              <div class="text-danger small mt-1">{{ form.deductions.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Notes</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+              <div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>
+            {% endif %}
+          </div>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Salary Structure</label>
-          {{ form.salary_structure }}
+
+        <hr>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{% url 'payroll:staff_salary_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="mdi mdi-content-save me-1"></i>
+            {% if object %}Update{% else %}Assign{% endif %} Salary
+          </button>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Effective Date</label>
-          {{ form.effective_date }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">End Date (Optional)</label>
-          {{ form.end_date }}
-        </div>
-        <div class="col-12 mb-3">
-          <label class="form-label">Allowances</label>
-          {{ form.allowances }}
-        </div>
-        <div class="col-12 mb-3">
-          <label class="form-label">Deductions</label>
-          {{ form.deductions }}
-        </div>
-        <div class="col-12 mb-3">
-          <label class="form-label">Notes</label>
-          {{ form.notes }}
-        </div>
-      </div>
-      <div class="d-flex justify-content-end">
-        <a href="{% url 'payroll:staff_salary_list' %}" class="btn btn-secondary me-2">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </div>
-{% endblock %}
 
+<style>
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  .form-label {
+    margin-bottom: 0.5rem;
+  }
+</style>
+{% endblock %}

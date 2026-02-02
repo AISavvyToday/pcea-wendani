@@ -2,93 +2,163 @@
 {% block title %}Payslip{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>Payslip - {{ object.payroll_entry.staff.user.full_name|default:object.payroll_entry.staff.user.email }}</h3>
-    <p class="mb-0">Period: {{ object.payroll_entry.payroll_period }}</p>
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">Payslip</h3>
+      <small class="text-muted">
+        {{ object.payroll_entry.staff.user.full_name|default:object.payroll_entry.staff.user.email }} - {{ object.payroll_entry.payroll_period }}
+      </small>
+    </div>
+    <a href="{% url 'payroll:payslip_list' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to List
+    </a>
   </div>
-  <div class="card-body">
-    <div class="row">
-      <div class="col-md-6">
-        <h5>Employee Information</h5>
-        <table class="table table-borderless">
-          <tr><th>Name:</th><td>{{ object.payroll_entry.staff.user.full_name|default:object.payroll_entry.staff.user.email }}</td></tr>
-          <tr><th>Staff Number:</th><td>{{ object.payroll_entry.staff.staff_number }}</td></tr>
-          <tr><th>Period:</th><td>{{ object.payroll_entry.payroll_period }}</td></tr>
-        </table>
-      </div>
-      <div class="col-md-6">
-        <h5>Salary Structure</h5>
-        <table class="table table-borderless">
-          <tr><th>Grade:</th><td>{{ object.payroll_entry.staff_salary.salary_structure.name }}</td></tr>
-          <tr><th>Basic Salary:</th><td>KSH {{ object.payroll_entry.basic_salary|floatformat:2 }}</td></tr>
-        </table>
-      </div>
-    </div>
-    
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <h5>Earnings</h5>
-        <table class="table table-bordered">
-          <tr>
-            <th>Basic Salary</th>
-            <td>KSH {{ object.payroll_entry.basic_salary|floatformat:2 }}</td>
-          </tr>
-          {% for allowance_item in object.payroll_entry.allowance_items.all %}
-          <tr>
-            <td>{{ allowance_item.allowance.name }}</td>
-            <td>KSH {{ allowance_item.amount|floatformat:2 }}</td>
-          </tr>
-          {% endfor %}
-          <tr class="table-success">
-            <th>Gross Salary</th>
-            <td><strong>KSH {{ object.payroll_entry.gross_salary|floatformat:2 }}</strong></td>
-          </tr>
-        </table>
-      </div>
-      <div class="col-md-6">
-        <h5>Deductions</h5>
-        <table class="table table-bordered">
-          <tr>
-            <th>NHIF</th>
-            <td>KSH {{ object.payroll_entry.nhif|floatformat:2 }}</td>
-          </tr>
-          <tr>
-            <th>NSSF (Employee)</th>
-            <td>KSH {{ object.payroll_entry.nssf_employee|floatformat:2 }}</td>
-          </tr>
-          <tr>
-            <th>PAYE</th>
-            <td>KSH {{ object.payroll_entry.paye|floatformat:2 }}</td>
-          </tr>
-          {% for deduction_item in object.payroll_entry.deduction_items.all %}
-          <tr>
-            <td>{{ deduction_item.deduction.name }}</td>
-            <td>KSH {{ deduction_item.amount|floatformat:2 }}</td>
-          </tr>
-          {% endfor %}
-          <tr class="table-danger">
-            <th>Total Deductions</th>
-            <td><strong>KSH {{ object.payroll_entry.total_deductions|floatformat:2 }}</strong></td>
-          </tr>
-        </table>
-      </div>
-    </div>
-    
-    <div class="row mt-3">
-      <div class="col-12">
-        <div class="card bg-primary text-white">
-          <div class="card-body text-center">
-            <h4>Net Salary: KSH {{ object.payroll_entry.net_salary|floatformat:2 }}</h4>
-          </div>
+
+  <div class="row">
+    <!-- Employee Info Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary bg-opacity-10">
+          <h5 class="mb-0 fw-bold">
+            <i class="mdi mdi-account-circle text-primary me-2"></i>Employee Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-borderless mb-0">
+            <tr>
+              <th class="w-50">Name</th>
+              <td>{{ object.payroll_entry.staff.user.full_name|default:object.payroll_entry.staff.user.email }}</td>
+            </tr>
+            <tr>
+              <th>Staff Number</th>
+              <td>{{ object.payroll_entry.staff.staff_number }}</td>
+            </tr>
+            <tr>
+              <th>Period</th>
+              <td>{{ object.payroll_entry.payroll_period }}</td>
+            </tr>
+            <tr>
+              <th>Grade</th>
+              <td>{{ object.payroll_entry.staff_salary.salary_structure.name }}</td>
+            </tr>
+          </table>
         </div>
       </div>
     </div>
-    
-    <div class="mt-3">
-      <a href="{% url 'payroll:payslip_list' %}" class="btn btn-secondary">Back</a>
+
+    <!-- Salary Structure Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-info bg-opacity-10">
+          <h5 class="mb-0 fw-bold">
+            <i class="mdi mdi-briefcase text-info me-2"></i>Salary Structure
+          </h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-borderless mb-0">
+            <tr>
+              <th class="w-50">Basic Salary</th>
+              <td class="text-end fw-semibold">KES {{ object.payroll_entry.basic_salary|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>Grade</th>
+              <td>{{ object.payroll_entry.staff_salary.salary_structure.name }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <div class="row">
+    <!-- Earnings Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-success bg-opacity-10">
+          <h5 class="mb-0 fw-bold">
+            <i class="mdi mdi-arrow-up-circle text-success me-2"></i>Earnings
+          </h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-borderless mb-0">
+            <tr>
+              <th class="w-50">Basic Salary</th>
+              <td class="text-end fw-semibold">KES {{ object.payroll_entry.basic_salary|floatformat:2 }}</td>
+            </tr>
+            {% for allowance_item in object.payroll_entry.allowance_items.all %}
+            <tr>
+              <td class="text-muted">
+                <i class="mdi mdi-circle-small me-1"></i>{{ allowance_item.allowance.name }}
+              </td>
+              <td class="text-end">KES {{ allowance_item.amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="border-top">
+              <th class="fs-5">Gross Salary</th>
+              <td class="text-end fs-5 fw-bold text-success">KES {{ object.payroll_entry.gross_salary|floatformat:2 }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deductions Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-danger bg-opacity-10">
+          <h5 class="mb-0 fw-bold">
+            <i class="mdi mdi-arrow-down-circle text-danger me-2"></i>Deductions
+          </h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-borderless mb-0">
+            <tr>
+              <th class="w-50">NHIF</th>
+              <td class="text-end fw-semibold">KES {{ object.payroll_entry.nhif|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>NSSF (Employee)</th>
+              <td class="text-end fw-semibold">KES {{ object.payroll_entry.nssf_employee|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>PAYE</th>
+              <td class="text-end fw-semibold">KES {{ object.payroll_entry.paye|floatformat:2 }}</td>
+            </tr>
+            {% for deduction_item in object.payroll_entry.deduction_items.all %}
+            <tr>
+              <td class="text-muted">
+                <i class="mdi mdi-circle-small me-1"></i>{{ deduction_item.deduction.name }}
+              </td>
+              <td class="text-end">KES {{ deduction_item.amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="border-top">
+              <th class="fs-5">Total Deductions</th>
+              <td class="text-end fs-5 fw-bold text-danger">KES {{ object.payroll_entry.total_deductions|floatformat:2 }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Net Salary Card -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm border-primary">
+        <div class="card-body text-center py-4">
+          <h6 class="text-muted mb-2">NET SALARY</h6>
+          <h2 class="mb-0 text-primary fw-bold">KES {{ object.payroll_entry.net_salary|floatformat:2 }}</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <a href="{% url 'payroll:payslip_list' %}" class="btn btn-outline-secondary">
+      <i class="mdi mdi-arrow-left me-1"></i>Back to List
+    </a>
   </div>
 </div>
 {% endblock %}
-

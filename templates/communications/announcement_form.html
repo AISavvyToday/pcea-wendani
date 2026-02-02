@@ -2,57 +2,148 @@
 {% block title %}{% if object %}Edit{% else %}Create{% endif %} Announcement{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>{% if object %}Edit{% else %}Create{% endif %} Announcement</h3>
+<div class="content-wrapper">
+  <!-- Header -->
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">
+        {% if object %}Edit{% else %}Create{% endif %} Announcement
+      </h3>
+      <small class="text-muted">
+        {% if object %}
+          Update announcement details and message.
+        {% else %}
+          Create a new announcement to send to parents, teachers, or students via SMS.
+        {% endif %}
+      </small>
+    </div>
+    <a href="{% url 'communications:announcement_list' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to List
+    </a>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col-12 mb-3">
-          <label class="form-label">Title</label>
-          {{ form.title }}
-        </div>
-        <div class="col-12 mb-3">
-          <label class="form-label">Message</label>
-          {{ form.message }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Target Audience</label>
-          {{ form.target_audience }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <div class="form-check mt-4">
-            {{ form.send_sms }}
-            <label class="form-check-label" for="{{ form.send_sms.id_for_label }}">
-              Send SMS
-            </label>
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}
+              <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="row g-4 mb-4">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+            {{ form.title }}
+            {% if form.title.errors %}
+              <div class="text-danger small mt-1">{{ form.title.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
+            {{ form.message }}
+            {% if form.message.errors %}
+              <div class="text-danger small mt-1">{{ form.message.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Use placeholders like {parent.name}, {student.name}, etc. to personalize messages</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Target Audience <span class="text-danger">*</span></label>
+            {{ form.target_audience }}
+            {% if form.target_audience.errors %}
+              <div class="text-danger small mt-1">{{ form.target_audience.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Select who will receive this announcement</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Send Options</label>
+            <div class="form-check form-switch mt-2">
+              {{ form.send_sms }}
+              <label class="form-check-label" for="{{ form.send_sms.id_for_label }}">
+                Send SMS
+              </label>
+            </div>
+            <small class="text-muted">Enable to send this announcement via SMS</small>
+          </div>
+
+          <div class="col-12">
+            <div class="alert alert-info">
+              <h6 class="fw-bold mb-2"><i class="mdi mdi-information-outline me-1"></i>Available Placeholders:</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <strong>Parent Data:</strong>
+                  <ul class="mb-0 small">
+                    <li><code>{parent.name}</code> - Parent full name</li>
+                    <li><code>{parent.first_name}</code> - Parent first name</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <strong>Student Data:</strong>
+                  <ul class="mb-0 small">
+                    <li><code>{student.name}</code> - Student full name</li>
+                    <li><code>{student.admission_number}</code> - Admission number</li>
+                    <li><code>{student.class}</code> - Current class</li>
+                    <li><code>{student.outstanding_balance}</code> - Outstanding balance</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <strong>Invoice Data:</strong>
+                  <ul class="mb-0 small">
+                    <li><code>{invoice.amount}</code> - Invoice amount</li>
+                    <li><code>{invoice.due_date}</code> - Due date</li>
+                    <li><code>{invoice.term}</code> - Invoice term</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <strong>Other:</strong>
+                  <ul class="mb-0 small">
+                    <li><code>{attendance.present_days}</code> - Days present</li>
+                    <li><code>{attendance.absent_days}</code> - Days absent</li>
+                    <li><code>{grade.marks}</code> - Exam marks</li>
+                    <li><code>{grade.position}</code> - Class position</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="col-12 mb-3">
-          <div class="alert alert-info">
-            <strong>Available Placeholders:</strong>
-            <ul class="mb-0 mt-2">
-              <li><code>{parent.name}</code> - Parent full name</li>
-              <li><code>{parent.first_name}</code> - Parent first name</li>
-              <li><code>{student.name}</code> - Student full name</li>
-              <li><code>{student.admission_number}</code> - Student admission number</li>
-              <li><code>{student.class}</code> - Student current class</li>
-              <li><code>{student.outstanding_balance}</code> - Student outstanding balance</li>
-              <li><code>{invoice.amount}</code> - Invoice amount</li>
-              <li><code>{invoice.due_date}</code> - Invoice due date</li>
-              <li><code>{invoice.term}</code> - Invoice term</li>
-            </ul>
-          </div>
+
+        <hr>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{% url 'communications:announcement_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="mdi mdi-content-save me-1"></i>
+            {% if object %}Update{% else %}Create{% endif %} Announcement
+          </button>
         </div>
-      </div>
-      <div class="d-flex justify-content-end">
-        <a href="{% url 'communications:announcement_list' %}" class="btn btn-secondary me-2">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </div>
-{% endblock %}
 
+<style>
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  .form-label {
+    margin-bottom: 0.5rem;
+  }
+  code {
+    background-color: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.875em;
+    color: #d63384;
+  }
+</style>
+{% endblock %}

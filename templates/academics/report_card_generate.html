@@ -2,39 +2,76 @@
 {% block title %}Generate Report Cards{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>Generate Report Cards</h3>
+<div class="content-wrapper">
+  <!-- Header -->
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">Generate Report Cards</h3>
+      <small class="text-muted">
+        Generate report cards for all students in a selected class and term.
+      </small>
+    </div>
+    <a href="{% url 'academics:academic_report' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to Reports
+    </a>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Class</label>
-          <select name="class_id" class="form-select" required>
-            <option value="">Select a class</option>
-            {% for class in classes %}
-            <option value="{{ class.pk }}">{{ class.name }}</option>
-            {% endfor %}
-          </select>
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Class <span class="text-danger">*</span></label>
+            <select name="class_id" class="form-select" required>
+              <option value="">Select a class</option>
+              {% for class in classes %}
+              <option value="{{ class.pk }}">{{ class.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Select the class to generate report cards for</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Term <span class="text-danger">*</span></label>
+            <select name="term_id" class="form-select" required>
+              <option value="">Select a term</option>
+              {% for term in terms %}
+              <option value="{{ term.pk }}">{{ term }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Select the term for report card generation</small>
+          </div>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Term</label>
-          <select name="term_id" class="form-select" required>
-            <option value="">Select a term</option>
-            {% for term in terms %}
-            <option value="{{ term.pk }}">{{ term }}</option>
-            {% endfor %}
-          </select>
+
+        <div class="alert alert-info">
+          <i class="mdi mdi-information-outline me-1"></i>
+          <strong>Note:</strong> This will generate or update report cards for all students in the selected class and term. 
+          Existing report cards will be updated with latest grades and calculations.
         </div>
-      </div>
-      <div class="d-flex justify-content-end">
-        <a href="{% url 'academics:academic_report' %}" class="btn btn-secondary me-2">Cancel</a>
-        <button type="submit" class="btn btn-primary">Generate Report Cards</button>
-      </div>
-    </form>
+
+        <hr>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{% url 'academics:academic_report' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="mdi mdi-file-document-edit me-1"></i>Generate Report Cards
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
-{% endblock %}
 
+<style>
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  .form-label {
+    margin-bottom: 0.5rem;
+  }
+</style>
+{% endblock %}

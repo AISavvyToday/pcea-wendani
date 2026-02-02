@@ -2,37 +2,99 @@
 {% block title %}{% if object %}Edit{% else %}Add{% endif %} Payroll Period{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>{% if object %}Edit{% else %}Add{% endif %} Payroll Period</h3>
+<div class="content-wrapper">
+  <!-- Header -->
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">
+        {% if object %}Edit{% else %}Add{% endif %} Payroll Period
+      </h3>
+      <small class="text-muted">
+        {% if object %}
+          Update payroll period dates.
+        {% else %}
+          Create a new monthly payroll period for processing staff salaries.
+        {% endif %}
+      </small>
+    </div>
+    <a href="{% url 'payroll:payroll_period_list' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to List
+    </a>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Month</label>
-          {{ form.period_month }}
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}
+              <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Month <span class="text-danger">*</span></label>
+            {{ form.period_month }}
+            {% if form.period_month.errors %}
+              <div class="text-danger small mt-1">{{ form.period_month.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Select the month (1-12)</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Year <span class="text-danger">*</span></label>
+            {{ form.period_year }}
+            {% if form.period_year.errors %}
+              <div class="text-danger small mt-1">{{ form.period_year.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Enter the year (e.g., 2025)</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Start Date <span class="text-danger">*</span></label>
+            {{ form.start_date }}
+            {% if form.start_date.errors %}
+              <div class="text-danger small mt-1">{{ form.start_date.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">First day of the payroll period</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">End Date <span class="text-danger">*</span></label>
+            {{ form.end_date }}
+            {% if form.end_date.errors %}
+              <div class="text-danger small mt-1">{{ form.end_date.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Last day of the payroll period</small>
+          </div>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Year</label>
-          {{ form.period_year }}
+
+        <hr>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{% url 'payroll:payroll_period_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="mdi mdi-content-save me-1"></i>
+            {% if object %}Update{% else %}Create{% endif %} Period
+          </button>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Start Date</label>
-          {{ form.start_date }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">End Date</label>
-          {{ form.end_date }}
-        </div>
-      </div>
-      <div class="d-flex justify-content-end">
-        <a href="{% url 'payroll:payroll_period_list' %}" class="btn btn-secondary me-2">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </div>
-{% endblock %}
 
+<style>
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  .form-label {
+    margin-bottom: 0.5rem;
+  }
+</style>
+{% endblock %}

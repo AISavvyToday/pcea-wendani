@@ -2,54 +2,98 @@
 {% block title %}Payslips{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Payslips</h3>
-</div>
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">Payslips</h3>
+      <small class="text-muted">View and manage generated payslips</small>
+    </div>
+  </div>
 
-<div class="row mb-3">
-  <div class="col-md-4">
-    <select class="form-select" id="period-filter" onchange="filterPayslips()">
-      <option value="">All Periods</option>
-      {% for period in periods %}
-      <option value="{{ period.id }}">{{ period }}</option>
-      {% endfor %}
-    </select>
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Filter by Period</label>
+          <select class="form-select" id="period-filter" onchange="filterPayslips()">
+            <option value="">All Periods</option>
+            {% for period in periods %}
+            <option value="{{ period.id }}">{{ period }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Staff</th>
+              <th>Period</th>
+              <th class="text-end">Net Salary</th>
+              <th>Generated At</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payslip in payslips %}
+            <tr>
+              <td>
+                <strong>{{ payslip.payroll_entry.staff.user.full_name|default:payslip.payroll_entry.staff.user.email }}</strong>
+                <br>
+                <small class="text-muted">{{ payslip.payroll_entry.staff.staff_number }}</small>
+              </td>
+              <td>{{ payslip.payroll_entry.payroll_period }}</td>
+              <td class="text-end"><strong class="text-success">KES {{ payslip.payroll_entry.net_salary|floatformat:2 }}</strong></td>
+              <td>{{ payslip.generated_at|date:"M d, Y H:i" }}</td>
+              <td>
+                {% if payslip.is_downloaded %}
+                <span class="badge bg-success">Downloaded</span>
+                {% else %}
+                <span class="badge bg-warning">Pending</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'payroll:payslip_detail' payslip.pk %}" class="btn btn-sm btn-outline-info">
+                  <i class="mdi mdi-eye me-1"></i>View
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-5">
+                <i class="mdi mdi-information-outline text-muted" style="font-size: 3rem;"></i>
+                <p class="text-muted mt-2">No payslips found.</p>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
-<table class="table table-striped table-hover">
-  <thead>
-    <tr>
-      <th>Staff</th>
-      <th>Period</th>
-      <th>Net Salary</th>
-      <th>Generated At</th>
-      <th>Status</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for payslip in payslips %}
-    <tr>
-      <td>{{ payslip.payroll_entry.staff.user.full_name|default:payslip.payroll_entry.staff.user.email }}</td>
-      <td>{{ payslip.payroll_entry.payroll_period }}</td>
-      <td>KSH {{ payslip.payroll_entry.net_salary|floatformat:2 }}</td>
-      <td>{{ payslip.generated_at|date:"M d, Y H:i" }}</td>
-      <td>
-        {% if payslip.is_downloaded %}
-        <span class="badge bg-success">Downloaded</span>
-        {% else %}
-        <span class="badge bg-warning">Pending</span>
-        {% endif %}
-      </td>
-      <td>
-        <a href="{% url 'payroll:payslip_detail' payslip.pk %}" class="btn btn-sm btn-outline-info">View</a>
-      </td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="6" class="text-center">No payslips found.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endblock %}
+<script>
+function filterPayslips() {
+  const periodId = document.getElementById('period-filter').value;
+  const url = new URL(window.location.href);
+  if (periodId) {
+    url.searchParams.set('period_id', periodId);
+  } else {
+    url.searchParams.delete('period_id');
+  }
+  window.location.href = url.toString();
+}
+</script>
 
+<style>
+  .table th {
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+</style>
+{% endblock %}

@@ -2,45 +2,111 @@
 {% block title %}{% if object %}Edit{% else %}Add{% endif %} Salary Structure{% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3>{% if object %}Edit{% else %}Add{% endif %} Salary Structure</h3>
+<div class="content-wrapper">
+  <!-- Header -->
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">
+        {% if object %}Edit{% else %}Add{% endif %} Salary Structure
+      </h3>
+      <small class="text-muted">
+        {% if object %}
+          Update salary structure details and basic salary information.
+        {% else %}
+          Create a new salary structure/grade with basic salary information.
+        {% endif %}
+      </small>
+    </div>
+    <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary btn-sm">
+      ← Back to List
+    </a>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Name</label>
-          {{ form.name }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Code</label>
-          {{ form.code }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Basic Salary</label>
-          {{ form.basic_salary }}
-        </div>
-        <div class="col-md-6 mb-3">
-          <div class="form-check mt-4">
-            {{ form.is_active }}
-            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-              Active
-            </label>
+
+  <!-- Form Card -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}
+              <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Code <span class="text-danger">*</span></label>
+            {{ form.code }}
+            {% if form.code.errors %}
+              <div class="text-danger small mt-1">{{ form.code.errors.0 }}</div>
+            {% endif %}
+            <small class="text-muted">Unique code for this grade (e.g., T-SCALE-1)</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Basic Salary (KES) <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <span class="input-group-text">KES</span>
+              {{ form.basic_salary }}
+            </div>
+            {% if form.basic_salary.errors %}
+              <div class="text-danger small mt-1">{{ form.basic_salary.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Status</label>
+            <div class="form-check form-switch mt-2">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                Active
+              </label>
+            </div>
+            <small class="text-muted">Inactive structures won't be available for new assignments</small>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Description</label>
+            {{ form.description }}
+            {% if form.description.errors %}
+              <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+            {% endif %}
           </div>
         </div>
-        <div class="col-12 mb-3">
-          <label class="form-label">Description</label>
-          {{ form.description }}
+
+        <hr>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i class="mdi mdi-content-save me-1"></i>
+            {% if object %}Update{% else %}Create{% endif %} Salary Structure
+          </button>
         </div>
-      </div>
-      <div class="d-flex justify-content-end">
-        <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-secondary me-2">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </div>
+
+<style>
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  .form-label {
+    margin-bottom: 0.5rem;
+  }
+</style>
 {% endblock %}
 

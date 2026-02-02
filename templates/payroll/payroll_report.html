@@ -2,93 +2,113 @@
 {% block title %}Payroll Reports{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Payroll Reports</h3>
-</div>
-
-<div class="row mb-3">
-  <div class="col-md-4">
-    <form method="get">
-      <select name="period_id" class="form-select" onchange="this.form.submit()">
-        <option value="">Select Period</option>
-        {% for period in periods %}
-        <option value="{{ period.id }}" {% if period.id == period.id %}selected{% endif %}>{{ period }}</option>
-        {% endfor %}
-      </select>
-    </form>
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="page-title mb-1">Payroll Reports</h3>
+      <small class="text-muted">View payroll summaries and analytics by period</small>
+    </div>
   </div>
-</div>
 
-{% if period %}
-<div class="card">
-  <div class="card-header">
-    <h4>Payroll Summary - {{ period }}</h4>
-  </div>
-  <div class="card-body">
-    <div class="row">
-      <div class="col-md-3">
-        <div class="card bg-info text-white">
-          <div class="card-body">
-            <h5>Total Staff</h5>
-            <h3>{{ total_staff }}</h3>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card bg-success text-white">
-          <div class="card-body">
-            <h5>Total Gross</h5>
-            <h3>KSH {{ total_gross|floatformat:2 }}</h3>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card bg-danger text-white">
-          <div class="card-body">
-            <h5>Total Deductions</h5>
-            <h3>KSH {{ total_deductions|floatformat:2 }}</h3>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card bg-primary text-white">
-          <div class="card-body">
-            <h5>Total Net Pay</h5>
-            <h3>KSH {{ total_net|floatformat:2 }}</h3>
-          </div>
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Select Period</label>
+          <form method="get">
+            <select name="period_id" class="form-select" onchange="this.form.submit()">
+              <option value="">Select Period</option>
+              {% for period in periods %}
+              <option value="{{ period.id }}" {% if request.GET.period_id == period.id|stringformat:"s" %}selected{% endif %}>{{ period }}</option>
+              {% endfor %}
+            </select>
+          </form>
         </div>
       </div>
     </div>
-    
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <h5>Deduction Breakdown</h5>
-        <table class="table">
-          <tr>
-            <th>NHIF</th>
-            <td>KSH {{ total_nhif|floatformat:2 }}</td>
-          </tr>
-          <tr>
-            <th>NSSF (Employee)</th>
-            <td>KSH {{ total_nssf_employee|floatformat:2 }}</td>
-          </tr>
-          <tr>
-            <th>NSSF (Employer)</th>
-            <td>KSH {{ total_nssf_employer|floatformat:2 }}</td>
-          </tr>
-          <tr>
-            <th>PAYE</th>
-            <td>KSH {{ total_paye|floatformat:2 }}</td>
-          </tr>
-        </table>
+  </div>
+
+  {% if period %}
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm border-info">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">Total Staff</h6>
+          <h3 class="mb-0 text-info">{{ total_staff }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-success">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">Total Gross</h6>
+          <h3 class="mb-0 text-success">KES {{ total_gross|floatformat:2 }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-danger">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">Total Deductions</h6>
+          <h3 class="mb-0 text-danger">KES {{ total_deductions|floatformat:2 }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-primary">
+        <div class="card-body text-center">
+          <h6 class="text-muted mb-2">Total Net Pay</h6>
+          <h3 class="mb-0 text-primary">KES {{ total_net|floatformat:2 }}</h3>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0 fw-bold">Deduction Breakdown</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-borderless">
+            <tr>
+              <th class="w-50">NHIF</th>
+              <td class="text-end fw-semibold">KES {{ total_nhif|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>NSSF (Employee)</th>
+              <td class="text-end fw-semibold">KES {{ total_nssf_employee|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>NSSF (Employer)</th>
+              <td class="text-end fw-semibold">KES {{ total_nssf_employer|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <th>PAYE</th>
+              <td class="text-end fw-semibold">KES {{ total_paye|floatformat:2 }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+      <i class="mdi mdi-information-outline text-muted" style="font-size: 3rem;"></i>
+      <p class="text-muted mt-2">Please select a payroll period to view reports.</p>
+    </div>
+  </div>
+  {% endif %}
 </div>
-{% else %}
-<div class="alert alert-info">
-  Please select a payroll period to view reports.
-</div>
-{% endif %}
+
+<style>
+  .card {
+    transition: transform 0.2s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+  }
+</style>
 {% endblock %}
-
