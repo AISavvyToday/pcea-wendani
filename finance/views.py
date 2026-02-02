@@ -1460,11 +1460,13 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
                 prepayment_display = Decimal('0.00')
                 
             # Calculate running balance: balance_bf - prepayment - payments before
-            # For transferred students, use outstanding_balance + payment amount as the balance before payment
+            # For transferred students with inactive invoices:
+            # - Student balance BEFORE payment = balance_bf_original (since invoice is inactive)
+            # - Outstanding balance AFTER payment = balance_bf_original - total_paid
             if student.status in ['transferred', 'graduated']:
-                # Outstanding balance AFTER payment = outstanding_balance
-                # Outstanding balance BEFORE payment = outstanding_balance + payment.amount
-                student_balance_at_payment = (student.outstanding_balance or Decimal('0.00')) + payment.amount
+                # For transferred students, use balance_bf_original as the balance before payment
+                # This is correct because inactive invoices don't contribute to outstanding_balance
+                student_balance_at_payment = student.balance_bf_original or Decimal('0.00')
             else:
                 student_balance_at_payment = max(
                     Decimal('0.00'),

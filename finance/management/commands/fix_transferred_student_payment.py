@@ -154,14 +154,15 @@ class Command(BaseCommand):
             # 3. Fix student balances
             self.stdout.write('\n3. Fixing student balances...')
             
-            # The payment of 20000 should have been applied directly to outstanding_balance
-            # Invoice balance = 75250 (original balance before payment)
-            # After payment of 20000: outstanding_balance = 75250 - 20000 = 55250
-            # balance_bf_original = 44250 (frozen balance from previous term)
-            # The difference (75250 - 44250 = 31000) is the invoice total_amount
+            # Since the invoice is inactive, outstanding_balance should NOT include invoice amounts
+            # For transferred students with inactive invoices:
+            # - outstanding_balance = balance_bf_original - total_paid
+            # - balance_bf_original = 44250 (frozen balance from previous term)
+            # - total_paid = 20000
+            # - outstanding_balance = 44250 - 20000 = 24250
             
             student.balance_bf_original = Decimal('44250.00')
-            student.outstanding_balance = Decimal('55250.00')
+            student.outstanding_balance = Decimal('24250.00')  # balance_bf_original - total_paid
             student.credit_balance = Decimal('0.00')
             student.save(update_fields=[
                 'balance_bf_original', 'outstanding_balance', 'credit_balance', 'updated_at'
@@ -201,6 +202,6 @@ class Command(BaseCommand):
         # Show summary
         self.stdout.write('\n=== Summary ===')
         self.stdout.write(f'Invoice will be: amount_paid=0, balance=75250, status=overdue, is_active=False')
-        self.stdout.write(f'Student will be: outstanding_balance=55250, credit_balance=0, balance_bf_original=44250')
-        self.stdout.write(f'Payment allocations: {allocations.count()} will be removed')
+        self.stdout.write(f'Student will be: outstanding_balance=24250, credit_balance=0, balance_bf_original=44250')
+        self.stdout.write(f'Payment allocations: {active_allocations.count()} will be removed')
 
