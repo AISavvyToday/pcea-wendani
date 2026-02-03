@@ -93,9 +93,11 @@ def _get_active_students_qs(organization=None):
     return qs
 
 
-def _get_staff_count():
+def _get_staff_count(organization=None):
     User = get_user_model()
     qs = User.objects.all()
+    if organization:
+        qs = qs.filter(organization=organization)
     if _model_has_field(User, "is_active"):
         qs = qs.filter(is_active=True)
 
@@ -125,8 +127,17 @@ def _invoice_base_qs(organization=None):
     return qs
 
 
-def _completed_payments_base_qs():
+def _completed_payments_base_qs(organization=None):
     qs = Payment.objects.filter(status=PaymentStatus.COMPLETED)
+    if organization:
+        # Filter by organization with backward compatibility
+        qs = qs.filter(
+            Q(organization=organization) | 
+            Q(organization__isnull=True, student__organization=organization)
+        )
+    elif organization is None:
+        # If explicitly None, only show payments without organization
+        qs = qs.filter(organization__isnull=True)
     if _model_has_field(Payment, "is_active"):
         qs = qs.filter(is_active=True)
     return qs
@@ -246,6 +257,8 @@ def _finance_kpis(term=None, organization=None):
 
     # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
     bank_qs = BankTransaction.objects.all()
+    if organization:
+        bank_qs = bank_qs.filter(organization=organization)
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 
@@ -257,7 +270,7 @@ def _finance_kpis(term=None, organization=None):
 
     # Payments today (completed)
     today = timezone.localdate()
-    pay_qs = _completed_payments_base_qs()
+    pay_qs = _completed_payments_base_qs(organization=organization)
     payments_today_total = pay_qs.filter(payment_date__date=today).aggregate(x=Sum("amount"))["x"] or 0
     payments_today_count = pay_qs.filter(payment_date__date=today).count()
 
@@ -446,7 +459,7 @@ def dashboard_admin(request):
     # Calculate transferred students (status='transferred')
     transferred_students = Student.objects.filter(status='transferred', organization=organization).count()
     
-    staff_count = _get_staff_count()
+    staff_count = _get_staff_count(organization=organization)
 
     # Finance URLs (REAL from your finance/urls.py)
     finance_dashboard_url = _safe_reverse("finance:dashboard", default=_safe_reverse("portal:finance_overview"))
@@ -839,6 +852,8 @@ def finance_overview(request):
     pending_invoices = max(0, students_count - invoiced_students)
 
     bank_qs = BankTransaction.objects.all()
+    if organization:
+        bank_qs = bank_qs.filter(organization=organization)
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 
@@ -1116,8 +1131,12 @@ def term_transition(request):
     """
     from finance.services import transition_frozen_balances
     
-    terms = Term.objects.all().select_related("academic_year").order_by("-academic_year__year", "-term")
-    current_term = _get_current_term()
+    organization = getattr(request, 'organization', None)
+    if organization:
+        terms = Term.objects.filter(organization=organization).select_related("academic_year").order_by("-academic_year__year", "-term")
+    else:
+        terms = Term.objects.none()
+    current_term = _get_current_term(organization=organization)
     
     # Default to selecting the previous term
     previous_terms = terms.exclude(id=current_term.id) if current_term else terms
@@ -1134,8 +1153,12 @@ def term_transition(request):
         action = request.POST.get("action", "preview")  # "preview" or "execute"
         
         try:
-            previous_term = Term.objects.get(pk=previous_term_id)
-            new_term = Term.objects.get(pk=new_term_id)
+            if organization:
+                previous_term = Term.objects.get(pk=previous_term_id, organization=organization)
+                new_term = Term.objects.get(pk=new_term_id, organization=organization)
+            else:
+                previous_term = Term.objects.get(pk=previous_term_id)
+                new_term = Term.objects.get(pk=new_term_id)
             
             if previous_term.id == new_term.id:
                 messages.error(request, "Previous term and new term cannot be the same.")

@@ -306,7 +306,7 @@ class Student(BaseModel):
         # Auto-generate admission_number if not set
         if not self.admission_number:
             from .services import StudentService
-            self.admission_number = StudentService.generate_admission_number()
+            self.admission_number = StudentService.generate_admission_number(organization=self.organization)
 
         # --- Compute balances ---
         # Check if we're in initial creation (no PK yet) or update

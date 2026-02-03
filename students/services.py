@@ -142,7 +142,7 @@ class StudentService:
 
     @staticmethod
     def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None,
-                        stream=None):  # ADD 'stream=None'
+                        stream=None, organization=None):  # ADD 'stream=None', 'organization=None'
         """
         Search and filter students based on various criteria.
 
@@ -153,11 +153,16 @@ class StudentService:
             gender: Filter by gender
             is_boarder: Filter by boarding status ('yes', 'no', or None)
             stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH') # ADD THIS ARG DESCRIPTION
+            organization: Organization to filter by (required for multi-tenancy)
 
         Returns:
             QuerySet of Student objects
         """
         students = Student.objects.select_related('current_class').prefetch_related('parents')
+        
+        # Filter by organization (required for multi-tenancy)
+        if organization:
+            students = students.filter(organization=organization)
 
         if query:
             students = students.filter(
@@ -279,17 +284,24 @@ class StudentService:
         }
 
     @staticmethod
-    def get_class_statistics(class_obj):
+    def get_class_statistics(class_obj, organization=None):
         """
         Get statistics for a specific class.
 
         Args:
             class_obj: Class instance
+            organization: Organization to filter by (optional, will use class_obj.organization if available)
 
         Returns:
             dict with class statistics
         """
         students = Student.objects.filter(current_class=class_obj, status='active')
+        
+        # Filter by organization
+        if organization:
+            students = students.filter(organization=organization)
+        elif hasattr(class_obj, 'organization') and class_obj.organization:
+            students = students.filter(organization=class_obj.organization)
 
         return {
             'total_students': students.count(),
@@ -300,7 +312,7 @@ class StudentService:
         }
 
     @staticmethod
-    def generate_admission_number():
+    def generate_admission_number(organization=None):
         """
         Generate the next sequential admission number for a student.
         Finds the highest numeric admission number and increments it.
@@ -308,6 +320,9 @@ class StudentService:
         - If last was "PWA2205", generates "PWA2206"
         - If last was "2205", generates "2206"
         Ensures minimum starting number is 2245.
+
+        Args:
+            organization: Organization to filter by (required for multi-tenancy)
 
         Returns:
             str: Next admission number (preserves format: "PWA2245" or "2245")
@@ -317,8 +332,11 @@ class StudentService:
         # Minimum starting admission number
         MIN_ADMISSION_NUMBER = 2245
         
-        # Get all admission numbers
-        all_students = Student.objects.all().values_list('admission_number', flat=True)
+        # Get all admission numbers for the organization
+        all_students = Student.objects.all()
+        if organization:
+            all_students = all_students.filter(organization=organization)
+        all_students = all_students.values_list('admission_number', flat=True)
         
         max_number = MIN_ADMISSION_NUMBER - 1  # Start from minimum - 1, so first number will be 2245
         format_prefix = ""  # Track the prefix format of the highest number

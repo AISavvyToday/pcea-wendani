@@ -176,7 +176,7 @@ class StudentForm(forms.ModelForm):
             logger.error(f"StudentForm.__init__ - CREATING new student, instance.admission_number before: {self.instance.admission_number}")
             from .services import StudentService
             if not self.instance.admission_number:
-                self.instance.admission_number = StudentService.generate_admission_number()
+                self.instance.admission_number = StudentService.generate_admission_number(organization=self.instance.organization)
                 logger.error(f"StudentForm.__init__ - Generated new admission_number: {self.instance.admission_number}")
             
             generated_value = self.instance.admission_number
@@ -236,7 +236,7 @@ class StudentForm(forms.ModelForm):
             if not admission_number:
                 logger.warning(f"StudentForm.clean_admission_number - admission_number is EMPTY, generating new one")
                 from .services import StudentService
-                admission_number = StudentService.generate_admission_number()
+                admission_number = StudentService.generate_admission_number(organization=self.instance.organization)
                 self.cleaned_data['admission_number'] = admission_number
                 self.instance.admission_number = admission_number
                 logger.debug(f"StudentForm.clean_admission_number - Generated and set: {admission_number}")
@@ -278,7 +278,7 @@ class StudentForm(forms.ModelForm):
                 else:
                     logger.warning(f"StudentForm.clean - instance.admission_number also empty, generating new one")
                     from .services import StudentService
-                    admission_number = StudentService.generate_admission_number()
+                    admission_number = StudentService.generate_admission_number(organization=self.instance.organization)
                     cleaned_data['admission_number'] = admission_number
                     self.instance.admission_number = admission_number
                     logger.debug(f"StudentForm.clean - Generated and set: {admission_number}")
@@ -346,7 +346,7 @@ class StudentForm(forms.ModelForm):
         if not instance.pk and not instance.admission_number:
             logger.error(f"StudentForm.save - CRITICAL: New student with NO admission_number, generating fallback!")
             from .services import StudentService
-            instance.admission_number = StudentService.generate_admission_number()
+            instance.admission_number = StudentService.generate_admission_number(organization=instance.organization)
             logger.debug(f"StudentForm.save - Generated fallback admission_number: {instance.admission_number}")
         
         if commit:

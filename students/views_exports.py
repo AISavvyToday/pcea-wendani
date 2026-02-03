@@ -61,6 +61,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
+        organization = getattr(request, 'organization', None)
 
         queryset = StudentService.search_students(
             query=query if query else None,
@@ -68,7 +69,8 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
             status=status if status else None,
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
-            stream=stream if stream else None
+            stream=stream if stream else None,
+            organization=organization
         )
 
         # Build workbook
@@ -196,6 +198,7 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
+        organization = getattr(request, 'organization', None)
 
         queryset = StudentService.search_students(
             query=query if query else None,
@@ -203,7 +206,8 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
             status=status if status else None,
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
-            stream=stream if stream else None
+            stream=stream if stream else None,
+            organization=organization
         )
 
         # Prepare filter info

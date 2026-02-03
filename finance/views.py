@@ -125,7 +125,7 @@ class FeeStructureListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = FeeStructure.objects.filter(is_active=True).select_related('academic_year')
+        queryset = super().get_queryset().filter(is_active=True).select_related('academic_year')
 
         # Filter by academic year
         year = self.request.GET.get('year')
@@ -142,7 +142,11 @@ class FeeStructureListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from academics.models import AcademicYear
-        context['academic_years'] = AcademicYear.objects.filter(is_active=True)
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            context['academic_years'] = AcademicYear.objects.filter(organization=organization, is_active=True)
+        else:
+            context['academic_years'] = AcademicYear.objects.none()
         context['selected_year'] = self.request.GET.get('year', '')
         context['selected_term'] = self.request.GET.get('term', '')
         return context
@@ -342,7 +346,7 @@ class DiscountListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        return Discount.objects.filter(is_active=True).order_by('name')
+        return super().get_queryset().filter(is_active=True).order_by('name')
 
 
 class DiscountCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
@@ -416,7 +420,7 @@ class StudentDiscountListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = StudentDiscount.objects.filter(
+        queryset = super().get_queryset().filter(
             is_active=True
         ).select_related('student', 'discount', 'approved_by')
 
@@ -499,7 +503,7 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = Invoice.objects.filter(
+        queryset = super().get_queryset().filter(
             is_active=True
         ).select_related('student', 'term', 'term__academic_year')
 
@@ -528,7 +532,11 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['terms'] = Term.objects.filter(is_active=True).select_related('academic_year')
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
+        else:
+            context['terms'] = Term.objects.none()
         context['statuses'] = InvoiceStatus.choices
         context['query'] = self.request.GET.get('query', '')
         context['selected_term'] = self.request.GET.get('term', '')
@@ -1148,7 +1156,7 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         return context
 
 
-class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class PaymentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View payment details."""
 
     model = Payment
@@ -1158,9 +1166,11 @@ class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_queryset(self):
         """Filter by organization with backward compatibility."""
-        queryset = Payment.objects.all()
+        # Use super() to get organization-filtered queryset from mixin
+        queryset = super().get_queryset()
         organization = getattr(self.request, 'organization', None)
         if organization:
+            # Also include payments without organization but with student from same org (backward compatibility)
             queryset = queryset.filter(
                 Q(organization=organization) | 
                 Q(organization__isnull=True, student__organization=organization)
@@ -1419,7 +1429,7 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         return redirect('finance:payment_list')
 
 
-class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly payment receipt.
 
@@ -1441,9 +1451,11 @@ class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
     def get_queryset(self):
         """Filter by organization with backward compatibility."""
-        queryset = Payment.objects.all()
+        # Use super() to get organization-filtered queryset from mixin
+        queryset = super().get_queryset()
         organization = getattr(self.request, 'organization', None)
         if organization:
+            # Also include payments without organization but with student from same org (backward compatibility)
             queryset = queryset.filter(
                 Q(organization=organization) | 
                 Q(organization__isnull=True, student__organization=organization)
@@ -1977,7 +1989,7 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = BankTransaction.objects.filter(is_active=True)
+        queryset = super().get_queryset().filter(is_active=True)
 
         status = self.request.GET.get('status', 'unmatched')  # Default to unmatched
         if status == 'received':
@@ -2061,7 +2073,7 @@ class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, Role
         return redirect('finance:bank_transaction_list')
 
 
-class BankTransactionDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View bank transaction details."""
 
     model = BankTransaction
@@ -2080,7 +2092,7 @@ class BankTransactionDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
 # Reports
 # =============================================================================
 
-class FinanceReportView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
+class FinanceReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
     """Finance reports dashboard."""
 
     template_name = 'finance/reports.html'
@@ -2088,11 +2100,15 @@ class FinanceReportView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['current_term'] = Term.objects.filter(is_current=True).first()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            context['current_term'] = Term.objects.filter(organization=organization, is_current=True).first()
+        else:
+            context['current_term'] = None
         return context
 
 
-class CollectionReportView(LoginRequiredMixin, RoleRequiredMixin, FormView):
+class CollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
     """Fee collection report."""
 
     template_name = 'finance/report_collection.html'
@@ -2115,7 +2131,7 @@ class CollectionReportView(LoginRequiredMixin, RoleRequiredMixin, FormView):
         return context
 
 
-class CollectionsReportView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
+class CollectionsReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
     """Fee collections report with date filtering (alternate view)."""
 
     template_name = 'finance/report_collections.html'
@@ -2128,9 +2144,13 @@ class CollectionsReportView(LoginRequiredMixin, RoleRequiredMixin, TemplateView)
         end_date = self.request.GET.get('end_date')
         term_id = self.request.GET.get('term')
 
+        organization = getattr(self.request, 'organization', None)
         term = None
         if term_id:
-            term = Term.objects.filter(pk=term_id).first()
+            if organization:
+                term = Term.objects.filter(pk=term_id, organization=organization).first()
+            else:
+                term = Term.objects.filter(pk=term_id).first()
 
         if start_date or end_date or term:
             context['report_data'] = FinanceReportService.get_collections_summary(
@@ -2139,14 +2159,17 @@ class CollectionsReportView(LoginRequiredMixin, RoleRequiredMixin, TemplateView)
                 term=term
             )
 
-        context['terms'] = Term.objects.filter(is_active=True).select_related('academic_year')
+        if organization:
+            context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
+        else:
+            context['terms'] = Term.objects.none()
         context['start_date'] = start_date or ''
         context['end_date'] = end_date or ''
         context['selected_term'] = term_id or ''
         return context
 
 
-class OutstandingBalancesReportView(LoginRequiredMixin, RoleRequiredMixin, ListView):
+class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """Outstanding balances report."""
 
     template_name = 'finance/report_outstanding.html'
@@ -2155,7 +2178,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, RoleRequiredMixin, ListV
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = Invoice.objects.filter(
+        queryset = super().get_queryset().filter(
             is_active=True,
             balance__gt=0
         ).exclude(
@@ -2174,7 +2197,11 @@ class OutstandingBalancesReportView(LoginRequiredMixin, RoleRequiredMixin, ListV
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['terms'] = Term.objects.filter(is_active=True)
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            context['terms'] = Term.objects.filter(organization=organization, is_active=True)
+        else:
+            context['terms'] = Term.objects.none()
         context['total_outstanding'] = self.get_queryset().aggregate(
             total=Sum('balance')
         )['total'] or 0
@@ -2187,12 +2214,24 @@ class OutstandingBalancesReportView(LoginRequiredMixin, RoleRequiredMixin, ListV
 # API Views (for AJAX)
 # =============================================================================
 
-class StudentInvoicesAPIView(LoginRequiredMixin, View):
+class StudentInvoicesAPIView(LoginRequiredMixin, OrganizationFilterMixin, View):
     """Get invoices for a student (AJAX)."""
 
     def get(self, request, student_id):
+        organization = getattr(request, 'organization', None)
+        if not organization:
+            return JsonResponse([], safe=False)
+        
+        # Verify student belongs to organization
+        from students.models import Student
+        try:
+            student = Student.objects.get(pk=student_id, organization=organization)
+        except Student.DoesNotExist:
+            return JsonResponse([], safe=False)
+        
         invoices = Invoice.objects.filter(
             student_id=student_id,
+            organization=organization,
             is_active=True,
             balance__gt=0
         ).exclude(status=InvoiceStatus.CANCELLED).values(
@@ -2201,12 +2240,24 @@ class StudentInvoicesAPIView(LoginRequiredMixin, View):
         return JsonResponse(list(invoices), safe=False)
 
 
-class StudentBalanceAPIView(LoginRequiredMixin, View):
+class StudentBalanceAPIView(LoginRequiredMixin, OrganizationFilterMixin, View):
     """Get total balance for a student (AJAX)."""
 
     def get(self, request, student_id):
+        organization = getattr(request, 'organization', None)
+        if not organization:
+            return JsonResponse({'balance': 0.0})
+        
+        # Verify student belongs to organization
+        from students.models import Student
+        try:
+            student = Student.objects.get(pk=student_id, organization=organization)
+        except Student.DoesNotExist:
+            return JsonResponse({'balance': 0.0})
+        
         total_balance = Invoice.objects.filter(
             student_id=student_id,
+            organization=organization,
             is_active=True
         ).exclude(
             status=InvoiceStatus.CANCELLED
@@ -2222,7 +2273,7 @@ class StudentBalanceAPIView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class StudentStatementView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """View student financial statement."""
 
     model = Student
@@ -2234,14 +2285,21 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        organization = getattr(self.request, 'organization', None)
         term_id = self.request.GET.get('term')
         term = None
         if term_id:
-            term = Term.objects.filter(pk=term_id).first()
+            if organization:
+                term = Term.objects.filter(pk=term_id, organization=organization).first()
+            else:
+                term = Term.objects.filter(pk=term_id).first()
 
         statement = InvoiceService.get_student_statement(self.object, term)
         context.update(statement)
-        context['terms'] = Term.objects.filter(is_active=True).select_related('academic_year')
+        if organization:
+            context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
+        else:
+            context['terms'] = Term.objects.none()
         context['selected_term'] = term_id or ''
         
         # Extract admission number only (remove "PWA/" prefix if present)
@@ -2325,7 +2383,7 @@ class StudentStatementView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
 
 
 
-class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class StudentStatementPrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly student statement.
     Accepts optional query params:
@@ -2345,8 +2403,15 @@ class StudentStatementPrintView(LoginRequiredMixin, RoleRequiredMixin, DetailVie
         student = self.object
 
         # Term filter
+        organization = getattr(self.request, 'organization', None)
         term_id = self.request.GET.get('term')
-        term = Term.objects.filter(pk=term_id).first() if term_id else None
+        if term_id:
+            if organization:
+                term = Term.objects.filter(pk=term_id, organization=organization).first()
+            else:
+                term = Term.objects.filter(pk=term_id).first()
+        else:
+            term = None
 
         # Prepare statement using existing InvoiceService helper
         statement = InvoiceService.get_student_statement(student, term)
@@ -2497,7 +2562,7 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
         return response
 
 
-class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
+class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """
     Edit invoice header and items (inline). Staff can add/remove items,
     including transport items with route & half/full trip selection.
@@ -2532,11 +2597,16 @@ class InvoiceEditView(LoginRequiredMixin, RoleRequiredMixin, UpdateView):
             import json
             from decimal import Decimal
 
-            transport_fees = TransportFee.objects.filter(
-                academic_year=invoice.term.academic_year,
-                term=invoice.term.term,
-                is_active=True
-            ).select_related('route')
+            organization = getattr(self.request, 'organization', None)
+            if organization:
+                transport_fees = TransportFee.objects.filter(
+                    organization=organization,
+                    academic_year=invoice.term.academic_year,
+                    term=invoice.term.term,
+                    is_active=True
+                ).select_related('route')
+            else:
+                transport_fees = TransportFee.objects.none()
 
             fee_map = {}
             for tf in transport_fees:

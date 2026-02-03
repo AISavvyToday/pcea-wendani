@@ -55,13 +55,15 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         stream = self.request.GET.get('stream', '')  # ADD THIS LINE: Get stream from form
 
         # Apply filters via service
+        organization = getattr(self.request, 'organization', None)
         queryset = StudentService.search_students(
             query=query if query else None,
             class_id=class_id if class_id else None,
             status=status if status else 'active',  # Default to 'active' if empty
             gender=gender if gender else None,  # ADD THIS LINE
             is_boarder=is_boarder if is_boarder else None,  # ADD THIS LINE
-            stream=stream if stream else None  # ADD THIS LINE
+            stream=stream if stream else None,  # ADD THIS LINE
+            organization=organization
         )
 
         return queryset
