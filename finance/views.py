@@ -1082,7 +1082,9 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = Payment.objects.filter(
+        # Call super() first to get organization-filtered queryset
+        queryset = super().get_queryset()
+        queryset = queryset.filter(
             is_active=True
         ).select_related('student', 'invoice')
 
@@ -1264,7 +1266,12 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     def post(self, request, pk, *args, **kwargs):
         logger.info(f"PaymentDeleteView: Attempting to delete payment with PK: {pk}")
         
-        payment = get_object_or_404(Payment, pk=pk)
+        # Filter by organization to ensure security
+        organization = getattr(request, 'organization', None)
+        if organization:
+            payment = get_object_or_404(Payment, pk=pk, organization=organization)
+        else:
+            payment = get_object_or_404(Payment, pk=pk)
         student = payment.student
         
         try:
@@ -1378,7 +1385,7 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         return redirect('finance:payment_list')
 
 
-class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
+class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly payment receipt.
 
