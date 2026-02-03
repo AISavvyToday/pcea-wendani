@@ -32,23 +32,27 @@
     <div class="page">
         <div class="statement">
             <div class="header">
-                {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
+                {% if not is_demo_organisation %}
                 <div class="logos">
-                    <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
+                    <img src="{{ school_logo_url|default:'/static/assets/images/logo.jpeg' }}" class="logo" alt="School Logo" />
                 </div>
                 {% else %}
-                <div class="logos"></div>
+                <div class="logos">
+                    <img src="{{ school_logo_url|default:'/static/assets/images/placeholder_logo.png' }}" class="logo" alt="Placeholder Logo" />
+                </div>
                 {% endif %}
                 <div class="school-title">
                     <h2>PCEA Wendani Academy</h2>
                     <h3 style="margin-top:6px; font-size:14px;">Student Financial Statement</h3>
                 </div>
-                {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
+                {% if not is_demo_organisation %}
                 <div class="logos">
-                    <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
+                    <img src="{{ sponsor_logo_url|default:'/static/assets/images/logo2.jpeg' }}" class="logo" alt="Sponsor Logo" />
                 </div>
                 {% else %}
-                <div class="logos"></div>
+                <div class="logos">
+                    <img src="{{ sponsor_logo_url|default:'/static/assets/images/placeholder_logo2.png' }}" class="logo" alt="Placeholder Logo" />
+                </div>
                 {% endif %}
             </div>
 

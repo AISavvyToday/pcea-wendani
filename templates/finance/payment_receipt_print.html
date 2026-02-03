@@ -188,19 +188,19 @@
 
     <!-- HEADER -->
     <div class="header">
-        {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
-        <img src="{{ school_logo_url }}" class="logo" alt="School Logo" />
+        {% if not is_demo_organisation %}
+        <img src="{{ school_logo_url|default:'/static/assets/images/logo.jpeg' }}" class="logo" alt="School Logo" />
         {% else %}
-        <div></div>
+        <img src="{{ school_logo_url|default:'/static/assets/images/placeholder_logo.png' }}" class="logo" alt="Placeholder Logo" />
         {% endif %}
         <div class="school-title">
             <h2><strong>{{ school_name }}</strong></h2>
             <h3><strong>OFFICIAL PAYMENT RECEIPT</strong></h3>
         </div>
-        {% if not user.is_authenticated or user.email != 'demoacc@gmail.com' %}
-        <img src="{{ sponsor_logo_url }}" class="logo" alt="Sponsor Logo" />
+        {% if not is_demo_organisation %}
+        <img src="{{ sponsor_logo_url|default:'/static/assets/images/logo2.jpeg' }}" class="logo" alt="Sponsor Logo" />
         {% else %}
-        <div></div>
+        <img src="{{ sponsor_logo_url|default:'/static/assets/images/placeholder_logo2.png' }}" class="logo" alt="Placeholder Logo" />
         {% endif %}
     </div>
 

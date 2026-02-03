@@ -127,6 +127,15 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, R
         printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
         print_datetime = timezone.now()
 
+        organization = getattr(self.request, 'organization', None)
+        is_demo = organization and organization.name == 'Demo Organisation'
+        if is_demo:
+            school_logo_url = '/static/assets/images/placeholder_logo.png'
+            sponsor_logo_url = '/static/assets/images/placeholder_logo2.png'
+        else:
+            school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+            sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+        
         context.update({
             'notes': notes,
             'copies': copies,
@@ -134,8 +143,8 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, R
             'printed_by': printed_by,
             'print_datetime': print_datetime,
             'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
-            'school_logo_url': getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png'),
-            'sponsor_logo_url': getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png'),
+            'school_logo_url': school_logo_url,
+            'sponsor_logo_url': sponsor_logo_url,
             'bank_details': getattr(settings, 'SCHOOL_BANK_DETAILS', {}),
         })
         return context
@@ -204,6 +213,15 @@ class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin,
         printed_by = getattr(self.request.user, 'get_full_name', lambda: str(self.request.user))()
         print_datetime = timezone.now()
 
+        organization = getattr(self.request, 'organization', None)
+        is_demo = organization and organization.name == 'Demo Organisation'
+        if is_demo:
+            school_logo_url = '/static/assets/images/placeholder_logo.png'
+            sponsor_logo_url = '/static/assets/images/placeholder_logo2.png'
+        else:
+            school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+            sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+
         context.update({
             'invoice': payment.invoice,
             'notes': notes,
@@ -212,8 +230,8 @@ class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin,
             'printed_by': printed_by,
             'print_datetime': print_datetime,
             'school_name': getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy'),
-            'school_logo_url': getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png'),
-            'sponsor_logo_url': getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png'),
+            'school_logo_url': school_logo_url,
+            'sponsor_logo_url': sponsor_logo_url,
             'bank_details': getattr(settings, 'SCHOOL_BANK_DETAILS', {}),
         })
         return context

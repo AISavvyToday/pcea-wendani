@@ -1001,8 +1001,14 @@ class InvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
             'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
         })
 
-        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
-        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+        organization = getattr(self.request, 'organization', None)
+        is_demo = organization and organization.name == 'Demo Organisation'
+        if is_demo:
+            school_logo_url = '/static/assets/images/placeholder_logo.png'
+            sponsor_logo_url = '/static/assets/images/placeholder_logo2.png'
+        else:
+            school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+            sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
 
         context.update({
             'notes': notes,
@@ -1595,16 +1601,22 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             },
         })
 
-        school_logo_url = getattr(
-            settings,
-            'SCHOOL_LOGO_URL',
-            '/static/img/school_logo.png'
-        )
-        sponsor_logo_url = getattr(
-            settings,
-            'SPONSOR_LOGO_URL',
-            '/static/img/sponsor_logo.png'
-        )
+        organization = getattr(self.request, 'organization', None)
+        is_demo = organization and organization.name == 'Demo Organisation'
+        if is_demo:
+            school_logo_url = '/static/assets/images/placeholder_logo.png'
+            sponsor_logo_url = '/static/assets/images/placeholder_logo2.png'
+        else:
+            school_logo_url = getattr(
+                settings,
+                'SCHOOL_LOGO_URL',
+                '/static/img/school_logo.png'
+            )
+            sponsor_logo_url = getattr(
+                settings,
+                'SPONSOR_LOGO_URL',
+                '/static/img/sponsor_logo.png'
+            )
 
         # Final context
         context.update({
@@ -2464,8 +2476,14 @@ class StudentStatementPrintView(LoginRequiredMixin, OrganizationFilterMixin, Rol
             'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
             'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
         })
-        school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
-        sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
+        organization = getattr(self.request, 'organization', None)
+        is_demo = organization and organization.name == 'Demo Organisation'
+        if is_demo:
+            school_logo_url = '/static/assets/images/placeholder_logo.png'
+            sponsor_logo_url = '/static/assets/images/placeholder_logo2.png'
+        else:
+            school_logo_url = getattr(settings, 'SCHOOL_LOGO_URL', '/static/img/school_logo.png')
+            sponsor_logo_url = getattr(settings, 'SPONSOR_LOGO_URL', '/static/img/sponsor_logo.png')
         school_name = getattr(settings, 'SCHOOL_NAME', 'P.C.E.A Wendani Academy')
 
         # Statement footnote from settings
