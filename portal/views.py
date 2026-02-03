@@ -258,7 +258,11 @@ def _finance_kpis(term=None, organization=None):
     # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
     bank_qs = BankTransaction.objects.all()
     if organization:
-        bank_qs = bank_qs.filter(organization=organization)
+        # Filter matched transactions by organization through payment->student->organization
+        # For unmatched transactions, we can't filter by organization, so show all unmatched
+        bank_qs = bank_qs.filter(
+            Q(payment__student__organization=organization) | Q(payment__isnull=True)
+        )
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 
@@ -853,7 +857,11 @@ def finance_overview(request):
 
     bank_qs = BankTransaction.objects.all()
     if organization:
-        bank_qs = bank_qs.filter(organization=organization)
+        # Filter matched transactions by organization through payment->student->organization
+        # For unmatched transactions, we can't filter by organization, so show all unmatched
+        bank_qs = bank_qs.filter(
+            Q(payment__student__organization=organization) | Q(payment__isnull=True)
+        )
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 

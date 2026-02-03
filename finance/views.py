@@ -1989,13 +1989,26 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(is_active=True)
+        # BankTransaction doesn't have organization field, filter through payment->student->organization
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            # Filter matched transactions by organization, show all unmatched transactions
+            queryset = BankTransaction.objects.filter(
+                Q(payment__student__organization=organization) | Q(payment__isnull=True)
+            )
+        else:
+            queryset = BankTransaction.objects.all()
+        
+        queryset = queryset.filter(is_active=True)
 
         status = self.request.GET.get('status', 'unmatched')  # Default to unmatched
         if status == 'received':
             # Unmatched/unreconciled transactions with 'received' status
             queryset = queryset.filter(payment__isnull=True, processing_status='received')
         elif status == 'matched':
+            # For matched, ensure we only show transactions from this organization
+            if organization:
+                queryset = queryset.filter(payment__student__organization=organization)
             queryset = queryset.filter(payment__isnull=False)
         elif status == 'failed':
             queryset = queryset.filter(processing_status='failed')
@@ -2006,7 +2019,7 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
             queryset = queryset.filter(payment__isnull=True).exclude(
                 processing_status__in=['failed', 'duplicate']
             )
-        # If status is empty or 'all', show all
+        # If status is empty or 'all', show all (already filtered by organization above)
 
         return queryset.order_by('-callback_received_at')
 
@@ -2080,6 +2093,16 @@ class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, Rol
     template_name = 'finance/bank_transaction_detail.html'
     context_object_name = 'transaction'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        # BankTransaction doesn't have organization field, filter through payment->student->organization
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            # Filter matched transactions by organization, show all unmatched transactions
+            return BankTransaction.objects.filter(
+                Q(payment__student__organization=organization) | Q(payment__isnull=True)
+            )
+        return BankTransaction.objects.all()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
