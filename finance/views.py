@@ -1082,11 +1082,26 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        # Call super() first to get organization-filtered queryset
-        queryset = super().get_queryset()
+        # Get base queryset (without organization filter from mixin)
+        # We'll handle organization filtering manually to support backward compatibility
+        queryset = Payment.objects.all()
+        
+        # Filter by organization: show payments where:
+        # 1. payment.organization matches current organization, OR
+        # 2. payment.organization is null AND student.organization matches current organization (backward compatibility)
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        else:
+            # If no organization, show only payments without organization (backward compatibility)
+            queryset = queryset.filter(organization__isnull=True)
+        
         queryset = queryset.filter(
             is_active=True
-        ).select_related('student', 'invoice')
+        ).select_related('student', 'invoice', 'student__organization')
 
         query = self.request.GET.get('query', '')
         if query:
@@ -1133,13 +1148,26 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         return context
 
 
-class PaymentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
+class PaymentDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """View payment details."""
 
     model = Payment
     template_name = 'finance/payment_detail.html'
     context_object_name = 'payment'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        """Filter by organization with backward compatibility."""
+        queryset = Payment.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        else:
+            queryset = queryset.filter(organization__isnull=True)
+        return queryset.select_related('student', 'student__organization')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1266,12 +1294,18 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     def post(self, request, pk, *args, **kwargs):
         logger.info(f"PaymentDeleteView: Attempting to delete payment with PK: {pk}")
         
-        # Filter by organization to ensure security
+        # Filter by organization with backward compatibility
         organization = getattr(request, 'organization', None)
+        queryset = Payment.objects.filter(pk=pk)
         if organization:
-            payment = get_object_or_404(Payment, pk=pk, organization=organization)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
         else:
-            payment = get_object_or_404(Payment, pk=pk)
+            queryset = queryset.filter(organization__isnull=True)
+        
+        payment = get_object_or_404(queryset)
         student = payment.student
         
         try:
@@ -1385,7 +1419,7 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         return redirect('finance:payment_list')
 
 
-class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
+class PaymentReceiptView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
     """
     Print-friendly payment receipt.
 
@@ -1404,6 +1438,19 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
         UserRole.SCHOOL_ADMIN,
         UserRole.ACCOUNTANT,
     ]
+
+    def get_queryset(self):
+        """Filter by organization with backward compatibility."""
+        queryset = Payment.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        else:
+            queryset = queryset.filter(organization__isnull=True)
+        return queryset.select_related('student', 'student__organization')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

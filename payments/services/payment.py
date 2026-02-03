@@ -240,6 +240,7 @@ class PaymentService:
                 is_reconciled=True,
                 reconciled_by=reconciled_by,
                 reconciled_at=timezone.now(),
+                organization=student.organization,  # Set organization from student
             )
 
             bank_tx.payment = payment
@@ -307,6 +308,7 @@ class PaymentService:
                 is_reconciled=True,
                 reconciled_by=received_by,
                 reconciled_at=timezone.now(),
+                organization=student.organization,  # Set organization from student
             )
 
             PaymentService.process_completed_payment_against_invoices(payment)
