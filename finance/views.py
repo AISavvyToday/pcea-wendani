@@ -1507,6 +1507,25 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             payment_date__lt=payment.payment_date
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
+        # CRITICAL: Get actual allocations to invoices BEFORE this payment
+        # This is more accurate than using payment amounts
+        from payments.models import PaymentAllocation
+        allocations_before = PaymentAllocation.objects.filter(
+            payment__student=student,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+            payment__payment_date__lt=payment.payment_date,
+            is_active=True,
+            invoice_item__invoice__in=current_invoices
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # Get allocations from THIS payment to invoices
+        allocations_from_this_payment = PaymentAllocation.objects.filter(
+            payment=payment,
+            is_active=True,
+            invoice_item__invoice__in=current_invoices
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
         # Get total paid BEFORE this payment INCLUDING this payment (for running balance)
         total_paid_up_to = Payment.objects.filter(
             student=student,
@@ -1570,14 +1589,25 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 balance_bf_display = Decimal('0.00')
                 prepayment_display = Decimal('0.00')
 
-            
-            # Calculate running balance: total_invoiced + balance_bf - prepayment - payments before
-            student_balance_at_payment = (
-                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
+            # CRITICAL FIX: Calculate invoice balance at time of THIS payment
+            # Use actual allocations, not payment amounts
+            # Invoice balance BEFORE this payment = total_amount + balance_bf - prepayment - allocations_before
+            invoice_balance_before_this_payment = (
+                total_invoice_amount + total_balance_bf - total_prepayment - allocations_before
             )
+            
+            # Student balance at payment = invoice balance before this payment
+            student_balance_at_payment = invoice_balance_before_this_payment
 
         # Outstanding AFTER this payment
-        outstanding_balance_after = student_balance_at_payment - payment.amount
+        # Use actual allocation from this payment, not the full payment amount
+        # (some of the payment might have gone to credit_balance if invoice was already fully paid)
+        if current_invoices.exists():
+            # For students with invoices, use allocation amount (not full payment amount)
+            outstanding_balance_after = student_balance_at_payment - allocations_from_this_payment
+        else:
+            # For students without invoices, use full payment amount
+            outstanding_balance_after = student_balance_at_payment - payment.amount
         
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
