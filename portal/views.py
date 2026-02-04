@@ -258,11 +258,27 @@ def _finance_kpis(term=None, organization=None):
     # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
     bank_qs = BankTransaction.objects.all()
     if organization:
-        # Filter matched transactions by organization through payment->student->organization
-        # For unmatched transactions, we can't filter by organization, so show all unmatched
-        bank_qs = bank_qs.filter(
-            Q(payment__student__organization=organization) | Q(payment__isnull=True)
+        # Get all student admission numbers for this organization (with and without PWA prefix)
+        org_students = Student.objects.filter(
+            organization=organization,
+            is_active=True
         )
+        org_admissions = list(org_students.values_list('admission_number', flat=True))
+        # Also include variations without PWA prefix
+        org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+        # Also include variations with PWA prefix
+        org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+        all_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+        
+        # Filter: matched transactions by organization OR unmatched transactions matching org students
+        if all_admission_variants:
+            bank_qs = bank_qs.filter(
+                Q(payment__student__organization=organization) | 
+                Q(payment__isnull=True, transaction_reference__in=all_admission_variants)
+            )
+        else:
+            # No students in org, only show matched transactions
+            bank_qs = bank_qs.filter(payment__student__organization=organization)
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 
@@ -857,11 +873,27 @@ def finance_overview(request):
 
     bank_qs = BankTransaction.objects.all()
     if organization:
-        # Filter matched transactions by organization through payment->student->organization
-        # For unmatched transactions, we can't filter by organization, so show all unmatched
-        bank_qs = bank_qs.filter(
-            Q(payment__student__organization=organization) | Q(payment__isnull=True)
+        # Get all student admission numbers for this organization (with and without PWA prefix)
+        org_students = Student.objects.filter(
+            organization=organization,
+            is_active=True
         )
+        org_admissions = list(org_students.values_list('admission_number', flat=True))
+        # Also include variations without PWA prefix
+        org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+        # Also include variations with PWA prefix
+        org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+        all_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+        
+        # Filter: matched transactions by organization OR unmatched transactions matching org students
+        if all_admission_variants:
+            bank_qs = bank_qs.filter(
+                Q(payment__student__organization=organization) | 
+                Q(payment__isnull=True, transaction_reference__in=all_admission_variants)
+            )
+        else:
+            # No students in org, only show matched transactions
+            bank_qs = bank_qs.filter(payment__student__organization=organization)
     if _model_has_field(BankTransaction, "is_active"):
         bank_qs = bank_qs.filter(is_active=True)
 

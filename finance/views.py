@@ -82,30 +82,59 @@ class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
 
         # Get current term
         current_term = Term.objects.filter(is_current=True).first()
+        
+        # Get organization from request
+        organization = getattr(self.request, 'organization', None)
 
         # Dashboard stats
-        context['stats'] = FinanceReportService.get_dashboard_stats(current_term)
+        context['stats'] = FinanceReportService.get_dashboard_stats(current_term, organization=organization)
 
-        # Recent payments
-        context['recent_payments'] = Payment.objects.filter(
+        # Recent payments - filter by organization
+        recent_payments_qs = Payment.objects.filter(
             is_active=True,
             status=PaymentStatus.COMPLETED
-        ).select_related('student').order_by('-payment_date')[:10]
+        )
+        if organization:
+            recent_payments_qs = recent_payments_qs.filter(student__organization=organization)
+        context['recent_payments'] = recent_payments_qs.select_related('student').order_by('-payment_date')[:10]
 
-        # Unmatched bank transactions (recent)
-        context['unmatched_transactions'] = BankTransaction.objects.filter(
+        # Unmatched bank transactions (recent) - filter by organization
+        unmatched_qs = BankTransaction.objects.filter(
             is_active=True,
             payment__isnull=True
-        ).order_by('-callback_received_at')[:5]
+        )
+        if organization:
+            # Get all student admission numbers for this organization (with and without PWA prefix)
+            org_students = Student.objects.filter(
+                organization=organization,
+                is_active=True
+            )
+            org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Also include variations without PWA prefix
+            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+            # Also include variations with PWA prefix
+            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+            all_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+            
+            # Filter unmatched transactions by checking if transaction_reference matches org students
+            if all_admission_variants:
+                unmatched_qs = unmatched_qs.filter(transaction_reference__in=all_admission_variants)
+            else:
+                # No students in org, show no unmatched transactions
+                unmatched_qs = unmatched_qs.none()
+        context['unmatched_transactions'] = unmatched_qs.order_by('-callback_received_at')[:5]
 
-        # Top outstanding balances (active students only)
-        context['top_balances'] = Invoice.objects.filter(
+        # Top outstanding balances (active students only) - filter by organization
+        top_balances_qs = Invoice.objects.filter(
             is_active=True,
             student__status='active',
             balance__gt=0
         ).exclude(
             status=InvoiceStatus.CANCELLED
-        ).select_related('student', 'term').order_by('-balance')[:10]
+        )
+        if organization:
+            top_balances_qs = top_balances_qs.filter(student__organization=organization)
+        context['top_balances'] = top_balances_qs.select_related('student', 'term').order_by('-balance')[:10]
 
         context['current_term'] = current_term
         return context
@@ -2075,11 +2104,31 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
     def get_queryset(self):
         # BankTransaction doesn't have organization field, filter through payment->student->organization
         organization = getattr(self.request, 'organization', None)
+        
+        # Get all student admission numbers for this organization (with and without PWA prefix)
+        org_admission_variants = []
         if organization:
-            # Filter matched transactions by organization, show all unmatched transactions
-            queryset = BankTransaction.objects.filter(
-                Q(payment__student__organization=organization) | Q(payment__isnull=True)
+            org_students = Student.objects.filter(
+                organization=organization,
+                is_active=True
             )
+            org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Also include variations without PWA prefix
+            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+            # Also include variations with PWA prefix
+            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+            org_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+        
+        if organization:
+            # Filter matched transactions by organization OR unmatched transactions matching org students
+            if org_admission_variants:
+                queryset = BankTransaction.objects.filter(
+                    Q(payment__student__organization=organization) | 
+                    Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
+                )
+            else:
+                # No students in org, only show matched transactions
+                queryset = BankTransaction.objects.filter(payment__student__organization=organization)
         else:
             queryset = BankTransaction.objects.all()
         
@@ -2089,6 +2138,9 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
         if status == 'received':
             # Unmatched/unreconciled transactions with 'received' status
             queryset = queryset.filter(payment__isnull=True, processing_status='received')
+            # Further filter by organization if needed
+            if organization and org_admission_variants:
+                queryset = queryset.filter(transaction_reference__in=org_admission_variants)
         elif status == 'matched':
             # For matched, ensure we only show transactions from this organization
             if organization:
@@ -2096,13 +2148,31 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
             queryset = queryset.filter(payment__isnull=False)
         elif status == 'failed':
             queryset = queryset.filter(processing_status='failed')
+            # Filter by organization if needed
+            if organization:
+                queryset = queryset.filter(
+                    Q(payment__student__organization=organization) | 
+                    Q(payment__isnull=True, transaction_reference__in=org_admission_variants) if org_admission_variants else Q(payment__student__organization=organization)
+                )
         elif status == 'duplicate':
             queryset = queryset.filter(processing_status='duplicate')
+            # Filter by organization if needed
+            if organization:
+                queryset = queryset.filter(
+                    Q(payment__student__organization=organization) | 
+                    Q(payment__isnull=True, transaction_reference__in=org_admission_variants) if org_admission_variants else Q(payment__student__organization=organization)
+                )
         elif status == 'unmatched':
             # Unmatched/unreconciled transactions (all processing statuses)
             queryset = queryset.filter(payment__isnull=True).exclude(
                 processing_status__in=['failed', 'duplicate']
             )
+            # Further filter by organization
+            if organization and org_admission_variants:
+                queryset = queryset.filter(transaction_reference__in=org_admission_variants)
+            elif organization:
+                # No students in org, show no unmatched transactions
+                queryset = queryset.none()
         # If status is empty or 'all', show all (already filtered by organization above)
 
         return queryset.order_by('-callback_received_at')
@@ -2110,13 +2180,34 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['selected_status'] = self.request.GET.get('status', 'unmatched')
-        # Count unmatched transactions (excluding failed/duplicate)
-        context['unmatched_count'] = BankTransaction.objects.filter(
+        # Count unmatched transactions (excluding failed/duplicate) - filter by organization
+        organization = getattr(self.request, 'organization', None)
+        unmatched_qs = BankTransaction.objects.filter(
             is_active=True, 
             payment__isnull=True
         ).exclude(
             processing_status__in=['failed', 'duplicate']
-        ).count()
+        )
+        if organization:
+            # Get all student admission numbers for this organization (with and without PWA prefix)
+            org_students = Student.objects.filter(
+                organization=organization,
+                is_active=True
+            )
+            org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Also include variations without PWA prefix
+            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+            # Also include variations with PWA prefix
+            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+            all_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+            
+            # Filter unmatched transactions by checking if transaction_reference matches org students
+            if all_admission_variants:
+                unmatched_qs = unmatched_qs.filter(transaction_reference__in=all_admission_variants)
+            else:
+                # No students in org, show no unmatched transactions
+                unmatched_qs = unmatched_qs.none()
+        context['unmatched_count'] = unmatched_qs.count()
         return context
 
 
@@ -2127,13 +2218,40 @@ class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, Role
     form_class = BankTransactionMatchForm
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
+    def get_transaction_queryset(self):
+        """Get queryset filtered by organization."""
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            # Get all student admission numbers for this organization (with and without PWA prefix)
+            org_students = Student.objects.filter(
+                organization=organization,
+                is_active=True
+            )
+            org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Also include variations without PWA prefix
+            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+            # Also include variations with PWA prefix
+            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+            org_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+            
+            # Filter: matched transactions by organization OR unmatched transactions matching org students
+            if org_admission_variants:
+                return BankTransaction.objects.filter(
+                    Q(payment__student__organization=organization) | 
+                    Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
+                )
+            else:
+                # No students in org, only show matched transactions
+                return BankTransaction.objects.filter(payment__student__organization=organization)
+        return BankTransaction.objects.all()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['transaction'] = get_object_or_404(BankTransaction, pk=self.kwargs['pk'])
+        context['transaction'] = get_object_or_404(self.get_transaction_queryset(), pk=self.kwargs['pk'])
         return context
 
     def form_valid(self, form):
-        transaction = get_object_or_404(BankTransaction, pk=self.kwargs['pk'])
+        transaction = get_object_or_404(self.get_transaction_queryset(), pk=self.kwargs['pk'])
         student = form.cleaned_data['student']
         selected_invoice = form.cleaned_data.get('invoice')  # optional; do not force allocation to it
         notes = form.cleaned_data.get('notes') or ''
@@ -2182,10 +2300,27 @@ class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, Rol
         # BankTransaction doesn't have organization field, filter through payment->student->organization
         organization = getattr(self.request, 'organization', None)
         if organization:
-            # Filter matched transactions by organization, show all unmatched transactions
-            return BankTransaction.objects.filter(
-                Q(payment__student__organization=organization) | Q(payment__isnull=True)
+            # Get all student admission numbers for this organization (with and without PWA prefix)
+            org_students = Student.objects.filter(
+                organization=organization,
+                is_active=True
             )
+            org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Also include variations without PWA prefix
+            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
+            # Also include variations with PWA prefix
+            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
+            org_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
+            
+            # Filter: matched transactions by organization OR unmatched transactions matching org students
+            if org_admission_variants:
+                return BankTransaction.objects.filter(
+                    Q(payment__student__organization=organization) | 
+                    Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
+                )
+            else:
+                # No students in org, only show matched transactions
+                return BankTransaction.objects.filter(payment__student__organization=organization)
         return BankTransaction.objects.all()
 
     def get_context_data(self, **kwargs):
