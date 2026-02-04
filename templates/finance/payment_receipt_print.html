@@ -283,12 +283,20 @@
                     {% if outstanding_balance_at_payment < 0 %}
                         <strong style="color:#080; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% elif outstanding_balance_at_payment > 0 %}
-                        <strong style="color:#000; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#d32f2f; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% else %}
-                        <strong>KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
+                        <strong style="color:#080; -webkit-print-color-adjust: exact; print-color-adjust: exact;">KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong>
                     {% endif %}
                 </td>
             </tr>
+            {% if credit_balance_after_payment > 0 %}
+            <tr style="background: #d4edda;">
+                <th style="background: #d4edda;"><strong>Credit / Prepayment Balance</strong></th>
+                <td class="text-right" style="background: #d4edda; color:#155724;">
+                    <strong>KES {{ credit_balance_after_payment|floatformat:0|intcomma }}</strong>
+                </td>
+            </tr>
+            {% endif %}
         </table>
         <p><strong>Payments made are not refundable.</strong></p>
     </div>

@@ -1615,6 +1615,41 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             # For students without invoices, use full payment amount
             outstanding_balance_after = student_balance_at_payment - payment.amount
         
+        # Calculate credit_balance after this payment
+        # Credit balance = total payments - total allocations (excess payments)
+        credit_balance_after_payment = Decimal('0.00')
+        
+        if current_invoices.exists():
+            # For students with invoices: calculate credit from payments and allocations
+            # Get all payments up to and including this payment
+            total_payments_up_to = Payment.objects.filter(
+                student=student,
+                is_active=True,
+                status=PaymentStatus.COMPLETED
+            ).filter(
+                Q(payment_date__lt=payment.payment_date) |
+                Q(payment_date=payment.payment_date, created_at__lte=payment.created_at)
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            # Get all allocations up to and including this payment
+            total_allocations_up_to = PaymentAllocation.objects.filter(
+                payment__student=student,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED,
+                is_active=True,
+                invoice_item__invoice__in=current_invoices
+            ).filter(
+                Q(payment__payment_date__lt=payment.payment_date) |
+                Q(payment__payment_date=payment.payment_date, payment__created_at__lte=payment.created_at)
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            # Credit = excess payments (payments - allocations)
+            credit_balance_after_payment = max(Decimal('0.00'), total_payments_up_to - total_allocations_up_to)
+        else:
+            # For students without invoices: credit = current credit_balance
+            # (payments reduce outstanding_balance first, then add to credit)
+            credit_balance_after_payment = student.credit_balance or Decimal('0.00')
+        
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
             'equity': {
@@ -1665,6 +1700,7 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             'prepayment': prepayment_display,  # Will be 0 for subsequent receipts
             'student_balance_at_payment': student_balance_at_payment,
             'outstanding_balance_at_payment': outstanding_balance_after,
+            'credit_balance_after_payment': credit_balance_after_payment,  # Credit balance after this payment
 
             # Branding
             'bank_details': bank_details,
