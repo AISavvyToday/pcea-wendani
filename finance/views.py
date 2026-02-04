@@ -1499,24 +1499,30 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             total=Sum('total_amount')
         )['total'] or Decimal('0.00')
 
-        # Get total paid BEFORE this payment (all payments before this payment date)
+        # Get total paid BEFORE this payment (all payments before this payment date/time)
+        # Use created_at for more accurate ordering when payment dates are the same
         total_paid_before = Payment.objects.filter(
             student=student,
             is_active=True,
-            status=PaymentStatus.COMPLETED,
-            payment_date__lt=payment.payment_date
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            status=PaymentStatus.COMPLETED
+        ).filter(
+            Q(payment_date__lt=payment.payment_date) |
+            Q(payment_date=payment.payment_date, created_at__lt=payment.created_at)
+        ).exclude(pk=payment.pk).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
         # CRITICAL: Get actual allocations to invoices BEFORE this payment
         # This is more accurate than using payment amounts
+        # Use created_at for accurate ordering when payment dates are the same
         from payments.models import PaymentAllocation
         allocations_before = PaymentAllocation.objects.filter(
             payment__student=student,
             payment__is_active=True,
             payment__status=PaymentStatus.COMPLETED,
-            payment__payment_date__lt=payment.payment_date,
             is_active=True,
             invoice_item__invoice__in=current_invoices
+        ).exclude(payment=payment).filter(
+            Q(payment__payment_date__lt=payment.payment_date) |
+            Q(payment__payment_date=payment.payment_date, payment__created_at__lt=payment.created_at)
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
         # Get allocations from THIS payment to invoices
