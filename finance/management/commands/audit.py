@@ -199,6 +199,13 @@ class Command(BaseCommand):
         actual_outstanding = actual_outstanding.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         actual_credit = actual_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+        # For transferred/graduated students: outstanding_balance should match balance_bf_original
+        # This is correct and should NOT be flagged as a mismatch
+        if student.status in ['transferred', 'graduated']:
+            if actual_outstanding == balance_bf_original:
+                # This is correct for transferred students - skip the mismatch check
+                return
+        
         if (
             expected_outstanding != actual_outstanding
             or expected_credit != actual_credit

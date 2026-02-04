@@ -481,51 +481,112 @@ class InvoiceService:
             )
         )
 
-        for invoice in invoices:
-            if remaining <= 0:
+        # CRITICAL: Loop through ALL invoices until ALL are fully paid or payment is exhausted
+        # This ensures invoices are fully cleared before any payment goes to credit_balance
+        max_iterations = 10  # Safety limit to prevent infinite loops
+        iteration = 0
+        
+        while remaining > 0 and iteration < max_iterations:
+            iteration += 1
+            allocated_this_iteration = Decimal('0.00')
+            
+            for invoice in invoices:
+                if remaining <= 0:
+                    break
+                
+                InvoiceService._recalculate_invoice_fields(invoice)
+                
+                if invoice.balance <= 0:
+                    continue
+                
+                # Allocate to clear this invoice
+                amount_for_invoice = min(remaining, invoice.balance)
+                
+                allocated = InvoiceService._allocate_amount_to_invoice_items(
+                    payment=payment,
+                    invoice=invoice,
+                    amount_to_apply=amount_for_invoice,
+                )
+                
+                InvoiceService._recalculate_invoice_fields(invoice)
+                remaining -= allocated
+                allocated_this_iteration += allocated
+            
+            # If no allocation happened this iteration, break to avoid infinite loop
+            if allocated_this_iteration == 0:
                 break
-
+        
+        # Final check: ensure ALL invoices are fully paid
+        all_invoices_fully_paid = True
+        for invoice in invoices:
             InvoiceService._recalculate_invoice_fields(invoice)
+            if invoice.balance > 0:
+                all_invoices_fully_paid = False
+                if remaining > 0:
+                    logger.error(
+                        f"FINANCIAL INTEGRITY VIOLATION: Payment {payment.payment_reference} "
+                        f"has remaining {remaining} but invoice {invoice.invoice_number} "
+                        f"still has balance {invoice.balance}. Attempting to allocate remaining amount."
+                    )
+                    # Try one more time to allocate remaining
+                    force_allocated = InvoiceService._allocate_amount_to_invoice_items(
+                        payment=payment,
+                        invoice=invoice,
+                        amount_to_apply=min(remaining, invoice.balance),
+                    )
+                    InvoiceService._recalculate_invoice_fields(invoice)
+                    remaining -= force_allocated
+                    if force_allocated > 0:
+                        logger.info(
+                            f"Force-allocated {force_allocated} from remaining to invoice {invoice.invoice_number}"
+                        )
+                    # Re-check if invoice is now fully paid
+                    InvoiceService._recalculate_invoice_fields(invoice)
+                    if invoice.balance > 0:
+                        all_invoices_fully_paid = False
 
-            if invoice.balance <= 0:
-                continue
-
-            amount_for_invoice = min(remaining, invoice.balance)
-
-            allocated = InvoiceService._allocate_amount_to_invoice_items(
-                payment=payment,
-                invoice=invoice,
-                amount_to_apply=amount_for_invoice,
-            )
-
-            InvoiceService._recalculate_invoice_fields(invoice)
-            remaining -= allocated
-
-        # -----------------------------------------------------
-        # Remaining → student credit
-        # -----------------------------------------------------
+        # Only add to credit_balance if ALL invoices are fully paid (balance === 0)
         if remaining > 0:
-            student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
-            student.save(update_fields=["credit_balance", "updated_at"])
-
-            total_allocated = payment.amount - remaining
+            # Double-check: ensure ALL invoices are fully paid
+            all_paid = True
+            for inv in invoices:
+                InvoiceService._recalculate_invoice_fields(inv)
+                if inv.balance > 0:
+                    all_paid = False
+                    logger.error(
+                        f"CRITICAL: Cannot add to credit_balance - invoice {inv.invoice_number} "
+                        f"still has balance {inv.balance}"
+                    )
+                    break
             
-            # Create a clear note explaining why funds went to credit balance
-            if total_allocated == Decimal("0.00"):
-                # FULL payment went to credit - invoices exist but nothing was allocatable
-                note = f" | ⚠️ Unapplied credit: KES {remaining} (no allocatable invoice items - invoices may be fully paid or items inactive)"
+            if all_paid:
+                student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
+                student.save(update_fields=["credit_balance", "updated_at"])
+
+                total_allocated = payment.amount - remaining
+                
+                # Create a clear note explaining why funds went to credit balance
+                if total_allocated == Decimal("0.00"):
+                    # FULL payment went to credit - invoices exist but nothing was allocatable
+                    note = f" | ⚠️ Unapplied credit: KES {remaining} (no allocatable invoice items - invoices may be fully paid or items inactive)"
+                else:
+                    # Partial overpayment - normal case (all invoices fully paid)
+                    note = f" | Unapplied credit: KES {remaining} (all invoices fully paid)"
+                
+                if note.strip() not in (payment.notes or ""):
+                    payment.notes = (payment.notes or "") + note
+                    payment.save(update_fields=["notes", "updated_at"])
+
+                logger.info(
+                    f"Payment {payment.payment_reference} allocated. "
+                    f"Unapplied credit={remaining} (all invoices fully paid)"
+                )
             else:
-                # Partial overpayment - normal case
-                note = f" | Unapplied credit: KES {remaining}"
-            
-            if note.strip() not in (payment.notes or ""):
-                payment.notes = (payment.notes or "") + note
-                payment.save(update_fields=["notes", "updated_at"])
-
-            logger.info(
-                f"Payment {payment.payment_reference} allocated. "
-                f"Unapplied credit={remaining}"
-            )
+                logger.error(
+                    f"FINANCIAL INTEGRITY VIOLATION: Payment {payment.payment_reference} "
+                    f"has {remaining} remaining but invoices are not fully paid. "
+                    f"Credit balance NOT increased."
+                )
 
         # -----------------------------------------------------
         # SAFETY CHECK: Warn if payment went fully to credit but
