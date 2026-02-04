@@ -317,7 +317,7 @@ class Invoice(BaseModel):
         # Student aggregate must depend on invoice balances only
         # Only recompute if student is active (transferred/graduated students handle balances differently)
         if self.student.status not in ['transferred', 'graduated']:
-        self.student.recompute_outstanding_balance()
+            self.student.recompute_outstanding_balance()
 
 
 
