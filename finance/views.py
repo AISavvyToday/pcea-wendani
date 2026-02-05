@@ -2105,34 +2105,32 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
         # BankTransaction doesn't have organization field, filter through payment->student->organization
         organization = getattr(self.request, 'organization', None)
         
-        # Get all student admission numbers for this organization (with and without PWA prefix)
-        org_admission_variants = []
+        # Start with base queryset
+        queryset = BankTransaction.objects.filter(is_active=True)
+        
         if organization:
-            org_students = Student.objects.filter(
-                organization=organization,
-                is_active=True
-            )
+            # Get all student admission numbers for this organization (active and inactive)
+            # Include all students to catch transactions for inactive students too
+            org_students = Student.objects.filter(organization=organization)
             org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Filter out None/empty values
+            org_admissions = [adm for adm in org_admissions if adm]
             # Also include variations without PWA prefix
             org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
             # Also include variations with PWA prefix
             org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
             org_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
-        
-        if organization:
-            # Filter matched transactions by organization OR unmatched transactions matching org students
+            
+            # Filter: Show all matched transactions for students in this organization
+            # OR unmatched transactions that match admission numbers of students in this organization
             if org_admission_variants:
-                queryset = BankTransaction.objects.filter(
+                queryset = queryset.filter(
                     Q(payment__student__organization=organization) | 
                     Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
                 )
             else:
                 # No students in org, only show matched transactions
-                queryset = BankTransaction.objects.filter(payment__student__organization=organization)
-        else:
-            queryset = BankTransaction.objects.all()
-        
-        queryset = queryset.filter(is_active=True)
+                queryset = queryset.filter(payment__student__organization=organization)
 
         status = self.request.GET.get('status', 'unmatched')  # Default to unmatched
         if status == 'received':
@@ -2189,12 +2187,11 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
             processing_status__in=['failed', 'duplicate']
         )
         if organization:
-            # Get all student admission numbers for this organization (with and without PWA prefix)
-            org_students = Student.objects.filter(
-                organization=organization,
-                is_active=True
-            )
+            # Get all student admission numbers for this organization (active and inactive)
+            org_students = Student.objects.filter(organization=organization)
             org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Filter out None/empty values
+            org_admissions = [adm for adm in org_admissions if adm]
             # Also include variations without PWA prefix
             org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
             # Also include variations with PWA prefix
@@ -2221,13 +2218,14 @@ class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, Role
     def get_transaction_queryset(self):
         """Get queryset filtered by organization."""
         organization = getattr(self.request, 'organization', None)
+        queryset = BankTransaction.objects.filter(is_active=True)
+        
         if organization:
-            # Get all student admission numbers for this organization (with and without PWA prefix)
-            org_students = Student.objects.filter(
-                organization=organization,
-                is_active=True
-            )
+            # Get all student admission numbers for this organization (active and inactive)
+            org_students = Student.objects.filter(organization=organization)
             org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Filter out None/empty values
+            org_admissions = [adm for adm in org_admissions if adm]
             # Also include variations without PWA prefix
             org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
             # Also include variations with PWA prefix
@@ -2236,14 +2234,14 @@ class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, Role
             
             # Filter: matched transactions by organization OR unmatched transactions matching org students
             if org_admission_variants:
-                return BankTransaction.objects.filter(
+                return queryset.filter(
                     Q(payment__student__organization=organization) | 
                     Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
                 )
             else:
                 # No students in org, only show matched transactions
-                return BankTransaction.objects.filter(payment__student__organization=organization)
-        return BankTransaction.objects.all()
+                return queryset.filter(payment__student__organization=organization)
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2299,13 +2297,14 @@ class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, Rol
     def get_queryset(self):
         # BankTransaction doesn't have organization field, filter through payment->student->organization
         organization = getattr(self.request, 'organization', None)
+        queryset = BankTransaction.objects.filter(is_active=True)
+        
         if organization:
-            # Get all student admission numbers for this organization (with and without PWA prefix)
-            org_students = Student.objects.filter(
-                organization=organization,
-                is_active=True
-            )
+            # Get all student admission numbers for this organization (active and inactive)
+            org_students = Student.objects.filter(organization=organization)
             org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Filter out None/empty values
+            org_admissions = [adm for adm in org_admissions if adm]
             # Also include variations without PWA prefix
             org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
             # Also include variations with PWA prefix
@@ -2314,14 +2313,14 @@ class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, Rol
             
             # Filter: matched transactions by organization OR unmatched transactions matching org students
             if org_admission_variants:
-                return BankTransaction.objects.filter(
+                return queryset.filter(
                     Q(payment__student__organization=organization) | 
                     Q(payment__isnull=True, transaction_reference__in=org_admission_variants)
                 )
             else:
                 # No students in org, only show matched transactions
-                return BankTransaction.objects.filter(payment__student__organization=organization)
-        return BankTransaction.objects.all()
+                return queryset.filter(payment__student__organization=organization)
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

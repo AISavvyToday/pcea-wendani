@@ -258,12 +258,11 @@ def _finance_kpis(term=None, organization=None):
     # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
     bank_qs = BankTransaction.objects.all()
     if organization:
-        # Get all student admission numbers for this organization (with and without PWA prefix)
-        org_students = Student.objects.filter(
-            organization=organization,
-            is_active=True
-        )
+        # Get all student admission numbers for this organization (active and inactive)
+        org_students = Student.objects.filter(organization=organization)
         org_admissions = list(org_students.values_list('admission_number', flat=True))
+        # Filter out None/empty values
+        org_admissions = [adm for adm in org_admissions if adm]
         # Also include variations without PWA prefix
         org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
         # Also include variations with PWA prefix
@@ -873,12 +872,11 @@ def finance_overview(request):
 
     bank_qs = BankTransaction.objects.all()
     if organization:
-        # Get all student admission numbers for this organization (with and without PWA prefix)
-        org_students = Student.objects.filter(
-            organization=organization,
-            is_active=True
-        )
+        # Get all student admission numbers for this organization (active and inactive)
+        org_students = Student.objects.filter(organization=organization)
         org_admissions = list(org_students.values_list('admission_number', flat=True))
+        # Filter out None/empty values
+        org_admissions = [adm for adm in org_admissions if adm]
         # Also include variations without PWA prefix
         org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
         # Also include variations with PWA prefix

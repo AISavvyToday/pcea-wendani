@@ -573,13 +573,12 @@ class FinanceReportService:
         # Filter pending transactions by organization
         pending_qs = BankTransaction.objects.filter(processing_status='pending')
         if organization:
-            # Get all student admission numbers for this organization (with and without PWA prefix)
+            # Get all student admission numbers for this organization (active and inactive)
             from students.models import Student
-            org_students = Student.objects.filter(
-                organization=organization,
-                is_active=True
-            )
+            org_students = Student.objects.filter(organization=organization)
             org_admissions = list(org_students.values_list('admission_number', flat=True))
+            # Filter out None/empty values
+            org_admissions = [adm for adm in org_admissions if adm]
             # Also include variations without PWA prefix
             org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
             # Also include variations with PWA prefix
