@@ -74,48 +74,20 @@ logger = logging.getLogger(__name__)
 def _filter_bank_transactions_by_organization(queryset, organization=None):
     """
     Filter bank transactions by organization.
-    
-    For matched transactions: filter by payment->student->organization
-    For unmatched transactions: If organization is 'PCEA Wendani Academy', show ALL unmatched.
+    For PCEA Wendani Academy: show ALL bank transactions (matched + unmatched).
     """
     if not organization:
         return queryset
     
-    # Special case: For PCEA Wendani Academy, show ALL unmatched transactions
-    is_wendani = organization.name == 'PCEA Wendani Academy'
+    # For PCEA Wendani Academy, show ALL bank transactions
+    if organization.name == 'PCEA Wendani Academy':
+        return queryset  # Show everything
     
-    if is_wendani:
-        # Show ALL bank transactions for Wendani (matched + ALL unmatched)
-        return queryset.filter(
-            Q(payment__organization=organization) | 
-            Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
-            Q(payment__isnull=True)  # ALL unmatched transactions for Wendani
-        )
-    else:
-        # For other organizations, use admission number matching for unmatched transactions
-        org_students = Student.objects.filter(organization=organization, is_active=True)
-        org_admission_numbers = list(org_students.values_list('admission_number', flat=True))
-        
-        admission_q = Q()
-        for adm_num in org_admission_numbers:
-            if adm_num:
-                adm_num_upper = adm_num.upper().strip()
-                admission_q |= Q(transaction_reference__iexact=adm_num_upper)
-                if adm_num_upper.startswith('PWA'):
-                    numeric_part = adm_num_upper[3:].strip()
-                    if numeric_part:
-                        admission_q |= Q(transaction_reference__iexact=numeric_part)
-                        admission_q |= Q(transaction_reference__icontains=numeric_part)
-                if not adm_num_upper.startswith('PWA') and adm_num_upper:
-                    admission_q |= Q(transaction_reference__iexact=f"PWA{adm_num_upper}")
-                    admission_q |= Q(transaction_reference__icontains=adm_num_upper)
-                admission_q |= Q(transaction_reference__icontains=adm_num_upper)
-        
-        return queryset.filter(
-            Q(payment__organization=organization) | 
-            Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
-            Q(payment__isnull=True) & admission_q
-        )
+    # For other organizations, filter normally
+    return queryset.filter(
+        Q(payment__organization=organization) | 
+        Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization)
+    )
 
 
 # =============================================================================
