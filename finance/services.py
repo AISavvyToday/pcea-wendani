@@ -533,7 +533,7 @@ class FinanceReportService:
     """Service for financial reports."""
 
     @staticmethod
-    def get_dashboard_stats(term=None, organization=None):
+    def get_dashboard_stats(term=None):
         """Get finance dashboard statistics for active students only."""
 
         # Filter to active students only
@@ -548,11 +548,6 @@ class FinanceReportService:
             status='completed',
             student__status='active'
         )
-        
-        # Filter by organization if provided
-        if organization:
-            invoices = invoices.filter(student__organization=organization)
-            payments = payments.filter(student__organization=organization)
 
         # If term is provided, filter to that term (typically current term)
         if term:
@@ -569,32 +564,8 @@ class FinanceReportService:
         collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
 
         recent_payments = payments.select_related('student').order_by('-payment_date')[:10]
-        
-        # Filter pending transactions by organization
-        pending_qs = BankTransaction.objects.filter(processing_status='pending')
-        if organization:
-            # Get all student admission numbers for this organization (active and inactive)
-            from students.models import Student
-            org_students = Student.objects.filter(organization=organization)
-            org_admissions = list(org_students.values_list('admission_number', flat=True))
-            # Filter out None/empty values
-            org_admissions = [adm for adm in org_admissions if adm]
-            # Also include variations without PWA prefix
-            org_admissions_without_pwa = [adm[3:] for adm in org_admissions if adm and adm.startswith('PWA')]
-            # Also include variations with PWA prefix
-            org_admissions_with_pwa = [f"PWA{adm}" for adm in org_admissions if adm and not adm.startswith('PWA')]
-            all_admission_variants = list(set(org_admissions + org_admissions_without_pwa + org_admissions_with_pwa))
-            
-            # Filter: matched transactions by organization OR unmatched transactions matching org students
-            if all_admission_variants:
-                pending_qs = pending_qs.filter(
-                    Q(payment__student__organization=organization) | 
-                    Q(payment__isnull=True, transaction_reference__in=all_admission_variants)
-                )
-            else:
-                # No students in org, only show matched transactions
-                pending_qs = pending_qs.filter(payment__student__organization=organization)
-        pending_transactions = pending_qs.order_by('-callback_received_at')[:5]
+        pending_transactions = BankTransaction.objects.filter(processing_status='pending').order_by(
+            '-callback_received_at')[:5]
 
         return {
             'total_invoiced': total_invoiced,
