@@ -263,9 +263,11 @@ class Student(BaseModel):
         
         Rules:
         - If student has active invoices: outstanding_balance = sum(invoice.balance)
-        - If student has NO active invoices: DO NOT reset outstanding_balance
-          (payments may have been applied directly to outstanding_balance)
+        - If student has NO active invoices: outstanding_balance = balance_bf_original - total_paid
         """
+        from payments.models import Payment
+        from core.models import PaymentStatus
+        
         active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
 
         if active_invoices.exists():
@@ -277,13 +279,25 @@ class Student(BaseModel):
             # Ensure credit_balance never goes negative
             self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
         else:
-            # Student has NO active invoices - preserve current outstanding_balance
-            # (payments may have been applied directly to it)
-            # Only ensure credit_balance is at least prepayment_original
-            baseline_credit = self.prepayment_original or Decimal('0.00')
+            # Student has NO active invoices - outstanding_balance = balance_bf_original - total_paid
+            balance_bf_original = self.balance_bf_original or Decimal('0.00')
+            total_paid = Payment.objects.filter(
+                student=self,
+                is_active=True,
+                status=PaymentStatus.COMPLETED
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            # Outstanding = balance_bf_original - total_paid
+            self.outstanding_balance = max(Decimal('0.00'), balance_bf_original - total_paid)
+            
+            # Credit = prepayment_original + overpayment (if total_paid > balance_bf_original)
+            prepayment_original = self.prepayment_original or Decimal('0.00')
+            overpayment = max(Decimal('0.00'), total_paid - balance_bf_original)
+            expected_credit = prepayment_original + overpayment
+            
+            # Ensure credit_balance is at least expected_credit
             current_credit = self.credit_balance or Decimal('0.00')
-            self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
-            # DO NOT reset outstanding_balance to balance_bf_original
+            self.credit_balance = max(current_credit, expected_credit, Decimal('0.00'))
 
         self.save(update_fields=['outstanding_balance', 'credit_balance'])
 
@@ -322,13 +336,27 @@ class Student(BaseModel):
                 # Ensure credit_balance is non-negative
                 self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
             else:
-                # No active invoices - preserve current outstanding_balance
-                # (payments may have been applied directly to it)
-                # Only ensure credit_balance is at least prepayment_original
-                baseline_credit = self.prepayment_original or Decimal('0.00')
+                # No active invoices - outstanding_balance = balance_bf_original - total_paid
+                from payments.models import Payment
+                from core.models import PaymentStatus
+                
+                balance_bf_original = self.balance_bf_original or Decimal('0.00')
+                total_paid = Payment.objects.filter(
+                    student=self,
+                    is_active=True,
+                    status=PaymentStatus.COMPLETED
+                ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+                
+                # Outstanding = balance_bf_original - total_paid
+                self.outstanding_balance = max(Decimal('0.00'), balance_bf_original - total_paid)
+                
+                # Credit = prepayment_original + overpayment
+                prepayment_original = self.prepayment_original or Decimal('0.00')
+                overpayment = max(Decimal('0.00'), total_paid - balance_bf_original)
+                expected_credit = prepayment_original + overpayment
+                
                 current_credit = self.credit_balance or Decimal('0.00')
-                self.credit_balance = max(current_credit, baseline_credit, Decimal('0.00'))
-                # DO NOT reset outstanding_balance to balance_bf_original
+                self.credit_balance = max(current_credit, expected_credit, Decimal('0.00'))
         else:
             # New student - ensure fields have proper defaults
             self.outstanding_balance = self.outstanding_balance or Decimal('0.00')

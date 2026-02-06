@@ -545,7 +545,7 @@ class InvoiceService:
                     if invoice.balance > 0:
                         all_invoices_fully_paid = False
 
-        # Only add to credit_balance if ALL invoices are fully paid (balance === 0)
+        # Only add to credit_balance if ALL invoices are fully paid (balance === 0) AND outstanding_balance === 0
         if remaining > 0:
             # Double-check: ensure ALL invoices are fully paid
             all_paid = True
@@ -560,6 +560,21 @@ class InvoiceService:
                     break
             
             if all_paid:
+                # CRITICAL: Also verify outstanding_balance is 0 before adding to credit
+                # Recompute outstanding_balance to ensure it's accurate
+                student.recompute_outstanding_balance()
+                
+                # Double-check: outstanding_balance MUST be 0 before adding to credit
+                if student.outstanding_balance > 0:
+                    logger.error(
+                        f"CRITICAL FINANCIAL INTEGRITY VIOLATION: Payment {payment.payment_reference} "
+                        f"attempted to add {remaining} to credit_balance but student.outstanding_balance "
+                        f"is {student.outstanding_balance}. Credit balance NOT increased."
+                    )
+                    # Don't add to credit - outstanding_balance must be 0 first
+                    return payment.amount - remaining
+                
+                # All checks passed: invoice.balance == 0 AND outstanding_balance == 0
                 student.credit_balance = (student.credit_balance or Decimal("0.00")) + remaining
                 student.save(update_fields=["credit_balance", "updated_at"])
 
@@ -571,7 +586,7 @@ class InvoiceService:
                     note = f" | ⚠️ Unapplied credit: KES {remaining} (no allocatable invoice items - invoices may be fully paid or items inactive)"
                 else:
                     # Partial overpayment - normal case (all invoices fully paid)
-                    note = f" | Unapplied credit: KES {remaining} (all invoices fully paid)"
+                    note = f" | Unapplied credit: KES {remaining} (all invoices fully paid, outstanding balance cleared)"
                 
                 if note.strip() not in (payment.notes or ""):
                     payment.notes = (payment.notes or "") + note
@@ -579,7 +594,7 @@ class InvoiceService:
 
                 logger.info(
                     f"Payment {payment.payment_reference} allocated. "
-                    f"Unapplied credit={remaining} (all invoices fully paid)"
+                    f"Unapplied credit={remaining} (all invoices fully paid, outstanding balance cleared)"
                 )
             else:
                 logger.error(
