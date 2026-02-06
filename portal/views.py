@@ -192,44 +192,46 @@ def _filter_bank_transactions_by_organization(queryset, organization=None):
     Filter bank transactions by organization.
     
     For matched transactions: filter by payment->student->organization
-    For unmatched transactions: filter by checking if transaction_reference 
-    matches a student's admission number in the organization (case-insensitive, flexible matching).
+    For unmatched transactions: If organization is 'PCEA Wendani Academy', show ALL unmatched.
     """
     if not organization:
         return queryset
     
-    # Get all student admission numbers for this organization
-    org_students = Student.objects.filter(organization=organization, is_active=True)
-    org_admission_numbers = list(org_students.values_list('admission_number', flat=True))
+    # Special case: For PCEA Wendani Academy, show ALL unmatched transactions
+    is_wendani = organization.name == 'PCEA Wendani Academy'
     
-    # Build Q object for flexible admission number matching
-    admission_q = Q()
-    for adm_num in org_admission_numbers:
-        if adm_num:
-            adm_num_upper = adm_num.upper().strip()
-            # Exact match (case-insensitive)
-            admission_q |= Q(transaction_reference__iexact=adm_num_upper)
-            # Without PWA prefix if it starts with PWA
-            if adm_num_upper.startswith('PWA'):
-                numeric_part = adm_num_upper[3:].strip()
-                if numeric_part:
-                    admission_q |= Q(transaction_reference__iexact=numeric_part)
-                    admission_q |= Q(transaction_reference__icontains=numeric_part)
-            # With PWA prefix if it doesn't have it
-            if not adm_num_upper.startswith('PWA') and adm_num_upper:
-                admission_q |= Q(transaction_reference__iexact=f"PWA{adm_num_upper}")
+    if is_wendani:
+        # Show ALL bank transactions for Wendani (matched + ALL unmatched)
+        return queryset.filter(
+            Q(payment__organization=organization) | 
+            Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
+            Q(payment__isnull=True)  # ALL unmatched transactions for Wendani
+        )
+    else:
+        # For other organizations, use admission number matching for unmatched transactions
+        org_students = Student.objects.filter(organization=organization, is_active=True)
+        org_admission_numbers = list(org_students.values_list('admission_number', flat=True))
+        
+        admission_q = Q()
+        for adm_num in org_admission_numbers:
+            if adm_num:
+                adm_num_upper = adm_num.upper().strip()
+                admission_q |= Q(transaction_reference__iexact=adm_num_upper)
+                if adm_num_upper.startswith('PWA'):
+                    numeric_part = adm_num_upper[3:].strip()
+                    if numeric_part:
+                        admission_q |= Q(transaction_reference__iexact=numeric_part)
+                        admission_q |= Q(transaction_reference__icontains=numeric_part)
+                if not adm_num_upper.startswith('PWA') and adm_num_upper:
+                    admission_q |= Q(transaction_reference__iexact=f"PWA{adm_num_upper}")
+                    admission_q |= Q(transaction_reference__icontains=adm_num_upper)
                 admission_q |= Q(transaction_reference__icontains=adm_num_upper)
-            # Contains match (for cases where transaction_reference has extra text)
-            admission_q |= Q(transaction_reference__icontains=adm_num_upper)
-    
-    # Filter: matched transactions OR unmatched transactions with matching admission numbers
-    # For matched transactions, check both payment.organization and payment.student.organization (backward compatibility)
-    # For unmatched, use the flexible admission number matching
-    return queryset.filter(
-        Q(payment__organization=organization) | 
-        Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
-        Q(payment__isnull=True) & admission_q
-    )
+        
+        return queryset.filter(
+            Q(payment__organization=organization) | 
+            Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
+            Q(payment__isnull=True) & admission_q
+        )
 
 
 def _finance_kpis(term=None, organization=None):
