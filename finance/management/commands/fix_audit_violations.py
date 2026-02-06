@@ -93,24 +93,68 @@ class Command(BaseCommand):
             self.stdout.write(f'     Reallocating credit_balance to clear invoices...')
             
             if not dry_run:
-                # Reallocate credit to invoices
+                # Reallocate credit to invoices by finding a payment that went to credit
+                # and creating allocations from it
                 credit_to_use = min(current_credit, total_invoice_balance)
                 
                 # Find the oldest invoice with balance
                 invoice = invoices.filter(balance__gt=0).order_by('issue_date').first()
                 if invoice:
-                    # Add credit to invoice amount_paid
-                    invoice.amount_paid = (invoice.amount_paid or Decimal('0.00')) + credit_to_use
-                    invoice.save()  # This will recalculate balance
+                    # Find a payment that has unallocated amount (went to credit)
+                    # We'll use the most recent payment that has credit
+                    payments = Payment.objects.filter(
+                        student=student,
+                        is_active=True,
+                        status=PaymentStatus.COMPLETED
+                    ).order_by('-payment_date', '-created_at')
                     
-                    # Reduce credit_balance
-                    student.credit_balance = current_credit - credit_to_use
-                    student.save(update_fields=['credit_balance', 'updated_at'])
+                    # Find payment with unallocated amount
+                    payment_to_use = None
+                    for payment in payments:
+                        total_allocated = PaymentAllocation.objects.filter(
+                            payment=payment,
+                            is_active=True
+                        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+                        unallocated = payment.amount - total_allocated
+                        if unallocated > 0:
+                            payment_to_use = payment
+                            break
                     
-                    # Recompute outstanding
-                    student.recompute_outstanding_balance()
-                    
-                    self.stdout.write(f'     ✓ Reallocated {credit_to_use} from credit to invoice {invoice.invoice_number}')
+                    if payment_to_use:
+                        # Allocate the credit amount from this payment to the invoice
+                        # Find invoice items that need payment (by priority)
+                        from payments.services.invoice import InvoiceService
+                        
+                        # Allocate to invoice items
+                        allocated = InvoiceService._allocate_amount_to_invoice_items(
+                            payment=payment_to_use,
+                            invoice=invoice,
+                            amount_to_apply=credit_to_use,
+                        )
+                        
+                        # Recalculate invoice
+                        InvoiceService._recalculate_invoice_fields(invoice)
+                        
+                        # Reduce credit_balance
+                        student.credit_balance = current_credit - allocated
+                        student.save(update_fields=['credit_balance', 'updated_at'])
+                        
+                        # Recompute outstanding
+                        student.recompute_outstanding_balance()
+                        
+                        self.stdout.write(f'     ✓ Reallocated {allocated} from credit to invoice {invoice.invoice_number} via payment {payment_to_use.payment_reference}')
+                    else:
+                        # No payment found - just adjust balances manually
+                        # This shouldn't happen, but handle it gracefully
+                        self.stdout.write(f'     ⚠️  No payment found with unallocated amount. Adjusting invoice manually...')
+                        invoice.amount_paid = (invoice.amount_paid or Decimal('0.00')) + credit_to_use
+                        invoice.save()
+                        
+                        student.credit_balance = current_credit - credit_to_use
+                        student.save(update_fields=['credit_balance', 'updated_at'])
+                        student.recompute_outstanding_balance()
+                        
+                        self.stdout.write(f'     ✓ Adjusted invoice {invoice.invoice_number} amount_paid (no allocation created)')
         
         # Final state
         student.refresh_from_db()
