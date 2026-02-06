@@ -77,7 +77,7 @@ def _filter_bank_transactions_by_organization(queryset, organization=None):
     
     For matched transactions: filter by payment->student->organization
     For unmatched transactions: filter by checking if transaction_reference 
-    matches a student's admission number in the organization.
+    matches a student's admission number in the organization (case-insensitive, handles spaces and PWA prefix).
     """
     if not organization:
         return queryset
@@ -86,24 +86,37 @@ def _filter_bank_transactions_by_organization(queryset, organization=None):
     org_students = Student.objects.filter(organization=organization, is_active=True)
     org_admission_numbers = list(org_students.values_list('admission_number', flat=True))
     
-    # Build list of all possible admission number variations
-    admission_variations = set()
+    # Build Q object for matching transaction_reference to admission numbers
+    # Use __iexact for case-insensitive matching and handle spaces/PWA prefix variations
+    unmatched_q = Q()
     for adm_num in org_admission_numbers:
         if adm_num:
-            adm_num_upper = adm_num.upper()
-            admission_variations.add(adm_num_upper)
-            # Add without PWA prefix if it starts with PWA
-            if adm_num_upper.startswith('PWA'):
-                admission_variations.add(adm_num_upper[3:])
-            # Add with PWA prefix if it doesn't have it
-            if not adm_num_upper.startswith('PWA'):
-                admission_variations.add(f"PWA{adm_num_upper}")
+            adm_num_clean = str(adm_num).strip().upper()
+            # Match exact admission number (case-insensitive)
+            unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=adm_num_clean)
+            # Match without spaces
+            unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=adm_num_clean.replace(" ", ""))
+            # Handle PWA prefix variations
+            if adm_num_clean.startswith('PWA'):
+                # Match without PWA prefix
+                unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=adm_num_clean[3:])
+                # Match with spaces removed and without PWA
+                unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=adm_num_clean[3:].replace(" ", ""))
+            else:
+                # Match with PWA prefix
+                unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=f"PWA{adm_num_clean}")
+                # Match with PWA prefix and spaces removed
+                unmatched_q |= Q(payment__isnull=True, transaction_reference__iexact=f"PWA{adm_num_clean.replace(' ', '')}")
+            # Also try endswith for numeric part matching
+            if len(adm_num_clean) > 3:
+                numeric_part = adm_num_clean[3:] if adm_num_clean.startswith('PWA') else adm_num_clean
+                if numeric_part:
+                    unmatched_q |= Q(payment__isnull=True, transaction_reference__iendswith=numeric_part)
     
     # Filter: matched transactions OR unmatched transactions with matching admission numbers
-    if admission_variations:
+    if org_admission_numbers:
         return queryset.filter(
-            Q(payment__student__organization=organization) | 
-            Q(payment__isnull=True, transaction_reference__in=admission_variations)
+            Q(payment__student__organization=organization) | unmatched_q
         )
     else:
         # No students in organization, only show matched transactions
