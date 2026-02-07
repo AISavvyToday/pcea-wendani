@@ -45,10 +45,18 @@ class NotificationService:
         
         # Send SMS
         if phone:
-            sms_sent = NotificationService.send_sms(phone, message)
-            if sms_sent:
-                sent = True
-                logger.info(f"SMS receipt sent for payment {payment.payment_reference} to {phone}")
+            # Get organization from payment
+            organization = getattr(payment, 'organization', None)
+            if not organization and hasattr(payment, 'student'):
+                organization = getattr(payment.student, 'organization', None)
+            
+            if organization:
+                sms_sent = NotificationService.send_sms(phone, message, organization)
+                if sms_sent:
+                    sent = True
+                    logger.info(f"SMS receipt sent for payment {payment.payment_reference} to {phone}")
+            else:
+                logger.warning(f"Cannot send SMS receipt - no organization found for payment {payment.payment_reference}")
         
         # Send Email
         if parent_email:
@@ -100,35 +108,37 @@ class NotificationService:
         return message
     
     @staticmethod
-    def send_sms(phone: str, message: str) -> bool:
+    def send_sms(phone: str, message: str, organization=None) -> bool:
         """
-        Send SMS via configured SMS gateway.
+        Send SMS via central SMS service API.
         
-        TODO: Integrate with actual SMS provider (Africa's Talking, etc.)
-        For now, this logs the message and returns True.
+        Args:
+            phone: Phone number
+            message: SMS message
+            organization: Optional Organization instance (required for credit deduction)
+        
+        Returns:
+            bool: True if sent successfully, False otherwise
         """
-        # Normalize phone number
-        phone = phone.strip().replace(' ', '')
-        if phone.startswith('0'):
-            phone = '+254' + phone[1:]
-        elif not phone.startswith('+'):
-            phone = '+254' + phone
+        if not organization:
+            logger.warning("SMS send called without organization - cannot send")
+            return False
         
-        logger.info(f"SMS to {phone}: {message[:50]}...")
+        try:
+            from communications.services.sms_api_client import sms_api_client
+            
+            notification = sms_api_client.send_sms(
+                phone_number=phone,
+                message=message,
+                organization=organization,
+                purpose='payment_receipt'
+            )
+            
+            return notification.status == 'sent'
         
-        # TODO: Implement actual SMS sending
-        # Example with Africa's Talking:
-        # try:
-        #     import africastalking
-        #     africastalking.initialize(settings.AT_USERNAME, settings.AT_API_KEY)
-        #     sms = africastalking.SMS
-        #     response = sms.send(message, [phone])
-        #     return True
-        # except Exception as e:
-        #     logger.error(f"SMS sending failed: {e}")
-        #     return False
-        
-        return True  # Placeholder - always returns True for now
+        except Exception as e:
+            logger.error(f"SMS sending failed: {e}", exc_info=True)
+            return False
     
     @staticmethod
     def send_email_receipt(email: str, payment: Payment) -> bool:

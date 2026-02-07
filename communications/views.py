@@ -17,7 +17,7 @@ from accounts.models import User
 from students.models import Student, Parent
 from academics.models import Staff
 from .models import Announcement, SMSNotification, EmailNotification, NotificationTemplate
-from swift_sms_credits.sms_service import SMSService
+from .services.sms_service import SMSService
 from .services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -269,15 +269,28 @@ class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
         organization = getattr(self.request, 'organization', None)
         if organization:
             from django.conf import settings
+            from .services.sms_api_client import sms_api_client
+            
             context['organization'] = organization
-            context['sms_balance'] = organization.sms_balance
             context['sms_account_number'] = organization.sms_account_number or 'Not Set'
+            
+            # Get balance from central service
+            balance_result = sms_api_client.get_balance(organization)
+            if balance_result.get('success'):
+                context['sms_balance'] = balance_result.get('balance', 0)
+                context['sms_price'] = balance_result.get('price_per_sms', 1.0)
+            else:
+                # Fallback to local balance if API fails
+                context['sms_balance'] = getattr(organization, 'sms_balance', 0)
+                context['sms_price'] = 1.0
+            
+            # Payment details from settings (for KCB payment instructions)
             context['paybill'] = getattr(settings, 'SWIFT_RESIDE_PAYBILL', '522533')
             context['till'] = getattr(settings, 'SWIFT_RESIDE_TILL', 'SWIFTTECH')
-            context['sms_price'] = getattr(settings, 'SWIFT_SMS_PRICE', 1.0)
-            # Generate account format for payment
+            
+            # Generate account format for payment: SWIFTTECH#SMS001
             if organization.sms_account_number:
-                context['payment_account'] = f"{context['paybill']}#{context['till']}#{organization.sms_account_number}"
+                context['payment_account'] = f"{context['till']}#{organization.sms_account_number}"
             else:
                 context['payment_account'] = None
         return context
@@ -302,7 +315,7 @@ class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         """Send SMS to provided phone numbers."""
         from .utils import parse_phone_numbers, normalize_phone_number
         from .services.sms_template_service import SMSTemplateService
-        from swift_sms_credits.sms_service import SMSService
+        from .services.sms_service import SMSService
         
         phone_input = request.POST.get('phone_numbers', '').strip()
         parent_ids = request.POST.getlist('parent_ids')

@@ -251,24 +251,21 @@ SCHOOL_NAME = "PCEA Wendani Academy"
 # SMS CREDITS CONFIGURATION (Swift Reside Tech SMS Credits Package)
 # =============================================================================
 
-# Point to Organization model for SMS credits
+# Point to Organization model for SMS credits (required for KCB callbacks)
 SMS_CREDITS_ORGANIZATION_MODEL = 'core.Organization'
 
-# ImaraBiz SMS API Configuration
-IMARABIZ_API_KEY = '069e58a8b3aaae79ac05dc94bc810c18'
-IMARABIZ_PARTNER_ID = '205'
-IMARABIZ_API_URL = 'https://sms.imarabiz.com/api/services/'
+# Central SMS Service API Configuration (REQUIRED)
+# These settings connect to the central SMS service at sms.swiftresidetech.co.ke
+SMS_SERVICE_API_URL = os.environ.get('SMS_SERVICE_API_URL', 'https://sms.swiftresidetech.co.ke/api/v1')
+SMS_SERVICE_API_TOKEN = os.environ.get('SMS_SERVICE_API_TOKEN', '')
 
 # Swift Reside Tech KCB Integration (for SMS credit purchases)
-SWIFT_RESIDE_PAYBILL = '522533'
-SWIFT_RESIDE_TILL = 'SWIFTTECH'
-SWIFT_SMS_PRICE = 1.0  # KSH per SMS credit
-SWIFT_DEFAULT_SHORTCODE = 'SWIFT_RE_TECH'  # Default shortcode if organization doesn't have one
-SWIFT_KCB_PUBLIC_KEY_BASE64 = ''  # Set if needed for signature verification
-SWIFT_KCB_SIGNATURE_KEY = ''  # Set if needed
-SWIFT_KCB_SKIP_SIGNATURE_VERIFICATION = True  # Set to False in production
-
-# SMS Sending Configuration
-SMS_BATCH_SIZE = 50  # Max SMS per batch
-SMS_BATCH_DELAY = 1.0  # Seconds between batches
-SMS_ASYNC_ENABLED = True  # Enable async SMS sending
+# These are used by KCB callback endpoints if KCB calls this webapp directly
+# If KCB only calls the central service, these can have defaults for display purposes
+SWIFT_RESIDE_PAYBILL = os.environ.get('SWIFT_RESIDE_PAYBILL', '522533')
+SWIFT_RESIDE_TILL = os.environ.get('SWIFT_RESIDE_TILL', 'SWIFTTECH')
+SWIFT_SMS_PRICE = float(os.environ.get('SWIFT_SMS_PRICE', '1.0'))  # KSH per SMS credit
+SWIFT_DEFAULT_SHORTCODE = os.environ.get('SWIFT_DEFAULT_SHORTCODE', 'SWIFT_RE_TECH')
+SWIFT_KCB_PUBLIC_KEY_BASE64 = os.environ.get('SWIFT_KCB_PUBLIC_KEY_BASE64', '')
+SWIFT_KCB_SIGNATURE_KEY = os.environ.get('SWIFT_KCB_SIGNATURE_KEY', '')
+SWIFT_KCB_SKIP_SIGNATURE_VERIFICATION = os.environ.get('SWIFT_KCB_SKIP_SIGNATURE_VERIFICATION', 'True') == 'True'

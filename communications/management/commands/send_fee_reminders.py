@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 from academics.models import Term
 from finance.models import Invoice, InvoiceStatus
-from swift_sms_credits.sms_service import SMSService
+from communications.services.sms_service import SMSService
 from communications.models import NotificationTemplate, SMSNotification
 
 logger = logging.getLogger(__name__)
