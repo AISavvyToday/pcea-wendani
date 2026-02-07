@@ -161,6 +161,53 @@ class TransportReportFilterForm(forms.Form):
     show_zero_rows = forms.BooleanField(required=False, initial=False, label='Include zero rows')
 
 
+class OtherItemsReportFilterForm(forms.Form):
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year"
+    )
+    term = forms.ChoiceField(
+        choices=[('', 'Select Term')] + list(TermChoices.choices),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Student name'}),
+        label='Student Name'
+    )
+    admission = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Admission number'}),
+        label='Admission Number'
+    )
+    category = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Category (from description)'}),
+        label='Category'
+    )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    show_all = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Show all (no filters)"
+    )
+
+
 class TransferredStudentsFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(
         queryset=AcademicYear.objects.all(),
@@ -178,6 +225,32 @@ class TransferredStudentsFilterForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         label='Transfer Date To'
+    )
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Class/Grade'
+    )
+
+
+class GraduatedStudentsFilterForm(forms.Form):
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year",
+        label='Academic Year'
+    )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Graduation Date From'
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Graduation Date To'
     )
     student_class = forms.ChoiceField(
         required=False,

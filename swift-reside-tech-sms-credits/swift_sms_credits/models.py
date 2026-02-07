@@ -1,17 +1,12 @@
 """
 Models for Swift SMS Credits package
 
-Note: These models reference Organization via a ForeignKey.
-The Organization model should be defined in your app and should have:
-- sms_balance (IntegerField)
-- sms_account_number (CharField)
-- sms_price_per_unit (DecimalField)
-- imarabiz_shortcode (CharField, optional)
-
-Set SMS_CREDITS_ORGANIZATION_MODEL in settings to point to your Organization model.
-Example: SMS_CREDITS_ORGANIZATION_MODEL = 'tenants.Organization'
+This package includes its own Organization model for the central SMS service.
+Other webapps can use their own Organization models by setting SMS_CREDITS_ORGANIZATION_MODEL.
 """
 import uuid
+import secrets
+import string
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
@@ -19,7 +14,95 @@ from django.conf import settings
 
 def get_organization_model_path():
     """Get Organization model path from settings"""
-    return getattr(settings, 'SMS_CREDITS_ORGANIZATION_MODEL', 'tenants.Organization')
+    return getattr(settings, 'SMS_CREDITS_ORGANIZATION_MODEL', 'swift_sms_credits.Organization')
+
+
+def generate_sms_account_number():
+    """Generate a unique SMS account number for an organization"""
+    # Format: SMS + 6 random alphanumeric characters
+    chars = string.ascii_uppercase + string.digits
+    while True:
+        account_number = 'SMS' + ''.join(secrets.choice(chars) for _ in range(6))
+        if not Organization.objects.filter(sms_account_number=account_number).exists():
+            return account_number
+
+
+class Organization(models.Model):
+    """
+    Organization model for central SMS service.
+    
+    Each organization has a unique SMS account number and manages its own SMS credits.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, help_text="Organization name")
+    slug = models.SlugField(max_length=100, unique=True, blank=True, help_text="URL-friendly identifier")
+    
+    # SMS Credits
+    sms_account_number = models.CharField(
+        max_length=50, 
+        unique=True, 
+        help_text="Unique account number for SMS purchases (e.g., 'SMS001')"
+    )
+    sms_balance = models.IntegerField(default=0, help_text="SMS credits available")
+    sms_price_per_unit = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=1.00, 
+        help_text="Price per SMS credit in KSH"
+    )
+    imarabiz_shortcode = models.CharField(
+        max_length=50,
+        default='SWIFT_RE_TECH',
+        blank=True,
+        help_text="ImaraBiz shortcode for this organization (e.g., 'KALIMONI_FP'). Leave empty to use company default."
+    )
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Organization'
+        verbose_name_plural = 'Organizations'
+    
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate SMS account number if not set
+        if not self.sms_account_number:
+            self.sms_account_number = generate_sms_account_number()
+        
+        # Auto-generate slug if not set
+        if not self.slug:
+            from django.utils.text import slugify
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Organization.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        
+        super().save(*args, **kwargs)
+    
+    def add_sms_credits(self, count):
+        """Add SMS credits to balance"""
+        self.sms_balance += count
+        self.save(update_fields=['sms_balance', 'updated_at'])
+        return True
+    
+    def deduct_sms_credits(self, count):
+        """Deduct SMS credits from balance"""
+        if self.sms_balance >= count:
+            self.sms_balance -= count
+            self.save(update_fields=['sms_balance', 'updated_at'])
+            return True
+        return False
 
 
 class SMSPurchaseTransaction(models.Model):

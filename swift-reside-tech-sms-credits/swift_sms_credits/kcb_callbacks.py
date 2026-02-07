@@ -37,8 +37,15 @@ def get_swift_kcb_config():
 def verify_swift_signature(request_body, signature_header):
     """
     Verify KCB signature for Swift Reside Tech SMS endpoint.
-    Uses separate configuration from the school payment endpoint.
+    Standalone implementation - no dependency on payments.kcb
     """
+    import base64
+    import hmac
+    import hashlib
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.backends import default_backend
+    
     config = get_swift_kcb_config()
     
     # Skip verification if configured (for initial testing)
@@ -50,33 +57,66 @@ def verify_swift_signature(request_body, signature_header):
         logger.warning("SWIFT SMS: Missing signature header")
         return False
     
-    # Use KCBService with Swift-specific keys
-    try:
-        from payments.kcb import KCBService
-        
-        # Create service instance
-        swift_kcb = KCBService()
-        
-        # Override with Swift-specific keys
-        swift_kcb.public_key_base64 = getattr(settings, 'SWIFT_KCB_PUBLIC_KEY_BASE64', '')
-        swift_kcb.signature_key = getattr(settings, 'SWIFT_KCB_SIGNATURE_KEY', '')
-        swift_kcb.signature_method = getattr(settings, 'SWIFT_KCB_SIGNATURE_METHOD', 'auto')
-        
-        # Reload public key with Swift key
-        if swift_kcb.public_key_base64:
-            swift_kcb._load_public_key()
-        
-        # Verify signature
-        if swift_kcb.verify_signature(request_body, signature_header):
-            logger.info("SWIFT SMS: Signature verification successful")
-            return True
-        else:
-            logger.warning("SWIFT SMS: Signature verification failed")
-            return False
+    # Convert request body to bytes if string
+    if isinstance(request_body, str):
+        request_body = request_body.encode('utf-8')
+    
+    signature_method = getattr(settings, 'SWIFT_KCB_SIGNATURE_METHOD', 'auto')
+    public_key_base64 = getattr(settings, 'SWIFT_KCB_PUBLIC_KEY_BASE64', '')
+    signature_key = getattr(settings, 'SWIFT_KCB_SIGNATURE_KEY', '')
+    
+    # Try RSA first if public key available
+    if public_key_base64 and signature_method in ('rsa', 'auto'):
+        try:
+            # Decode base64 to get PEM string
+            pem_content = base64.b64decode(public_key_base64).decode('utf-8')
+            public_key = serialization.load_pem_public_key(
+                pem_content.encode('utf-8'),
+                backend=default_backend()
+            )
             
-    except Exception as e:
-        logger.error(f"SWIFT SMS: Signature verification error - {str(e)}", exc_info=True)
-        return False
+            # Decode base64 signature
+            signature_bytes = base64.b64decode(signature_header)
+            
+            # Verify signature
+            public_key.verify(
+                signature_bytes,
+                request_body,
+                padding.PKCS1v15(),
+                hashes.SHA256()
+            )
+            logger.info("SWIFT SMS: RSA signature verification successful")
+            return True
+        except Exception as e:
+            if signature_method == 'rsa':
+                logger.warning(f"SWIFT SMS: RSA signature verification failed: {str(e)}")
+                return False
+            # If auto mode and RSA failed, try HMAC
+    
+    # Try HMAC if signature key available
+    if signature_key and signature_method in ('hmac', 'auto'):
+        try:
+            # Generate expected signature
+            expected_signature = hmac.new(
+                signature_key.encode('utf-8'),
+                request_body,
+                hashlib.sha256
+            ).digest()
+            expected_signature_b64 = base64.b64encode(expected_signature).decode('utf-8')
+            
+            # Compare signatures (constant-time comparison)
+            is_valid = hmac.compare_digest(expected_signature_b64, signature_header)
+            if is_valid:
+                logger.info("SWIFT SMS: HMAC signature verification successful")
+            else:
+                logger.warning("SWIFT SMS: HMAC signature verification failed")
+            return is_valid
+        except Exception as e:
+            logger.error(f"SWIFT SMS: HMAC signature verification error: {str(e)}")
+            return False
+    
+    logger.error("SWIFT SMS: No signature verification method available (missing keys)")
+    return False
 
 
 def extract_org_sms_account(customer_reference, swift_till):
@@ -103,6 +143,178 @@ def extract_org_sms_account(customer_reference, swift_till):
     
     # If no #, assume it's just the org SMS account
     return customer_reference
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def sms_credits_kcb_validation(request):
+    """
+    Handle KCB Bill Validation request for SMS Credit Purchases
+    
+    This endpoint validates that an organization exists with the given sms_account_number
+    before processing payment.
+    
+    Request body from KCB:
+    {
+        "requestId": "uuid",
+        "customerReference": "SWIFTTECH#SMS001"  // Organization's sms_account_number (with or without prefix)
+    }
+    
+    Response to KCB:
+    {
+        "transactionID": "internal_id",
+        "statusCode": "0",
+        "statusMessage": "Success",
+        "CustomerName": "Organization Name",
+        "billAmount": "0.00",
+        "currency": "KES",
+        "billType": "PARTIAL",
+        "creditAccountIdentifier": "SMS001"
+    }
+    
+    Note: billType is "PARTIAL" which allows customers to pay any amount (custom amounts).
+    billAmount is "0.00" for PARTIAL bills as per KCB API specification.
+    """
+    config = get_swift_kcb_config()
+    
+    try:
+        # Get raw body for signature verification
+        request_body = request.body
+        
+        # Verify signature
+        signature_header = request.META.get('HTTP_SIGNATURE', '')
+        
+        logger.info("SMS Credits KCB validation request received - verifying signature")
+        if not verify_swift_signature(request_body, signature_header):
+            logger.warning("SMS Credits validation request failed signature verification")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': 'Invalid signature',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': '',
+            }, status=401)
+        
+        logger.info("SMS Credits KCB validation signature verified successfully")
+        
+        # Parse request data
+        try:
+            data = json.loads(request_body)
+        except json.JSONDecodeError as e:
+            logger.error(f"SMS Credits validation request: Invalid JSON - {str(e)}")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': 'Invalid JSON',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': '',
+            }, status=400)
+        
+        customer_reference = data.get('customerReference', '').strip()
+        request_id = data.get('requestId', '')
+        
+        # Validate required fields
+        if not customer_reference:
+            logger.error("SMS Credits validation request: Missing customerReference")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': 'customerReference is required',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': '',
+            }, status=400)
+        
+        # Extract SMS account number (handle formats with #)
+        sms_account_number = extract_org_sms_account(customer_reference, config['till'])
+        if not sms_account_number:
+            logger.error(f"SMS Credits validation request: Could not extract SMS account from: {customer_reference}")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': 'Invalid account format',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': customer_reference,
+            }, status=400)
+        
+        # Find organization by SMS account number
+        Organization = get_organization_model()
+        logger.info(f"SMS Credits validation: Validating SMS account: {sms_account_number}")
+        try:
+            organization = Organization.objects.get(sms_account_number=sms_account_number, is_active=True)
+            
+            logger.info(f"SMS Credits validation successful for organization: {organization.name} (SMS Account: {sms_account_number})")
+            
+            return JsonResponse({
+                'transactionID': str(organization.id),
+                'statusCode': '0',
+                'statusMessage': 'Success',
+                'CustomerName': organization.name,
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',  # PARTIAL allows any payment amount
+                'creditAccountIdentifier': sms_account_number,
+            })
+        except Organization.DoesNotExist:
+            logger.warning(f"SMS Credits validation failed: Organization not found for SMS account: {sms_account_number}")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': 'Organization not found',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': sms_account_number,
+            }, status=400)
+        except Exception as e:
+            logger.error(f"SMS Credits validation error for {sms_account_number}: {str(e)}")
+            return JsonResponse({
+                'transactionID': '',
+                'statusCode': '1',
+                'statusMessage': f'Validation error: {str(e)}',
+                'CustomerName': '',
+                'billAmount': '0.00',
+                'currency': 'KES',
+                'billType': 'PARTIAL',
+                'creditAccountIdentifier': sms_account_number,
+            }, status=500)
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"SMS Credits validation request: Invalid JSON - {str(e)}")
+        return JsonResponse({
+            'transactionID': '',
+            'statusCode': '1',
+            'statusMessage': 'Invalid JSON',
+            'CustomerName': '',
+            'billAmount': '0.00',
+            'currency': 'KES',
+            'billType': 'PARTIAL',
+            'creditAccountIdentifier': '',
+        }, status=400)
+    except Exception as e:
+        logger.error(f"SMS Credits validation error: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'transactionID': '',
+            'statusCode': '1',
+            'statusMessage': f'Validation error: {str(e)}',
+            'CustomerName': '',
+            'billAmount': '0.00',
+            'currency': 'KES',
+            'billType': 'PARTIAL',
+            'creditAccountIdentifier': '',
+        }, status=500)
 
 
 @csrf_exempt

@@ -1,0 +1,164 @@
+{# templates/reports/other_items_report.html #}
+{% extends 'base/base.html' %}
+{% load humanize static %}
+{% block title %}Other Items Invoice Report{% endblock %}
+
+{% block extra_head %}
+<style>
+  .report-letterhead { margin-bottom:12px; }
+  .report-title { text-align:center; width:100%; }
+  .report-table { width:100%; border-collapse: collapse; }
+  .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
+  .report-table thead th { background: #f2f2f2; font-weight:700; }
+  .no-print { margin-bottom: 10px; }
+  @media print { .no-print { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <h3 class="page-title">Other Items Invoice Report</h3>
+  </div>
+
+  <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
+    <a class="btn btn-success" target="_blank"
+       href="{% url 'reports:other_items_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
+    </a>
+    <a class="btn btn-outline-secondary" target="_blank"
+       href="{% url 'reports:other_items_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
+    </a>
+  </div>
+
+  <div class="card mb-3 no-print">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-md-2">
+          <label class="form-label">Academic Year</label>
+          {{ form.academic_year }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Term</label>
+          {{ form.term }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Grade</label>
+          {{ form.student_class }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Student Name</label>
+          {{ form.name }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Admission #</label>
+          {{ form.admission }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Category</label>
+          {{ form.category }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">From</label>
+          {{ form.start_date }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">To</label>
+          {{ form.end_date }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <div class="form-check mt-2">
+            {{ form.show_all }}
+            <label class="form-check-label" for="{{ form.show_all.id_for_label }}">
+              Show All
+            </label>
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary" type="submit">Generate</button>
+          <a href="{% url 'reports:other_items_report' %}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if rows is none %}
+    <div class="card">
+      <div class="card-body text-muted">Use the controls above to generate the other items invoice report.</div>
+    </div>
+  {% else %}
+    <div class="report-letterhead">
+      <div class="report-title">
+        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+        <h5 style="margin-top:8px">Other Items Invoice Report</h5>
+        <small class="text-muted">
+          {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
+          {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+          {% if filters.academic_year %} • Year: {{ filters.academic_year.year }} {% endif %}
+          {% if filters.term %} • Term: {{ filters.term }} {% endif %}
+          {% if filters.student_class %} • Grade: {{ filters.student_class }} {% endif %}
+          {% if filters.name %} • Name: {{ filters.name }} {% endif %}
+          {% if filters.admission %} • Admission: {{ filters.admission }} {% endif %}
+          {% if filters.category %} • Category: {{ filters.category }} {% endif %}
+        </small>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="report-table table table-sm">
+            <thead>
+              <tr>
+                <th>Sr no.</th>
+                <th>Student Name</th>
+                <th>Admission Number</th>
+                <th>Grade</th>
+                <th>Category</th>
+                <th class="text-right">Total Amount</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ row.student_name }}</td>
+                <td>{{ row.admission }}</td>
+                <td>{{ row.student_class }}</td>
+                <td>{{ row.category }}</td>
+                <td class="text-right">KES {{ row.billed|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ row.collected|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ row.balance|floatformat:2|intcomma }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                  No other items found for the selected filters.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            {% if rows %}
+            <tfoot>
+              <tr>
+                <th colspan="5">Total</th>
+                <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.balance|floatformat:2|intcomma }}</th>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+        <div class="mt-3 small text-muted">Report printed on {{ now|date:"d M Y H:i" }}</div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+

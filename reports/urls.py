@@ -22,6 +22,10 @@ urlpatterns = [
     path('transport-report/export/xlsx/', views_exports.TransportReportExcelView.as_view(), name='transport_report_export_excel'),
     path('transport-report/export/pdf/', views_exports.TransportReportPDFView.as_view(), name='transport_report_export_pdf'),
 
+    path('other-items/', views.OtherItemsReportView.as_view(), name='other_items_report'),
+    path('other-items/export/xlsx/', views_exports.OtherItemsReportExcelView.as_view(), name='other_items_report_export_excel'),
+    path('other-items/export/pdf/', views_exports.OtherItemsReportPDFView.as_view(), name='other_items_report_export_pdf'),
+
     # Invoice List Exports (for invoice list page)
     path('invoice-list/export/xlsx/', views_exports.InvoiceListExcelView.as_view(), name='invoice_xlsx'),
     path('invoice-list/export/pdf/', views_exports.InvoiceListPDFView.as_view(), name='invoice_pdf'),
@@ -30,6 +34,9 @@ urlpatterns = [
     path('transferred-students/', views.TransferredStudentsReportView.as_view(), name='transferred_students_report'),
     path('transferred-students/export/xlsx/', views_exports.TransferredStudentsExcelView.as_view(), name='transferred_students_export_excel'),
     path('transferred-students/export/pdf/', views_exports.TransferredStudentsPDFView.as_view(), name='transferred_students_export_pdf'),
+
+    # Graduated Students Report
+    path('graduated-students/', views.GraduatedStudentsReportView.as_view(), name='graduated_students_report'),
 
     # Admitted Students Report
     path('admitted-students/', views.AdmittedStudentsReportView.as_view(), name='admitted_students_report'),

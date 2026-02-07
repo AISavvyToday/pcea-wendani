@@ -1,8 +1,8 @@
-<!-- reports/transferred_students_report.html -->
+<!-- reports/graduated_students_report.html -->
 {% extends "base/base.html" %}
 {% load humanize static custom_filters %}
 
-{% block title %}Transferred Students Report{% endblock %}
+{% block title %}Graduated Students Report{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -19,18 +19,7 @@
 {% block content %}
 <div class="content-wrapper">
   <div class="page-header d-flex justify-content-between align-items-center mb-3">
-    <h3 class="page-title">Transferred Students Report</h3>
-  </div>
-
-  <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
-    <a class="btn btn-success" target="_blank"
-       href="{% url 'reports:transferred_students_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-      <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
-    </a>
-    <a class="btn btn-outline-secondary" target="_blank"
-       href="{% url 'reports:transferred_students_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
-      <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
-    </a>
+    <h3 class="page-title">Graduated Students Report</h3>
   </div>
 
   <div class="card mb-3 no-print">
@@ -41,11 +30,11 @@
           {{ form.academic_year }}
         </div>
         <div class="col-md-3">
-          <label class="form-label">Transfer Date From</label>
+          <label class="form-label">Graduation Date From</label>
           {{ form.start_date }}
         </div>
         <div class="col-md-3">
-          <label class="form-label">Transfer Date To</label>
+          <label class="form-label">Graduation Date To</label>
           {{ form.end_date }}
         </div>
         <div class="col-md-3">
@@ -54,7 +43,7 @@
         </div>
         <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Generate Report</button>
-          <a href="{% url 'reports:transferred_students_report' %}" class="btn btn-outline-secondary">Reset</a>
+          <a href="{% url 'reports:graduated_students_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>
       </form>
     </div>
@@ -63,7 +52,7 @@
   {% if rows is none %}
     <div class="card">
       <div class="card-body text-muted">
-        Use the controls above to generate the transferred students report.
+        Use the controls above to generate the graduated students report.
         Select filters to view the report.
       </div>
     </div>
@@ -73,7 +62,7 @@
       <div class="report-title">
         <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
-        <h5 style="margin-top:8px">Transferred Students Report</h5>
+        <h5 style="margin-top:8px">Graduated Students Report</h5>
         {% if filters.academic_year %}
         <small class="text-muted">
           Academic Year: {{ filters.academic_year.year }}
@@ -114,7 +103,7 @@
               <tr>
                 <td colspan="8" class="text-center text-muted py-4">
                   <i class="mdi mdi-information-outline me-1"></i>
-                  No transferred students found for the selected filters.
+                  No graduated students found for the selected filters.
                 </td>
               </tr>
               {% endfor %}

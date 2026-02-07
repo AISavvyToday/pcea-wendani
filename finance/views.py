@@ -2894,9 +2894,18 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
                     invoice.discount_amount = discount_amount
                     invoice.total_amount = invoice.subtotal - discount_amount
 
-                    # Let Invoice.save() apply the SINGLE SOURCE OF TRUTH
-                    # balance formula (see Invoice._recalculate_balance).
-                    invoice.save(update_fields=['subtotal', 'discount_amount', 'total_amount', 'prepayment', 'amount_paid', 'balance_bf'])
+                # If new items were added to a fully paid invoice, reactivate it
+                # This allows payments to be allocated to the new items
+                if not invoice.is_active:
+                    # Check if there are new items that need payment
+                    active_items = invoice.items.filter(is_active=True)
+                    if active_items.exists():
+                        invoice.is_active = True
+                        logger.info(f"Reactivating invoice {invoice.invoice_number} after adding new items")
+
+                # Let Invoice.save() apply the SINGLE SOURCE OF TRUTH
+                # balance formula (see Invoice._recalculate_balance).
+                invoice.save(update_fields=['subtotal', 'discount_amount', 'total_amount', 'prepayment', 'amount_paid', 'balance_bf', 'is_active'])
 
                 # Update payment status
                 invoice.update_payment_status()
@@ -2913,8 +2922,10 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         """Recalculate invoice totals from items."""
         from decimal import Decimal
 
-        # Get all active items for this invoice
-        items = invoice.items.all()
+        # Get all active items for this invoice (exclude balance_bf and prepayment synthetic items)
+        items = invoice.items.filter(is_active=True).exclude(
+            description__in=['Balance B/F', 'Prepayment (Credit)']
+        )
 
         # Calculate totals
         subtotal = Decimal('0.00')

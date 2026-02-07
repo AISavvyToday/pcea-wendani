@@ -57,7 +57,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         # Apply the same filters as the list view
         query = request.GET.get('query', '')
         class_id = request.GET.get('current_class', '')
-        status = request.GET.get('status', '')
+        status = request.GET.get('status', 'active')  # Default to 'active' like list view
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
@@ -66,7 +66,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         queryset = StudentService.search_students(
             query=query if query else None,
             class_id=class_id if class_id else None,
-            status=status if status else None,
+            status=status if status else 'active',  # Default to 'active' if empty
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
             stream=stream if stream else None,
@@ -106,10 +106,21 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         if query:
             filter_info.append(f"Search: {query}")
         if class_id:
-            filter_info.append(f"Class ID: {class_id}")
+            from academics.models import Class
+            try:
+                cls = Class.objects.get(pk=class_id)
+                filter_info.append(f"Class: {cls}")
+            except Class.DoesNotExist:
+                filter_info.append(f"Class ID: {class_id}")
         if status:
             filter_info.append(f"Status: {status}")
-        ws['A3'] = f"Filters: {', '.join(filter_info) if filter_info else 'None'}"
+        if gender:
+            filter_info.append(f"Gender: {gender}")
+        if is_boarder:
+            filter_info.append(f"Boarding: {is_boarder}")
+        if stream:
+            filter_info.append(f"Stream: {stream}")
+        ws['A3'] = f"Filters: {', '.join(filter_info) if filter_info else 'All Students'}"
         ws['A3'].font = Font(size=9)
         ws['A3'].alignment = Alignment(horizontal='center')
 
@@ -174,9 +185,15 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
             adjusted_width = min(max_length + 2, 40)
             ws.column_dimensions[column_letter].width = adjusted_width
 
-        # Generate response
+        # Generate response with filter info in filename
         bytes_data = workbook_to_bytes(wb)
-        filename = f"students-report-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        filename_parts = ["students-report"]
+        if status and status != 'active':
+            filename_parts.append(status)
+        if class_id:
+            filename_parts.append(f"class-{class_id}")
+        filename_parts.append(datetime.now().strftime('%Y%m%d-%H%M'))
+        filename = f"{'-'.join(filename_parts)}.xlsx"
         return xlsx_response(bytes_data, filename)
 
 
@@ -225,6 +242,10 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
             filter_info.append(f"Status: {status}")
         if gender:
             filter_info.append(f"Gender: {gender}")
+        if is_boarder:
+            filter_info.append(f"Boarding: {is_boarder}")
+        if stream:
+            filter_info.append(f"Stream: {stream}")
 
         # Build context
         context = {
@@ -244,7 +265,14 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
 
-        filename = f"students-report-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        # Generate filename with filter info
+        filename_parts = ["students-report"]
+        if status and status != 'active':
+            filename_parts.append(status)
+        if class_id:
+            filename_parts.append(f"class-{class_id}")
+        filename_parts.append(datetime.now().strftime('%Y%m%d-%H%M'))
+        filename = f"{'-'.join(filename_parts)}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

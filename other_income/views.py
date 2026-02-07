@@ -30,14 +30,19 @@ class OtherIncomeListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
         q = self.request.GET.get('q', '')
         context['search_query'] = q
         
-        # Get invoices
+        # Get invoices - apply organization filter
+        organization = getattr(self.request, 'organization', None)
         invoices = OtherIncomeInvoice.objects.filter(is_active=True)
+        if organization:
+            invoices = invoices.filter(organization=organization)
         if q:
             invoices = invoices.filter(client_name__icontains=q)
         context['invoices'] = invoices.order_by('-issue_date')[:50]
         
-        # Get payments
+        # Get payments - apply organization filter
         payments = OtherIncomePayment.objects.filter(is_active=True).select_related('invoice')
+        if organization:
+            payments = payments.filter(invoice__organization=organization)
         if q:
             payments = payments.filter(
                 invoice__client_name__icontains=q
@@ -97,6 +102,13 @@ class OtherIncomeDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
     context_object_name = 'invoice'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(organization=organization)
+        return queryset
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         invoice = self.object
@@ -110,6 +122,13 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, R
     template_name = 'other_income/invoice_print.html'
     context_object_name = 'invoice'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(organization=organization)
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -156,7 +175,11 @@ class OtherIncomeRecordPaymentView(LoginRequiredMixin, OrganizationFilterMixin, 
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def dispatch(self, request, *args, **kwargs):
-        self.invoice = get_object_or_404(OtherIncomeInvoice, pk=self.kwargs.get('pk'))
+        organization = getattr(request, 'organization', None)
+        queryset = OtherIncomeInvoice.objects.all()
+        if organization:
+            queryset = queryset.filter(organization=organization)
+        self.invoice = get_object_or_404(queryset, pk=self.kwargs.get('pk'))
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
@@ -196,6 +219,13 @@ class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin,
     template_name = 'other_income/payment_receipt.html'
     context_object_name = 'payment'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            queryset = queryset.filter(invoice__organization=organization)
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
