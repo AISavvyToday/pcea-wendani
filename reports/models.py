@@ -10,7 +10,9 @@ REPORT_TYPE_CHOICES = [
     ('outstanding', 'Outstanding Balances'),
     ('transport', 'Transport Report'),
     ('transferred_students', 'Transferred Students Report'),
+    ('graduated_students', 'Graduated Students Report'),
     ('admitted_students', 'Admitted Students Report'),
+    ('other_items', 'Other Items Invoice Report'),
 ]
 
 try:

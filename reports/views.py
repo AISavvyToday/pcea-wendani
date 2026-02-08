@@ -375,6 +375,11 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         # Base queryset: invoices
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
 
+        # Apply organization filter
+        organization = getattr(request, 'organization', None)
+        if organization:
+            invoices = invoices.filter(organization=organization)
+
         # Exclude transferred and graduated students
         invoices = invoices.exclude(student__status__in=['transferred', 'graduated'])
 
