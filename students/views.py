@@ -322,65 +322,63 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
             # Handle invoice deletion and balance_bf restoration for graduated/transferred students
             if new_status in ['graduated', 'transferred']:
                 student = form.instance
-                current_term = Term.objects.filter(is_current=True).first()
                 
-                if current_term:
-                    # Get active invoices for current term
-                    current_invoices = Invoice.objects.filter(
-                        student=student,
-                        term=current_term,
-                        is_active=True
-                    ).exclude(status=InvoiceStatus.CANCELLED)
+                # Get ALL active invoices across ALL terms (not just current term)
+                # Transferred/graduated students should have NO active invoices
+                all_active_invoices = Invoice.objects.filter(
+                    student=student,
+                    is_active=True
+                ).exclude(status=InvoiceStatus.CANCELLED)
+                
+                if all_active_invoices.exists():
+                    # Restore frozen fields from invoices before deactivating them
+                    current_credit = student.credit_balance or Decimal('0.00')
+                    total_balance_bf = Decimal('0.00')
+                    total_prepayment = Decimal('0.00')
                     
-                    if current_invoices.exists():
-                        # Restore frozen fields from invoices before deleting them
-                        current_credit = student.credit_balance or Decimal('0.00')
-                        total_balance_bf = Decimal('0.00')
-                        total_prepayment = Decimal('0.00')
+                    for invoice in all_active_invoices:
+                        # Restore balance_bf_original to Student frozen field
+                        # Note: balance_bf is debt, not credit, so it's NOT added to credit_balance
+                        if invoice.balance_bf_original and invoice.balance_bf_original > 0:
+                            if form.instance.balance_bf_original == Decimal('0.00'):
+                                form.instance.balance_bf_original = invoice.balance_bf_original
+                            else:
+                                form.instance.balance_bf_original += invoice.balance_bf_original
+                            total_balance_bf += invoice.balance_bf_original
+                        elif invoice.balance_bf and invoice.balance_bf > 0:
+                            # Fallback if balance_bf_original not set
+                            if form.instance.balance_bf_original == Decimal('0.00'):
+                                form.instance.balance_bf_original = invoice.balance_bf
+                            else:
+                                form.instance.balance_bf_original += invoice.balance_bf
+                            total_balance_bf += invoice.balance_bf
                         
-                        for invoice in current_invoices:
-                            # Restore balance_bf_original to Student frozen field
-                            # Note: balance_bf is debt, not credit, so it's NOT added to credit_balance
-                            if invoice.balance_bf_original and invoice.balance_bf_original > 0:
-                                if form.instance.balance_bf_original == Decimal('0.00'):
-                                    form.instance.balance_bf_original = invoice.balance_bf_original
-                                else:
-                                    form.instance.balance_bf_original += invoice.balance_bf_original
-                                total_balance_bf += invoice.balance_bf_original
-                            elif invoice.balance_bf and invoice.balance_bf > 0:
-                                # Fallback if balance_bf_original not set
-                                if form.instance.balance_bf_original == Decimal('0.00'):
-                                    form.instance.balance_bf_original = invoice.balance_bf
-                                else:
-                                    form.instance.balance_bf_original += invoice.balance_bf
-                                total_balance_bf += invoice.balance_bf
-                            
-                            # Restore prepayment_original to Student frozen field
-                            # Prepayment is stored as POSITIVE credit
-                            if invoice.prepayment and invoice.prepayment > 0:
-                                prepayment_amount = invoice.prepayment
-                                if form.instance.prepayment_original == Decimal('0.00'):
-                                    form.instance.prepayment_original = prepayment_amount
-                                else:
-                                    form.instance.prepayment_original += prepayment_amount
-                                current_credit += prepayment_amount
-                                total_prepayment += prepayment_amount
-                        
-                        # Soft delete invoices (set is_active=False)
-                        # This removes them from dashboard calculations
-                        current_invoices.update(is_active=False)
-                        
-                        # Update student's credit_balance and frozen fields
-                        form.instance.credit_balance = current_credit
-                        
-                        # Build message
-                        msg_parts = [f'Student status changed to "{new_status}". Invoices deleted.']
-                        if total_balance_bf > 0:
-                            msg_parts.append(f'Balance b/f ({total_balance_bf:,.2f}) restored.')
-                        if total_prepayment > 0:
-                            msg_parts.append(f'Prepayment ({total_prepayment:,.2f}) restored.')
-                        
-                        messages.info(self.request, ' '.join(msg_parts))
+                        # Restore prepayment_original to Student frozen field
+                        # Prepayment is stored as POSITIVE credit
+                        if invoice.prepayment and invoice.prepayment > 0:
+                            prepayment_amount = invoice.prepayment
+                            if form.instance.prepayment_original == Decimal('0.00'):
+                                form.instance.prepayment_original = prepayment_amount
+                            else:
+                                form.instance.prepayment_original += prepayment_amount
+                            current_credit += prepayment_amount
+                            total_prepayment += prepayment_amount
+                    
+                    # Soft delete ALL active invoices (set is_active=False)
+                    # This ensures transferred/graduated students have NO active invoices
+                    all_active_invoices.update(is_active=False)
+                    
+                    # Update student's credit_balance and frozen fields
+                    form.instance.credit_balance = current_credit
+                    
+                    # Build message
+                    msg_parts = [f'Student status changed to "{new_status}". All active invoices deactivated.']
+                    if total_balance_bf > 0:
+                        msg_parts.append(f'Balance b/f ({total_balance_bf:,.2f}) restored.')
+                    if total_prepayment > 0:
+                        msg_parts.append(f'Prepayment ({total_prepayment:,.2f}) restored.')
+                    
+                    messages.info(self.request, ' '.join(msg_parts))
             
             # Handle invoice restoration when student is reactivated
             # This prevents the bug where invoices remain inactive after status is changed back
@@ -451,7 +449,7 @@ class StudentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         # ----------------------------
         # FINANCE DATA
         # ----------------------------
-        invoices = student.invoices.select_related('term').order_by('-issue_date')[:25]
+        invoices = student.invoices.filter(is_active=True).select_related('term').order_by('-issue_date')[:25]
         # Add helper fields to each invoice for template display (keep in sync with finance.InvoiceListView)
         for inv in invoices:
             inv.prepayment_abs = abs(inv.prepayment) if inv.prepayment else Decimal('0.00')
