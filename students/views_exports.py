@@ -57,7 +57,8 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         # Apply the same filters as the list view
         query = request.GET.get('query', '')
         class_id = request.GET.get('current_class', '')
-        status = request.GET.get('status', 'active')  # Default to 'active' like list view
+        # Get status parameter - default to 'active' if not provided (matching list view behavior)
+        status = request.GET.get('status', '') or 'active'
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
@@ -66,7 +67,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         queryset = StudentService.search_students(
             query=query if query else None,
             class_id=class_id if class_id else None,
-            status=status if status else 'active',  # Default to 'active' if empty
+            status=status,  # Use the status from URL parameters
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
             stream=stream if stream else None,
@@ -211,7 +212,8 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         # Apply the same filters as the list view
         query = request.GET.get('query', '')
         class_id = request.GET.get('current_class', '')
-        status = request.GET.get('status', 'active')  # Default to 'active' like list view
+        # Get status parameter - default to 'active' if not provided (matching list view behavior)
+        status = request.GET.get('status', '') or 'active'
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
@@ -220,7 +222,7 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         queryset = StudentService.search_students(
             query=query if query else None,
             class_id=class_id if class_id else None,
-            status=status if status else 'active',  # Default to 'active' if empty
+            status=status,  # Use the status from URL parameters
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
             stream=stream if stream else None,
