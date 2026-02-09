@@ -18,7 +18,39 @@ class InvoiceReportFilterForm(forms.Form):
         required=False, 
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    show_zero_rows = forms.BooleanField(required=False, initial=False, label="Show categories with zero billed")
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Student name'}),
+        label='Student Name'
+    )
+    admission = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Admission number'}),
+        label='Admission Number'
+    )
+    category = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Category (from description)'}),
+        label='Category'
+    )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    show_all = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Show all (no filters)"
+    )
 
 
 # reports/forms.py

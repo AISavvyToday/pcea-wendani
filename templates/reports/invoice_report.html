@@ -46,42 +46,67 @@
   <div class="card mb-3 no-print">
     <div class="card-body">
       <form method="get" class="row g-2">
-        <div class="col-md-4">
+        <div class="col-md-2">
           <label class="form-label">Academic Year</label>
           {{ form.academic_year }}
         </div>
-        <div class="col-md-4">
+        <div class="col-md-2">
           <label class="form-label">Term</label>
           {{ form.term }}
         </div>
+        <div class="col-md-2">
+          <label class="form-label">Grade</label>
+          {{ form.student_class }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Student Name</label>
+          {{ form.name }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Admission #</label>
+          {{ form.admission }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Category</label>
+          {{ form.category }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">From</label>
+          {{ form.start_date }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">To</label>
+          {{ form.end_date }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <div class="form-check mt-2">
+            {{ form.show_all }}
+            <label class="form-check-label" for="{{ form.show_all.id_for_label }}">
+              Show All
+            </label>
+          </div>
+        </div>
         <div class="col-12 d-flex gap-2 mt-2">
-          <button class="btn btn-primary" type="submit">Generate Report</button>
+          <button class="btn btn-primary" type="submit">Generate</button>
           <a href="{% url 'reports:invoice_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>
       </form>
     </div>
   </div>
 
-  {% if report_rows is none %}
+  {% if rows is none %}
     <div class="card">
-      <div class="card-body text-muted">
-        Use the controls above to generate the invoice summary report.
-        Select an academic year and term to view the report.
-      </div>
+      <div class="card-body text-muted">Use the controls above to generate the invoice report.</div>
     </div>
   {% else %}
-    <!-- Letterhead without logo -->
     <div class="report-letterhead">
       <div class="report-title">
         <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
-        <h5 style="margin-top:8px">Invoice Summary Report</h5>
-        <small class="text-muted">
-          {{ academic_year.year }} • Term {{ term|title }}
-        </small>
+        <h5 style="margin-top:8px">Invoice Report</h5>
       </div>
     </div>
-
 
     <div class="card">
       <div class="card-body">
@@ -89,56 +114,39 @@
           <table class="report-table table table-sm">
             <thead>
               <tr>
-                <th>Fee Category</th>
-                <th class="text-right">Billed (KES)</th>
-                <th class="text-right">Collected (KES)</th>
-                <th class="text-right">Outstanding (KES)</th>
-                <th class="text-center">Collection %</th>
+                <th>Sr no.</th>
+                <th>Student Name</th>
+                <th>Admission Number</th>
+                <th>Grade</th>
+                <th>Category</th>
+                <th class="text-right">Total Amount</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Balance</th>
               </tr>
             </thead>
             <tbody>
-              {% for row in report_rows %}
+              {% for row in rows %}
               <tr>
-                <td>
-                  <strong>{{ row.category|title }}</strong>
-                  {% if row.category == 'tuition' %}
-                    <span class="badge bg-primary ms-1">Core</span>
-                  {% elif row.category == 'transport' %}
-                    <span class="badge bg-info ms-1">Optional</span>
-                  {% elif row.category == 'meals' %}
-                    <span class="badge bg-success ms-1">Meals</span>
-                  {% endif %}
-                </td>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ row.student__full_name }}</td>
+                <td>{{ row.student__admission_number|default:"—" }}</td>
+                <td>{{ row.student__current_class__name|default:"—" }}</td>
+                <td>{{ row.description|default:"—" }}</td>
                 <td class="text-right">KES {{ row.total_billed|floatformat:2|intcomma }}</td>
-                <td class="text-right">KES {{ row.collected|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ row.total_paid|floatformat:2|intcomma }}</td>
                 <td class="text-right">
-                  {% if row.outstanding > 0 %}
-                    <span class="amount-negative">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
-                  {% elif row.outstanding < 0 %}
-                    <span class="amount-positive">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% if row.total_balance > 0 %}
+                    <span class="amount-negative">KES {{ row.total_balance|floatformat:2|intcomma }}</span>
+                  {% elif row.total_balance < 0 %}
+                    <span class="amount-positive">KES {{ row.total_balance|floatformat:2|intcomma }}</span>
                   {% else %}
-                    <span class="amount-zero">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
-                  {% endif %}
-                </td>
-                <td class="text-center">
-                  {% if row.total_billed > 0 %}
-                    {% with row.collected|default:0|divide:row.total_billed|multiply:100 as percentage %}
-                      {% if percentage >= 100 %}
-                        <span class="badge bg-success">{{ percentage|floatformat:0 }}%</span>
-                      {% elif percentage >= 50 %}
-                        <span class="badge bg-warning">{{ percentage|floatformat:0 }}%</span>
-                      {% else %}
-                        <span class="badge bg-danger">{{ percentage|floatformat:0 }}%</span>
-                      {% endif %}
-                    {% endwith %}
-                  {% else %}
-                    <span class="badge bg-secondary">N/A</span>
+                    <span class="amount-zero">KES {{ row.total_balance|floatformat:2|intcomma }}</span>
                   {% endif %}
                 </td>
               </tr>
               {% empty %}
               <tr>
-                <td colspan="5" class="text-center text-muted py-4">
+                <td colspan="8" class="text-center text-muted py-4">
                   <i class="mdi mdi-information-outline me-1"></i>
                   No invoice data found for the selected filters.
                 </td>
@@ -147,74 +155,21 @@
             </tbody>
             <tfoot>
               <tr>
-                <th class="text-right">TOTALS</th>
-                <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
-                <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
+                <th colspan="5" class="text-right">TOTALS</th>
+                <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.total_paid|floatformat:2|intcomma }}</th>
                 <th class="text-right">
-                  {% if totals.outstanding > 0 %}
-                    <span class="amount-negative">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
-                  {% elif totals.outstanding < 0 %}
-                    <span class="amount-positive">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% if totals.total_balance > 0 %}
+                    <span class="amount-negative">KES {{ totals.total_balance|floatformat:2|intcomma }}</span>
+                  {% elif totals.total_balance < 0 %}
+                    <span class="amount-positive">KES {{ totals.total_balance|floatformat:2|intcomma }}</span>
                   {% else %}
-                    <span class="amount-zero">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
-                  {% endif %}
-                </th>
-                <th class="text-center">
-                  {% if totals.billed > 0 %}
-                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as total_percentage %}
-                      <span class="badge {% if total_percentage >= 100 %}bg-success{% elif total_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
-                        {{ total_percentage|floatformat:0 }}%
-                      </span>
-                    {% endwith %}
+                    <span class="amount-zero">KES {{ totals.total_balance|floatformat:2|intcomma }}</span>
                   {% endif %}
                 </th>
               </tr>
             </tfoot>
           </table>
-        </div>
-
-        <!-- Summary Cards -->
-        <div class="mt-4">
-          <div class="row">
-            <div class="col-md-3">
-              <div class="summary-card">
-                <div class="summary-label">Total Invoices</div>
-                <div class="summary-value">{{ invoice_count|intcomma }}</div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="summary-card">
-                <div class="summary-label">Total Balance B/F</div>
-                <div class="summary-value {% if totals.balance_bf > 0 %}text-warning{% endif %}">
-                  KES {{ totals.balance_bf|floatformat:2|intcomma }}
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="summary-card">
-                <div class="summary-label">Total Prepayments</div>
-                <div class="summary-value text-success">
-                  KES {{ totals.prepayment|floatformat:2|intcomma }}
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="summary-card">
-                <div class="summary-label">Collection Rate</div>
-                <div class="summary-value">
-                  {% if totals.billed > 0 %}
-                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as rate %}
-                      <span class="{% if rate >= 100 %}text-success{% elif rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
-                        {{ rate|floatformat:1 }}%
-                      </span>
-                    {% endwith %}
-                  {% else %}
-                    N/A
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -70,250 +70,340 @@ def add_common_header(ws, title):
 
 
 # ---------- Invoice Report Exports ----------
-class InvoiceReportExcelView(LoginRequiredMixin, View):
-    """Exports invoice summary report to Excel."""
+class InvoiceReportExcelView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    """Exports invoice report to Excel."""
 
     def get(self, request):
         from .forms import InvoiceReportFilterForm
         form = InvoiceReportFilterForm(request.GET)
-        form.is_valid()  # Populate cleaned_data
+        form.is_valid()
 
-        # Use getattr with empty dict fallback for safety
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        show_zero = cleaned.get('show_zero_rows', False)
+        # Read student_class directly from request.GET to ensure we get the value
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
+        if not student_class:
+            student_class = None
+        name = cleaned.get('name') or ''
+        admission = cleaned.get('admission') or ''
+        category = cleaned.get('category') or ''
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        show_all = cleaned.get('show_all', False)
 
-        # If no academic year/term provided, use the most recent
-        if not academic_year:
-            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
-        if not term:
-            term = 'term_1'  # Default to term 1
-        
-        if not academic_year:
-            return HttpResponseBadRequest("No academic year found. Please create one first.")
+        # Base queryset: other items only
+        items_qs = InvoiceItem.objects.filter(
+            category='other'
+        ).select_related('invoice__student', 'invoice__term__academic_year')
 
-        # Select invoices for the academic year & term
-        invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+        # Apply organization filter
+        organization = getattr(request, 'organization', None)
+        if organization:
+            items_qs = items_qs.filter(invoice__organization=organization)
 
-        # All invoice items for those invoices
-        items_qs = InvoiceItem.objects.filter(invoice__in=invoices)
+        # Apply filters
+        if not show_all:
+            if academic_year:
+                items_qs = items_qs.filter(invoice__term__academic_year=academic_year)
+                if term:
+                    items_qs = items_qs.filter(invoice__term__term=term)
+            if student_class:
+                items_qs = items_qs.filter(invoice__student__current_class__name=student_class)
+            if name:
+                items_qs = items_qs.filter(
+                    Q(invoice__student__first_name__icontains=name) |
+                    Q(invoice__student__middle_name__icontains=name) |
+                    Q(invoice__student__last_name__icontains=name)
+                )
+            if admission:
+                items_qs = items_qs.filter(invoice__student__admission_number__icontains=admission)
+            if category:
+                items_qs = items_qs.filter(description__icontains=category)
+            if start_date:
+                items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
+            if end_date:
+                items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
 
-        # Sum billed per category
-        billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
-        billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
+        # Group by student and category (description)
+        grouped = items_qs.values(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'description',
+        ).annotate(
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+        ).order_by(
+            'invoice__student__first_name',
+            'invoice__student__last_name',
+            'description'
+        )
 
-        # Collected per category
+        # Build collected map
         collected_map = {}
         if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(invoice_item__invoice__in=invoices).values(
-                'invoice_item__category').annotate(collected=Sum('amount'))
-            collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
-        else:
-            collected_map = {}
-            for inv in invoices:
-                inv_items = inv.items.all()
-                inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
-                paid = inv.amount_paid or Decimal('0.00')
-                if inv_total <= Decimal('0.00'):
-                    continue
-                for it in inv_items:
-                    cat = it.category
-                    share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
-                    collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
+            alloc_qs = PaymentAllocation.objects.filter(
+                invoice_item__in=items_qs,
+                is_active=True,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__description'
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
 
-        # Build the set of categories present
-        categories = set(billed_map.keys()) | set(collected_map.keys())
-        preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport']
-        ordered = []
-        for p in preferred_order:
-            if p in categories:
-                ordered.append(p)
-        for c in sorted(categories):
-            if c not in ordered:
-                ordered.append(c)
+            for row in alloc_qs:
+                key = (
+                    row.get('invoice_item__invoice__student__pk'),
+                    row.get('invoice_item__description')
+                )
+                collected_map[key] = Decimal(row.get('collected') or 0)
 
+        # Build rows
         rows = []
         total_billed = Decimal('0.00')
         total_collected = Decimal('0.00')
-        total_outstanding = Decimal('0.00')
-        for cat in ordered:
-            billed = billed_map.get(cat, Decimal('0.00'))
-            collected = collected_map.get(cat, Decimal('0.00'))
-            outstanding = billed - collected
-            if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal(
-                    '0.00'):
-                continue
+        total_balance = Decimal('0.00')
+
+        for g in grouped:
+            student_pk = g.get('invoice__student__pk')
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
+            student_name = f"{first_name} {middle_name} {last_name}".strip()
+            student_name = ' '.join(student_name.split())
+
+            admission = g.get('invoice__student__admission_number') or ''
+            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
+            category_desc = g.get('description') or 'Other'
+            billed = Decimal(g.get('total_billed') or 0)
+            collected = collected_map.get((student_pk, category_desc), Decimal('0.00'))
+            balance = billed - collected
+
             rows.append({
-                'category': cat,
-                'total_billed': billed,
+                'student_name': student_name,
+                'admission': admission,
+                'student_class': student_cls,
+                'category': category_desc,
+                'billed': billed,
                 'collected': collected,
-                'outstanding': outstanding
+                'balance': balance
             })
+
             total_billed += billed
             total_collected += collected
-            total_outstanding += outstanding
-
-        # Calculate balance B/F and prepayment totals from invoices
-        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+            total_balance += balance
 
         # Build workbook
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Invoice Summary"
+        ws.title = "Invoice Report"
 
-        add_common_header(ws, f"Invoice Summary Report - {academic_year.year} Term {term}")
+        title = "Invoice Report"
+        if academic_year:
+            title += f" - {academic_year.year}"
+            if term:
+                title += f" Term {term}"
+        add_common_header(ws, title)
 
-        headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)', 'Bal B/F (KES)', 'Prepayment (KES)']
+        headers = ['Sr no.', 'Student Name', 'Admission Number', 'Grade', 'Category', 'Total Amount', 'Paid', 'Balance']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
         row_num = 6
-        for r in rows:
-            ws.cell(row=row_num, column=1, value=r['category'].title())
-            ws.cell(row=row_num, column=2, value=float(r['total_billed']))
-            format_money_cell(ws.cell(row=row_num, column=2))
-            ws.cell(row=row_num, column=3, value=float(r['collected']))
-            format_money_cell(ws.cell(row=row_num, column=3))
-            ws.cell(row=row_num, column=4, value=float(r['outstanding']))
-            format_money_cell(ws.cell(row=row_num, column=4))
-            # Balance B/F and Prepayment are invoice-level, so show empty for category rows
-            ws.cell(row=row_num, column=5, value='-')
-            ws.cell(row=row_num, column=6, value='-')
+        for idx, r in enumerate(rows, start=1):
+            ws.cell(row=row_num, column=1, value=idx)
+            ws.cell(row=row_num, column=2, value=r['student_name'])
+            ws.cell(row=row_num, column=3, value=r['admission'])
+            ws.cell(row=row_num, column=4, value=r['student_class'])
+            ws.cell(row=row_num, column=5, value=r['category'])
+
+            # Money columns
+            c6 = ws.cell(row=row_num, column=6, value=float(r['billed']))
+            format_money_cell(c6)
+            c7 = ws.cell(row=row_num, column=7, value=float(r['collected']))
+            format_money_cell(c7)
+            c8 = ws.cell(row=row_num, column=8, value=float(r['balance']))
+            format_money_cell(c8)
+
             row_num += 1
 
-        # Totals row
+        # Totals
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
-        ws.cell(row=row_num, column=2, value=float(total_billed))
-        format_money_cell(ws.cell(row=row_num, column=2))
-        ws.cell(row=row_num, column=3, value=float(total_collected))
-        format_money_cell(ws.cell(row=row_num, column=3))
-        ws.cell(row=row_num, column=4, value=float(total_outstanding))
-        format_money_cell(ws.cell(row=row_num, column=4))
-        ws.cell(row=row_num, column=5, value=float(balance_bf_total))
-        format_money_cell(ws.cell(row=row_num, column=5))
-        ws.cell(row=row_num, column=6, value=float(prepayment_total))
-        format_money_cell(ws.cell(row=row_num, column=6))
+        ws.cell(row=row_num, column=5, value='TOTALS').font = Font(bold=True)
+        c6 = ws.cell(row=row_num, column=6, value=float(total_billed))
+        format_money_cell(c6)
+        c6.font = Font(bold=True)
+        c7 = ws.cell(row=row_num, column=7, value=float(total_collected))
+        format_money_cell(c7)
+        c7.font = Font(bold=True)
+        c8 = ws.cell(row=row_num, column=8, value=float(total_balance))
+        format_money_cell(c8)
+        c8.font = Font(bold=True)
 
         # Auto width columns
         for col in range(1, len(headers) + 1):
-            ws.column_dimensions[get_column_letter(col)].width = 20
+            ws.column_dimensions[get_column_letter(col)].width = 18
 
         bytes_data = workbook_to_bytes(wb)
-        filename = f"invoice-summary-{academic_year.year}-term{term}-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        filename = f"invoice-report-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
         return xlsx_response(bytes_data, filename)
 
 
-class InvoiceReportPDFView(LoginRequiredMixin, View):
-    """Generates PDF for invoice summary report."""
+class InvoiceReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    """Generates PDF for invoice report."""
 
     def get(self, request):
         from .forms import InvoiceReportFilterForm
         form = InvoiceReportFilterForm(request.GET)
-        form.is_valid()  # Populate cleaned_data
+        form.is_valid()
 
-        # Use getattr with empty dict fallback for safety
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        show_zero = cleaned.get('show_zero_rows', False)
+        # Read student_class directly from request.GET to ensure we get the value
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
+        if not student_class:
+            student_class = None
+        name = cleaned.get('name') or ''
+        admission = cleaned.get('admission') or ''
+        category = cleaned.get('category') or ''
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
+        show_all = cleaned.get('show_all', False)
 
-        # If no academic year/term provided, use the most recent
-        if not academic_year:
-            academic_year = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by('-year').first()
-        if not term:
-            term = 'term_1'  # Default to term 1
-        
-        if not academic_year:
-            return HttpResponseBadRequest("No academic year found. Please create one first.")
+        # Base queryset: other items only
+        items_qs = InvoiceItem.objects.filter(
+            category='other'
+        ).select_related('invoice__student', 'invoice__term__academic_year')
 
-        # Reuse logic from InvoiceReportExcelView to get data
-        invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
-        items_qs = InvoiceItem.objects.filter(invoice__in=invoices)
+        # Apply organization filter
+        organization = getattr(request, 'organization', None)
+        if organization:
+            items_qs = items_qs.filter(invoice__organization=organization)
 
-        billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
-        billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
+        # Apply filters (same logic as Excel view)
+        if not show_all:
+            if academic_year:
+                items_qs = items_qs.filter(invoice__term__academic_year=academic_year)
+                if term:
+                    items_qs = items_qs.filter(invoice__term__term=term)
+            if student_class:
+                items_qs = items_qs.filter(invoice__student__current_class__name=student_class)
+            if name:
+                items_qs = items_qs.filter(
+                    Q(invoice__student__first_name__icontains=name) |
+                    Q(invoice__student__middle_name__icontains=name) |
+                    Q(invoice__student__last_name__icontains=name)
+                )
+            if admission:
+                items_qs = items_qs.filter(invoice__student__admission_number__icontains=admission)
+            if category:
+                items_qs = items_qs.filter(description__icontains=category)
+            if start_date:
+                items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
+            if end_date:
+                items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
+
+        # Group and build rows (same as Excel view)
+        grouped = items_qs.values(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'description',
+        ).annotate(
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+        ).order_by(
+            'invoice__student__first_name',
+            'invoice__student__last_name',
+            'description'
+        )
 
         collected_map = {}
         if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(invoice_item__invoice__in=invoices).values(
-                'invoice_item__category').annotate(collected=Sum('amount'))
-            collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
-        else:
-            collected_map = {}
-            for inv in invoices:
-                inv_items = inv.items.all()
-                inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
-                paid = inv.amount_paid or Decimal('0.00')
-                if inv_total <= Decimal('0.00'):
-                    continue
-                for it in inv_items:
-                    cat = it.category
-                    share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
-                    collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
+            alloc_qs = PaymentAllocation.objects.filter(
+                invoice_item__in=items_qs,
+                is_active=True,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__description'
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
 
-        categories = set(billed_map.keys()) | set(collected_map.keys())
-        preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport']
-        ordered = []
-        for p in preferred_order:
-            if p in categories:
-                ordered.append(p)
-        for c in sorted(categories):
-            if c not in ordered:
-                ordered.append(c)
+            for row in alloc_qs:
+                key = (
+                    row.get('invoice_item__invoice__student__pk'),
+                    row.get('invoice_item__description')
+                )
+                collected_map[key] = Decimal(row.get('collected') or 0)
 
         rows = []
         total_billed = Decimal('0.00')
         total_collected = Decimal('0.00')
-        total_outstanding = Decimal('0.00')
-        for cat in ordered:
-            billed = billed_map.get(cat, Decimal('0.00'))
-            collected = collected_map.get(cat, Decimal('0.00'))
-            outstanding = billed - collected
-            if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal(
-                    '0.00'):
-                continue
+        total_balance = Decimal('0.00')
+
+        for g in grouped:
+            student_pk = g.get('invoice__student__pk')
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
+            student_name = f"{first_name} {middle_name} {last_name}".strip()
+            student_name = ' '.join(student_name.split())
+
+            admission = g.get('invoice__student__admission_number') or ''
+            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
+            category_desc = g.get('description') or 'Other'
+            billed = Decimal(g.get('total_billed') or 0)
+            collected = collected_map.get((student_pk, category_desc), Decimal('0.00'))
+            balance = billed - collected
+
             rows.append({
-                'category': cat,
-                'total_billed': billed,
+                'student_name': student_name,
+                'admission': admission,
+                'student_class': student_cls,
+                'category': category_desc,
+                'billed': billed,
                 'collected': collected,
-                'outstanding': outstanding
+                'balance': balance
             })
+
             total_billed += billed
             total_collected += collected
-            total_outstanding += outstanding
-
-        # Calculate balance B/F and prepayment totals from invoices
-        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+            total_balance += balance
 
         context = {
-            'report_rows': rows,
+            'rows': rows,
             'totals': {
-                'billed': total_billed,
-                'collected': total_collected,
-                'outstanding': total_outstanding,
-                'balance_bf': balance_bf_total,
-                'prepayment': prepayment_total
+                'total_billed': total_billed,
+                'total_collected': total_collected,
+                'total_balance': total_balance,
             },
-            'academic_year': academic_year,
-            'term': term,
+            'filters': {
+                'academic_year': academic_year,
+                'term': term,
+                'student_class': student_class,
+                'name': name,
+                'admission': admission,
+                'category': category,
+                'start_date': start_date,
+                'end_date': end_date,
+            },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
             'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
             'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
-            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
-                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                           'account_no': '1130280029105'},
-                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
-                         'account_no': '01129158350600'},
-                'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
-                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
-                ]
-            }),
             'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
@@ -321,7 +411,7 @@ class InvoiceReportPDFView(LoginRequiredMixin, View):
         html_string = render_to_string('reports/pdf/invoice_report_pdf.html', context)
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
-        filename = f"invoice-summary-{academic_year.year}-term{term}-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        filename = f"invoice-report-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
