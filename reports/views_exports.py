@@ -570,7 +570,11 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         end_date = cleaned.get('end_date')
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        student_class = cleaned.get('student_class')
+        # Read student_class directly from request.GET to ensure we get the value even if not in form choices
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class')
+        # Ensure student_class is not empty string
+        if not student_class:
+            student_class = None
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
         include_zero = cleaned.get('show_zero_balances')
@@ -593,6 +597,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
             invoices = invoices.filter(issue_date__gte=start_date)
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
+        # Apply student_class filter - ensure it's applied correctly
         if student_class:
             invoices = invoices.filter(student__current_class__name=student_class)
 
@@ -742,7 +747,11 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         end_date = cleaned.get('end_date')
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        student_class = cleaned.get('student_class')
+        # Read student_class directly from request.GET to ensure we get the value even if not in form choices
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class')
+        # Ensure student_class is not empty string
+        if not student_class:
+            student_class = None
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
         include_zero = cleaned.get('show_zero_balances')
@@ -765,6 +774,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
             invoices = invoices.filter(issue_date__gte=start_date)
         if end_date:
             invoices = invoices.filter(issue_date__lte=end_date)
+        # Apply student_class filter - ensure it's applied correctly
         if student_class:
             invoices = invoices.filter(student__current_class__name=student_class)
 
