@@ -22,12 +22,12 @@
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
           <li>
-            <a class="dropdown-item" href="{% url 'students:export_excel' %}">
+            <a class="dropdown-item" href="{% url 'students:export_excel' %}?{{ request.GET.urlencode }}">
               <i class="mdi mdi-file-excel text-success me-2"></i>Export to Excel
             </a>
           </li>
           <li>
-            <a class="dropdown-item" href="{% url 'students:export_pdf' %}">
+            <a class="dropdown-item" href="{% url 'students:export_pdf' %}?{{ request.GET.urlencode }}">
               <i class="mdi mdi-file-pdf text-danger me-2"></i>Export to PDF
             </a>
           </li>

@@ -616,7 +616,13 @@ class InvoiceDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         
         # Apply organization filter if organization is set
         if organization:
-            queryset = queryset.filter(organization=organization)
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
         # If no organization, return all invoices (for super admins or legacy data)
         # Note: This allows access to invoices without organization
         
@@ -969,6 +975,22 @@ class InvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
     template_name = 'finance/invoice_print.html'
     context_object_name = 'invoice'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        """Ensure organization filter is applied correctly with backward compatibility."""
+        queryset = Invoice.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        
+        if organization:
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2737,6 +2759,22 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     template_name = 'finance/invoice_edit.html'
     context_object_name = 'invoice'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        """Ensure organization filter is applied correctly with backward compatibility."""
+        queryset = Invoice.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        
+        if organization:
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
