@@ -6,9 +6,15 @@ from . import views_exports
 app_name = 'reports'
 
 urlpatterns = [
-    path('invoice-report/', views.InvoiceReportView.as_view(), name='invoice_report'),
-    path('invoice-report/export/xlsx/', views_exports.InvoiceReportExcelView.as_view(), name='invoice_report_export_excel'),
-    path('invoice-report/export/pdf/', views_exports.InvoiceReportPDFView.as_view(), name='invoice_report_export_pdf'),
+    # Invoice Summary Report (category-based summary)
+    path('invoice-summary-report/', views.InvoiceReportView.as_view(), name='invoice_summary_report'),
+    path('invoice-summary-report/export/xlsx/', views_exports.InvoiceSummaryReportExcelView.as_view(), name='invoice_summary_report_export_excel'),
+    path('invoice-summary-report/export/pdf/', views_exports.InvoiceSummaryReportPDFView.as_view(), name='invoice_summary_report_export_pdf'),
+    
+    # Invoice Detailed Report (student-level detail)
+    path('invoice-detailed-report/', views.InvoiceDetailedReportView.as_view(), name='invoice_detailed_report'),
+    path('invoice-detailed-report/export/xlsx/', views_exports.InvoiceDetailedReportExcelView.as_view(), name='invoice_detailed_report_export_excel'),
+    path('invoice-detailed-report/export/pdf/', views_exports.InvoiceDetailedReportPDFView.as_view(), name='invoice_detailed_report_export_pdf'),
 
     path('fees-collection/', views.FeesCollectionReportView.as_view(), name='fees_collection_report'),
     path('fees-collection/export/xlsx/', views_exports.FeesCollectionExcelView.as_view(), name='fees_collection_export_excel'),

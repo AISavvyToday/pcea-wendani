@@ -2,7 +2,7 @@
 {% extends "base/base.html" %}
 {% load humanize static custom_filters %}
 
-{% block title %}Invoice Summary Report{% endblock %}
+{% block title %}Invoice Detailed Report{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -28,17 +28,17 @@
 {% block content %}
 <div class="content-wrapper">
   <div class="page-header d-flex justify-content-between align-items-center mb-3">
-    <h3 class="page-title">Invoice Summary Report</h3>
+    <h3 class="page-title">Invoice Detailed Report</h3>
 
   </div>
 
   <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
     <a class="btn btn-success" target="_blank"
-       href="{% url 'reports:invoice_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+       href="{% url 'reports:invoice_detailed_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
       <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
     </a>
     <a class="btn btn-outline-secondary" target="_blank"
-       href="{% url 'reports:invoice_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+       href="{% url 'reports:invoice_detailed_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
       <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
     </a>
   </div>
@@ -89,7 +89,7 @@
         </div>
         <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Generate</button>
-          <a href="{% url 'reports:invoice_report' %}" class="btn btn-outline-secondary">Reset</a>
+          <a href="{% url 'reports:invoice_detailed_report' %}" class="btn btn-outline-secondary">Reset</a>
         </div>
       </form>
     </div>
@@ -104,7 +104,7 @@
       <div class="report-title">
         <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
-        <h5 style="margin-top:8px">Invoice Report</h5>
+        <h5 style="margin-top:8px">Invoice Detailed Report</h5>
       </div>
     </div>
 

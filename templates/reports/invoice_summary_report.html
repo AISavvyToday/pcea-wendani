@@ -1,0 +1,234 @@
+<!-- reports/invoice_summary_report.html -->
+{% extends "base/base.html" %}
+{% load humanize static custom_filters %}
+
+{% block title %}Invoice Summary Report{% endblock %}
+
+{% block extra_head %}
+<style>
+  .report-letterhead { display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+  .report-title { text-align:center; width:100%; }
+  .report-table { width:100%; border-collapse: collapse; }
+  .report-table th, .report-table td { border: 1px solid #222; padding: 6px 8px; }
+  .report-table thead th { background: #f2f2f2; font-weight:700; }
+  .no-print { margin-bottom: 10px; }
+  @media print { .no-print { display:none !important; } }
+
+  /* Custom invoice styles */
+  .amount-positive { color: #28a745; font-weight: 600; }
+  .amount-negative { color: #dc3545; font-weight: 600; }
+  .amount-zero { color: #6c757d; }
+  .summary-cards { display: flex; gap: 15px; margin-bottom: 15px; }
+  .summary-card { flex: 1; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; text-align: center; }
+  .summary-label { font-size: 12px; color: #6c757d; margin-bottom: 5px; }
+  .summary-value { font-size: 18px; font-weight: bold; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <h3 class="page-title">Invoice Summary Report</h3>
+  </div>
+
+  <div class="report-export-buttons no-print" style="display:flex; gap:8px; margin-bottom:8px;">
+    <a class="btn btn-success" target="_blank"
+       href="{% url 'reports:invoice_summary_report_export_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-excel"></i>&nbsp;Download Excel
+    </a>
+    <a class="btn btn-outline-secondary" target="_blank"
+       href="{% url 'reports:invoice_summary_report_export_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+      <i class="mdi mdi-file-pdf"></i>&nbsp;Download PDF
+    </a>
+  </div>
+
+  <div class="card mb-3 no-print">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Academic Year</label>
+          {{ form.academic_year }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Term</label>
+          {{ form.term }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">&nbsp;</label>
+          <div class="form-check mt-2">
+            {{ form.show_zero_rows }}
+            <label class="form-check-label" for="{{ form.show_zero_rows.id_for_label }}">
+              Show categories with zero billed
+            </label>
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary" type="submit">Generate Report</button>
+          <a href="{% url 'reports:invoice_summary_report' %}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if report_rows is none %}
+    <div class="card">
+      <div class="card-body text-muted">
+        Use the controls above to generate the invoice summary report.
+        Select an academic year and term to view the report.
+      </div>
+    </div>
+  {% else %}
+    <!-- Letterhead without logo -->
+    <div class="report-letterhead">
+      <div class="report-title">
+        <h4 style="margin:0">{{ SCHOOL_NAME }}</h4>
+        <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+        <h5 style="margin-top:8px">Invoice Summary Report</h5>
+        <small class="text-muted">
+          {{ academic_year.year }} • Term {{ term|title }}
+        </small>
+      </div>
+    </div>
+
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="report-table table table-sm">
+            <thead>
+              <tr>
+                <th>Fee Category</th>
+                <th class="text-right">Billed (KES)</th>
+                <th class="text-right">Collected (KES)</th>
+                <th class="text-right">Outstanding (KES)</th>
+                <th class="text-center">Collection %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report_rows %}
+              <tr>
+                <td>
+                  <strong>{{ row.category|title }}</strong>
+                  {% if row.category == 'tuition' %}
+                    <span class="badge bg-primary ms-1">Core</span>
+                  {% elif row.category == 'transport' %}
+                    <span class="badge bg-info ms-1">Optional</span>
+                  {% elif row.category == 'meals' %}
+                    <span class="badge bg-success ms-1">Meals</span>
+                  {% elif row.category == 'other' %}
+                    <span class="badge bg-warning ms-1">Other</span>
+                  {% endif %}
+                </td>
+                <td class="text-right">KES {{ row.total_billed|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ row.collected|floatformat:2|intcomma }}</td>
+                <td class="text-right">
+                  {% if row.outstanding > 0 %}
+                    <span class="amount-negative">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% elif row.outstanding < 0 %}
+                    <span class="amount-positive">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% else %}
+                    <span class="amount-zero">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if row.total_billed > 0 %}
+                    {% with row.collected|default:0|divide:row.total_billed|multiply:100 as percentage %}
+                      {% if percentage >= 100 %}
+                        <span class="badge bg-success">{{ percentage|floatformat:0 }}%</span>
+                      {% elif percentage >= 50 %}
+                        <span class="badge bg-warning">{{ percentage|floatformat:0 }}%</span>
+                      {% else %}
+                        <span class="badge bg-danger">{{ percentage|floatformat:0 }}%</span>
+                      {% endif %}
+                    {% endwith %}
+                  {% else %}
+                    <span class="badge bg-secondary">N/A</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <i class="mdi mdi-information-outline me-1"></i>
+                  No invoice data found for the selected filters.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th class="text-right">TOTALS</th>
+                <th class="text-right">KES {{ totals.billed|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.collected|floatformat:2|intcomma }}</th>
+                <th class="text-right">
+                  {% if totals.outstanding > 0 %}
+                    <span class="amount-negative">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% elif totals.outstanding < 0 %}
+                    <span class="amount-positive">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% else %}
+                    <span class="amount-zero">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
+                  {% endif %}
+                </th>
+                <th class="text-center">
+                  {% if totals.billed > 0 %}
+                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as total_percentage %}
+                      <span class="badge {% if total_percentage >= 100 %}bg-success{% elif total_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+                        {{ total_percentage|floatformat:0 }}%
+                      </span>
+                    {% endwith %}
+                  {% endif %}
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="mt-4">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Invoices</div>
+                <div class="summary-value">{{ invoice_count|intcomma }}</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Balance B/F</div>
+                <div class="summary-value {% if totals.balance_bf > 0 %}text-warning{% endif %}">
+                  KES {{ totals.balance_bf|floatformat:2|intcomma }}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Total Prepayments</div>
+                <div class="summary-value text-success">
+                  KES {{ totals.prepayment|floatformat:2|intcomma }}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="summary-card">
+                <div class="summary-label">Collection Rate</div>
+                <div class="summary-value">
+                  {% if totals.billed > 0 %}
+                    {% with totals.collected|default:0|divide:totals.billed|multiply:100 as rate %}
+                      <span class="{% if rate >= 100 %}text-success{% elif rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ rate|floatformat:1 }}%
+                      </span>
+                    {% endwith %}
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+

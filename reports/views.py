@@ -11,7 +11,7 @@ from decimal import Decimal
 from decimal import Decimal
 from django.db.models import ExpressionWrapper, DecimalField
 from .forms import (
-    InvoiceReportFilterForm, FeesCollectionFilterForm,
+    InvoiceSummaryReportFilterForm, InvoiceDetailedReportFilterForm, FeesCollectionFilterForm,
     OutstandingBalancesFilterForm, TransportReportFilterForm,
     OtherItemsReportFilterForm,
     TransferredStudentsFilterForm, GraduatedStudentsFilterForm,
@@ -27,10 +27,148 @@ from core.models import InvoiceStatus
 
 
 class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
-    template_name = 'reports/invoice_report.html'
+    """Invoice Summary Report - shows summary by category."""
+    template_name = 'reports/invoice_summary_report.html'
 
     def get(self, request):
-        form = InvoiceReportFilterForm(request.GET or None)
+        form = InvoiceSummaryReportFilterForm(request.GET or None)
+
+        # School branding context
+        context = {
+            'form': form,
+            'report_rows': None,
+            'totals': None,
+            'show_print_button': False,
+            # School branding
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
+            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
+        }
+
+        if form.is_valid():
+            academic_year = form.cleaned_data['academic_year']
+            term = form.cleaned_data['term']
+            show_zero = form.cleaned_data.get('show_zero_rows', False)
+
+            # Select invoices for the academic year & term
+            invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+            
+            # Apply organization filter
+            organization = getattr(request, 'organization', None)
+            if organization:
+                invoices = invoices.filter(organization=organization)
+            
+            # Only include active students
+            invoices = invoices.filter(student__status='active')
+
+            # All invoice items for those invoices
+            items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
+
+            # Sum billed per category (net_amount preferred, fallback to amount)
+            billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
+            # Build mapping category -> billed amount
+            billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
+
+            # Collected per category: try to use PaymentAllocation if available
+            collected_map = {}
+            if PaymentAllocation is not None:
+                # annotate by invoice_item__category
+                alloc_qs = PaymentAllocation.objects.filter(
+                    invoice_item__in=items_qs,
+                    is_active=True,
+                    payment__is_active=True,
+                    payment__status='completed'
+                ).values('invoice_item__category').annotate(collected=Sum('amount'))
+                collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
+            else:
+                # Fallback: use proportion of invoice.amount_paid distributed by item share
+                # Compute per-invoice -> item distribution
+                collected_map = {}
+                for inv in invoices:
+                    inv_items = inv.items.filter(is_active=True)
+                    inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
+                    paid = inv.amount_paid or Decimal('0.00')
+                    if inv_total <= Decimal('0.00'):
+                        # Nothing to allocate
+                        continue
+                    for it in inv_items:
+                        cat = it.category
+                        share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
+                        collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
+
+            # Build the set of categories present
+            categories = set(billed_map.keys()) | set(collected_map.keys())
+
+            # Optional: ensure an ordered list of categories (tuition, meals, assessment, activity, transport, other)
+            preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
+            ordered = []
+            for p in preferred_order:
+                if p in categories:
+                    ordered.append(p)
+            for c in sorted(categories):
+                if c not in ordered:
+                    ordered.append(c)
+
+            rows = []
+            total_billed = Decimal('0.00')
+            total_collected = Decimal('0.00')
+            total_outstanding = Decimal('0.00')
+            for cat in ordered:
+                billed = billed_map.get(cat, Decimal('0.00'))
+                collected = collected_map.get(cat, Decimal('0.00'))
+                outstanding = billed - collected
+                if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal('0.00'):
+                    continue
+                rows.append({
+                    'category': cat,
+                    'total_billed': billed,
+                    'collected': collected,
+                    'outstanding': outstanding
+                })
+                total_billed += billed
+                total_collected += collected
+                total_outstanding += outstanding
+
+            # Calculate balance_bf and prepayment totals from invoices
+            balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
+            prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+            invoice_count = invoices.count()
+
+            context.update({
+                'report_rows': rows,
+                'totals': {
+                    'billed': total_billed,
+                    'collected': total_collected,
+                    'outstanding': total_outstanding,
+                    'balance_bf': balance_bf_total,
+                    'prepayment': prepayment_total,
+                },
+                'invoice_count': invoice_count,
+                'academic_year': academic_year,
+                'term': term,
+                'show_print_button': True,
+            })
+
+        return render(request, self.template_name, context)
+
+
+class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    """Invoice Detailed Report - shows individual students with their invoice details."""
+    template_name = 'reports/invoice_detailed_report.html'
+
+    def get(self, request):
+        form = InvoiceDetailedReportFilterForm(request.GET or None)
 
         # populate student_class choices from Class model
         try:

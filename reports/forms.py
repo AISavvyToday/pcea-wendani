@@ -6,7 +6,22 @@ from academics.models import AcademicYear, TermChoices
 from transport.models import TransportRoute
 from core.models import PaymentSource
 
-class InvoiceReportFilterForm(forms.Form):
+class InvoiceSummaryReportFilterForm(forms.Form):
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(), 
+        required=False, 
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label="Select Academic Year"
+    )
+    term = forms.ChoiceField(
+        choices=[('', 'Select Term')] + list(TermChoices.choices), 
+        required=False, 
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    show_zero_rows = forms.BooleanField(required=False, initial=False, label="Show categories with zero billed")
+
+
+class InvoiceDetailedReportFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(
         queryset=AcademicYear.objects.all(), 
         required=False, 
