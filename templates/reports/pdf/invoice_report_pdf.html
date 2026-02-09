@@ -164,18 +164,21 @@ body {
 }
 
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 20%; }
-
+.report-table td:nth-child(1) { width: 5%; } /* Sr no. */
 .report-table th:nth-child(2),
-.report-table td:nth-child(2),
+.report-table td:nth-child(2) { width: 18%; } /* Student Name */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3),
+.report-table td:nth-child(3) { width: 12%; } /* Admission Number */
 .report-table th:nth-child(4),
-.report-table td:nth-child(4),
+.report-table td:nth-child(4) { width: 12%; } /* Grade */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5),
+.report-table td:nth-child(5) { width: 15%; } /* Category */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 16%; }
+.report-table td:nth-child(6) { width: 12%; } /* Total Amount */
+.report-table th:nth-child(7),
+.report-table td:nth-child(7) { width: 12%; } /* Paid */
+.report-table th:nth-child(8),
+.report-table td:nth-child(8) { width: 12%; } /* Balance */
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -255,8 +258,13 @@ body {
         <div class="school-info">
           <h1 class="school-name">PCEA Wendani Academy</h1>
           <div class="school-details">P.O. Box 54 - 00232 Ruiru • Tel: 0722 000 000</div>
-          <div class="report-title" style="margin-top:8px;">Invoice Summary Report</div>
-          <div class="report-period">{{ academic_year.year }} – {{ term|title }}</div>
+          <div class="report-title" style="margin-top:8px;">Invoice Report</div>
+          <div class="report-period">
+            {% if filters.academic_year %}{{ filters.academic_year.year }}{% endif %}
+            {% if filters.term %} • Term {{ filters.term }}{% endif %}
+            {% if filters.start_date %} • From: {{ filters.start_date|date:"d M Y" }}{% endif %}
+            {% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}
+          </div>
         </div>
         {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
       </div>
@@ -270,16 +278,16 @@ body {
       <div class="summary-grid">
         <div class="summary-item">
           <div class="summary-label">Total Billed</div>
-          <div class="summary-value">{{ totals.billed|floatformat:2 }}</div>
+          <div class="summary-value">KES {{ totals.total_billed|floatformat:2 }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">Total Collected</div>
-          <div class="summary-value">{{ totals.collected|floatformat:2 }}</div>
+          <div class="summary-value">KES {{ totals.total_collected|floatformat:2 }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">Net Outstanding</div>
-          <div class="summary-value {% if totals.outstanding > 0 %}positive{% else %}negative{% endif %}">
-            {{ totals.outstanding|floatformat:2 }}
+          <div class="summary-value {% if totals.total_balance > 0 %}positive{% else %}negative{% endif %}">
+            KES {{ totals.total_balance|floatformat:2 }}
           </div>
         </div>
       </div>
@@ -288,46 +296,56 @@ body {
 
     <!-- TABLE -->
     <div class="table-container">
-      {% if report_rows %}
+      {% if rows %}
       <table class="report-table">
         <thead>
           <tr>
-            <th>Fee Category</th>
-            <th class="text-right">Billed (KES)</th>
-            <th class="text-right">Collected (KES)</th>
-            <th class="text-right">Outstanding (KES)</th>
-            <th class="text-right">Bal B/F (KES)</th>
-            <th class="text-right">Prepayment (KES)</th>
+            <th>Sr no.</th>
+            <th>Student Name</th>
+            <th>Admission Number</th>
+            <th>Grade</th>
+            <th>Category</th>
+            <th class="text-right">Total Amount</th>
+            <th class="text-right">Paid</th>
+            <th class="text-right">Balance</th>
           </tr>
         </thead>
         <tbody>
-          {% for row in report_rows %}
+          {% for row in rows %}
           <tr>
-            <td class="category">{{ row.category|title }}</td>
-            <td class="text-right">{{ row.total_billed|floatformat:2 }}</td>
-            <td class="text-right">{{ row.collected|floatformat:2 }}</td>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ row.student_name }}</td>
+            <td>{{ row.admission|default:"—" }}</td>
+            <td>{{ row.student_class|default:"—" }}</td>
+            <td>{{ row.category|default:"—" }}</td>
+            <td class="text-right">KES {{ row.billed|floatformat:2 }}</td>
+            <td class="text-right">KES {{ row.collected|floatformat:2 }}</td>
             <td class="text-right">
-              {% if row.outstanding > 0 %}
-                <span class="amount-positive">{{ row.outstanding|floatformat:2 }}</span>
-              {% elif row.outstanding < 0 %}
-                <span class="amount-negative">{{ row.outstanding|floatformat:2 }}</span>
+              {% if row.balance > 0 %}
+                <span class="amount-positive">KES {{ row.balance|floatformat:2 }}</span>
+              {% elif row.balance < 0 %}
+                <span class="amount-negative">KES {{ row.balance|floatformat:2 }}</span>
               {% else %}
-                <span class="amount-zero">{{ row.outstanding|floatformat:2 }}</span>
+                <span class="amount-zero">KES {{ row.balance|floatformat:2 }}</span>
               {% endif %}
             </td>
-            <td class="text-right">-</td>
-            <td class="text-right">-</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <th class="text-right">TOTALS</th>
-            <th class="text-right">{{ totals.billed|floatformat:2 }}</th>
-            <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
-            <th class="text-right">{{ totals.outstanding|floatformat:2 }}</th>
-            <th class="text-right">{{ totals.balance_bf|floatformat:2 }}</th>
-            <th class="text-right">{{ totals.prepayment|floatformat:2 }}</th>
+            <th colspan="5" class="text-right">TOTALS</th>
+            <th class="text-right">KES {{ totals.total_billed|floatformat:2 }}</th>
+            <th class="text-right">KES {{ totals.total_collected|floatformat:2 }}</th>
+            <th class="text-right">
+              {% if totals.total_balance > 0 %}
+                <span class="amount-positive">KES {{ totals.total_balance|floatformat:2 }}</span>
+              {% elif totals.total_balance < 0 %}
+                <span class="amount-negative">KES {{ totals.total_balance|floatformat:2 }}</span>
+              {% else %}
+                <span class="amount-zero">KES {{ totals.total_balance|floatformat:2 }}</span>
+              {% endif %}
+            </th>
           </tr>
         </tfoot>
       </table>

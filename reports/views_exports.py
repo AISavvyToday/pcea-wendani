@@ -92,77 +92,81 @@ class InvoiceReportExcelView(LoginRequiredMixin, OrganizationFilterMixin, View):
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: other items only
-        items_qs = InvoiceItem.objects.filter(
-            category='other'
-        ).select_related('invoice__student', 'invoice__term__academic_year')
+        # Base queryset: ALL invoices (not just other items)
+        invoices_qs = Invoice.objects.filter(
+            is_active=True
+        ).exclude(
+            status=InvoiceStatus.CANCELLED
+        ).select_related('student', 'term__academic_year')
 
         # Apply organization filter
         organization = getattr(request, 'organization', None)
         if organization:
-            items_qs = items_qs.filter(invoice__organization=organization)
+            invoices_qs = invoices_qs.filter(organization=organization)
+
+        # Only include active students
+        invoices_qs = invoices_qs.filter(student__status='active')
 
         # Apply filters
         if not show_all:
             if academic_year:
-                items_qs = items_qs.filter(invoice__term__academic_year=academic_year)
+                invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
                 if term:
-                    items_qs = items_qs.filter(invoice__term__term=term)
+                    invoices_qs = invoices_qs.filter(term__term=term)
             if student_class:
-                items_qs = items_qs.filter(invoice__student__current_class__name=student_class)
+                invoices_qs = invoices_qs.filter(student__current_class__name=student_class)
             if name:
-                items_qs = items_qs.filter(
-                    Q(invoice__student__first_name__icontains=name) |
-                    Q(invoice__student__middle_name__icontains=name) |
-                    Q(invoice__student__last_name__icontains=name)
+                invoices_qs = invoices_qs.filter(
+                    Q(student__first_name__icontains=name) |
+                    Q(student__middle_name__icontains=name) |
+                    Q(student__last_name__icontains=name)
                 )
             if admission:
-                items_qs = items_qs.filter(invoice__student__admission_number__icontains=admission)
-            if category:
-                items_qs = items_qs.filter(description__icontains=category)
+                invoices_qs = invoices_qs.filter(student__admission_number__icontains=admission)
             if start_date:
-                items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
+                invoices_qs = invoices_qs.filter(issue_date__gte=start_date)
             if end_date:
-                items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
+                invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Group by student and category (description)
-        grouped = items_qs.values(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'description',
+        # Group by student to get total invoice amounts
+        grouped = invoices_qs.values(
+            'student__pk',
+            'student__first_name',
+            'student__middle_name',
+            'student__last_name',
+            'student__admission_number',
+            'student__current_class__name',
         ).annotate(
-            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            total_billed=Coalesce(Sum('total_amount'), Value(Decimal('0.00')), output_field=DecimalField()),
+            total_paid=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField()),
+            total_balance=Coalesce(Sum('balance'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
-            'invoice__student__first_name',
-            'invoice__student__last_name',
-            'description'
+            'student__first_name',
+            'student__last_name'
         )
 
-        # Build collected map
-        collected_map = {}
-        if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            ).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__description'
-            ).annotate(
-                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
-            )
-
-            for row in alloc_qs:
-                key = (
-                    row.get('invoice_item__invoice__student__pk'),
-                    row.get('invoice_item__description')
-                )
-                collected_map[key] = Decimal(row.get('collected') or 0)
+        # Get "other" item descriptions for each student (for category column)
+        student_pks = [g['student__pk'] for g in grouped]
+        other_items_qs = InvoiceItem.objects.filter(
+            invoice__student__pk__in=student_pks,
+            category='other',
+            is_active=True
+        )
+        
+        # Apply category filter if provided
+        if category and not show_all:
+            other_items_qs = other_items_qs.filter(description__icontains=category)
+            # If category filter is applied, only include students who have matching "other" items
+            matching_student_pks = set(other_items_qs.values_list('invoice__student__pk', flat=True).distinct())
+        
+        # Build map of student_pk -> list of descriptions
+        other_items_map = {}
+        for item in other_items_qs.select_related('invoice__student'):
+            student_pk = item.invoice.student.pk
+            if student_pk not in other_items_map:
+                other_items_map[student_pk] = []
+            if item.description:
+                other_items_map[student_pk].append(item.description)
 
         # Build rows
         rows = []
@@ -171,19 +175,28 @@ class InvoiceReportExcelView(LoginRequiredMixin, OrganizationFilterMixin, View):
         total_balance = Decimal('0.00')
 
         for g in grouped:
-            student_pk = g.get('invoice__student__pk')
-            first_name = g.get('invoice__student__first_name') or ''
-            middle_name = g.get('invoice__student__middle_name') or ''
-            last_name = g.get('invoice__student__last_name') or ''
+            student_pk = g.get('student__pk')
+            
+            # If category filter is applied, only include students with matching "other" items
+            if category and not show_all:
+                if student_pk not in matching_student_pks:
+                    continue
+            
+            # Get category from "other" items description
+            other_descriptions = other_items_map.get(student_pk, [])
+            category_desc = ', '.join(other_descriptions) if other_descriptions else '—'
+            
+            first_name = g.get('student__first_name') or ''
+            middle_name = g.get('student__middle_name') or ''
+            last_name = g.get('student__last_name') or ''
             student_name = f"{first_name} {middle_name} {last_name}".strip()
             student_name = ' '.join(student_name.split())
 
-            admission = g.get('invoice__student__admission_number') or ''
-            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
-            category_desc = g.get('description') or 'Other'
+            admission = g.get('student__admission_number') or ''
+            student_cls = g.get('student__current_class__name') or 'Not assigned'
             billed = Decimal(g.get('total_billed') or 0)
-            collected = collected_map.get((student_pk, category_desc), Decimal('0.00'))
-            balance = billed - collected
+            paid = Decimal(g.get('total_paid') or 0)
+            balance = Decimal(g.get('total_balance') or 0)
 
             rows.append({
                 'student_name': student_name,
@@ -191,12 +204,12 @@ class InvoiceReportExcelView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'student_class': student_cls,
                 'category': category_desc,
                 'billed': billed,
-                'collected': collected,
+                'collected': paid,
                 'balance': balance
             })
 
             total_billed += billed
-            total_collected += collected
+            total_collected += paid
             total_balance += balance
 
         # Build workbook
@@ -277,76 +290,81 @@ class InvoiceReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: other items only
-        items_qs = InvoiceItem.objects.filter(
-            category='other'
-        ).select_related('invoice__student', 'invoice__term__academic_year')
+        # Base queryset: ALL invoices (not just other items)
+        invoices_qs = Invoice.objects.filter(
+            is_active=True
+        ).exclude(
+            status=InvoiceStatus.CANCELLED
+        ).select_related('student', 'term__academic_year')
 
         # Apply organization filter
         organization = getattr(request, 'organization', None)
         if organization:
-            items_qs = items_qs.filter(invoice__organization=organization)
+            invoices_qs = invoices_qs.filter(organization=organization)
+
+        # Only include active students
+        invoices_qs = invoices_qs.filter(student__status='active')
 
         # Apply filters (same logic as Excel view)
         if not show_all:
             if academic_year:
-                items_qs = items_qs.filter(invoice__term__academic_year=academic_year)
+                invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
                 if term:
-                    items_qs = items_qs.filter(invoice__term__term=term)
+                    invoices_qs = invoices_qs.filter(term__term=term)
             if student_class:
-                items_qs = items_qs.filter(invoice__student__current_class__name=student_class)
+                invoices_qs = invoices_qs.filter(student__current_class__name=student_class)
             if name:
-                items_qs = items_qs.filter(
-                    Q(invoice__student__first_name__icontains=name) |
-                    Q(invoice__student__middle_name__icontains=name) |
-                    Q(invoice__student__last_name__icontains=name)
+                invoices_qs = invoices_qs.filter(
+                    Q(student__first_name__icontains=name) |
+                    Q(student__middle_name__icontains=name) |
+                    Q(student__last_name__icontains=name)
                 )
             if admission:
-                items_qs = items_qs.filter(invoice__student__admission_number__icontains=admission)
-            if category:
-                items_qs = items_qs.filter(description__icontains=category)
+                invoices_qs = invoices_qs.filter(student__admission_number__icontains=admission)
             if start_date:
-                items_qs = items_qs.filter(invoice__issue_date__gte=start_date)
+                invoices_qs = invoices_qs.filter(issue_date__gte=start_date)
             if end_date:
-                items_qs = items_qs.filter(invoice__issue_date__lte=end_date)
+                invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Group and build rows (same as Excel view)
-        grouped = items_qs.values(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'description',
+        # Group by student to get total invoice amounts
+        grouped = invoices_qs.values(
+            'student__pk',
+            'student__first_name',
+            'student__middle_name',
+            'student__last_name',
+            'student__admission_number',
+            'student__current_class__name',
         ).annotate(
-            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            total_billed=Coalesce(Sum('total_amount'), Value(Decimal('0.00')), output_field=DecimalField()),
+            total_paid=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField()),
+            total_balance=Coalesce(Sum('balance'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
-            'invoice__student__first_name',
-            'invoice__student__last_name',
-            'description'
+            'student__first_name',
+            'student__last_name'
         )
 
-        collected_map = {}
-        if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            ).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__description'
-            ).annotate(
-                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
-            )
-
-            for row in alloc_qs:
-                key = (
-                    row.get('invoice_item__invoice__student__pk'),
-                    row.get('invoice_item__description')
-                )
-                collected_map[key] = Decimal(row.get('collected') or 0)
+        # Get "other" item descriptions for each student (for category column)
+        student_pks = [g['student__pk'] for g in grouped]
+        other_items_qs = InvoiceItem.objects.filter(
+            invoice__student__pk__in=student_pks,
+            category='other',
+            is_active=True
+        )
+        
+        # Apply category filter if provided
+        if category and not show_all:
+            other_items_qs = other_items_qs.filter(description__icontains=category)
+            # If category filter is applied, only include students who have matching "other" items
+            matching_student_pks = set(other_items_qs.values_list('invoice__student__pk', flat=True).distinct())
+        
+        # Build map of student_pk -> list of descriptions
+        other_items_map = {}
+        for item in other_items_qs.select_related('invoice__student'):
+            student_pk = item.invoice.student.pk
+            if student_pk not in other_items_map:
+                other_items_map[student_pk] = []
+            if item.description:
+                other_items_map[student_pk].append(item.description)
 
         rows = []
         total_billed = Decimal('0.00')
@@ -354,19 +372,28 @@ class InvoiceReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
         total_balance = Decimal('0.00')
 
         for g in grouped:
-            student_pk = g.get('invoice__student__pk')
-            first_name = g.get('invoice__student__first_name') or ''
-            middle_name = g.get('invoice__student__middle_name') or ''
-            last_name = g.get('invoice__student__last_name') or ''
+            student_pk = g.get('student__pk')
+            
+            # If category filter is applied, only include students with matching "other" items
+            if category and not show_all:
+                if student_pk not in matching_student_pks:
+                    continue
+            
+            # Get category from "other" items description
+            other_descriptions = other_items_map.get(student_pk, [])
+            category_desc = ', '.join(other_descriptions) if other_descriptions else '—'
+            
+            first_name = g.get('student__first_name') or ''
+            middle_name = g.get('student__middle_name') or ''
+            last_name = g.get('student__last_name') or ''
             student_name = f"{first_name} {middle_name} {last_name}".strip()
             student_name = ' '.join(student_name.split())
 
-            admission = g.get('invoice__student__admission_number') or ''
-            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
-            category_desc = g.get('description') or 'Other'
+            admission = g.get('student__admission_number') or ''
+            student_cls = g.get('student__current_class__name') or 'Not assigned'
             billed = Decimal(g.get('total_billed') or 0)
-            collected = collected_map.get((student_pk, category_desc), Decimal('0.00'))
-            balance = billed - collected
+            paid = Decimal(g.get('total_paid') or 0)
+            balance = Decimal(g.get('total_balance') or 0)
 
             rows.append({
                 'student_name': student_name,
@@ -374,12 +401,12 @@ class InvoiceReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'student_class': student_cls,
                 'category': category_desc,
                 'billed': billed,
-                'collected': collected,
+                'collected': paid,
                 'balance': balance
             })
 
             total_billed += billed
-            total_collected += collected
+            total_collected += paid
             total_balance += balance
 
         context = {
