@@ -582,8 +582,8 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         if organization:
             invoices = invoices.filter(organization=organization)
 
-        # Exclude transferred and graduated students
-        invoices = invoices.exclude(student__status__in=['transferred', 'graduated'])
+        # Only include active students - exclude all non-active statuses
+        invoices = invoices.filter(student__status='active')
 
         if academic_year:
             invoices = invoices.filter(term__academic_year=academic_year)
@@ -754,8 +754,8 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         if organization:
             invoices = invoices.filter(organization=organization)
 
-        # Exclude transferred and graduated students
-        invoices = invoices.exclude(student__status__in=['transferred', 'graduated'])
+        # Only include active students - exclude all non-active statuses
+        invoices = invoices.filter(student__status='active')
             
         if academic_year:
             invoices = invoices.filter(term__academic_year=academic_year)

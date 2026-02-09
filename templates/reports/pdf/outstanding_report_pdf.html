@@ -239,23 +239,25 @@ body {
   z-index: 10;
 }
 
-/* Column widths for landscape - UPDATED for 8 columns */
+/* Column widths for landscape - UPDATED for 9 columns */
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 8%; } /* Year */
+.report-table td:nth-child(1) { width: 6%; } /* Year */
 .report-table th:nth-child(2),
-.report-table td:nth-child(2) { width: 12%; } /* Admission */
+.report-table td:nth-child(2) { width: 10%; } /* Admission */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 20%; } /* Name */
+.report-table td:nth-child(3) { width: 18%; } /* Name */
 .report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 10%; } /* Balance B/F */
+.report-table td:nth-child(4) { width: 8%; } /* Grade */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 10%; } /* Prepayment */
+.report-table td:nth-child(5) { width: 9%; } /* Balance B/F */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 12%; } /* Total Billed */
+.report-table td:nth-child(6) { width: 9%; } /* Prepayment */
 .report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 10%; } /* Paid */
+.report-table td:nth-child(7) { width: 10%; } /* Total Billed */
 .report-table th:nth-child(8),
-.report-table td:nth-child(8) { width: 18%; } /* Outstanding Balance */
+.report-table td:nth-child(8) { width: 9%; } /* Paid */
+.report-table th:nth-child(9),
+.report-table td:nth-child(9) { width: 11%; } /* Outstanding Balance */
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -336,9 +338,11 @@ body {
 /* ===== TOTAL ROW ===== */
 .report-table tfoot th,
 .report-table tfoot td {
-  background: #eaeaea;
+  background: #2c3e50 !important;
+  color: white !important;
   font-weight: bold;
-  border-top: 2px solid #222;
+  border-top: 3px solid #000;
+  padding: 6px 4px;
 }
 
 .totals-row {
@@ -346,8 +350,16 @@ body {
   color: white !important;
 }
 
+.totals-row th,
+.totals-row td {
+  background: #2c3e50 !important;
+  color: white !important;
+  font-weight: bold;
+}
+
 .totals-row .amount-cell {
-  color: white;
+  color: white !important;
+  font-weight: bold;
 }
 
 /* ===== NO DATA ===== */

@@ -380,8 +380,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         if organization:
             invoices = invoices.filter(organization=organization)
 
-        # Exclude transferred and graduated students
-        invoices = invoices.exclude(student__status__in=['transferred', 'graduated'])
+        # Only include active students - exclude all non-active statuses
+        invoices = invoices.filter(student__status='active')
 
         # Filter by academic_year/term or date range if provided
         if academic_year:
