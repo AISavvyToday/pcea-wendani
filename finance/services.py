@@ -506,8 +506,9 @@ class InvoiceService:
         Rules:
         - Block deletion if payments exist
         - Restore any prepayment back to student's credit balance
-        - Restore any balance_bf back to student's balance_bf_original
         - Recompute outstanding balance AFTER restoration
+        
+        Note: balance_bf is a frozen field that was never modified, so it doesn't need restoration.
         """
 
         if invoice.amount_paid > 0:

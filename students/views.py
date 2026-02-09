@@ -340,12 +340,12 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                         
                         for invoice in current_invoices:
                             # Restore balance_bf_original to Student frozen field
+                            # Note: balance_bf is debt, not credit, so it's NOT added to credit_balance
                             if invoice.balance_bf_original and invoice.balance_bf_original > 0:
                                 if form.instance.balance_bf_original == Decimal('0.00'):
                                     form.instance.balance_bf_original = invoice.balance_bf_original
                                 else:
                                     form.instance.balance_bf_original += invoice.balance_bf_original
-                                current_credit += invoice.balance_bf_original
                                 total_balance_bf += invoice.balance_bf_original
                             elif invoice.balance_bf and invoice.balance_bf > 0:
                                 # Fallback if balance_bf_original not set
@@ -353,17 +353,17 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                                     form.instance.balance_bf_original = invoice.balance_bf
                                 else:
                                     form.instance.balance_bf_original += invoice.balance_bf
-                                current_credit += invoice.balance_bf
                                 total_balance_bf += invoice.balance_bf
                             
                             # Restore prepayment_original to Student frozen field
-                            if invoice.prepayment and invoice.prepayment < 0:
-                                prepayment_amount = abs(invoice.prepayment)
+                            # Prepayment is stored as POSITIVE credit
+                            if invoice.prepayment and invoice.prepayment > 0:
+                                prepayment_amount = invoice.prepayment
                                 if form.instance.prepayment_original == Decimal('0.00'):
                                     form.instance.prepayment_original = prepayment_amount
                                 else:
                                     form.instance.prepayment_original += prepayment_amount
-                                current_credit += invoice.prepayment
+                                current_credit += prepayment_amount
                                 total_prepayment += prepayment_amount
                         
                         # Soft delete invoices (set is_active=False)
