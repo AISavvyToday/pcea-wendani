@@ -1763,8 +1763,22 @@ class InvoiceListExcelView(LoginRequiredMixin, View):
     """Exports invoice list to Excel with same filters as InvoiceListView."""
 
     def get_queryset(self):
-        """Apply same filtering logic as InvoiceListView."""
-        queryset = Invoice.objects.filter(
+        """Apply same filtering logic as InvoiceListView with backward compatibility."""
+        # Get base queryset with backward compatibility for organization filtering
+        queryset = Invoice.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        
+        # Apply organization filter if organization is set
+        if organization:
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        
+        queryset = queryset.filter(
             is_active=True
         ).select_related('student', 'term', 'term__academic_year')
 
@@ -1878,8 +1892,22 @@ class InvoiceListPDFView(LoginRequiredMixin, View):
     """Generates PDF for invoice list."""
 
     def get_queryset(self):
-        """Apply same filtering logic as InvoiceListView."""
-        queryset = Invoice.objects.filter(
+        """Apply same filtering logic as InvoiceListView with backward compatibility."""
+        # Get base queryset with backward compatibility for organization filtering
+        queryset = Invoice.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        
+        # Apply organization filter if organization is set
+        if organization:
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        
+        queryset = queryset.filter(
             is_active=True
         ).select_related('student', 'term', 'term__academic_year')
 

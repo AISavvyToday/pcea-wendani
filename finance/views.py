@@ -535,7 +535,25 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(
+        """Get queryset with backward compatibility for organization filtering."""
+        # Get base queryset directly from model manager to bypass mixin's strict filtering
+        # The mixin returns empty queryset if no organization, but we want to filter by org if it exists
+        queryset = Invoice.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        
+        # Apply organization filter if organization is set
+        if organization:
+            # Include invoices that:
+            # 1. Have the organization set directly, OR
+            # 2. Don't have organization set but their student belongs to the organization (backward compatibility)
+            queryset = queryset.filter(
+                Q(organization=organization) | 
+                Q(organization__isnull=True, student__organization=organization)
+            )
+        # If no organization, return all invoices (for super admins or legacy data)
+        # Note: This allows access to invoices without organization
+        
+        queryset = queryset.filter(
             is_active=True
         ).select_related('student', 'term', 'term__academic_year')
 
