@@ -451,19 +451,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         items_qs = InvoiceItem.objects.filter(
             invoice__in=invoices_qs,
             is_active=True
-        ).select_related('invoice__student', 'invoice').only(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'category',
-            'description',
-            'net_amount',
-            'invoice__pk',
-            'pk'
-        )
+        ).select_related('invoice__student', 'invoice')
 
         # Filter by selected categories if any
         if selected_categories and not show_all:
@@ -722,19 +710,7 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         items_qs = InvoiceItem.objects.filter(
             invoice__in=invoices_qs,
             is_active=True
-        ).select_related('invoice__student', 'invoice').only(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'category',
-            'description',
-            'net_amount',
-            'invoice__pk',
-            'pk'
-        )
+        ).select_related('invoice__student', 'invoice')
 
         # Filter by selected categories if any
         if selected_categories and not show_all:
