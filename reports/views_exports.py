@@ -325,8 +325,8 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -355,8 +355,29 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
     """Exports invoice detailed report to Excel."""
 
     def get(self, request):
-        from .forms import InvoiceReportFilterForm
-        form = InvoiceReportFilterForm(request.GET)
+        from .forms import InvoiceDetailedReportFilterForm
+        form = InvoiceDetailedReportFilterForm(request.GET)
+        
+        # Populate category choices dynamically before validation
+        try:
+            categories_list = []
+            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
+            for cat in standard_categories:
+                categories_list.append((cat, cat.title()))
+            
+            other_descriptions = InvoiceItem.objects.filter(
+                category='other',
+                is_active=True
+            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
+            
+            for desc in sorted(set(other_descriptions)):
+                if desc:
+                    categories_list.append((f'other:{desc}', f'Other: {desc}'))
+            
+            form.fields['category'].choices = categories_list
+        except Exception:
+            pass
+        
         form.is_valid()
 
         cleaned = getattr(form, 'cleaned_data', {})
@@ -368,12 +389,12 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             student_class = None
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
-        category = cleaned.get('category') or ''
+        selected_categories = cleaned.get('category') or []  # Now a list
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: ALL invoices (not just other items)
+        # Base queryset: invoices
         invoices_qs = Invoice.objects.filter(
             is_active=True
         ).exclude(
@@ -409,45 +430,65 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             if end_date:
                 invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Group by student to get total invoice amounts
-        grouped = invoices_qs.values(
-            'student__pk',
-            'student__first_name',
-            'student__middle_name',
-            'student__last_name',
-            'student__admission_number',
-            'student__current_class__name',
+        # Get invoice items filtered by selected categories
+        items_qs = InvoiceItem.objects.filter(
+            invoice__in=invoices_qs,
+            is_active=True
+        ).select_related('invoice__student', 'invoice')
+
+        # Filter by selected categories if any
+        if selected_categories and not show_all:
+            category_filters = Q()
+            for cat_choice in selected_categories:
+                if cat_choice.startswith('other:'):
+                    desc = cat_choice.replace('other:', '', 1)
+                    category_filters |= Q(category='other', description__iexact=desc)
+                else:
+                    category_filters |= Q(category=cat_choice)
+            items_qs = items_qs.filter(category_filters)
+
+        # Group by student and category/description to get category-specific amounts
+        grouped = items_qs.values(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'category',
+            'description',
         ).annotate(
-            total_billed=Coalesce(Sum('total_amount'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_paid=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_balance=Coalesce(Sum('balance'), Value(Decimal('0.00')), output_field=DecimalField())
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
-            'student__first_name',
-            'student__last_name'
+            'invoice__student__first_name',
+            'invoice__student__last_name',
+            'category',
+            'description'
         )
 
-        # Get "other" item descriptions for each student (for category column)
-        student_pks = [g['student__pk'] for g in grouped]
-        other_items_qs = InvoiceItem.objects.filter(
-            invoice__student__pk__in=student_pks,
-            category='other',
-            is_active=True
-        )
-        
-        # Apply category filter if provided
-        if category and not show_all:
-            other_items_qs = other_items_qs.filter(description__icontains=category)
-            # If category filter is applied, only include students who have matching "other" items
-            matching_student_pks = set(other_items_qs.values_list('invoice__student__pk', flat=True).distinct())
-        
-        # Build map of student_pk -> list of descriptions
-        other_items_map = {}
-        for item in other_items_qs.select_related('invoice__student'):
-            student_pk = item.invoice.student.pk
-            if student_pk not in other_items_map:
-                other_items_map[student_pk] = []
-            if item.description:
-                other_items_map[student_pk].append(item.description)
+        # Build collected (paid) amounts map per item
+        collected_map = {}
+        if PaymentAllocation is not None:
+            alloc_qs = PaymentAllocation.objects.filter(
+                invoice_item__in=items_qs,
+                is_active=True,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description'
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
+
+            for row in alloc_qs:
+                key = (
+                    row['invoice_item__invoice__student__pk'],
+                    row['invoice_item__category'],
+                    row['invoice_item__description'] or ''
+                )
+                collected_map[key] = row['collected'] or Decimal('0.00')
 
         # Build rows
         rows = []
@@ -456,34 +497,36 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         total_balance = Decimal('0.00')
 
         for g in grouped:
-            student_pk = g.get('student__pk')
+            student_pk = g.get('invoice__student__pk')
+            category = g.get('category')
+            description = g.get('description') or ''
             
-            # If category filter is applied, only include students with matching "other" items
-            if category and not show_all:
-                if student_pk not in matching_student_pks:
-                    continue
+            # Build category display name
+            if category == 'other' and description:
+                category_display = description
+            else:
+                category_display = category.title()
             
-            # Get category from "other" items description
-            other_descriptions = other_items_map.get(student_pk, [])
-            category_desc = ', '.join(other_descriptions) if other_descriptions else '—'
+            # Get amounts for this specific item
+            billed = Decimal(g.get('total_billed') or 0)
+            key = (student_pk, category, description)
+            paid = collected_map.get(key, Decimal('0.00'))
+            balance = billed - paid
             
-            first_name = g.get('student__first_name') or ''
-            middle_name = g.get('student__middle_name') or ''
-            last_name = g.get('student__last_name') or ''
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
             student_name = f"{first_name} {middle_name} {last_name}".strip()
             student_name = ' '.join(student_name.split())
 
-            admission = g.get('student__admission_number') or ''
-            student_cls = g.get('student__current_class__name') or 'Not assigned'
-            billed = Decimal(g.get('total_billed') or 0)
-            paid = Decimal(g.get('total_paid') or 0)
-            balance = Decimal(g.get('total_balance') or 0)
+            admission = g.get('invoice__student__admission_number') or ''
+            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
 
             rows.append({
                 'student_name': student_name,
                 'admission': admission,
                 'student_class': student_cls,
-                'category': category_desc,
+                'category': category_display,
                 'billed': billed,
                 'collected': paid,
                 'balance': balance
@@ -555,6 +598,27 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
     def get(self, request):
         from .forms import InvoiceDetailedReportFilterForm
         form = InvoiceDetailedReportFilterForm(request.GET)
+        
+        # Populate category choices dynamically before validation
+        try:
+            categories_list = []
+            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
+            for cat in standard_categories:
+                categories_list.append((cat, cat.title()))
+            
+            other_descriptions = InvoiceItem.objects.filter(
+                category='other',
+                is_active=True
+            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
+            
+            for desc in sorted(set(other_descriptions)):
+                if desc:
+                    categories_list.append((f'other:{desc}', f'Other: {desc}'))
+            
+            form.fields['category'].choices = categories_list
+        except Exception:
+            pass
+        
         form.is_valid()
 
         cleaned = getattr(form, 'cleaned_data', {})
@@ -566,12 +630,12 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             student_class = None
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
-        category = cleaned.get('category') or ''
+        selected_categories = cleaned.get('category') or []  # Now a list
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: ALL invoices (not just other items)
+        # Base queryset: invoices
         invoices_qs = Invoice.objects.filter(
             is_active=True
         ).exclude(
@@ -607,45 +671,65 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             if end_date:
                 invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Group by student to get total invoice amounts
-        grouped = invoices_qs.values(
-            'student__pk',
-            'student__first_name',
-            'student__middle_name',
-            'student__last_name',
-            'student__admission_number',
-            'student__current_class__name',
+        # Get invoice items filtered by selected categories
+        items_qs = InvoiceItem.objects.filter(
+            invoice__in=invoices_qs,
+            is_active=True
+        ).select_related('invoice__student', 'invoice')
+
+        # Filter by selected categories if any
+        if selected_categories and not show_all:
+            category_filters = Q()
+            for cat_choice in selected_categories:
+                if cat_choice.startswith('other:'):
+                    desc = cat_choice.replace('other:', '', 1)
+                    category_filters |= Q(category='other', description__iexact=desc)
+                else:
+                    category_filters |= Q(category=cat_choice)
+            items_qs = items_qs.filter(category_filters)
+
+        # Group by student and category/description to get category-specific amounts
+        grouped = items_qs.values(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'category',
+            'description',
         ).annotate(
-            total_billed=Coalesce(Sum('total_amount'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_paid=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_balance=Coalesce(Sum('balance'), Value(Decimal('0.00')), output_field=DecimalField())
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
-            'student__first_name',
-            'student__last_name'
+            'invoice__student__first_name',
+            'invoice__student__last_name',
+            'category',
+            'description'
         )
 
-        # Get "other" item descriptions for each student (for category column)
-        student_pks = [g['student__pk'] for g in grouped]
-        other_items_qs = InvoiceItem.objects.filter(
-            invoice__student__pk__in=student_pks,
-            category='other',
-            is_active=True
-        )
-        
-        # Apply category filter if provided
-        if category and not show_all:
-            other_items_qs = other_items_qs.filter(description__icontains=category)
-            # If category filter is applied, only include students who have matching "other" items
-            matching_student_pks = set(other_items_qs.values_list('invoice__student__pk', flat=True).distinct())
-        
-        # Build map of student_pk -> list of descriptions
-        other_items_map = {}
-        for item in other_items_qs.select_related('invoice__student'):
-            student_pk = item.invoice.student.pk
-            if student_pk not in other_items_map:
-                other_items_map[student_pk] = []
-            if item.description:
-                other_items_map[student_pk].append(item.description)
+        # Build collected (paid) amounts map per item
+        collected_map = {}
+        if PaymentAllocation is not None:
+            alloc_qs = PaymentAllocation.objects.filter(
+                invoice_item__in=items_qs,
+                is_active=True,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description'
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
+
+            for row in alloc_qs:
+                key = (
+                    row['invoice_item__invoice__student__pk'],
+                    row['invoice_item__category'],
+                    row['invoice_item__description'] or ''
+                )
+                collected_map[key] = row['collected'] or Decimal('0.00')
 
         rows = []
         total_billed = Decimal('0.00')
@@ -653,34 +737,36 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         total_balance = Decimal('0.00')
 
         for g in grouped:
-            student_pk = g.get('student__pk')
+            student_pk = g.get('invoice__student__pk')
+            category = g.get('category')
+            description = g.get('description') or ''
             
-            # If category filter is applied, only include students with matching "other" items
-            if category and not show_all:
-                if student_pk not in matching_student_pks:
-                    continue
+            # Build category display name
+            if category == 'other' and description:
+                category_display = description
+            else:
+                category_display = category.title()
             
-            # Get category from "other" items description
-            other_descriptions = other_items_map.get(student_pk, [])
-            category_desc = ', '.join(other_descriptions) if other_descriptions else '—'
+            # Get amounts for this specific item
+            billed = Decimal(g.get('total_billed') or 0)
+            key = (student_pk, category, description)
+            paid = collected_map.get(key, Decimal('0.00'))
+            balance = billed - paid
             
-            first_name = g.get('student__first_name') or ''
-            middle_name = g.get('student__middle_name') or ''
-            last_name = g.get('student__last_name') or ''
+            first_name = g.get('invoice__student__first_name') or ''
+            middle_name = g.get('invoice__student__middle_name') or ''
+            last_name = g.get('invoice__student__last_name') or ''
             student_name = f"{first_name} {middle_name} {last_name}".strip()
             student_name = ' '.join(student_name.split())
 
-            admission = g.get('student__admission_number') or ''
-            student_cls = g.get('student__current_class__name') or 'Not assigned'
-            billed = Decimal(g.get('total_billed') or 0)
-            paid = Decimal(g.get('total_paid') or 0)
-            balance = Decimal(g.get('total_balance') or 0)
+            admission = g.get('invoice__student__admission_number') or ''
+            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
 
             rows.append({
                 'student_name': student_name,
                 'admission': admission,
                 'student_class': student_cls,
-                'category': category_desc,
+                'category': category_display,
                 'billed': billed,
                 'collected': paid,
                 'balance': balance
@@ -703,15 +789,15 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                 'student_class': student_class,
                 'name': name,
                 'admission': admission,
-                'category': category,
+                'category': ', '.join(selected_categories) if selected_categories else '',
                 'start_date': start_date,
                 'end_date': end_date,
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
@@ -929,8 +1015,8 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -1272,8 +1358,8 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -1621,8 +1707,8 @@ class TransportReportPDFView(LoginRequiredMixin, View):
                 'show_zero': show_zero,
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
@@ -1811,8 +1897,8 @@ class InvoiceListPDFView(LoginRequiredMixin, View):
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'generated_by': request.user.get_full_name(),
             'generated_on': datetime.now(),
         }
@@ -1928,8 +2014,8 @@ class TransferredStudentsPDFView(LoginRequiredMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -2068,8 +2154,8 @@ class AdmittedStudentsPDFView(LoginRequiredMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -2420,8 +2506,8 @@ class OtherItemsReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View)
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},

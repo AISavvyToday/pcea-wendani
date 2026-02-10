@@ -43,8 +43,8 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
@@ -180,6 +180,29 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         except Exception:
             pass
 
+        # Populate category choices dynamically from invoice items
+        try:
+            # Get all unique categories and descriptions from invoice items
+            categories_list = []
+            # Standard categories
+            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
+            for cat in standard_categories:
+                categories_list.append((cat, cat.title()))
+            
+            # Get unique descriptions from "other" category items
+            other_descriptions = InvoiceItem.objects.filter(
+                category='other',
+                is_active=True
+            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
+            
+            for desc in sorted(set(other_descriptions)):
+                if desc:
+                    categories_list.append((f'other:{desc}', f'Other: {desc}'))
+            
+            form.fields['category'].choices = categories_list
+        except Exception:
+            pass
+
         # School branding context
         context = {
             'form': form,
@@ -189,8 +212,8 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
@@ -211,12 +234,12 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         student_class = form.cleaned_data.get('student_class') or ''
         name = form.cleaned_data.get('name') or ''
         admission = form.cleaned_data.get('admission') or ''
-        category = form.cleaned_data.get('category') or ''
+        selected_categories = form.cleaned_data.get('category') or []  # Now a list
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         show_all = form.cleaned_data.get('show_all', False)
 
-        # Base queryset: ALL invoices (not just other items)
+        # Base queryset: invoices
         invoices_qs = Invoice.objects.filter(
             is_active=True
         ).exclude(
@@ -252,46 +275,68 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
             if end_date:
                 invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Group by student to get total invoice amounts
-        grouped = invoices_qs.values(
-            'student__pk',
-            'student__first_name',
-            'student__middle_name',
-            'student__last_name',
-            'student__admission_number',
-            'student__current_class__name',
+        # Get invoice items filtered by selected categories
+        items_qs = InvoiceItem.objects.filter(
+            invoice__in=invoices_qs,
+            is_active=True
+        ).select_related('invoice__student', 'invoice')
+
+        # Filter by selected categories if any
+        if selected_categories and not show_all:
+            category_filters = Q()
+            for cat_choice in selected_categories:
+                if cat_choice.startswith('other:'):
+                    # Extract description from "other:description" format
+                    desc = cat_choice.replace('other:', '', 1)
+                    category_filters |= Q(category='other', description__iexact=desc)
+                else:
+                    # Standard category
+                    category_filters |= Q(category=cat_choice)
+            items_qs = items_qs.filter(category_filters)
+
+        # Group by student and category/description to get category-specific amounts
+        grouped = items_qs.values(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'category',
+            'description',
         ).annotate(
-            total_billed=Coalesce(Sum('total_amount'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_paid=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField()),
-            total_balance=Coalesce(Sum('balance'), Value(Decimal('0.00')), output_field=DecimalField())
+            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
         ).order_by(
-            'student__first_name',
-            'student__last_name'
+            'invoice__student__first_name',
+            'invoice__student__last_name',
+            'category',
+            'description'
         )
 
-        # Get "other" item descriptions for each student (for category column)
-        student_pks = [g['student__pk'] for g in grouped]
-        other_items_qs = InvoiceItem.objects.filter(
-            invoice__student__pk__in=student_pks,
-            category='other',
-            is_active=True
-        )
-        
-        # Apply category filter if provided
-        if category and not show_all:
-            other_items_qs = other_items_qs.filter(description__icontains=category)
-            # If category filter is applied, only include students who have matching "other" items
-            matching_student_pks = set(other_items_qs.values_list('invoice__student__pk', flat=True).distinct())
-        
-        # Build map of student_pk -> list of descriptions (in case multiple other items)
-        other_items_map = {}
-        for item in other_items_qs.select_related('invoice__student'):
-            student_pk = item.invoice.student.pk
-            if student_pk not in other_items_map:
-                other_items_map[student_pk] = []
-            if item.description:
-                other_items_map[student_pk].append(item.description)
-        
+        # Build collected (paid) amounts map per item
+        collected_map = {}
+        if PaymentAllocation is not None:
+            alloc_qs = PaymentAllocation.objects.filter(
+                invoice_item__in=items_qs,
+                is_active=True,
+                payment__is_active=True,
+                payment__status='completed'
+            ).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description'
+            ).annotate(
+                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
+            )
+
+            for row in alloc_qs:
+                key = (
+                    row['invoice_item__invoice__student__pk'],
+                    row['invoice_item__category'],
+                    row['invoice_item__description'] or ''
+                )
+                collected_map[key] = row['collected'] or Decimal('0.00')
+
         # Build rows
         rows = []
         total_billed = Decimal('0.00')
@@ -299,25 +344,26 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         total_balance = Decimal('0.00')
         
         for row in grouped:
-            student_pk = row['student__pk']
+            student_pk = row['invoice__student__pk']
+            category = row['category']
+            description = row.get('description') or ''
             
-            # If category filter is applied, only include students with matching "other" items
-            if category and not show_all:
-                if student_pk not in matching_student_pks:
-                    continue
+            # Build category display name
+            if category == 'other' and description:
+                category_display = description
+            else:
+                category_display = category.title()
             
-            # Get category from "other" items description
-            other_descriptions = other_items_map.get(student_pk, [])
-            category_desc = ', '.join(other_descriptions) if other_descriptions else '—'
-            
+            # Get amounts for this specific item
             billed = row['total_billed'] or Decimal('0.00')
-            paid = row['total_paid'] or Decimal('0.00')
-            balance = row['total_balance'] or Decimal('0.00')
+            key = (student_pk, category, description)
+            paid = collected_map.get(key, Decimal('0.00'))
+            balance = billed - paid
             
             # Build full name
-            first = row.get('student__first_name', '')
-            middle = row.get('student__middle_name', '')
-            last = row.get('student__last_name', '')
+            first = row.get('invoice__student__first_name', '')
+            middle = row.get('invoice__student__middle_name', '')
+            last = row.get('invoice__student__last_name', '')
             full_name = f"{first} {middle} {last}".strip()
             full_name = ' '.join(full_name.split())
             
@@ -326,9 +372,9 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
                 'student__middle_name': middle,
                 'student__last_name': last,
                 'student__full_name': full_name,
-                'student__admission_number': row.get('student__admission_number', ''),
-                'student__current_class__name': row.get('student__current_class__name', ''),
-                'description': category_desc,
+                'student__admission_number': row.get('invoice__student__admission_number', ''),
+                'student__current_class__name': row.get('invoice__student__current_class__name', ''),
+                'description': category_display,
                 'total_billed': billed,
                 'total_paid': paid,
                 'total_balance': balance,
@@ -377,8 +423,8 @@ class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
@@ -537,8 +583,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
@@ -713,8 +759,8 @@ class TransportReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -930,8 +976,8 @@ class OtherItemsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -1135,8 +1181,8 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -1322,8 +1368,8 @@ class GraduatedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, V
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},
@@ -1510,8 +1556,8 @@ class AdmittedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, Vi
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
-            'SCHOOL_ADDRESS': getattr(settings, 'SCHOOL_ADDRESS', ''),
-            'SCHOOL_CONTACT': getattr(settings, 'SCHOOL_CONTACT', ''),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
             'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy',
                            'account_no': '1130280029105'},

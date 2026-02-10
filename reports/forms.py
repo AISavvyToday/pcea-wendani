@@ -48,10 +48,11 @@ class InvoiceDetailedReportFilterForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Admission number'}),
         label='Admission Number'
     )
-    category = forms.CharField(
+    category = forms.MultipleChoiceField(
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Category (from description)'}),
-        label='Category'
+        choices=[],  # Will be populated dynamically
+        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '5'}),
+        label='Category (Select one or more)'
     )
     start_date = forms.DateField(
         required=False,
