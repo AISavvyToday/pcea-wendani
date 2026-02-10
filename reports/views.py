@@ -184,20 +184,35 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         try:
             # Get all unique categories and descriptions from invoice items
             categories_list = []
-            # Standard categories
-            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
+            # Standard categories (excluding 'other' - will add it separately)
+            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
             for cat in standard_categories:
                 categories_list.append((cat, cat.title()))
             
-            # Get unique descriptions from "other" category items
-            other_descriptions = InvoiceItem.objects.filter(
+            # Get unique descriptions from "other" category items (case-insensitive normalization)
+            other_descriptions_raw = InvoiceItem.objects.filter(
                 category='other',
                 is_active=True
             ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
             
-            for desc in sorted(set(other_descriptions)):
+            # Normalize descriptions to avoid duplicates (case-insensitive)
+            seen_descriptions = set()
+            unique_descriptions = []
+            for desc in other_descriptions_raw:
                 if desc:
-                    categories_list.append((f'other:{desc}', f'Other: {desc}'))
+                    desc_normalized = desc.strip()
+                    desc_lower = desc_normalized.lower()
+                    if desc_lower not in seen_descriptions:
+                        seen_descriptions.add(desc_lower)
+                        unique_descriptions.append(desc_normalized)
+            
+            # Add "Other: description" items first
+            for desc in sorted(unique_descriptions, key=str.lower):
+                categories_list.append((f'other:{desc}', f'Other: {desc}'))
+            
+            # Add "Other" once at the end (only if there are other items)
+            if unique_descriptions:
+                categories_list.append(('other', 'Other'))
             
             form.fields['category'].choices = categories_list
         except Exception:
@@ -279,7 +294,18 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         items_qs = InvoiceItem.objects.filter(
             invoice__in=invoices_qs,
             is_active=True
-        ).select_related('invoice__student', 'invoice')
+        ).select_related('invoice__student', 'invoice').only(
+            'invoice__student__pk',
+            'invoice__student__first_name',
+            'invoice__student__middle_name',
+            'invoice__student__last_name',
+            'invoice__student__admission_number',
+            'invoice__student__current_class__name',
+            'category',
+            'description',
+            'net_amount',
+            'invoice__pk'
+        )
 
         # Filter by selected categories if any
         if selected_categories and not show_all:
@@ -316,6 +342,7 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         # Build collected (paid) amounts map per item
         collected_map = {}
         if PaymentAllocation is not None:
+            # Use subquery to avoid loading all IDs into memory
             alloc_qs = PaymentAllocation.objects.filter(
                 invoice_item__in=items_qs,
                 is_active=True,
