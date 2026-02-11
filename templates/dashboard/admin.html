@@ -21,35 +21,58 @@
 
 {% block content %}
 <style>
-  .dashboard-stat-card {
+  .dashboard-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 991.98px) {
+    .dashboard-cards-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 575.98px) {
+    .dashboard-cards-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .dashboard-stat-card-wrapper {
+    width: 100%;
     height: 100%;
-    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-stat-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 200px;
   }
   .dashboard-stat-card .card-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
     height: 100%;
   }
   .dashboard-stat-card .card-title-wrapper {
-    min-height: 48px;
+    flex-shrink: 0;
     margin-bottom: 1rem;
   }
   .dashboard-stat-card .card-value-wrapper {
-    min-height: 48px;
-    display: flex;
-    align-items: center;
+    flex-shrink: 0;
     margin-bottom: 0.5rem;
   }
   .dashboard-stat-card .card-helper-wrapper {
     margin-top: auto;
+    flex-shrink: 0;
     min-height: 40px;
-    display: flex;
-    align-items: flex-end;
   }
 </style>
-<div class="row">
+<div class="dashboard-cards-grid">
   {% for card in stat_cards %}
-  <div class="col-lg-3 col-md-6 col-sm-6 grid-margin stretch-card">
+  <div class="dashboard-stat-card-wrapper">
     <a href="{{ card.url|default:'#' }}" class="text-white text-decoration-none d-block h-100">
       <div class="card {{ card.bg }} card-img-holder text-white dashboard-stat-card">
         <div class="card-body">
