@@ -54,6 +54,14 @@
           {{ form.term }}
         </div>
         <div class="col-md-4">
+          <label class="form-label">From Date</label>
+          {{ form.start_date }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">To Date</label>
+          {{ form.end_date }}
+        </div>
+        <div class="col-md-4">
           <label class="form-label">&nbsp;</label>
           <div class="form-check mt-2">
             {{ form.show_zero_rows }}
@@ -85,7 +93,9 @@
         <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
         <h5 style="margin-top:8px">Invoice Summary Report</h5>
         <small class="text-muted">
-          {{ academic_year.year }} • Term {{ term|title }}
+          {{ academic_year.year }} • Term {{ term|title }}{% if start_date or end_date %}
+          {% if start_date %} • From {{ start_date|date:"d M Y" }}{% endif %}{% if end_date %} • To {{ end_date|date:"d M Y" }}{% endif %}
+          {% endif %}
         </small>
       </div>
     </div>

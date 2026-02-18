@@ -89,6 +89,12 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+# If app is deployed under a subpath (e.g. /c/), set FORCE_SCRIPT_NAME in env
+# e.g. FORCE_SCRIPT_NAME=/c so URLs become /c/other-income/, /c/finance/, etc.
+_force_script = os.environ.get("FORCE_SCRIPT_NAME", "").strip().rstrip("/")
+if _force_script:
+    FORCE_SCRIPT_NAME = _force_script
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",

@@ -6,6 +6,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, V
 from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
+from django.db.models import Q
 
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import UserRole
@@ -13,6 +14,14 @@ from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
 from .forms import OtherIncomeInvoiceForm, OtherIncomeItemFormSet, OtherIncomePaymentForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
+
+
+def _other_income_invoice_queryset(organization):
+    """Queryset for OtherIncomeInvoice with org filter and backward compatibility for null org."""
+    qs = OtherIncomeInvoice.objects.filter(is_active=True)
+    if organization:
+        qs = qs.filter(Q(organization=organization) | Q(organization__isnull=True))
+    return qs
 
 
 class OtherIncomeListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
@@ -30,19 +39,19 @@ class OtherIncomeListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
         q = self.request.GET.get('q', '')
         context['search_query'] = q
         
-        # Get invoices - apply organization filter
+        # Get invoices - apply organization filter (with backward compat for null org)
         organization = getattr(self.request, 'organization', None)
-        invoices = OtherIncomeInvoice.objects.filter(is_active=True)
-        if organization:
-            invoices = invoices.filter(organization=organization)
+        invoices = _other_income_invoice_queryset(organization)
         if q:
             invoices = invoices.filter(client_name__icontains=q)
         context['invoices'] = invoices.order_by('-issue_date')[:50]
         
-        # Get payments - apply organization filter
+        # Get payments - apply organization filter (with backward compat)
         payments = OtherIncomePayment.objects.filter(is_active=True).select_related('invoice')
         if organization:
-            payments = payments.filter(invoice__organization=organization)
+            payments = payments.filter(
+                Q(invoice__organization=organization) | Q(invoice__organization__isnull=True)
+            )
         if q:
             payments = payments.filter(
                 invoice__client_name__icontains=q
@@ -79,6 +88,10 @@ class OtherIncomeCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
         try:
             with transaction.atomic():
                 self.object = form.save(commit=False)
+                # Set organization for multi-tenancy (critical - was missing, caused 404 on view)
+                organization = getattr(self.request, 'organization', None)
+                if organization:
+                    self.object.organization = organization
                 self.object.generated_by = self.request.user
                 self.object.status = 'unpaid'
                 self.object.save()
@@ -103,11 +116,7 @@ class OtherIncomeDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        organization = getattr(self.request, 'organization', None)
-        if organization:
-            queryset = queryset.filter(organization=organization)
-        return queryset
+        return _other_income_invoice_queryset(getattr(self.request, 'organization', None))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -117,6 +126,45 @@ class OtherIncomeDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
         return context
 
 
+class OtherIncomeEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
+    """Edit other income invoice header and items."""
+    model = OtherIncomeInvoice
+    form_class = OtherIncomeInvoiceForm
+    template_name = 'other_income/invoice_form.html'
+    context_object_name = 'invoice'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_queryset(self):
+        return _other_income_invoice_queryset(getattr(self.request, 'organization', None))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = OtherIncomeItemFormSet(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = OtherIncomeItemFormSet(instance=self.object)
+        context['is_edit'] = True
+        return context
+
+    def form_valid(self, form):
+        formset = OtherIncomeItemFormSet(self.request.POST, instance=self.object)
+        if not formset.is_valid():
+            messages.error(self.request, "Please correct the item errors.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        try:
+            with transaction.atomic():
+                form.save()
+                formset.save()
+                self.object.recalc_totals()
+                self.object.save(update_fields=['subtotal', 'total_amount', 'balance', 'updated_at'])
+            messages.success(self.request, f"Invoice {self.object.invoice_number} updated.")
+            return redirect('other_income:invoice_detail', pk=self.object.pk)
+        except Exception as e:
+            messages.error(self.request, f"Error updating invoice: {e}")
+            return self.render_to_response(self.get_context_data(form=form))
+
+
 class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = OtherIncomeInvoice
     template_name = 'other_income/invoice_print.html'
@@ -124,11 +172,7 @@ class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, R
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        organization = getattr(self.request, 'organization', None)
-        if organization:
-            queryset = queryset.filter(organization=organization)
-        return queryset
+        return _other_income_invoice_queryset(getattr(self.request, 'organization', None))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -175,10 +219,7 @@ class OtherIncomeRecordPaymentView(LoginRequiredMixin, OrganizationFilterMixin, 
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def dispatch(self, request, *args, **kwargs):
-        organization = getattr(request, 'organization', None)
-        queryset = OtherIncomeInvoice.objects.all()
-        if organization:
-            queryset = queryset.filter(organization=organization)
+        queryset = _other_income_invoice_queryset(getattr(request, 'organization', None))
         self.invoice = get_object_or_404(queryset, pk=self.kwargs.get('pk'))
         return super().dispatch(request, *args, **kwargs)
 
@@ -221,10 +262,12 @@ class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin,
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = OtherIncomePayment.objects.filter(is_active=True)
         organization = getattr(self.request, 'organization', None)
         if organization:
-            queryset = queryset.filter(invoice__organization=organization)
+            queryset = queryset.filter(
+                Q(invoice__organization=organization) | Q(invoice__organization__isnull=True)
+            )
         return queryset
 
     def get_context_data(self, **kwargs):

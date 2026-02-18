@@ -59,10 +59,18 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
         if form.is_valid():
             academic_year = form.cleaned_data['academic_year']
             term = form.cleaned_data['term']
+            start_date = form.cleaned_data.get('start_date')
+            end_date = form.cleaned_data.get('end_date')
             show_zero = form.cleaned_data.get('show_zero_rows', False)
 
             # Select invoices for the academic year & term
             invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+            
+            # Apply date filter (by invoice issue_date)
+            if start_date:
+                invoices = invoices.filter(issue_date__gte=start_date)
+            if end_date:
+                invoices = invoices.filter(issue_date__lte=end_date)
             
             # Apply organization filter
             organization = getattr(request, 'organization', None)
@@ -157,6 +165,8 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'invoice_count': invoice_count,
                 'academic_year': academic_year,
                 'term': term,
+                'start_date': start_date,
+                'end_date': end_date,
                 'show_print_button': True,
             })
 

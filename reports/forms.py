@@ -18,6 +18,16 @@ class InvoiceSummaryReportFilterForm(forms.Form):
         required=False, 
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='From Date'
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='To Date'
+    )
     show_zero_rows = forms.BooleanField(required=False, initial=False, label="Show categories with zero billed")
 
 

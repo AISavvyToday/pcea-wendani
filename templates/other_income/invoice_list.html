@@ -74,8 +74,11 @@
                                     </td>
                         <td>{{ inv.issue_date|date:"d M Y" }}</td>
                         <td>
-                                        <a href="{% url 'other_income:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary">
-                                            <i class="mdi mdi-eye"></i> View
+                                        <a href="{% url 'other_income:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary" title="View">
+                                            <i class="mdi mdi-eye"></i>
+                                        </a>
+                                        <a href="{% url 'other_income:invoice_edit' inv.pk %}" class="btn btn-sm btn-outline-warning" title="Edit">
+                                            <i class="mdi mdi-pencil"></i>
                                         </a>
                                     </td>
                                 </tr>

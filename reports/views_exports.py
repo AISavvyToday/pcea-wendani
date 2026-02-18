@@ -82,6 +82,8 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
         show_zero = cleaned.get('show_zero_rows', False)
 
         # If no academic year/term provided, use the most recent
@@ -95,6 +97,12 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
 
         # Select invoices for the academic year & term
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+        
+        # Apply date filter (by invoice issue_date)
+        if start_date:
+            invoices = invoices.filter(issue_date__gte=start_date)
+        if end_date:
+            invoices = invoices.filter(issue_date__lte=end_date)
         
         # Apply organization filter
         organization = getattr(request, 'organization', None)
@@ -174,7 +182,15 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         ws = wb.active
         ws.title = "Invoice Summary"
 
-        add_common_header(ws, f"Invoice Summary Report - {academic_year.year} Term {term}")
+        header_title = f"Invoice Summary Report - {academic_year.year} Term {term}"
+        if start_date or end_date:
+            date_parts = []
+            if start_date:
+                date_parts.append(f"From {start_date.strftime('%d %b %Y')}")
+            if end_date:
+                date_parts.append(f"To {end_date.strftime('%d %b %Y')}")
+            header_title += " (" + " ".join(date_parts) + ")"
+        add_common_header(ws, header_title)
 
         headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)', 'Bal B/F (KES)', 'Prepayment (KES)']
         for c, h in enumerate(headers, start=1):
@@ -228,6 +244,8 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
+        start_date = cleaned.get('start_date')
+        end_date = cleaned.get('end_date')
         show_zero = cleaned.get('show_zero_rows', False)
 
         # If no academic year/term provided, use the most recent
@@ -241,6 +259,12 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
 
         # Reuse logic from InvoiceSummaryReportExcelView to get data
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+        
+        # Apply date filter (by invoice issue_date)
+        if start_date:
+            invoices = invoices.filter(issue_date__gte=start_date)
+        if end_date:
+            invoices = invoices.filter(issue_date__lte=end_date)
         
         # Apply organization filter
         organization = getattr(request, 'organization', None)
@@ -322,6 +346,8 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
             },
             'academic_year': academic_year,
             'term': term,
+            'start_date': start_date,
+            'end_date': end_date,
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),

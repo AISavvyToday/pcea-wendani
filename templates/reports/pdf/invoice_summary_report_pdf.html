@@ -256,7 +256,9 @@ body {
           <div class="school-details">Box 57517-00200 Nairobi • Tel: 0796675605</div>
           <div class="report-title" style="margin-top:8px;">Invoice Summary Report</div>
           <div class="report-period">
-            {{ academic_year.year }} • Term {{ term|title }}
+            {{ academic_year.year }} • Term {{ term|title }}{% if start_date or end_date %}
+            {% if start_date %} • From {{ start_date|date:"d M Y" }}{% endif %}{% if end_date %} • To {{ end_date|date:"d M Y" }}{% endif %}
+            {% endif %}
           </div>
         </div>
         {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
