@@ -82,6 +82,9 @@ def _get_current_term(organization=None):
         if _model_has_field(Term, "is_active"):
             qs = qs.filter(is_active=True)
         term = qs.order_by("-id").first()
+    # Fallback: if org-filtered returns nothing, use global is_current (shared term)
+    if not term and organization:
+        term = Term.objects.filter(is_current=True).select_related("academic_year").first()
     return term
 
 
@@ -190,13 +193,13 @@ def _collected_for_invoices(invoice_qs):
 def _filter_bank_transactions_by_organization(queryset, organization=None):
     """
     Filter bank transactions by organization.
-    For PCEA Wendani Academy: show ALL bank transactions (matched + unmatched).
+    For PCEA Wendani Academy and Demo Organisation: show ALL bank transactions (matched + unmatched).
     """
     if not organization:
         return queryset
     
-    # For PCEA Wendani Academy, show ALL bank transactions
-    if organization.name == 'PCEA Wendani Academy':
+    # For these orgs, show ALL bank transactions (including unmatched for demo)
+    if organization.name in ('PCEA Wendani Academy', 'Demo Organisation'):
         return queryset  # Show everything
     
     # For other organizations, filter normally
@@ -208,7 +211,7 @@ def _filter_bank_transactions_by_organization(queryset, organization=None):
 
 def _finance_kpis(term=None, organization=None):
 
-    term = term or _get_current_term()
+    term = term or _get_current_term(organization=organization)
     academic_year = getattr(term, "academic_year", None) if term else None
 
     base = _invoice_base_qs(organization=organization)

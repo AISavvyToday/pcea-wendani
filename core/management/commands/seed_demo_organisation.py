@@ -58,7 +58,7 @@ from finance.models import (
     InvoiceItem,
 )
 from transport.models import TransportRoute, TransportFee
-from payments.models import Payment
+from payments.models import Payment, BankTransaction
 from communications.models import Announcement, NotificationTemplate
 from reports.models import ReportRequest
 from other_income.models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
@@ -186,15 +186,17 @@ class Command(BaseCommand):
             academic_year=ay,
             term=TermChoices.TERM_3,
             defaults={
+                "organization": org,
                 "start_date": date(2025, 9, 1),
                 "end_date": date(2025, 11, 28),
                 "is_current": True,
                 "fee_deadline": date(2025, 9, 15),
             },
         )
-        if created:
-            term.organization = org
-            term.save()
+        # Ensure demo org's term is current for dashboard (shared term may exist from another org)
+        term.organization = org
+        term.is_current = True
+        term.save()
         stats["term"] = 1
 
         # 2. Users (admin, staff) - realistic Kenyan names
@@ -606,6 +608,52 @@ class Command(BaseCommand):
                 pay.save()
         stats["payments"] = len(pay_configs)
 
+        # 16b. BankTransactions - matched (linked to payments) and unmatched
+        payments_created = list(
+            Payment.objects.filter(
+                payment_reference__in=[c[1] for c in pay_configs],
+                organization=org,
+            )
+        )
+        for i, pay in enumerate(payments_created[:4]):
+            txn_id = f"DEMO-MPESA-{pay.payment_reference}-{i}"
+            BankTransaction.objects.get_or_create(
+                transaction_id=txn_id,
+                defaults={
+                    "payment": pay,
+                    "gateway": "mpesa",
+                    "amount": pay.amount,
+                    "currency": "KES",
+                    "payer_account": pay.payer_phone or "+254700000000",
+                    "payer_name": pay.payer_name or "Demo Payer",
+                    "bank_status": "Completed",
+                    "processing_status": "matched",
+                },
+            )
+        # Unmatched bank transactions (for dashboard "Unmatched Bank Txns" stat)
+        unmatched_configs = [
+            ("DEMO-EQ-UNM-001", "equity", Decimal("15000.00"), "John Ochieng"),
+            ("DEMO-EQ-UNM-002", "equity", Decimal("8500.00"), "Catherine Wanjiku"),
+            ("DEMO-COOP-UNM-001", "coop", Decimal("12000.00"), "Robert Kamau"),
+            ("DEMO-MPESA-UNM-001", "mpesa", Decimal("5000.00"), "Anne Njeri"),
+            ("DEMO-EQ-UNM-003", "equity", Decimal("22000.00"), "Michael Otieno"),
+        ]
+        for txn_id, gateway, amt, pname in unmatched_configs:
+            BankTransaction.objects.get_or_create(
+                transaction_id=txn_id,
+                defaults={
+                    "payment": None,
+                    "gateway": gateway,
+                    "amount": amt,
+                    "currency": "KES",
+                    "payer_account": "+254712345678",
+                    "payer_name": pname,
+                    "bank_status": "Completed",
+                    "processing_status": "received",
+                },
+            )
+        stats["bank_transactions"] = len(payments_created) + len(unmatched_configs)
+
         # 17. Exam
         exam, created = Exam.objects.get_or_create(
             name="Demo Mid-Term Exam",
@@ -902,9 +950,6 @@ class Command(BaseCommand):
                 issue_date=date.today(),
                 generated_by=admin_user,
             )
-        if created:
-            oinv.organization = org
-            oinv.save()
         stats["other_income_invoices"] = 1
 
         OtherIncomeItem.objects.get_or_create(

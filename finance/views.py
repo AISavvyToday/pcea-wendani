@@ -74,13 +74,13 @@ logger = logging.getLogger(__name__)
 def _filter_bank_transactions_by_organization(queryset, organization=None):
     """
     Filter bank transactions by organization.
-    For PCEA Wendani Academy: show ALL bank transactions (matched + unmatched).
+    For PCEA Wendani Academy and Demo Organisation: show ALL bank transactions (matched + unmatched).
     """
     if not organization:
         return queryset
     
-    # For PCEA Wendani Academy, show ALL bank transactions
-    if organization.name == 'PCEA Wendani Academy':
+    # For these orgs, show ALL bank transactions (including unmatched for demo)
+    if organization.name in ('PCEA Wendani Academy', 'Demo Organisation'):
         return queryset  # Show everything
     
     # For other organizations, filter normally
