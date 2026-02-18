@@ -210,9 +210,9 @@ class Command(BaseCommand):
             staff_user.save()
         stats["users"] += 1
 
-        # 3. Department (unique code per org - use DEMOORG prefix)
+        # 3. Department (code max_length=10)
         dept, created = Department.objects.get_or_create(
-            code="DEMOORG-DEPT-1",
+            code="DEMO-D1",
             defaults={
                 "name": "Demo Languages Department",
                 "organization": org,
@@ -262,9 +262,9 @@ class Command(BaseCommand):
             cls.save()
         stats["classes"] = 1
 
-        # 6. Subject (unique code - use DEMOORG prefix)
+        # 6. Subject (code max_length=10)
         subj, created = Subject.objects.get_or_create(
-            code="DEMOORG-ENG",
+            code="DEMO-ENG",
             defaults={
                 "name": "English",
                 "organization": org,
