@@ -81,6 +81,28 @@ DEMO_ORG_CODE = "demoorg"
 DEMO_ORG_NAME = "Demo Organisation"
 DEMO_EMAIL_SUFFIX = "@demoorg.seed.local"  # Unique suffix to avoid conflicts
 
+# Realistic Kenyan names for demo data
+REALISTIC_STUDENTS = [
+    ("James", "Otieno", "M", date(2015, 3, 15)),
+    ("Mary", "Wanjiku", "F", date(2015, 7, 20)),
+    ("Peter", "Kamau", "M", date(2014, 11, 8)),
+    ("Grace", "Njeri", "F", date(2015, 1, 12)),
+    ("David", "Ochieng", "M", date(2014, 5, 22)),
+    ("Faith", "Wambui", "F", date(2015, 9, 3)),
+    ("Joseph", "Kipchoge", "M", date(2014, 2, 28)),
+    ("Lucy", "Muthoni", "F", date(2015, 7, 14)),
+]
+REALISTIC_PARENTS = [
+    ("John", "Ochieng", "M", "+254711111101", "father"),
+    ("Elizabeth", "Muthoni", "F", "+254722222202", "mother"),
+    ("Robert", "Kamau", "M", "+254733333303", "father"),
+    ("Catherine", "Wanjiku", "F", "+254744444404", "mother"),
+    ("Michael", "Otieno", "M", "+254755555505", "father"),
+    ("Anne", "Njeri", "F", "+254766666606", "mother"),
+    ("Daniel", "Kipchoge", "M", "+254777777707", "father"),
+    ("Sarah", "Wambui", "F", "+254788888808", "mother"),
+]
+
 
 class Command(BaseCommand):
     help = "Seed sample test data for Demo Organisation (demoorg) only. Other orgs untouched."
@@ -175,13 +197,13 @@ class Command(BaseCommand):
             term.save()
         stats["term"] = 1
 
-        # 2. Users (admin, staff, parent)
-        admin_email = f"demo_admin{DEMO_EMAIL_SUFFIX}"
+        # 2. Users (admin, staff) - realistic Kenyan names
+        admin_email = f"admin{DEMO_EMAIL_SUFFIX}"
         admin_user, created = User.objects.get_or_create(
             email=admin_email,
             defaults={
-                "first_name": "Demo",
-                "last_name": "Admin",
+                "first_name": "Samuel",
+                "last_name": "Kariuki",
                 "role": UserRole.SCHOOL_ADMIN,
                 "organization": org,
                 "is_staff": True,
@@ -193,12 +215,12 @@ class Command(BaseCommand):
             admin_user.save()
         stats["users"] = 1
 
-        staff_email = f"demo_teacher{DEMO_EMAIL_SUFFIX}"
+        staff_email = f"teacher{DEMO_EMAIL_SUFFIX}"
         staff_user, created = User.objects.get_or_create(
             email=staff_email,
             defaults={
-                "first_name": "Demo",
-                "last_name": "Teacher",
+                "first_name": "Margaret",
+                "last_name": "Wambui",
                 "role": UserRole.TEACHER,
                 "organization": org,
                 "is_staff": False,
@@ -288,104 +310,140 @@ class Command(BaseCommand):
         )
         stats["class_subjects"] = 1
 
-        # 8. Parents (phone must match +254XXXXXXXXX)
-        parent1, created = Parent.objects.get_or_create(
-            phone_primary="+254711111101",
+        # 8. Parents (phone must match +254XXXXXXXXX) - realistic Kenyan names
+        parents = []
+        for i, (pf, pl, pg, phone, rel) in enumerate(REALISTIC_PARENTS):
+            p, created = Parent.objects.get_or_create(
+                phone_primary=phone,
+                organization=org,
+                defaults={
+                    "first_name": pf,
+                    "last_name": pl,
+                    "gender": pg,
+                    "email": f"parent_{i+1}{DEMO_EMAIL_SUFFIX}",
+                    "relationship": rel,
+                },
+            )
+            if created:
+                p.organization = org
+                p.save()
+            parents.append(p)
+        stats["parents"] = len(parents)
+
+        # 9. Students - 8 active, 1 graduated, 1 transferred (realistic Kenyan names)
+        # Dashboard stats: balance_bf_original, prepayment_original for Bal B/F and Prepayments
+        # Fixed admission numbers for idempotent re-runs
+        students_active = []
+        for i, (sf, sl, sg, dob) in enumerate(REALISTIC_STUDENTS):
+            adm_num = f"DEMO-{i+1:03d}"
+            # Vary balance_bf and prepayment for dashboard: some have balance, some have prepay
+            bal_bf = Decimal("5000.00") if i % 3 == 0 else Decimal("0.00")  # 3 students with balance
+            prepay = Decimal("3000.00") if i % 3 == 1 else Decimal("0.00")  # 3 students with prepay
+            s, created = Student.objects.get_or_create(
+                admission_number=adm_num,
+                organization=org,
+                defaults={
+                    "first_name": sf,
+                    "middle_name": "",
+                    "last_name": sl,
+                    "gender": sg,
+                    "date_of_birth": dob,
+                    "admission_date": term.start_date if i < 2 else date(2025, 1, 6),  # 2 new in term
+                    "current_class": cls,
+                    "status": "active",
+                    "balance_bf_original": bal_bf,
+                    "prepayment_original": prepay,
+                    "emergency_contact_name": f"{parents[i].first_name} {parents[i].last_name}",
+                    "emergency_contact_phone": parents[i].phone_primary,
+                },
+            )
+            if created:
+                s.organization = org
+                s.save()
+            students_active.append(s)
+            StudentParent.objects.get_or_create(
+                student=s,
+                parent=parents[i],
+                defaults={
+                    "relationship": parents[i].relationship,
+                    "is_primary": True,
+                    "receives_notifications": True,
+                },
+            )
+        stats["students"] = len(students_active)
+
+        # Graduated and transferred students (for dashboard helper stats)
+        student_graduated, _ = Student.objects.get_or_create(
+            admission_number="DEMO-GRAD-1",
             organization=org,
             defaults={
-                "first_name": "Demo",
-                "last_name": "Parent1",
+                "first_name": "Brian",
+                "middle_name": "",
+                "last_name": "Mwangi",
                 "gender": "M",
-                "email": f"demo_parent1{DEMO_EMAIL_SUFFIX}",
+                "date_of_birth": date(2010, 4, 10),
+                "admission_date": date(2018, 1, 6),
+                "current_class": cls,
+                "status": "graduated",
+                "balance_bf_original": Decimal("0.00"),
+                "prepayment_original": Decimal("0.00"),
+                "emergency_contact_name": "Joseph Mwangi",
+                "emergency_contact_phone": "+254799999901",
+            },
+        )
+        p_graduated, _ = Parent.objects.get_or_create(
+            phone_primary="+254799999901",
+            organization=org,
+            defaults={
+                "first_name": "Joseph",
+                "last_name": "Mwangi",
+                "gender": "M",
                 "relationship": "father",
             },
         )
-        if created:
-            parent1.organization = org
-            parent1.save()
-        stats["parents"] = 1
-
-        parent2, created = Parent.objects.get_or_create(
-            phone_primary="+254722222202",
-            organization=org,
-            defaults={
-                "first_name": "Demo",
-                "last_name": "Parent2",
-                "gender": "F",
-                "email": f"demo_parent2{DEMO_EMAIL_SUFFIX}",
-                "relationship": "mother",
-            },
+        StudentParent.objects.get_or_create(
+            student=student_graduated,
+            parent=p_graduated,
+            defaults={"relationship": "father", "is_primary": True},
         )
-        if created:
-            parent2.organization = org
-            parent2.save()
-        stats["parents"] += 1
-
-        # 9. Students
-        adm_num = StudentService.generate_admission_number(organization=org)
-        student1, created = Student.objects.get_or_create(
-            admission_number=adm_num,
-            organization=org,
-            defaults={
-                "first_name": "Demo",
-                "middle_name": "",
-                "last_name": "Student1",
-                "gender": Gender.MALE,
-                "date_of_birth": date(2015, 3, 15),
-                "admission_date": date(2025, 1, 6),
-                "current_class": cls,
-                "status": "active",
-                "emergency_contact_name": "Demo Parent1",
-                "emergency_contact_phone": "+254711111101",
-            },
-        )
-        if created:
-            student1.organization = org
-            student1.save()
-        stats["students"] = 1
-
-        adm_num2 = StudentService.generate_admission_number(organization=org)
-        student2, created = Student.objects.get_or_create(
-            admission_number=adm_num2,
-            organization=org,
-            defaults={
-                "first_name": "Demo",
-                "middle_name": "",
-                "last_name": "Student2",
-                "gender": Gender.FEMALE,
-                "date_of_birth": date(2015, 7, 20),
-                "admission_date": date(2025, 1, 6),
-                "current_class": cls,
-                "status": "active",
-                "emergency_contact_name": "Demo Parent2",
-                "emergency_contact_phone": "+254722222202",
-            },
-        )
-        if created:
-            student2.organization = org
-            student2.save()
         stats["students"] += 1
 
-        # 10. StudentParent
-        StudentParent.objects.get_or_create(
-            student=student1,
-            parent=parent1,
+        student_transferred, _ = Student.objects.get_or_create(
+            admission_number="DEMO-TRF-1",
+            organization=org,
             defaults={
+                "first_name": "Nancy",
+                "middle_name": "",
+                "last_name": "Akinyi",
+                "gender": "F",
+                "date_of_birth": date(2012, 8, 15),
+                "admission_date": date(2020, 1, 6),
+                "current_class": cls,
+                "status": "transferred",
+                "balance_bf_original": Decimal("0.00"),
+                "prepayment_original": Decimal("0.00"),
+                "emergency_contact_name": "Paul Akinyi",
+                "emergency_contact_phone": "+254799999902",
+            },
+        )
+        p_transferred, _ = Parent.objects.get_or_create(
+            phone_primary="+254799999902",
+            organization=org,
+            defaults={
+                "first_name": "Paul",
+                "last_name": "Akinyi",
+                "gender": "M",
                 "relationship": "father",
-                "is_primary": True,
-                "receives_notifications": True,
             },
         )
         StudentParent.objects.get_or_create(
-            student=student2,
-            parent=parent2,
-            defaults={
-                "relationship": "mother",
-                "is_primary": True,
-                "receives_notifications": True,
-            },
+            student=student_transferred,
+            parent=p_transferred,
+            defaults={"relationship": "father", "is_primary": True},
         )
-        stats["student_parents"] = 2
+        stats["students"] += 1
+
+        stats["student_parents"] = len(students_active) + 2
 
         # 11. Transport
         route, created = TransportRoute.objects.get_or_create(
@@ -419,7 +477,7 @@ class Command(BaseCommand):
         )
         if created:
             fs.organization = org
-            fs.save(        )
+            fs.save()
         stats["fee_structures"] = 1
 
         FeeItem.objects.get_or_create(
@@ -452,77 +510,101 @@ class Command(BaseCommand):
             disc.save()
         stats["discounts"] = 1
 
-        # 14. Invoice (invoice_number auto-generated by model)
-        inv, created = Invoice.objects.get_or_create(
-            student=student1,
-            term=term,
-            defaults={
-                "organization": org,
-                "subtotal": Decimal("18000.00"),
-                "discount_amount": Decimal("0.00"),
-                "total_amount": Decimal("18000.00"),
-                "amount_paid": Decimal("5000.00"),
-                "balance_bf": Decimal("0.00"),
-                "prepayment": Decimal("0.00"),
-                "balance": Decimal("13000.00"),
-                "status": InvoiceStatus.PARTIALLY_PAID,
-                "issue_date": date(2025, 9, 1),
-                "due_date": date(2025, 9, 30),
-                "fee_structure": fs,
-                "generated_by": admin_user,
-            },
-        )
-        if created:
-            inv.organization = org
-            inv.save()
-        stats["invoices"] = 1
+        # 14. Invoices for active students (dashboard: Billed, Collected, Outstanding)
+        # Create invoices for first 6 active students with varied amounts
+        inv_configs = [
+            (Decimal("18000.00"), Decimal("8000.00")),   # James - partial
+            (Decimal("18000.00"), Decimal("18000.00")),  # Mary - fully paid
+            (Decimal("18000.00"), Decimal("5000.00")),   # Peter - partial
+            (Decimal("18000.00"), Decimal("0.00")),      # Grace - unpaid
+            (Decimal("18000.00"), Decimal("12000.00")), # David - partial
+            (Decimal("18000.00"), Decimal("0.00")),      # Faith - unpaid
+        ]
+        for i, (total, paid) in enumerate(inv_configs):
+            if i >= len(students_active):
+                break
+            s = students_active[i]
+            inv, created = Invoice.objects.get_or_create(
+                student=s,
+                term=term,
+                defaults={
+                    "organization": org,
+                    "subtotal": total,
+                    "discount_amount": Decimal("0.00"),
+                    "total_amount": total,
+                    "amount_paid": paid,
+                    "balance_bf": Decimal("0.00"),
+                    "prepayment": Decimal("0.00"),
+                    "balance": total - paid,
+                    "status": InvoiceStatus.PAID if paid >= total else (
+                        InvoiceStatus.PARTIALLY_PAID if paid > 0 else InvoiceStatus.OVERDUE
+                    ),
+                    "issue_date": date(2025, 9, 1),
+                    "due_date": date(2025, 9, 30),
+                    "fee_structure": fs,
+                    "generated_by": admin_user,
+                },
+            )
+            if created:
+                inv.organization = org
+                inv.save()
+            InvoiceItem.objects.get_or_create(
+                invoice=inv,
+                description="Tuition - Term 3",
+                category=FeeCategory.TUITION,
+                defaults={
+                    "amount": total * Decimal("0.83"),
+                    "discount_applied": Decimal("0.00"),
+                    "net_amount": total * Decimal("0.83"),
+                },
+            )
+            InvoiceItem.objects.get_or_create(
+                invoice=inv,
+                description="Lunch - Term 3",
+                category=FeeCategory.MEALS,
+                defaults={
+                    "amount": total * Decimal("0.17"),
+                    "discount_applied": Decimal("0.00"),
+                    "net_amount": total * Decimal("0.17"),
+                },
+            )
+        stats["invoices"] = min(6, len(students_active))
+        stats["invoice_items"] = stats["invoices"] * 2
 
-        # 15. InvoiceItem
-        InvoiceItem.objects.get_or_create(
-            invoice=inv,
-            description="Tuition - Term 3",
-            category=FeeCategory.TUITION,
-            defaults={
-                "amount": Decimal("15000.00"),
-                "discount_applied": Decimal("0.00"),
-                "net_amount": Decimal("15000.00"),
-            },
-        )
-        InvoiceItem.objects.get_or_create(
-            invoice=inv,
-            description="Lunch - Term 3",
-            category=FeeCategory.MEALS,
-            defaults={
-                "amount": Decimal("3000.00"),
-                "discount_applied": Decimal("0.00"),
-                "net_amount": Decimal("3000.00"),
-            },
-        )
-        stats["invoice_items"] = 2
-
-        # 16. Payment (fixed ref to avoid duplicates on re-run)
-        pay_ref = "PAY-DEMO-SEED-001"
-        pay, created = Payment.objects.get_or_create(
-            payment_reference=pay_ref,
-            defaults={
-                "organization": org,
-                "student": student1,
-                "invoice": inv,
-                "amount": Decimal("5000.00"),
-                "payment_method": PaymentMethod.MOBILE_MONEY,
-                "payment_source": PaymentSource.MPESA,
-                "status": PaymentStatus.COMPLETED,
-                "payment_date": timezone.now(),
-                "payer_name": "Demo Parent1",
-                "payer_phone": "+254711111101",
-                "transaction_reference": "DEMO-MPESA-001",
-                "received_by": admin_user,
-            },
-        )
-        if created:
-            pay.organization = org
-            pay.save()
-        stats["payments"] = 1
+        # 16. Payments (for Collected stat - must match invoice amount_paid)
+        pay_configs = [
+            (0, "PAY-DEMO-SEED-001", Decimal("8000.00")),
+            (1, "PAY-DEMO-SEED-002", Decimal("18000.00")),
+            (2, "PAY-DEMO-SEED-003", Decimal("5000.00")),
+            (4, "PAY-DEMO-SEED-004", Decimal("12000.00")),
+        ]
+        for idx, ref, amt in pay_configs:
+            if idx >= len(students_active):
+                continue
+            inv = Invoice.objects.filter(student=students_active[idx], term=term).first()
+            if not inv:
+                continue
+            pay, created = Payment.objects.get_or_create(
+                payment_reference=ref,
+                defaults={
+                    "organization": org,
+                    "student": students_active[idx],
+                    "invoice": inv,
+                    "amount": amt,
+                    "payment_method": PaymentMethod.MOBILE_MONEY,
+                    "payment_source": PaymentSource.MPESA,
+                    "status": PaymentStatus.COMPLETED,
+                    "payment_date": timezone.now(),
+                    "payer_name": f"{parents[idx].first_name} {parents[idx].last_name}",
+                    "payer_phone": parents[idx].phone_primary,
+                    "transaction_reference": f"DEMO-MPESA-{idx+1:03d}",
+                    "received_by": admin_user,
+                },
+            )
+            if created:
+                pay.organization = org
+                pay.save()
+        stats["payments"] = len(pay_configs)
 
         # 17. Exam
         exam, created = Exam.objects.get_or_create(
@@ -545,7 +627,7 @@ class Command(BaseCommand):
 
         # 18. Grade
         Grade.objects.get_or_create(
-            student=student1,
+            student=students_active[0],
             exam=exam,
             subject=subj,
             defaults={
@@ -559,7 +641,7 @@ class Command(BaseCommand):
         # 19. Attendance
         att_date = date.today() - timedelta(days=1)
         Attendance.objects.get_or_create(
-            student=student1,
+            student=students_active[0],
             date=att_date,
             defaults={
                 "organization": org,
@@ -569,7 +651,7 @@ class Command(BaseCommand):
             },
         )
         Attendance.objects.get_or_create(
-            student=student2,
+            student=students_active[1],
             date=att_date,
             defaults={
                 "organization": org,
@@ -598,7 +680,7 @@ class Command(BaseCommand):
 
         # 21. ReportCard
         rc, created = ReportCard.objects.get_or_create(
-            student=student1,
+            student=students_active[0],
             term=term,
             defaults={
                 "organization": org,
@@ -834,7 +916,7 @@ class Command(BaseCommand):
 
         # 28. DisciplineRecord
         DisciplineRecord.objects.get_or_create(
-            student=student1,
+            student=students_active[0],
             incident_date=date(2025, 9, 10),
             incident_type="positive",
             defaults={
@@ -847,7 +929,7 @@ class Command(BaseCommand):
 
         # 29. MedicalRecord
         MedicalRecord.objects.get_or_create(
-            student=student1,
+            student=students_active[0],
             record_date=date(2025, 8, 15),
             record_type="checkup",
             defaults={
