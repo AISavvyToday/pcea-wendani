@@ -1,12 +1,12 @@
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Sum, Q
 
+from core.models import Organization, PaymentStatus
 from students.models import Student
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
-from core.models import PaymentStatus
 
 
 class Command(BaseCommand):
@@ -21,7 +21,18 @@ class Command(BaseCommand):
         "- Term transition readiness checks"
     )
 
+    DEFAULT_ORGANISATION = "PCEA Wendani Academy"
+
     def add_arguments(self, parser):
+        parser.add_argument(
+            "--organisation",
+            type=str,
+            default=Command.DEFAULT_ORGANISATION,
+            help=(
+                "Organisation name (or code) to run the audit on. "
+                f"Default: {Command.DEFAULT_ORGANISATION!r}"
+            ),
+        )
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -35,6 +46,23 @@ class Command(BaseCommand):
         for compatibility with other commands, but no writes are performed.
         """
         dry_run = options["dry_run"]
+        organisation_arg = (options.get("organisation") or self.DEFAULT_ORGANISATION).strip()
+        if not organisation_arg:
+            raise CommandError(
+                "Organisation name/code cannot be empty. "
+                f"Default: {self.DEFAULT_ORGANISATION!r}"
+            )
+
+        org = (
+            Organization.objects.filter(name__iexact=organisation_arg).first()
+            or Organization.objects.filter(code__iexact=organisation_arg).first()
+        )
+        if not org:
+            raise CommandError(
+                f"Organisation {organisation_arg!r} not found. "
+                "Check the name/code or create it in Django admin."
+            )
+
         if not dry_run:
             self.stdout.write(
                 self.style.WARNING(
@@ -46,6 +74,7 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write("=" * 80)
         self.stdout.write("🧮 FINANCIAL AUDIT – STUDENTS & INVOICES")
+        self.stdout.write(f"Organisation: {org.name} ({org.code})")
         self.stdout.write("=" * 80)
 
         stats = {
@@ -65,12 +94,12 @@ class Command(BaseCommand):
             "inactive_invoice_issues": [],
         }
 
-        self._audit_students(stats)
-        self._audit_invoices(stats)
-        self._audit_payment_allocations(stats)
-        self._audit_invoice_items(stats)
-        self._audit_term_transition_readiness(stats)
-        self._audit_inactive_invoices(stats)
+        self._audit_students(stats, org)
+        self._audit_invoices(stats, org)
+        self._audit_payment_allocations(stats, org)
+        self._audit_invoice_items(stats, org)
+        self._audit_term_transition_readiness(stats, org)
+        self._audit_inactive_invoices(stats, org)
         self._print_summary(stats)
 
     # ------------------------------------------------------------------ #
@@ -247,7 +276,7 @@ class Command(BaseCommand):
     # Invoice-level checks
     # ------------------------------------------------------------------ #
 
-    def _audit_invoices(self, stats):
+    def _audit_invoices(self, stats, org):
         """
         Verify that invoice.balance is consistent with header fields.
 
@@ -267,6 +296,7 @@ class Command(BaseCommand):
         invoices = (
             Invoice.objects.filter(is_active=True)
             .exclude(status="cancelled")
+            .filter(Q(organization=org) | Q(student__organization=org))
             .select_related("student", "term")
         )
 
@@ -347,7 +377,7 @@ class Command(BaseCommand):
     # Payment Allocation Integrity
     # ------------------------------------------------------------------ #
 
-    def _audit_payment_allocations(self, stats):
+    def _audit_payment_allocations(self, stats, org):
         """
         Verify that the sum of PaymentAllocation amounts for each invoice
         matches the invoice.amount_paid field.
@@ -367,6 +397,7 @@ class Command(BaseCommand):
         invoices = (
             Invoice.objects.filter(is_active=True)
             .exclude(status="cancelled")
+            .filter(Q(organization=org) | Q(student__organization=org))
             .select_related("student")
         )
 
@@ -464,8 +495,10 @@ class Command(BaseCommand):
         # Check prepayment items
         prepayment_items = InvoiceItem.objects.filter(
             category="prepayment",
-            invoice__is_active=True
-        ).exclude(invoice__status="cancelled").select_related("invoice", "invoice__student")
+            invoice__is_active=True,
+        ).exclude(invoice__status="cancelled").filter(invoice_org_filter).select_related(
+            "invoice", "invoice__student"
+        )
 
         for item in prepayment_items:
             if item.amount and item.amount > 0:
@@ -505,7 +538,7 @@ class Command(BaseCommand):
     # Term Transition Readiness
     # ------------------------------------------------------------------ #
 
-    def _audit_term_transition_readiness(self, stats):
+    def _audit_term_transition_readiness(self, stats, org):
         """
         Check for issues that could cause problems during term transition:
         1. Students with credit_balance > 0 AND outstanding invoices (should not happen)
@@ -515,7 +548,7 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write("→ Auditing term transition readiness ...")
 
-        active_students = Student.objects.filter(status="active")
+        active_students = Student.objects.filter(status="active", organization=org)
 
         for student in active_students:
             invoices_qs = student.invoices.filter(is_active=True).exclude(
@@ -578,7 +611,7 @@ class Command(BaseCommand):
     # Inactive Invoice Check
     # ------------------------------------------------------------------ #
 
-    def _audit_inactive_invoices(self, stats):
+    def _audit_inactive_invoices(self, stats, org):
         """
         Check for active students who have inactive (soft-deleted) invoices.
         This is a data integrity issue - active students should not have 
@@ -587,7 +620,7 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write("→ Auditing for inactive invoices on active students ...")
 
-        active_students = Student.objects.filter(status="active")
+        active_students = Student.objects.filter(status="active", organization=org)
 
         for student in active_students:
             # Check for inactive invoices
