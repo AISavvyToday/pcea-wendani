@@ -1121,8 +1121,17 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         # Ensure student_class is not empty string
         if not student_class:
             student_class = None
+        balance_filter = cleaned.get('balance_filter') or ''
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
+        # Balance filter preset overrides operator+amount when set
+        BALANCE_PRESETS = {
+            'eq_5000': ('=', Decimal('5000')),
+            'gt_5000': ('>', Decimal('5000')),
+            'lt_10000': ('<', Decimal('10000')),
+        }
+        if balance_filter and balance_filter in BALANCE_PRESETS:
+            balance_op, balance_amt = BALANCE_PRESETS[balance_filter]
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -1298,8 +1307,17 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         # Ensure student_class is not empty string
         if not student_class:
             student_class = None
+        balance_filter = cleaned.get('balance_filter') or ''
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
+        # Balance filter preset overrides operator+amount when set
+        BALANCE_PRESETS = {
+            'eq_5000': ('=', Decimal('5000')),
+            'gt_5000': ('>', Decimal('5000')),
+            'lt_10000': ('<', Decimal('10000')),
+        }
+        if balance_filter and balance_filter in BALANCE_PRESETS:
+            balance_op, balance_amt = BALANCE_PRESETS[balance_filter]
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')

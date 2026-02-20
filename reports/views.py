@@ -20,7 +20,7 @@ from .forms import (
 from .models import ReportRequest
 from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
-from academics.models import AcademicYear
+from academics.models import AcademicYear, Term
 from transport.models import TransportFee
 from students.models import Student
 from core.models import InvoiceStatus
@@ -631,9 +631,20 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         academic_year = form.cleaned_data.get('academic_year')
         term = form.cleaned_data.get('term')
         student_class = form.cleaned_data.get('student_class')
+        balance_filter = form.cleaned_data.get('balance_filter') or ''
         balance_op = form.cleaned_data.get('balance_operator') or 'any'
         balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
         include_zero = form.cleaned_data.get('show_zero_balances')
+
+        # Balance filter preset overrides operator+amount when set
+        BALANCE_PRESETS = {
+            'eq_5000': ('=', Decimal('5000'), '= 5,000'),
+            'gt_5000': ('>', Decimal('5000'), '> 5,000'),
+            'lt_10000': ('<', Decimal('10000'), '< 10,000'),
+        }
+        balance_filter_label = ''
+        if balance_filter and balance_filter in BALANCE_PRESETS:
+            balance_op, balance_amt, balance_filter_label = BALANCE_PRESETS[balance_filter]
 
         # Base queryset: invoices
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -714,6 +725,17 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
 
         rows = list(grouped_qs)
 
+        # Resolve selected term pk for statement links (when filtered by academic_year + term)
+        selected_term_id = None
+        if academic_year and term:
+            org = getattr(request, 'organization', None)
+            qs = Term.objects.filter(academic_year=academic_year, term=term)
+            if org:
+                qs = qs.filter(organization=org)
+            t = qs.first()
+            if t:
+                selected_term_id = str(t.pk)
+
         # Compute grand totals
         totals = {
             'total_billed': sum((r['total_billed'] or Decimal('0.00')) for r in rows),
@@ -744,6 +766,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         context.update({
             'rows': rows,
             'totals': totals,
+            'selected_term_id': selected_term_id,
             'filters': {
                 'start_date': start_date,
                 'end_date': end_date,
@@ -752,6 +775,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
                 'student_class': student_class,
                 'balance_op': balance_op,
                 'balance_amt': balance_amt,
+                'balance_filter_label': balance_filter_label,
             }
         })
 

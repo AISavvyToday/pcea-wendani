@@ -54,6 +54,10 @@
           <label class="form-label">Grade</label>
           {{ form.student_class }}
         </div>
+        <div class="col-md-2">
+          <label class="form-label">Balance</label>
+          {{ form.balance_filter }}
+        </div>
         <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Run</button>
           <a href="{% url 'reports:outstanding_report' %}" class="btn btn-outline-secondary">Reset</a>
@@ -77,6 +81,7 @@
         {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
         {% if filters.term %} • Term: {{ filters.term }} {% endif %}
         {% if filters.student_class %} • Grade: {{ filters.student_class }} {% endif %}
+        {% if filters.balance_filter_label %} • Balance: {{ filters.balance_filter_label }} {% endif %}
       </small>
     </div>
 
@@ -95,6 +100,7 @@
                 <th class="text-right">Total Billed</th>
                 <th class="text-right">Paid</th>
                 <th class="text-right">Outstanding Balance</th>
+                <th class="no-print">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -115,6 +121,16 @@
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_paid|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_balance|floatformat:2|intcomma }}</td>
+                <td class="no-print">
+                  <div class="btn-group btn-group-sm" role="group">
+                    <a href="{% url 'finance:student_statement' r.student__pk %}{% if selected_term_id %}?term={{ selected_term_id }}{% endif %}" class="btn btn-outline-primary btn-sm" title="View Statement">
+                      <i class="mdi mdi-file-document-outline"></i> View
+                    </a>
+                    <a href="{% url 'finance:student_statement_print' r.student__pk %}?copies=2{% if selected_term_id %}&term={{ selected_term_id }}{% endif %}" target="_blank" class="btn btn-outline-secondary btn-sm" title="Print Statement">
+                      <i class="mdi mdi-printer"></i> Print
+                    </a>
+                  </div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -126,6 +142,7 @@
                 <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_paid|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_balance|floatformat:2|intcomma }}</th>
+                <th class="no-print"></th>
               </tr>
             </tfoot>
           </table>

@@ -129,6 +129,13 @@ BALANCE_OPERATOR_CHOICES = [
     ('<=', '<='),
 ]
 
+BALANCE_FILTER_PRESET_CHOICES = [
+    ('', 'All balances'),
+    ('eq_5000', '= 5,000'),
+    ('gt_5000', '> 5,000'),
+    ('lt_10000', '< 10,000'),
+]
+
 class OutstandingBalancesFilterForm(forms.Form):
     # Allow date range OR academic_year+term selection
     start_date = forms.DateField(
@@ -160,6 +167,13 @@ class OutstandingBalancesFilterForm(forms.Form):
         choices=[('', 'All Classes')],
         widget=forms.Select(attrs={'class': 'form-select'}),
         label='Class'
+    )
+
+    balance_filter = forms.ChoiceField(
+        required=False,
+        choices=BALANCE_FILTER_PRESET_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Balance'
     )
 
     balance_operator = forms.ChoiceField(
