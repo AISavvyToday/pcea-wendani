@@ -139,13 +139,52 @@ class Command(BaseCommand):
                         or Decimal("0")
                     )
                     inv.total_amount = inv.subtotal - inv.discount_amount
-                    inv.save(update_fields=["subtotal", "discount_amount", "total_amount"])
+                    # Save without update_fields so _recalculate_balance() result (balance, status) is persisted
+                    inv.save()
                     self.stdout.write(
                         self.style.SUCCESS(f"    ✓ Fixed {inv.invoice_number}")
                     )
 
+        # Second pass: fix invoices with balance mismatch (e.g. from previous run that didn't persist balance)
         self.stdout.write("")
-        if dry_run and fixed:
+        self.stdout.write("Scanning for invoices with balance mismatch ...")
+
+        balance_mismatches = []
+        for inv in invoices:
+            expected = (
+                (inv.total_amount or Decimal("0"))
+                + (inv.balance_bf or Decimal("0"))
+                - (inv.prepayment or Decimal("0"))
+                - (inv.amount_paid or Decimal("0"))
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            actual = (inv.balance or Decimal("0")).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if abs(expected - actual) >= Decimal("0.01"):
+                balance_mismatches.append({
+                    "invoice": inv,
+                    "expected": expected,
+                    "actual": actual,
+                })
+
+        self.stdout.write(f"Found {len(balance_mismatches)} invoice(s) with balance mismatch.")
+        self.stdout.write("")
+
+        for item in balance_mismatches:
+            inv = item["invoice"]
+            self.stdout.write(
+                f"  {inv.invoice_number} ({inv.student.admission_number}): "
+                f"balance {item['actual']} → {item['expected']}"
+            )
+            if not dry_run:
+                with transaction.atomic():
+                    inv.save()
+                self.stdout.write(
+                    self.style.SUCCESS(f"    ✓ Fixed balance for {inv.invoice_number}")
+                )
+
+        self.stdout.write("")
+        if dry_run and (fixed or balance_mismatches):
             self.stdout.write(
                 "To apply fixes, run: python manage.py fix_double_balance_bf_invoices --apply"
             )
