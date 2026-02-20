@@ -165,6 +165,29 @@ class OtherIncomeEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
             return self.render_to_response(self.get_context_data(form=form))
 
 
+class OtherIncomeInvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
+    """
+    Soft-delete an other income invoice.
+    Shows confirmation page on GET, performs soft delete on POST.
+    """
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_invoice(self):
+        queryset = _other_income_invoice_queryset(getattr(self.request, 'organization', None))
+        return get_object_or_404(queryset, pk=self.kwargs.get('pk'))
+
+    def get(self, request, *args, **kwargs):
+        invoice = self.get_invoice()
+        return render(request, 'other_income/invoice_confirm_delete.html', {'invoice': invoice})
+
+    def post(self, request, *args, **kwargs):
+        invoice = self.get_invoice()
+        invoice_number = invoice.invoice_number
+        invoice.soft_delete()
+        messages.success(request, f'Other income invoice {invoice_number} has been deleted successfully.')
+        return redirect('other_income:invoice_list')
+
+
 class OtherIncomeInvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     model = OtherIncomeInvoice
     template_name = 'other_income/invoice_print.html'

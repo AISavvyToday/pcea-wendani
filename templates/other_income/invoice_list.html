@@ -80,6 +80,9 @@
                                         <a href="{% url 'other_income:invoice_edit' inv.pk %}" class="btn btn-sm btn-outline-warning" title="Edit">
                                             <i class="mdi mdi-pencil"></i>
                                         </a>
+                                        <a href="{% url 'other_income:invoice_delete' inv.pk %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="mdi mdi-delete"></i>
+                                        </a>
                                     </td>
                                 </tr>
                                 {% empty %}

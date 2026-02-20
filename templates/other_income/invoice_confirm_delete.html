@@ -1,0 +1,70 @@
+{% extends 'base/base.html' %}
+{% load humanize %}
+{% block title %}Delete Other Income Invoice{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h3 class="page-title">Delete Other Income Invoice</h3>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h5 class="alert-heading">
+                    <i class="mdi mdi-alert-circle"></i> Warning!
+                </h5>
+                <p>You are about to delete other income invoice <strong>{{ invoice.invoice_number }}</strong>.</p>
+                <hr>
+                <p class="mb-0">This action will remove the invoice from the system. All related items and payment records will be hidden. This cannot be undone.</p>
+            </div>
+
+            <div class="mb-4">
+                <h5>Invoice Details</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Invoice Number:</strong></td>
+                        <td>{{ invoice.invoice_number }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Client:</strong></td>
+                        <td>{{ invoice.client_name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Contact:</strong></td>
+                        <td>{{ invoice.client_contact|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Amount:</strong></td>
+                        <td>KES {{ invoice.total_amount|floatformat:2|intcomma }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Amount Paid:</strong></td>
+                        <td>KES {{ invoice.amount_paid|floatformat:2|intcomma }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Balance:</strong></td>
+                        <td>KES {{ invoice.balance|floatformat:2|intcomma }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Issue Date:</strong></td>
+                        <td>{{ invoice.issue_date|date:"d M Y" }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="mdi mdi-delete"></i> Yes, Delete Invoice
+                    </button>
+                    <a href="{% url 'other_income:invoice_detail' invoice.pk %}" class="btn btn-secondary">
+                        <i class="mdi mdi-arrow-left"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

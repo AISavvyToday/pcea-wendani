@@ -13,6 +13,7 @@
                 <button class="btn btn-secondary btn-sm ms-2" type="submit"><i class="mdi mdi-printer"></i> Print</button>
             </form>
             <a href="{% url 'other_income:invoice_record_payment' invoice.pk %}" class="btn btn-primary btn-sm ms-2">Record Payment</a>
+            <a href="{% url 'other_income:invoice_delete' invoice.pk %}" class="btn btn-outline-danger btn-sm ms-2"><i class="mdi mdi-delete"></i> Delete</a>
         </div>
     </div>
 
