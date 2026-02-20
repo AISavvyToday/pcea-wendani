@@ -106,7 +106,7 @@ class Command(BaseCommand):
     # Student-level checks
     # ------------------------------------------------------------------ #
 
-    def _audit_students(self, stats):
+    def _audit_students(self, stats, org):
         """
         1) If a student has invoices:
            - student.outstanding_balance MUST equal sum(active invoice.balance)
@@ -119,7 +119,10 @@ class Command(BaseCommand):
            - outstanding_balance MUST equal balance_bf_original - payments made
            - credit_balance MUST equal prepayment_original + overpayments
         """
-        students = Student.objects.all().prefetch_related("invoices")
+        students = (
+            Student.objects.filter(organization=org)
+            .prefetch_related("invoices")
+        )
         stats["students_total"] = students.count()
 
         self.stdout.write("")
@@ -464,7 +467,7 @@ class Command(BaseCommand):
     # Invoice Item Verification
     # ------------------------------------------------------------------ #
 
-    def _audit_invoice_items(self, stats):
+    def _audit_invoice_items(self, stats, org):
         """
         Verify:
         1. balance_bf items have POSITIVE amounts (representing debt)
@@ -475,11 +478,15 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write("→ Auditing invoice items (balance_bf/prepayment) ...")
 
+        invoice_org_filter = Q(invoice__organization=org) | Q(invoice__student__organization=org)
+
         # Check balance_bf items
         balance_bf_items = InvoiceItem.objects.filter(
             category="balance_bf",
-            invoice__is_active=True
-        ).exclude(invoice__status="cancelled").select_related("invoice", "invoice__student")
+            invoice__is_active=True,
+        ).exclude(invoice__status="cancelled").filter(invoice_org_filter).select_related(
+            "invoice", "invoice__student"
+        )
 
         for item in balance_bf_items:
             if item.amount and item.amount < 0:
@@ -517,6 +524,7 @@ class Command(BaseCommand):
         invoices_with_balance_bf = (
             Invoice.objects.filter(is_active=True, balance_bf__gt=0)
             .exclude(status="cancelled")
+            .filter(Q(organization=org) | Q(student__organization=org))
             .select_related("student")
         )
 
