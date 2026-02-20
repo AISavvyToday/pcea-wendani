@@ -1122,16 +1122,16 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
-        balance_op = cleaned.get('balance_operator') or 'any'
-        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
-        # Balance filter preset overrides operator+amount when set
+        # Balance filter preset - same spec as main report view
         BALANCE_PRESETS = {
-            'eq_5000': ('=', Decimal('5000')),
-            'gt_5000': ('>', Decimal('5000')),
-            'lt_10000': ('<', Decimal('10000')),
+            'lt_5000': ('<', Decimal('5000')),
+            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
+            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
+            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
+            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
+            'gte_100000': ('>=', Decimal('100000')),
         }
-        if balance_filter and balance_filter in BALANCE_PRESETS:
-            balance_op, balance_amt = BALANCE_PRESETS[balance_filter]
+        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -1189,17 +1189,25 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
-        # balance filter
-        if balance_op != 'any' and balance_amt is not None:
-            lookup = {
-                '=': 'total_balance',
-                '>': 'total_balance__gt',
-                '<': 'total_balance__lt',
-                '>=': 'total_balance__gte',
-                '<=': 'total_balance__lte',
-            }.get(balance_op, None)
-            if lookup:
-                grouped_qs = grouped_qs.filter(**{lookup: balance_amt})
+        # Balance filter
+        if balance_filter_spec:
+            if balance_filter_spec[0] == 'range':
+                _, min_amt, max_amt = balance_filter_spec
+                grouped_qs = grouped_qs.filter(
+                    total_balance__gte=min_amt,
+                    total_balance__lt=max_amt
+                )
+            else:
+                op, amt = balance_filter_spec
+                lookup = {
+                    '=': 'total_balance',
+                    '>': 'total_balance__gt',
+                    '<': 'total_balance__lt',
+                    '>=': 'total_balance__gte',
+                    '<=': 'total_balance__lte',
+                }.get(op, None)
+                if lookup:
+                    grouped_qs = grouped_qs.filter(**{lookup: amt})
 
         if not include_zero:
             grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
@@ -1308,16 +1316,16 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
-        balance_op = cleaned.get('balance_operator') or 'any'
-        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
-        # Balance filter preset overrides operator+amount when set
+        # Balance filter preset - same spec as main report view
         BALANCE_PRESETS = {
-            'eq_5000': ('=', Decimal('5000')),
-            'gt_5000': ('>', Decimal('5000')),
-            'lt_10000': ('<', Decimal('10000')),
+            'lt_5000': ('<', Decimal('5000')),
+            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
+            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
+            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
+            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
+            'gte_100000': ('>=', Decimal('100000')),
         }
-        if balance_filter and balance_filter in BALANCE_PRESETS:
-            balance_op, balance_amt = BALANCE_PRESETS[balance_filter]
+        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -1375,16 +1383,25 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
             'term__academic_year__year',
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
-        if balance_op != 'any' and balance_amt is not None:
-            lookup = {
-                '=': 'total_balance',
-                '>': 'total_balance__gt',
-                '<': 'total_balance__lt',
-                '>=': 'total_balance__gte',
-                '<=': 'total_balance__lte',
-            }.get(balance_op, None)
-            if lookup:
-                grouped_qs = grouped_qs.filter(**{lookup: balance_amt})
+        # Balance filter
+        if balance_filter_spec:
+            if balance_filter_spec[0] == 'range':
+                _, min_amt, max_amt = balance_filter_spec
+                grouped_qs = grouped_qs.filter(
+                    total_balance__gte=min_amt,
+                    total_balance__lt=max_amt
+                )
+            else:
+                op, amt = balance_filter_spec
+                lookup = {
+                    '=': 'total_balance',
+                    '>': 'total_balance__gt',
+                    '<': 'total_balance__lt',
+                    '>=': 'total_balance__gte',
+                    '<=': 'total_balance__lte',
+                }.get(op, None)
+                if lookup:
+                    grouped_qs = grouped_qs.filter(**{lookup: amt})
 
         if not include_zero:
             grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))

@@ -131,9 +131,12 @@ BALANCE_OPERATOR_CHOICES = [
 
 BALANCE_FILTER_PRESET_CHOICES = [
     ('', 'All balances'),
-    ('eq_5000', '= 5,000'),
-    ('gt_5000', '> 5,000'),
-    ('lt_10000', '< 10,000'),
+    ('lt_5000', 'Under 5,000'),
+    ('gte_5000_lt_10000', '5,000 - 10,000'),
+    ('gte_10000_lt_25000', '10,000 - 25,000'),
+    ('gte_25000_lt_50000', '25,000 - 50,000'),
+    ('gte_50000_lt_100000', '50,000 - 100,000'),
+    ('gte_100000', 'Over 100,000'),
 ]
 
 class OutstandingBalancesFilterForm(forms.Form):

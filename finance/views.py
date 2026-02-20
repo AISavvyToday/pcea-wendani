@@ -2994,8 +2994,9 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         from decimal import Decimal
 
         # Get all active items for this invoice (exclude balance_bf and prepayment synthetic items)
+        # IMPORTANT: Use category, not description - descriptions vary but category is stable
         items = invoice.items.filter(is_active=True).exclude(
-            description__in=['Balance B/F', 'Prepayment (Credit)']
+            category__in=['balance_bf', 'prepayment']
         )
 
         # Calculate totals

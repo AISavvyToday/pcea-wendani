@@ -638,13 +638,15 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
 
         # Balance filter preset overrides operator+amount when set
         BALANCE_PRESETS = {
-            'eq_5000': ('=', Decimal('5000'), '= 5,000'),
-            'gt_5000': ('>', Decimal('5000'), '> 5,000'),
-            'lt_10000': ('<', Decimal('10000'), '< 10,000'),
+            'lt_5000': ('<', Decimal('5000'), 'Under 5,000'),
+            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000'), '5,000 - 10,000'),
+            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000'), '10,000 - 25,000'),
+            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000'), '25,000 - 50,000'),
+            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000'), '50,000 - 100,000'),
+            'gte_100000': ('>=', Decimal('100000'), 'Over 100,000'),
         }
         balance_filter_label = ''
-        if balance_filter and balance_filter in BALANCE_PRESETS:
-            balance_op, balance_amt, balance_filter_label = BALANCE_PRESETS[balance_filter]
+        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
 
         # Base queryset: invoices
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -708,16 +710,24 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
 
         # Apply balance filter on annotated field if requested
-        if balance_op != 'any' and balance_amt is not None:
-            lookup = {
-                '=': 'total_balance',
-                '>': 'total_balance__gt',
-                '<': 'total_balance__lt',
-                '>=': 'total_balance__gte',
-                '<=': 'total_balance__lte',
-            }.get(balance_op, None)
-            if lookup:
-                grouped_qs = grouped_qs.filter(**{lookup: balance_amt})
+        if balance_filter_spec:
+            if balance_filter_spec[0] == 'range':
+                _, min_amt, max_amt, balance_filter_label = balance_filter_spec
+                grouped_qs = grouped_qs.filter(
+                    total_balance__gte=min_amt,
+                    total_balance__lt=max_amt
+                )
+            else:
+                op, amt, balance_filter_label = balance_filter_spec
+                lookup = {
+                    '=': 'total_balance',
+                    '>': 'total_balance__gt',
+                    '<': 'total_balance__lt',
+                    '>=': 'total_balance__gte',
+                    '<=': 'total_balance__lte',
+                }.get(op, None)
+                if lookup:
+                    grouped_qs = grouped_qs.filter(**{lookup: amt})
 
         # If not including zero balances, drop rows with total_balance == 0
         if not include_zero:

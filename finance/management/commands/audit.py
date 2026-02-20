@@ -92,6 +92,7 @@ class Command(BaseCommand):
             "missing_balance_bf_items": [],  # NEW: invoices with balance_bf but no item
             "term_transition_issues": [],
             "inactive_invoice_issues": [],
+            "double_balance_bf_invoices": [],  # total_amount inflated by balance_bf
         }
 
         self._audit_students(stats, org)
@@ -100,6 +101,7 @@ class Command(BaseCommand):
         self._audit_invoice_items(stats, org)
         self._audit_term_transition_readiness(stats, org)
         self._audit_inactive_invoices(stats, org)
+        self._audit_double_balance_bf(stats, org)
         self._print_summary(stats)
 
     # ------------------------------------------------------------------ #
@@ -653,6 +655,60 @@ class Command(BaseCommand):
                 )
 
     # ------------------------------------------------------------------ #
+    # Double Balance B/F Check
+    # ------------------------------------------------------------------ #
+
+    def _audit_double_balance_bf(self, stats, org):
+        """
+        Catch invoices where total_amount incorrectly includes balance_bf.
+
+        Correct design: total_amount = term fees only. balance_bf is a separate
+        header field added in the balance formula. If total_amount = term_fees + balance_bf,
+        balance_bf is double-counted (in total_amount AND in the balance formula).
+        """
+        self.stdout.write("")
+        self.stdout.write("→ Auditing for double balance_bf in invoice total_amount ...")
+
+        invoices = (
+            Invoice.objects.filter(is_active=True, balance_bf__gt=0)
+            .exclude(status="cancelled")
+            .filter(Q(organization=org) | Q(student__organization=org))
+            .select_related("student")
+        )
+
+        for inv in invoices:
+            term_items = inv.items.filter(is_active=True).exclude(
+                category__in=["balance_bf", "prepayment"]
+            )
+            agg = term_items.aggregate(
+                total=Sum("amount"), discount=Sum("discount_applied")
+            )
+            correct_billed = (agg["total"] or Decimal("0")) - (
+                agg["discount"] or Decimal("0")
+            )
+            correct_billed = correct_billed.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            actual_total = (inv.total_amount or Decimal("0")).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            balance_bf = inv.balance_bf or Decimal("0")
+
+            if balance_bf > 0 and abs(actual_total - (correct_billed + balance_bf)) < Decimal("0.01"):
+                stats["double_balance_bf_invoices"].append(
+                    {
+                        "invoice_id": inv.id,
+                        "invoice_number": inv.invoice_number,
+                        "student_admission": getattr(inv.student, "admission_number", ""),
+                        "student_name": getattr(inv.student, "full_name", ""),
+                        "total_amount": actual_total,
+                        "correct_billed": correct_billed,
+                        "balance_bf": balance_bf,
+                        "issue": f"total_amount ({actual_total}) = billed ({correct_billed}) + balance_bf ({balance_bf}) - double counted",
+                    }
+                )
+
+    # ------------------------------------------------------------------ #
     # Reporting
     # ------------------------------------------------------------------ #
 
@@ -824,6 +880,28 @@ class Command(BaseCommand):
                 f"[{invoice_nums}{'...' if m['inactive_count'] > 5 else ''}]"
             )
 
+        # Double balance_bf in total_amount (inflated invoices)
+        self.stdout.write("")
+        self.stdout.write(
+            f"Invoices with double balance_bf (total_amount inflated): "
+            f"{len(stats['double_balance_bf_invoices'])}"
+        )
+        if stats['double_balance_bf_invoices']:
+            self.stdout.write(
+                self.style.ERROR(
+                    "  ⚠️  total_amount incorrectly includes balance_bf - run fix_double_balance_bf_invoices"
+                )
+            )
+            self.stdout.write(
+                "  Run: python manage.py fix_double_balance_bf_invoices --dry-run"
+            )
+        for m in stats["double_balance_bf_invoices"][:10]:
+            self.stdout.write(
+                f"  - {m['invoice_number']} ({m['student_admission']} {m['student_name']}): "
+                f"total_amount={m['total_amount']}, correct_billed={m['correct_billed']}, "
+                f"balance_bf={m['balance_bf']}"
+            )
+
         # Summary totals
         self.stdout.write("")
         self.stdout.write("=" * 80)
@@ -835,9 +913,10 @@ class Command(BaseCommand):
             len(stats['payment_allocation_mismatches']) +
             len(stats['balance_bf_item_issues']) +
             len(stats['prepayment_item_issues']) +
-            len(stats['missing_balance_bf_items']) +  # NEW: critical check
+            len(stats['missing_balance_bf_items']) +
             len(stats['term_transition_issues']) +
-            len(stats['inactive_invoice_issues'])
+            len(stats['inactive_invoice_issues']) +
+            len(stats['double_balance_bf_invoices'])
         )
         
         if total_issues == 0:
