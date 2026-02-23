@@ -247,7 +247,7 @@ SPONSOR_LOGO_URL = '/static/assets/images/logo2.jpeg'
 SCHOOL_BANK_DETAILS = {
     'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
     'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
-    'paybill_1': {'label': 'M-PESA PAYBILL 247247', 'number': '247247', 'acc_format': '80029#<admission_number>'},
+    'paybill_1': {'label': 'M-PESA PAYBILL 247247', 'number': '247247', 'acc_format': '280029#<admission_number>'},
     'paybill_2': {'label': 'M-PESA PAYBILL 400222', 'number': '400222', 'acc_format': '393939#<admission_number>'},
 }
 SCHOOL_STATEMENT_FOOTNOTE = "This statement is computer-generated and is valid without signature. For any queries, contact the school bursar."

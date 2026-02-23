@@ -49,7 +49,7 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -243,7 +243,7 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -455,7 +455,7 @@ class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -615,7 +615,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
                 'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -827,7 +827,7 @@ class TransportReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
                          'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -1044,7 +1044,7 @@ class OtherItemsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
                          'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -1249,7 +1249,7 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
                          'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -1436,7 +1436,7 @@ class GraduatedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, V
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
                          'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),
@@ -1624,7 +1624,7 @@ class AdmittedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, Vi
                 'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy',
                          'account_no': '01129158350600'},
                 'paybills': [
-                    {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
                     {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
                 ]
             }),

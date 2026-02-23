@@ -1084,7 +1084,7 @@ class InvoicePrintView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
             'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
             'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
-            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
             'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
         })
 
@@ -1751,7 +1751,7 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             },
             'paybill_1': {
                 'label': 'PAYBILL (247247)',
-                'acc_format': '80029#<admission_number>'
+                'acc_format': '280029#<admission_number>'
             },
             'paybill_2': {
                 'label': 'PAYBILL (400222)',
@@ -1916,7 +1916,7 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
 #             },
 #             'paybill_1': {
 #                 'label': 'PAYBILL (247247)',
-#                 'acc_format': '80029#<admission_number>'
+#                 'acc_format': '280029#<admission_number>'
 #             },
 #             'paybill_2': {
 #                 'label': 'PAYBILL (400222)',
@@ -2099,7 +2099,7 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
 #             },
 #             'paybill_1': {
 #                 'label': 'PAYBILL (247247)',
-#                 'acc_format': '80029#<admission_number>'
+#                 'acc_format': '280029#<admission_number>'
 #             },
 #             'paybill_2': {
 #                 'label': 'PAYBILL (400222)',
@@ -2637,7 +2637,7 @@ class StudentStatementPrintView(LoginRequiredMixin, OrganizationFilterMixin, Rol
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
             'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
             'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
-            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '80029#<admission_number>'},
+            'paybill_1': {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
             'paybill_2': {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
         })
         organization = getattr(self.request, 'organization', None)
