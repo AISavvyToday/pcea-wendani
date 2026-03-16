@@ -383,22 +383,18 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
     def get(self, request):
         from .forms import InvoiceDetailedReportFilterForm
         form = InvoiceDetailedReportFilterForm(request.GET)
-        
-        # Populate category choices dynamically before validation
+
         try:
             categories_list = []
-            # Standard categories (excluding 'other' - will add it separately)
             standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
             for cat in standard_categories:
                 categories_list.append((cat, cat.title()))
-            
-            # Get unique descriptions from "other" category items (case-insensitive normalization)
+
             other_descriptions_raw = InvoiceItem.objects.filter(
                 category='other',
                 is_active=True
             ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
-            
-            # Normalize descriptions to avoid duplicates (case-insensitive)
+
             seen_descriptions = set()
             unique_descriptions = []
             for desc in other_descriptions_raw:
@@ -408,51 +404,45 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                     if desc_lower not in seen_descriptions:
                         seen_descriptions.add(desc_lower)
                         unique_descriptions.append(desc_normalized)
-            
-            # Add "Other: description" items first
+
             for desc in sorted(unique_descriptions, key=str.lower):
                 categories_list.append((f'other:{desc}', f'Other: {desc}'))
-            
-            # Add "Other" once at the end (only if there are other items)
+
             if unique_descriptions:
                 categories_list.append(('other', 'Other'))
-            
+
             form.fields['category'].choices = categories_list
         except Exception:
             pass
-        
+
         form.is_valid()
 
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        # Read student_class directly from request.GET to ensure we get the value
         student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
         if not student_class:
             student_class = None
+        payment_source = cleaned.get('payment_source') or ''
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
-        selected_categories = cleaned.get('category') or []  # Now a list
+        selected_categories = cleaned.get('category') or []
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: invoices
         invoices_qs = Invoice.objects.filter(
             is_active=True
         ).exclude(
             status=InvoiceStatus.CANCELLED
         ).select_related('student', 'term__academic_year')
 
-        # Apply organization filter
         organization = getattr(request, 'organization', None)
         if organization:
             invoices_qs = invoices_qs.filter(organization=organization)
 
-        # Only include active students
         invoices_qs = invoices_qs.filter(student__status='active')
 
-        # Apply filters
         if not show_all:
             if academic_year:
                 invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
@@ -473,13 +463,11 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             if end_date:
                 invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Get invoice items filtered by selected categories
         items_qs = InvoiceItem.objects.filter(
             invoice__in=invoices_qs,
             is_active=True
         ).select_related('invoice__student', 'invoice')
 
-        # Filter by selected categories if any
         if selected_categories and not show_all:
             category_filters = Q()
             for cat_choice in selected_categories:
@@ -490,7 +478,6 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                     category_filters |= Q(category=cat_choice)
             items_qs = items_qs.filter(category_filters)
 
-        # Group by student and category/description to get category-specific amounts
         grouped = items_qs.values(
             'invoice__student__pk',
             'invoice__student__first_name',
@@ -509,16 +496,19 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             'description'
         )
 
-        # Build collected (paid) amounts map per item
         collected_map = {}
+        source_map = {}
+        matched_source_keys = set()
+
         if PaymentAllocation is not None:
-            # Use subquery to avoid loading all IDs into memory
-            alloc_qs = PaymentAllocation.objects.filter(
+            allocation_filters = Q(
                 invoice_item__in=items_qs,
                 is_active=True,
                 payment__is_active=True,
                 payment__status='completed'
-            ).values(
+            )
+
+            alloc_totals_qs = PaymentAllocation.objects.filter(allocation_filters).values(
                 'invoice_item__invoice__student__pk',
                 'invoice_item__category',
                 'invoice_item__description'
@@ -526,7 +516,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                 collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
             )
 
-            for row in alloc_qs:
+            for row in alloc_totals_qs:
                 key = (
                     row['invoice_item__invoice__student__pk'],
                     row['invoice_item__category'],
@@ -534,7 +524,26 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                 )
                 collected_map[key] = row['collected'] or Decimal('0.00')
 
-        # Build rows
+            alloc_sources_qs = PaymentAllocation.objects.filter(allocation_filters).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description',
+                'payment__payment_source'
+            ).distinct()
+
+            for row in alloc_sources_qs:
+                key = (
+                    row['invoice_item__invoice__student__pk'],
+                    row['invoice_item__category'],
+                    row['invoice_item__description'] or ''
+                )
+                source_value = row.get('payment__payment_source')
+                if source_value:
+                    source_label = dict(Payment._meta.get_field('payment_source').choices).get(source_value, source_value)
+                    source_map.setdefault(key, set()).add(source_label)
+                if payment_source and source_value == payment_source:
+                    matched_source_keys.add(key)
+
         rows = []
         total_billed = Decimal('0.00')
         total_collected = Decimal('0.00')
@@ -544,19 +553,20 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             student_pk = g.get('invoice__student__pk')
             category = g.get('category')
             description = g.get('description') or ''
-            
-            # Build category display name
+            key = (student_pk, category, description)
+
+            if payment_source and key not in matched_source_keys:
+                continue
+
             if category == 'other' and description:
                 category_display = description
             else:
                 category_display = category.title()
-            
-            # Get amounts for this specific item
+
             billed = Decimal(g.get('total_billed') or 0)
-            key = (student_pk, category, description)
             paid = collected_map.get(key, Decimal('0.00'))
             balance = billed - paid
-            
+
             first_name = g.get('invoice__student__first_name') or ''
             middle_name = g.get('invoice__student__middle_name') or ''
             last_name = g.get('invoice__student__last_name') or ''
@@ -565,11 +575,13 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
 
             admission = g.get('invoice__student__admission_number') or ''
             student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
+            payment_source_display = dict(Payment._meta.get_field('payment_source').choices).get(payment_source, payment_source) if payment_source else (', '.join(sorted(source_map.get(key, set()))) or '—')
 
             rows.append({
                 'student_name': student_name,
                 'admission': admission,
                 'student_class': student_cls,
+                'payment_source': payment_source_display,
                 'category': category_display,
                 'billed': billed,
                 'collected': paid,
@@ -580,7 +592,6 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             total_collected += paid
             total_balance += balance
 
-        # Build workbook
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Invoice Report"
@@ -592,7 +603,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                 title += f" Term {term}"
         add_common_header(ws, title)
 
-        headers = ['Sr no.', 'Student Name', 'Admission Number', 'Grade', 'Category', 'Total Amount', 'Paid', 'Balance']
+        headers = ['Sr no.', 'Student Name', 'Admission Number', 'Grade', 'Payment Source', 'Category', 'Total Amount', 'Paid', 'Balance']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
@@ -602,32 +613,30 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             ws.cell(row=row_num, column=2, value=r['student_name'])
             ws.cell(row=row_num, column=3, value=r['admission'])
             ws.cell(row=row_num, column=4, value=r['student_class'])
-            ws.cell(row=row_num, column=5, value=r['category'])
+            ws.cell(row=row_num, column=5, value=r['payment_source'])
+            ws.cell(row=row_num, column=6, value=r['category'])
 
-            # Money columns
-            c6 = ws.cell(row=row_num, column=6, value=float(r['billed']))
-            format_money_cell(c6)
-            c7 = ws.cell(row=row_num, column=7, value=float(r['collected']))
+            c7 = ws.cell(row=row_num, column=7, value=float(r['billed']))
             format_money_cell(c7)
-            c8 = ws.cell(row=row_num, column=8, value=float(r['balance']))
+            c8 = ws.cell(row=row_num, column=8, value=float(r['collected']))
             format_money_cell(c8)
+            c9 = ws.cell(row=row_num, column=9, value=float(r['balance']))
+            format_money_cell(c9)
 
             row_num += 1
 
-        # Totals
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
-        ws.cell(row=row_num, column=5, value='TOTALS').font = Font(bold=True)
-        c6 = ws.cell(row=row_num, column=6, value=float(total_billed))
-        format_money_cell(c6)
-        c6.font = Font(bold=True)
-        c7 = ws.cell(row=row_num, column=7, value=float(total_collected))
+        ws.cell(row=row_num, column=6, value='TOTALS').font = Font(bold=True)
+        c7 = ws.cell(row=row_num, column=7, value=float(total_billed))
         format_money_cell(c7)
         c7.font = Font(bold=True)
-        c8 = ws.cell(row=row_num, column=8, value=float(total_balance))
+        c8 = ws.cell(row=row_num, column=8, value=float(total_collected))
         format_money_cell(c8)
         c8.font = Font(bold=True)
+        c9 = ws.cell(row=row_num, column=9, value=float(total_balance))
+        format_money_cell(c9)
+        c9.font = Font(bold=True)
 
-        # Auto width columns
         for col in range(1, len(headers) + 1):
             ws.column_dimensions[get_column_letter(col)].width = 18
 
@@ -635,29 +644,24 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         filename = f"invoice-report-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
         return xlsx_response(bytes_data, filename)
 
-
 class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
     """Generates PDF for invoice detailed report."""
 
     def get(self, request):
         from .forms import InvoiceDetailedReportFilterForm
         form = InvoiceDetailedReportFilterForm(request.GET)
-        
-        # Populate category choices dynamically before validation
+
         try:
             categories_list = []
-            # Standard categories (excluding 'other' - will add it separately)
             standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
             for cat in standard_categories:
                 categories_list.append((cat, cat.title()))
-            
-            # Get unique descriptions from "other" category items (case-insensitive normalization)
+
             other_descriptions_raw = InvoiceItem.objects.filter(
                 category='other',
                 is_active=True
             ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
-            
-            # Normalize descriptions to avoid duplicates (case-insensitive)
+
             seen_descriptions = set()
             unique_descriptions = []
             for desc in other_descriptions_raw:
@@ -667,51 +671,45 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                     if desc_lower not in seen_descriptions:
                         seen_descriptions.add(desc_lower)
                         unique_descriptions.append(desc_normalized)
-            
-            # Add "Other: description" items first
+
             for desc in sorted(unique_descriptions, key=str.lower):
                 categories_list.append((f'other:{desc}', f'Other: {desc}'))
-            
-            # Add "Other" once at the end (only if there are other items)
+
             if unique_descriptions:
                 categories_list.append(('other', 'Other'))
-            
+
             form.fields['category'].choices = categories_list
         except Exception:
             pass
-        
+
         form.is_valid()
 
         cleaned = getattr(form, 'cleaned_data', {})
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        # Read student_class directly from request.GET to ensure we get the value
         student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
         if not student_class:
             student_class = None
+        payment_source = cleaned.get('payment_source') or ''
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
-        selected_categories = cleaned.get('category') or []  # Now a list
+        selected_categories = cleaned.get('category') or []
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        # Base queryset: invoices
         invoices_qs = Invoice.objects.filter(
             is_active=True
         ).exclude(
             status=InvoiceStatus.CANCELLED
         ).select_related('student', 'term__academic_year')
 
-        # Apply organization filter
         organization = getattr(request, 'organization', None)
         if organization:
             invoices_qs = invoices_qs.filter(organization=organization)
 
-        # Only include active students
         invoices_qs = invoices_qs.filter(student__status='active')
 
-        # Apply filters (same logic as Excel view)
         if not show_all:
             if academic_year:
                 invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
@@ -732,13 +730,11 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             if end_date:
                 invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
 
-        # Get invoice items filtered by selected categories
         items_qs = InvoiceItem.objects.filter(
             invoice__in=invoices_qs,
             is_active=True
         ).select_related('invoice__student', 'invoice')
 
-        # Filter by selected categories if any
         if selected_categories and not show_all:
             category_filters = Q()
             for cat_choice in selected_categories:
@@ -749,7 +745,6 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                     category_filters |= Q(category=cat_choice)
             items_qs = items_qs.filter(category_filters)
 
-        # Group by student and category/description to get category-specific amounts
         grouped = items_qs.values(
             'invoice__student__pk',
             'invoice__student__first_name',
@@ -768,16 +763,19 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             'description'
         )
 
-        # Build collected (paid) amounts map per item
         collected_map = {}
+        source_map = {}
+        matched_source_keys = set()
+
         if PaymentAllocation is not None:
-            # Use subquery to avoid loading all IDs into memory
-            alloc_qs = PaymentAllocation.objects.filter(
+            allocation_filters = Q(
                 invoice_item__in=items_qs,
                 is_active=True,
                 payment__is_active=True,
                 payment__status='completed'
-            ).values(
+            )
+
+            alloc_totals_qs = PaymentAllocation.objects.filter(allocation_filters).values(
                 'invoice_item__invoice__student__pk',
                 'invoice_item__category',
                 'invoice_item__description'
@@ -785,13 +783,33 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                 collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
             )
 
-            for row in alloc_qs:
+            for row in alloc_totals_qs:
                 key = (
                     row['invoice_item__invoice__student__pk'],
                     row['invoice_item__category'],
                     row['invoice_item__description'] or ''
                 )
                 collected_map[key] = row['collected'] or Decimal('0.00')
+
+            alloc_sources_qs = PaymentAllocation.objects.filter(allocation_filters).values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description',
+                'payment__payment_source'
+            ).distinct()
+
+            for row in alloc_sources_qs:
+                key = (
+                    row['invoice_item__invoice__student__pk'],
+                    row['invoice_item__category'],
+                    row['invoice_item__description'] or ''
+                )
+                source_value = row.get('payment__payment_source')
+                if source_value:
+                    source_label = dict(Payment._meta.get_field('payment_source').choices).get(source_value, source_value)
+                    source_map.setdefault(key, set()).add(source_label)
+                if payment_source and source_value == payment_source:
+                    matched_source_keys.add(key)
 
         rows = []
         total_billed = Decimal('0.00')
@@ -802,19 +820,20 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             student_pk = g.get('invoice__student__pk')
             category = g.get('category')
             description = g.get('description') or ''
-            
-            # Build category display name
+            key = (student_pk, category, description)
+
+            if payment_source and key not in matched_source_keys:
+                continue
+
             if category == 'other' and description:
                 category_display = description
             else:
                 category_display = category.title()
-            
-            # Get amounts for this specific item
+
             billed = Decimal(g.get('total_billed') or 0)
-            key = (student_pk, category, description)
             paid = collected_map.get(key, Decimal('0.00'))
             balance = billed - paid
-            
+
             first_name = g.get('invoice__student__first_name') or ''
             middle_name = g.get('invoice__student__middle_name') or ''
             last_name = g.get('invoice__student__last_name') or ''
@@ -823,11 +842,13 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
 
             admission = g.get('invoice__student__admission_number') or ''
             student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
+            payment_source_display = dict(Payment._meta.get_field('payment_source').choices).get(payment_source, payment_source) if payment_source else (', '.join(sorted(source_map.get(key, set()))) or '—')
 
             rows.append({
                 'student_name': student_name,
                 'admission': admission,
                 'student_class': student_cls,
+                'payment_source': payment_source_display,
                 'category': category_display,
                 'billed': billed,
                 'collected': paid,
@@ -837,6 +858,10 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             total_billed += billed
             total_collected += paid
             total_balance += balance
+
+        payment_source_display = ''
+        if payment_source:
+            payment_source_display = dict(Payment._meta.get_field('payment_source').choices).get(payment_source, payment_source)
 
         context = {
             'rows': rows,
@@ -849,6 +874,7 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                 'academic_year': academic_year,
                 'term': term,
                 'student_class': student_class,
+                'payment_source': payment_source_display,
                 'name': name,
                 'admission': admission,
                 'category': ', '.join(selected_categories) if selected_categories else '',

@@ -164,21 +164,23 @@ body {
 }
 
 .report-table th:nth-child(1),
-.report-table td:nth-child(1) { width: 5%; } /* Sr no. */
+.report-table td:nth-child(1) { width: 4%; } /* Sr no. */
 .report-table th:nth-child(2),
-.report-table td:nth-child(2) { width: 18%; } /* Student Name */
+.report-table td:nth-child(2) { width: 16%; } /* Student Name */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 12%; } /* Admission Number */
+.report-table td:nth-child(3) { width: 10%; } /* Admission Number */
 .report-table th:nth-child(4),
-.report-table td:nth-child(4) { width: 12%; } /* Grade */
+.report-table td:nth-child(4) { width: 10%; } /* Grade */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 15%; } /* Category */
+.report-table td:nth-child(5) { width: 14%; } /* Payment Source */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 12%; } /* Total Amount */
+.report-table td:nth-child(6) { width: 12%; } /* Category */
 .report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 12%; } /* Paid */
+.report-table td:nth-child(7) { width: 11%; } /* Total Amount */
 .report-table th:nth-child(8),
-.report-table td:nth-child(8) { width: 12%; } /* Balance */
+.report-table td:nth-child(8) { width: 11%; } /* Paid */
+.report-table th:nth-child(9),
+.report-table td:nth-child(9) { width: 12%; } /* Balance */
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -262,6 +264,7 @@ body {
           <div class="report-period">
             {% if filters.academic_year %}{{ filters.academic_year.year }}{% endif %}
             {% if filters.term %} • Term {{ filters.term }}{% endif %}
+            {% if filters.payment_source %} • Source: {{ filters.payment_source }}{% endif %}
             {% if filters.start_date %} • From: {{ filters.start_date|date:"d M Y" }}{% endif %}
             {% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}
           </div>
@@ -304,6 +307,7 @@ body {
             <th>Student Name</th>
             <th>Admission Number</th>
             <th>Grade</th>
+            <th>Payment Source</th>
             <th>Category</th>
             <th class="text-right">Total Amount</th>
             <th class="text-right">Paid</th>
@@ -317,6 +321,7 @@ body {
             <td>{{ row.student_name }}</td>
             <td>{{ row.admission|default:"—" }}</td>
             <td>{{ row.student_class|default:"—" }}</td>
+            <td>{{ row.payment_source|default:"—" }}</td>
             <td>{{ row.category|default:"—" }}</td>
             <td class="text-right">KES {{ row.billed|floatformat:2 }}</td>
             <td class="text-right">KES {{ row.collected|floatformat:2 }}</td>
@@ -334,7 +339,7 @@ body {
         </tbody>
         <tfoot>
           <tr>
-            <th colspan="5" class="text-right">TOTALS</th>
+            <th colspan="6" class="text-right">TOTALS</th>
             <th class="text-right">KES {{ totals.total_billed|floatformat:2 }}</th>
             <th class="text-right">KES {{ totals.total_collected|floatformat:2 }}</th>
             <th class="text-right">

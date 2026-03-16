@@ -32,6 +32,12 @@ class InvoiceSummaryReportFilterForm(forms.Form):
 
 
 class InvoiceDetailedReportFilterForm(forms.Form):
+    PAYMENT_SOURCE_CHOICES = [
+        ('', 'All Payment Sources'),
+        (PaymentSource.COOP_BANK, 'COOP Bank'),
+        (PaymentSource.EQUITY_BANK, 'Equity Bank'),
+    ]
+
     academic_year = forms.ModelChoiceField(
         queryset=AcademicYear.objects.all(), 
         required=False, 
@@ -47,6 +53,12 @@ class InvoiceDetailedReportFilterForm(forms.Form):
         required=False,
         choices=[('', 'All Classes')],
         widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    payment_source = forms.ChoiceField(
+        required=False,
+        choices=PAYMENT_SOURCE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Payment Source'
     )
     name = forms.CharField(
         required=False,
