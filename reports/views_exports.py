@@ -28,6 +28,10 @@ from transport.models import TransportRoute
 from core.models import InvoiceStatus
 from core.mixins import OrganizationFilterMixin
 from students.models import Student
+from .views import (
+    build_fees_collection_rows,
+    populate_fees_collection_filter_form,
+)
 
 
 # ---------- Helpers ----------
@@ -905,41 +909,14 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
 
     def get(self, request):
         from .forms import FeesCollectionFilterForm
-        from datetime import datetime as dt
-        from django.utils import timezone
 
         # Always pass request.GET (even if empty) to create a bound form
         form = FeesCollectionFilterForm(request.GET)
+        populate_fees_collection_filter_form(form, organization=getattr(request, 'organization', None))
         form.is_valid()  # Populate cleaned_data
 
-        # Extract filters - use getattr with empty dict fallback for safety
-        cleaned = getattr(form, 'cleaned_data', {})
-        start_date = cleaned.get('start_date')
-        end_date = cleaned.get('end_date')
-        payment_source = cleaned.get('payment_source') or ''
-        selected_class = cleaned.get('student_class') or ''
-        group_by = cleaned.get('group_by') or 'none'
-
-        # Base queryset
-        payments_qs = Payment.objects.all()
-
-        # Fix datetime warnings - convert dates to timezone-aware datetimes
-        if start_date:
-            start_datetime = timezone.make_aware(dt.combine(start_date, dt.min.time()))
-            payments_qs = payments_qs.filter(payment_date__gte=start_datetime)
-        if end_date:
-            end_datetime = timezone.make_aware(dt.combine(end_date, dt.max.time()))
-            payments_qs = payments_qs.filter(payment_date__lte=end_datetime)
-
-        # Filter by payment source
-        if payment_source:
-            payments_qs = payments_qs.filter(payment_source=payment_source)
-
-        if selected_class:
-            payments_qs = payments_qs.filter(
-                Q(student__current_class=selected_class) |
-                Q(invoice__student__current_class=selected_class)
-            )
+        report_data = build_fees_collection_rows(request, getattr(form, 'cleaned_data', {}), form=form)
+        filters = report_data['filters']
 
         # Build workbook
         wb = openpyxl.Workbook()
@@ -947,53 +924,29 @@ class FeesCollectionExcelView(LoginRequiredMixin, View):
         ws.title = "Collections"
 
         title = "Fees Collection Report"
-        if start_date and end_date:
-            title += f" ({start_date} to {end_date})"
+        if filters['start_date'] and filters['end_date']:
+            title += f" ({filters['start_date']} to {filters['end_date']})"
         add_common_header(ws, title)
 
-        headers = ['Payment Date', 'Receipt/Ref', 'Student', 'Admission #', 'Class', 'Amount (KES)', 'Method',
+        headers = ['Payment Date', 'Receipt / Ref', 'Student', 'Admission #', 'Class', 'Amount (KES)', 'Method',
                    'Bank/Source']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
         row_num = 6
-        total_amount = Decimal('0.00')
+        total_amount = report_data['summary']['total_collected']
 
-        payments_list = payments_qs.select_related('student', 'invoice').order_by('payment_date')
-        for p in payments_list:
-            # Get student details
-            student_name = None
-            student_class_obj = None  # Keep as object first
-            admission = None
-
-            if hasattr(p, 'student') and p.student:
-                student_name = getattr(p.student, 'full_name', '')
-                student_class_obj = getattr(p.student, 'current_class', '')
-                admission = getattr(p.student, 'admission_number', '')
-            elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
-                st = p.invoice.student
-                student_name = getattr(st, 'full_name', '')
-                student_class_obj = getattr(st, 'current_class', '')
-                admission = getattr(st, 'admission_number', '')
-            else:
-                student_name = getattr(p, 'payer_name', '') or getattr(p, 'payment_source', '') or '—'
-
-            # Convert Class object to string
-            student_class = str(student_class_obj) if student_class_obj else ''
-
-            bank_display = getattr(p, 'bank', '') or getattr(p, 'payment_source', '') or getattr(p, 'payment_method', '')
-
-            ws.cell(row=row_num, column=1, value=p.payment_date.strftime('%Y-%m-%d %H:%M') if p.payment_date else '')
-            ws.cell(row=row_num, column=2, value=getattr(p, 'receipt_number', getattr(p, 'payment_reference', '')))
-            ws.cell(row=row_num, column=3, value=student_name)
-            ws.cell(row=row_num, column=4, value=admission or '')
-            ws.cell(row=row_num, column=5, value=student_class or '')  # Now a string
-            amount_cell = ws.cell(row=row_num, column=6, value=float(p.amount or 0))
+        for row in report_data['rows']:
+            ws.cell(row=row_num, column=1, value=row['date'].strftime('%Y-%m-%d %H:%M') if row['date'] else '')
+            ws.cell(row=row_num, column=2, value=row['reference'])
+            ws.cell(row=row_num, column=3, value=row['student'])
+            ws.cell(row=row_num, column=4, value=row['admission'])
+            ws.cell(row=row_num, column=5, value=row['class'])
+            amount_cell = ws.cell(row=row_num, column=6, value=float(row['amount'] or 0))
             format_money_cell(amount_cell)
-            ws.cell(row=row_num, column=7, value=p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''))
-            ws.cell(row=row_num, column=8, value=bank_display)
+            ws.cell(row=row_num, column=7, value=row['method'])
+            ws.cell(row=row_num, column=8, value=row['bank'])
 
-            total_amount += Decimal(p.amount or 0)
             row_num += 1
 
         # Totals row
@@ -1017,89 +970,16 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
 
         # Always pass request.GET (even if empty) to create a bound form
         form = FeesCollectionFilterForm(request.GET)
+        populate_fees_collection_filter_form(form, organization=getattr(request, 'organization', None))
         form.is_valid()  # Populate cleaned_data
 
-        # Extract filters - use getattr with empty dict fallback for safety
-        cleaned = getattr(form, 'cleaned_data', {})
-        start_date = cleaned.get('start_date')
-        end_date = cleaned.get('end_date')
-        payment_source = cleaned.get('payment_source') or ''
-        selected_class = cleaned.get('student_class') or ''
-        group_by = cleaned.get('group_by') or 'none'
-
-        # Base queryset
-        payments_qs = Payment.objects.all()
-
-        if start_date:
-            payments_qs = payments_qs.filter(payment_date__gte=start_date)
-        if end_date:
-            payments_qs = payments_qs.filter(payment_date__lte=end_date)
-
-        # Filter by payment source
-        if payment_source:
-            payments_qs = payments_qs.filter(payment_source=payment_source)
-
-        if selected_class:
-            payments_qs = payments_qs.filter(
-                Q(student__current_class=selected_class) |
-                Q(invoice__student__current_class=selected_class)
-            )
-
-        # Build rows for template
-        rows = []
-        total_amount = Decimal('0.00')
-
-        payments_list = payments_qs.select_related('student', 'invoice').order_by('payment_date')
-        for p in payments_list:
-            # Get student details
-            student_name = None
-            student_class = None
-            admission = None
-
-            if hasattr(p, 'student') and p.student:
-                student_name = getattr(p.student, 'full_name', '')
-                student_class_obj = getattr(p.student, 'current_class', None)
-                admission = getattr(p.student, 'admission_number', '')
-            elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
-                st = p.invoice.student
-                student_name = getattr(st, 'full_name', '')
-                student_class_obj = getattr(st, 'current_class', None)
-                admission = getattr(st, 'admission_number', '')
-            else:
-                student_name = getattr(p, 'payer_name', '') or getattr(p, 'payment_source', '') or '—'
-                student_class_obj = None
-
-            # Convert Class object to string (like in student_list template)
-            student_class = str(student_class_obj) if student_class_obj else ''
-
-            bank_display = getattr(p, 'bank', '') or getattr(p, 'payment_source', '') or getattr(p, 'payment_method',
-                                                                                                 '')
-
-            rows.append({
-                'date': p.payment_date,
-                'reference': getattr(p, 'receipt_number', getattr(p, 'payment_reference', '')),
-                'student': student_name,
-                'class': student_class,
-                'admission': admission or '',
-                'amount': p.amount or Decimal('0.00'),
-                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
-                'bank': bank_display,
-            })
-            total_amount += Decimal(p.amount or 0)
+        report_data = build_fees_collection_rows(request, getattr(form, 'cleaned_data', {}), form=form)
 
         context = {
-            'rows': rows,
-            'summary': {
-                'total_collected': total_amount,
-                'count': len(rows)
-            },
-            'filters': {
-                'start_date': start_date,
-                'end_date': end_date,
-                'payment_source': payment_source,
-                'student_class': selected_class,
-                'group_by': group_by,
-            },
+            'rows': report_data['rows'],
+            'summary': report_data['summary'],
+            'grouped': report_data['grouped'],
+            'filters': report_data['filters'],
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
@@ -2680,4 +2560,3 @@ class OtherItemsReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-
