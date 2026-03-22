@@ -18,21 +18,19 @@ urlpatterns = [
     path('payroll/', include('payroll.urls', namespace='payroll')),
 ]
 
-# KCB SMS Credits callbacks - import inside try-except to handle import errors gracefully
-try:
+# KCB SMS Credits callbacks are disabled by default because the preferred
+# topology is central-service-only per the reuse guide. Enable explicitly only
+# for deployments that intentionally accept direct KCB callbacks in this app.
+if getattr(settings, 'SWIFT_SMS_ENABLE_DIRECT_CALLBACKS', False):
     from swift_sms_credits.kcb_callbacks import (
         sms_credits_kcb_notification,
         sms_credits_kcb_till_notification
     )
+
     urlpatterns += [
         path('api/sms-credits/kcb-notification/', sms_credits_kcb_notification, name='kcb_sms_notification'),
         path('api/sms-credits/kcb-till-notification/', sms_credits_kcb_till_notification, name='kcb_sms_till_notification'),
     ]
-except (ImportError, Exception) as e:
-    # If import fails (e.g., during URL check), log but don't fail
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"Could not import SMS credits KCB callbacks: {e}. URLs will not be available.")
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

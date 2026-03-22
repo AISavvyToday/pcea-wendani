@@ -273,16 +273,30 @@ class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             
             context['organization'] = organization
             context['sms_account_number'] = organization.sms_account_number or 'Not Set'
+            context['balance_api_available'] = False
+            context['balance_error'] = None
             
             # Get balance from central service
             balance_result = sms_api_client.get_balance(organization)
             if balance_result.get('success'):
                 context['sms_balance'] = balance_result.get('balance', 0)
-                context['sms_price'] = balance_result.get('price_per_sms', 1.0)
+                context['sms_price'] = balance_result.get(
+                    'price_per_sms',
+                    getattr(organization, 'sms_price_per_unit', getattr(settings, 'SWIFT_SMS_PRICE', 1.0))
+                )
+                context['balance_api_available'] = True
             else:
                 # Fallback to local balance if API fails
                 context['sms_balance'] = getattr(organization, 'sms_balance', 0)
-                context['sms_price'] = 1.0
+                context['sms_price'] = getattr(
+                    organization,
+                    'sms_price_per_unit',
+                    getattr(settings, 'SWIFT_SMS_PRICE', 1.0)
+                )
+                context['balance_error'] = (
+                    balance_result.get('error')
+                    or 'Live SMS balance is temporarily unavailable from the central service.'
+                )
             
             # Payment details from settings (for KCB payment instructions)
             context['paybill'] = getattr(settings, 'SWIFT_RESIDE_PAYBILL', '522533')
