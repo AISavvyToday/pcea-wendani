@@ -44,6 +44,7 @@ from .models import (
 from .forms import (
     FeeStructureForm, FeeItemFormSet, DiscountForm, StudentDiscountForm,
     InvoiceGenerateForm, PaymentRecordForm, BankTransactionMatchForm, DateRangeFilterForm,
+    BankTransactionAllocationFormSet,
     FamilyPaymentForm
 )
 from decimal import InvalidOperation
@@ -86,8 +87,31 @@ def _filter_bank_transactions_by_organization(queryset, organization=None):
     # For other organizations, filter normally
     return queryset.filter(
         Q(payment__organization=organization) | 
-        Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization)
+        Q(payment__isnull=False, payment__organization__isnull=True, payment__student__organization=organization) |
+        Q(reconciliations__student__organization=organization)
     )
+
+
+def _search_students_for_bank_reconciliation(query, organization=None):
+    queryset = Student.objects.filter(
+        is_active=True,
+        status__in=['active', 'graduated', 'transferred']
+    ).prefetch_related('student_parents__parent')
+    if organization:
+        queryset = queryset.filter(organization=organization)
+
+    query = (query or '').strip()
+    if not query:
+        return queryset.none()
+
+    return queryset.filter(
+        Q(first_name__icontains=query) |
+        Q(middle_name__icontains=query) |
+        Q(last_name__icontains=query) |
+        Q(admission_number__icontains=query) |
+        Q(student_parents__parent__phone_primary__icontains=query) |
+        Q(student_parents__parent__phone_secondary__icontains=query)
+    ).distinct().order_by('admission_number', 'last_name', 'first_name')
 
 
 # =============================================================================
@@ -2170,39 +2194,26 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
 
         status = self.request.GET.get('status', 'unmatched')  # Default to unmatched
         if status == 'received':
-            # Unmatched/unreconciled transactions with 'received' status
-            queryset = queryset.filter(payment__isnull=True, processing_status='received')
+            queryset = queryset.filter(processing_status='received')
         elif status == 'matched':
-            # For matched, ensure we only show transactions from this organization
-            if organization:
-                queryset = queryset.filter(
-                    Q(payment__organization=organization) | 
-                    Q(payment__organization__isnull=True, payment__student__organization=organization)
-                )
-            queryset = queryset.filter(payment__isnull=False)
+            queryset = queryset.filter(matched_at__isnull=False).exclude(processing_status='processing')
         elif status == 'failed':
             queryset = queryset.filter(processing_status='failed')
         elif status == 'duplicate':
             queryset = queryset.filter(processing_status='duplicate')
         elif status == 'unmatched':
-            # Unmatched/unreconciled transactions (all processing statuses)
-            queryset = queryset.filter(payment__isnull=True).exclude(
-                processing_status__in=['failed', 'duplicate']
-            )
+            queryset = queryset.exclude(processing_status__in=['failed', 'duplicate', 'matched'])
         # If status is empty or 'all', show all (already filtered by organization above)
 
-        return queryset.order_by('-callback_received_at')
+        return queryset.distinct().order_by('-callback_received_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['selected_status'] = self.request.GET.get('status', 'unmatched')
         # Count unmatched transactions (excluding failed/duplicate) - filtered by organization
         organization = getattr(self.request, 'organization', None)
-        unmatched_qs = BankTransaction.objects.filter(
-            is_active=True, 
-            payment__isnull=True
-        ).exclude(
-            processing_status__in=['failed', 'duplicate']
+        unmatched_qs = BankTransaction.objects.filter(is_active=True).exclude(
+            processing_status__in=['failed', 'duplicate', 'matched']
         )
         unmatched_qs = _filter_bank_transactions_by_organization(unmatched_qs, organization=organization)
         context['unmatched_count'] = unmatched_qs.count()
@@ -2210,7 +2221,7 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
 
 
 class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):
-    """Match a bank transaction to a student (invoice selection is optional, but allocation is oldest-first)."""
+    """Reconcile a bank transaction across one or more students."""
 
     template_name = 'finance/bank_transaction_match.html'
     form_class = BankTransactionMatchForm
@@ -2224,45 +2235,110 @@ class BankTransactionMatchView(LoginRequiredMixin, OrganizationFilterMixin, Role
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['transaction'] = get_object_or_404(self.get_transaction_queryset(), pk=self.kwargs['pk'])
+        transaction = get_object_or_404(self.get_transaction_queryset(), pk=self.kwargs['pk'])
+        organization = getattr(self.request, 'organization', None)
+        search_query = self.request.GET.get('q') or self.request.POST.get('search_query') or ''
+        allocation_formset = kwargs.get('allocation_formset') or BankTransactionAllocationFormSet(
+            prefix='allocations',
+            organization=organization,
+        )
+        allocation_rows = []
+        for allocation_form in allocation_formset.forms:
+            student = None
+            student_value = allocation_form['student'].value()
+            if student_value:
+                student = Student.objects.filter(pk=student_value).first()
+            allocation_rows.append({
+                'form': allocation_form,
+                'student': student,
+                'invoice_options': allocation_form.fields['invoice'].queryset,
+            })
+        context['transaction'] = transaction
+        context['search_query'] = search_query
+        context['search_results'] = _search_students_for_bank_reconciliation(
+            search_query,
+            organization=organization,
+        )[:25]
+        context['allocation_formset'] = allocation_formset
+        context['allocation_rows'] = allocation_rows
         return context
 
-    def form_valid(self, form):
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['initial'] = {'search_query': self.request.GET.get('q', '')}
+        return kwargs
+
+    def post(self, request, *args, **kwargs):
+        form = self.get_form()
+        allocation_formset = BankTransactionAllocationFormSet(
+            self.request.POST,
+            prefix='allocations',
+            organization=getattr(self.request, 'organization', None),
+        )
+        if form.is_valid() and allocation_formset.is_valid():
+            return self.form_valid(form, allocation_formset)
+        return self.form_invalid(form, allocation_formset)
+
+    def form_valid(self, form, allocation_formset=None):
         transaction = get_object_or_404(self.get_transaction_queryset(), pk=self.kwargs['pk'])
-        student = form.cleaned_data['student']
-        selected_invoice = form.cleaned_data.get('invoice')  # optional; do not force allocation to it
         notes = form.cleaned_data.get('notes') or ''
-
-        if transaction.payment_id:
-            messages.error(self.request, "This transaction is already matched to a payment.")
-            return redirect('finance:bank_transaction_list')
-
-        # Add operator note (optional)
-        if selected_invoice:
-            extra = f"Selected invoice: {selected_invoice.invoice_number} (allocation policy: oldest-first)"
-            notes = (notes + (" | " if notes else "") + extra)
-
-        if notes:
-            transaction.processing_notes = (transaction.processing_notes or "")
-            transaction.processing_notes = (
-                transaction.processing_notes
-                + (" | " if transaction.processing_notes else "")
-                + notes
-            )
-            transaction.save(update_fields=["processing_notes", "updated_at"])
-
-        # Create payment from this BankTransaction and allocate oldest-first
-        payment = PaymentsPaymentService.create_payment_from_bank_transaction(
-            bank_tx=transaction,
-            student=student,
-            invoice=None,
-            payer_name=transaction.payer_name or "",
-            payer_phone=transaction.payer_account or "",
-            reconciled_by=self.request.user,
+        allocation_formset = allocation_formset or BankTransactionAllocationFormSet(
+            self.request.POST,
+            prefix='allocations',
+            organization=getattr(self.request, 'organization', None),
         )
 
-        messages.success(self.request, f'Transaction matched to {student.full_name} successfully.')
+        if transaction.is_fully_matched and (
+            transaction.payment_id or transaction.reconciliations.filter(is_active=True).exists()
+        ):
+            messages.error(self.request, "This transaction is already fully matched.")
+            return redirect('finance:bank_transaction_list')
+
+        allocations = []
+        total_allocated = Decimal('0.00')
+        for allocation_form in allocation_formset:
+            cleaned = getattr(allocation_form, 'cleaned_data', None) or {}
+            if not cleaned:
+                continue
+            allocations.append({
+                'student': cleaned['student'],
+                'invoice': cleaned.get('invoice'),
+                'amount': cleaned['amount'],
+            })
+            total_allocated += cleaned['amount']
+
+        if not allocations:
+            form.add_error(None, "Add at least one student allocation before saving.")
+            return self.form_invalid(form, allocation_formset)
+
+        if total_allocated + transaction.allocated_amount > transaction.amount:
+            form.add_error(None, "Allocated total exceeds the transaction amount.")
+            return self.form_invalid(form, allocation_formset)
+
+        PaymentsPaymentService.reconcile_bank_transaction(
+            bank_tx=transaction,
+            allocations=allocations,
+            matched_by=self.request.user,
+            notes=notes,
+        )
+
+        transaction.refresh_from_db()
+        if transaction.remaining_amount > Decimal('0.00'):
+            messages.success(
+                self.request,
+                f'Allocated KES {total_allocated} successfully. KES {transaction.remaining_amount} remains on this transaction.'
+            )
+        else:
+            messages.success(self.request, 'Transaction matched successfully.')
         return redirect('finance:bank_transaction_list')
+
+    def form_invalid(self, form, allocation_formset=None):
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                allocation_formset=allocation_formset,
+            )
+        )
 
 
 class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
@@ -2284,6 +2360,9 @@ class BankTransactionDetailView(LoginRequiredMixin, OrganizationFilterMixin, Rol
         context = super().get_context_data(**kwargs)
         if self.object.payment:
             context['payment'] = self.object.payment
+        context['reconciliations'] = self.object.reconciliations.filter(is_active=True).select_related(
+            'student', 'payment', 'matched_by', 'invoice'
+        )
         return context
 
 

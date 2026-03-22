@@ -33,10 +33,10 @@ from django.views.decorators.http import require_http_methods
 from accounts.decorators import role_required
 from academics.models import Term
 from core.models import InvoiceStatus, PaymentStatus, UserRole
-from finance.models import Invoice
+from finance.models import Invoice, InvoiceItem
 from payments.models import BankTransaction, Payment, PaymentAllocation
 from payments.services.resolution import ResolutionService
-from students.models import Student
+from students.metrics import get_student_base_queryset, get_student_status_counters
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +89,7 @@ def _get_current_term(organization=None):
 
 
 def _get_active_students_qs(organization=None):
-    qs = Student.objects.all()
-    if _model_has_field(Student, "is_active"):
-        qs = qs.filter(is_active=True)
-    if organization:
-        qs = qs.filter(organization=organization)
-    return qs
+    return get_student_base_queryset(organization=organization).filter(status='active')
 
 
 def _get_staff_count(organization=None):
@@ -165,6 +160,47 @@ def _completed_allocations_base_qs():
     return qs
 
 
+def _sum_decimal(queryset, field_name):
+    total = queryset.aggregate(total=Sum(field_name))["total"] or Decimal("0")
+    return Decimal(str(total))
+
+
+def _group_invoice_item_amounts(invoice_qs, amount_field="net_amount"):
+    items = InvoiceItem.objects.filter(invoice__in=invoice_qs, is_active=True)
+    return {
+        "fees": _sum_decimal(
+            items.exclude(category__in=["other", "transport", "balance_bf", "prepayment"]),
+            amount_field,
+        ),
+        "other_items": _sum_decimal(items.filter(category="other"), amount_field),
+        "transport": _sum_decimal(items.filter(category="transport"), amount_field),
+        "balance_bf": _sum_decimal(items.filter(category="balance_bf"), amount_field),
+    }
+
+
+def _group_allocation_amounts(invoice_qs):
+    allocations = _completed_allocations_base_qs().filter(invoice_item__invoice__in=invoice_qs)
+    return {
+        "fees": _sum_decimal(
+            allocations.exclude(invoice_item__category__in=["other", "balance_bf", "prepayment"]),
+            "amount",
+        ),
+        "other_items": _sum_decimal(allocations.filter(invoice_item__category="other"), "amount"),
+        "balance_bf": _sum_decimal(allocations.filter(invoice_item__category="balance_bf"), "amount"),
+    }
+
+
+def _term_overpayments(term=None, organization=None):
+    if not term:
+        return Decimal("0")
+
+    payments = _completed_payments_base_qs(organization=organization).filter(
+        payment_date__date__gte=term.start_date,
+        payment_date__date__lte=term.end_date,
+    )
+    return _sum_decimal(payments, "unallocated_amount")
+
+
 def _collected_for_invoices(invoice_qs):
     """
     Calculate total collected amount from invoices in the queryset.
@@ -217,65 +253,58 @@ def _finance_kpis(term=None, organization=None):
     base = _invoice_base_qs(organization=organization)
     term_invoices = base.filter(term=term) if term else base.none()
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
+    active_students = _get_active_students_qs(organization=organization)
 
-    def agg(invoice_qs):
-        """
-        Aggregate financial statistics for a set of invoices.
-        
-        Key points:
-        - collected: Sum of invoice.amount_paid (includes ALL payments: items + balance_bf)
-        - balances_bf: Sum of frozen balance_bf_original values (does NOT change when payments are made)
-        - When payments clear balance_bf, they increment 'collected' but NOT 'balances_bf' (which uses balance_bf_original)
-        """
+    balances_bf_total = _sum_decimal(active_students, 'balance_bf_original')
+    prepayments_total = _sum_decimal(active_students, 'prepayment_original')
+
+    def agg(invoice_qs, *, include_term_breakdowns=False):
         collected = _collected_for_invoices(invoice_qs)
-
-        # Outstanding: Sum of remaining balances on invoices (active students only)
-        # Use invoice_qs to ensure we're only counting invoices in the queryset
-        invoices = invoice_qs.select_related('student', 'term', 'term__academic_year')
-
-        # Billed: Sum of total amounts on invoices
-        billed = invoices.aggregate(total=Sum('total_amount'))['total'] or 0
-        billed = Decimal(str(billed))
-
+        billed = _sum_decimal(invoice_qs, 'total_amount')
         outstanding = billed - collected
-        outstanding = Decimal(str(outstanding))
 
-        # SIMPLIFIED: Use frozen fields from Student model directly
-        # These are set at Excel import (term start) and NEVER change during the term
-        # This ensures dashboard Balance B/F and Prepayment stats remain constant
-        # regardless of invoice generation, payment, or invoice deletion
-        active_students = Student.objects.filter(status='active')
-        if organization:
-            active_students = active_students.filter(organization=organization)
-        
-        # Balance B/F: Sum of balance_bf_original from all active students
-        # balance_bf_original is a positive value representing debt from previous term
-        balances_bf = active_students.aggregate(
-            total=Sum('balance_bf_original')
-        )['total'] or Decimal('0.00')
-        balances_bf = Decimal(str(balances_bf))
-        
-        # Prepayments: Sum of prepayment_original from all active students
-        # prepayment_original is a positive value representing credit from previous term
-        prepayments = active_students.aggregate(
-            total=Sum('prepayment_original')
-        )['total'] or Decimal('0.00')
-        prepayments = Decimal(str(prepayments))
-
-        invoice_count = invoice_qs.count()
-
-
-
-        return {
+        stats = {
             "billed": billed,
             "collected": collected,
             "outstanding": outstanding,
-            "invoice_count": invoice_count,
-            "balances_bf": balances_bf,
-            "prepayments": prepayments
+            "invoice_count": invoice_qs.count(),
+            "balances_bf": balances_bf_total,
+            "prepayments": prepayments_total,
         }
 
-    term_stats = agg(term_invoices)
+        if include_term_breakdowns:
+            billed_breakdown = _group_invoice_item_amounts(invoice_qs)
+            collected_breakdown = _group_allocation_amounts(invoice_qs)
+            balance_bf_cleared = collected_breakdown["balance_bf"]
+            prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
+            overpayments = _term_overpayments(term=term, organization=organization)
+
+            stats.update({
+                "billed_breakdown": {
+                    "fees": billed_breakdown["fees"],
+                    "other_items": billed_breakdown["other_items"],
+                    "transport": billed_breakdown["transport"],
+                },
+                "balance_bf_breakdown": {
+                    "total": balances_bf_total,
+                    "cleared": balance_bf_cleared,
+                    "uncleared": max(Decimal("0"), balances_bf_total - balance_bf_cleared),
+                },
+                "prepayments_breakdown": {
+                    "total": prepayments_total,
+                    "consumed": prepayments_consumed,
+                    "unconsumed": max(Decimal("0"), prepayments_total - prepayments_consumed),
+                },
+                "collected_breakdown": {
+                    "fees": collected_breakdown["fees"],
+                    "other_items": collected_breakdown["other_items"],
+                    "overpayments": overpayments,
+                },
+            })
+
+        return stats
+
+    term_stats = agg(term_invoices, include_term_breakdowns=True)
     year_stats = agg(year_invoices)
 
     # Unmatched bank txns = NOT linked to a Payment (therefore not linked to any student admission number)
@@ -465,24 +494,13 @@ def dashboard_admin(request):
     term_stats = kpis["term_stats"]
     year_stats = kpis["year_stats"]
 
-    # Get active students (status='active')
-    active_students_qs = Student.objects.filter(status='active', organization=organization)
-    total_students = active_students_qs.count()
-    
-    # Calculate new students (registered within current term)
-    new_students = 0
-    if term:
-        new_students = active_students_qs.filter(
-            admission_date__gte=term.start_date,
-            admission_date__lte=term.end_date
-        ).count()
-    
-    # Calculate graduated students (status='graduated')
-    graduated_students = Student.objects.filter(status='graduated', organization=organization).count()
-    
-    # Calculate transferred students (status='transferred')
-    transferred_students = Student.objects.filter(status='transferred', organization=organization).count()
-    
+    student_base_qs = get_student_base_queryset(organization=organization)
+    student_counts = get_student_status_counters(student_base_qs, term=term)
+    total_students = student_counts['active']
+    new_students = student_counts['new']
+    graduated_students = student_counts['graduated']
+    transferred_students = student_counts['transferred']
+
     staff_count = _get_staff_count(organization=organization)
 
     # Finance URLs (REAL from your finance/urls.py)
@@ -501,6 +519,10 @@ def dashboard_admin(request):
     collected = Decimal(str(term_stats["collected"] or 0))
     prepayments = Decimal(str(term_stats["prepayments"] or 0))
     balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
+    billed_breakdown = term_stats.get("billed_breakdown", {})
+    balance_bf_breakdown = term_stats.get("balance_bf_breakdown", {})
+    prepayments_breakdown = term_stats.get("prepayments_breakdown", {})
+    collected_breakdown = term_stats.get("collected_breakdown", {})
     
     # IMPORTANT: Balance B/F stat behavior
     # - balances_bf is the sum of frozen balance_bf_original values from current term invoices
@@ -536,8 +558,10 @@ def dashboard_admin(request):
                 "icon": "mdi-account-group",
                 "bg": "bg-gradient-primary",
                 "url": _safe_reverse("students:list"),
-                "helper": f"New Students-{new_students}",
-                "helper_extra": f"Graduated-{graduated_students}, Transferred-{transferred_students}",
+                "helper_lines": [
+                    f"New-{new_students}",
+                    f"Graduated-{graduated_students}, Transferred-{transferred_students}",
+                ],
             },
             {
                 "title": "Bal B/F",
@@ -545,7 +569,11 @@ def dashboard_admin(request):
                 "icon": "mdi-history",
                 "bg": "bg-gradient-warning",
                 "url": invoices_term_url,
-                "helper": "Previous term balances",
+                "helper_lines": [
+                    f"Total: {_fmt_kes(balance_bf_breakdown.get('total'))}",
+                    f"Cleared: {_fmt_kes(balance_bf_breakdown.get('cleared'))}",
+                    f"Uncleared: {_fmt_kes(balance_bf_breakdown.get('uncleared'))}",
+                ],
             },
             {
                 "title": "Total Prepayments",
@@ -553,7 +581,10 @@ def dashboard_admin(request):
                 "icon": "mdi-cash-plus",
                 "bg": "bg-gradient-success",
                 "url": invoices_term_url,
-                "helper": "Advance payments",
+                "helper_lines": [
+                    f"Consumed: {_fmt_kes(prepayments_breakdown.get('consumed'))}",
+                    f"Unconsumed: {_fmt_kes(prepayments_breakdown.get('unconsumed'))}",
+                ],
             },
             {
                 "title": "Billed",
@@ -561,7 +592,11 @@ def dashboard_admin(request):
                 "icon": "mdi-file-document",
                 "bg": "bg-gradient-info",
                 "url": invoices_term_url,
-                "helper": "Total invoiced amount",
+                "helper_lines": [
+                    f"Fees: {_fmt_kes(billed_breakdown.get('fees'))}",
+                    f"Other items: {_fmt_kes(billed_breakdown.get('other_items'))}",
+                    f"Transport: {_fmt_kes(billed_breakdown.get('transport'))}",
+                ],
             },
             {
                 "title": "Total Expected",
@@ -577,7 +612,12 @@ def dashboard_admin(request):
                 "icon": "mdi-cash-check",
                 "bg": "bg-gradient-success",
                 "url": payments_url,
-                "helper": f"{rate:.1f}% collection rate",
+                "helper_lines": [
+                    f"Collection rate: {rate:.1f}%",
+                    f"Fees: {_fmt_kes(collected_breakdown.get('fees'))}",
+                    f"Other items: {_fmt_kes(collected_breakdown.get('other_items'))}",
+                    f"Overpayments: {_fmt_kes(collected_breakdown.get('overpayments'))}",
+                ],
             },
             {
                 "title": "Outstanding Bal",

@@ -16,7 +16,7 @@ from django.db import transaction as db_transaction
 from django.db import IntegrityError
 from django.db.models import Q
 
-from payments.models import Payment, BankTransaction
+from payments.models import Payment, BankTransaction, BankTransactionReconciliation
 from students.models import Student
 from finance.models import Invoice
 from core.models import PaymentMethod, PaymentStatus, PaymentSource
@@ -189,10 +189,13 @@ class PaymentService:
         bank_tx: BankTransaction,
         student: Student,
         invoice: Invoice = None,  # kept for compatibility; ignored by allocator
+        amount=None,
         payer_name: str = "",
         payer_phone: str = "",
         payment_source=None,
         reconciled_by=None,
+        additional_notes: str = "",
+        link_bank_transaction: bool = True,
     ) -> Payment:
         """
         Create a Payment record from a BankTransaction and allocate it oldest-invoice-first.
@@ -221,14 +224,18 @@ class PaymentService:
                 status=InvoiceStatus.CANCELLED
             ).exists()
             
+            payment_amount = amount if amount is not None else bank_tx.amount
+
             initial_note = f"Auto-created from {bank_tx.gateway.upper()} transaction {bank_tx.transaction_id}"
             if not has_active_invoices:
                 initial_note += " | ⚠️ Student has no active invoices - will be applied to credit balance"
+            if additional_notes:
+                initial_note += f" | {additional_notes}"
             
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,  # payment may clear multiple invoices; don't pin to one invoice
-                amount=bank_tx.amount,
+                amount=payment_amount,
                 payment_method=payment_method,
                 payment_source=payment_source,
                 status=PaymentStatus.COMPLETED,
@@ -243,10 +250,11 @@ class PaymentService:
                 organization=student.organization,  # Set organization from student
             )
 
-            bank_tx.payment = payment
-            bank_tx.processing_status = "matched"
-            bank_tx.processing_notes = f"Matched to payment {payment.payment_reference}"
-            bank_tx.save(update_fields=["payment", "processing_status", "processing_notes", "updated_at"])
+            if link_bank_transaction:
+                bank_tx.payment = payment
+                bank_tx.processing_status = "matched"
+                bank_tx.processing_notes = f"Matched to payment {payment.payment_reference}"
+                bank_tx.save(update_fields=["payment", "processing_status", "processing_notes", "updated_at"])
 
             PaymentService.process_completed_payment_against_invoices(payment)
 
@@ -259,6 +267,107 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Failed to create payment from bank transaction: {e}", exc_info=True)
             raise PaymentProcessingError(f"Failed to create payment: {str(e)}")
+
+    @staticmethod
+    @db_transaction.atomic
+    def reconcile_bank_transaction(
+        bank_tx: BankTransaction,
+        allocations,
+        matched_by=None,
+        notes: str = "",
+    ):
+        """
+        Reconcile a bank transaction across one or more students by creating one
+        completed payment per allocation and recording an audit trail.
+        """
+        existing_reconciliations = bank_tx.reconciliations.filter(is_active=True)
+        if existing_reconciliations.exists() or (bank_tx.payment_id and bank_tx.is_fully_matched):
+            raise PaymentProcessingError("This transaction has already been fully reconciled.")
+
+        total_amount = sum((allocation["amount"] for allocation in allocations), Decimal("0.00"))
+        currently_allocated = bank_tx.allocated_amount
+
+        if total_amount <= Decimal("0.00"):
+            raise PaymentProcessingError("Reconciliation amount must be greater than zero.")
+
+        if currently_allocated + total_amount > bank_tx.amount:
+            raise PaymentProcessingError("Allocated amount exceeds the bank transaction amount.")
+
+        created_payments = []
+        now = timezone.now()
+        base_note = notes.strip()
+
+        for index, allocation in enumerate(allocations):
+            student = allocation["student"]
+            invoice = allocation.get("invoice")
+            amount = allocation["amount"]
+
+            allocation_notes = []
+            if base_note:
+                allocation_notes.append(base_note)
+            if invoice:
+                allocation_notes.append(
+                    f"Operator selected invoice {invoice.invoice_number}; payment allocation still follows oldest-first rules"
+                )
+
+            payment = PaymentService.create_payment_from_bank_transaction(
+                bank_tx=bank_tx,
+                student=student,
+                invoice=invoice,
+                amount=amount,
+                payer_name=bank_tx.payer_name or "",
+                payer_phone=bank_tx.payer_account or "",
+                reconciled_by=matched_by,
+                additional_notes=" | ".join(allocation_notes),
+                link_bank_transaction=not bank_tx.payment_id and index == 0,
+            )
+
+            reconciliation = BankTransactionReconciliation.objects.create(
+                bank_transaction=bank_tx,
+                payment=payment,
+                student=student,
+                invoice=invoice,
+                amount=amount,
+                matched_by=matched_by,
+                matched_at=payment.reconciled_at or now,
+                notes=" | ".join(allocation_notes),
+            )
+            created_payments.append((payment, reconciliation))
+
+        status = "matched" if bank_tx.remaining_amount <= Decimal("0.00") else "processing"
+        note_parts = []
+        if bank_tx.processing_notes:
+            note_parts.append(bank_tx.processing_notes)
+        if base_note:
+            note_parts.append(f"Operator note: {base_note}")
+        note_parts.append(
+            f"Allocated KES {total_amount} across {len(created_payments)} payment(s); remaining KES {bank_tx.remaining_amount}"
+        )
+
+        bank_tx.matched_at = now
+        bank_tx.matched_by = matched_by
+        if not bank_tx.payment_id and created_payments:
+            bank_tx.payment = created_payments[0][0]
+        bank_tx.processing_status = status
+        bank_tx.processing_notes = " | ".join(note_parts)
+        bank_tx.save(
+            update_fields=[
+                "payment",
+                "matched_at",
+                "matched_by",
+                "processing_status",
+                "processing_notes",
+                "updated_at",
+            ]
+        )
+
+        logger.info(
+            "Reconciled bank transaction %s with %s payment(s) totaling %s",
+            bank_tx.transaction_id,
+            len(created_payments),
+            total_amount,
+        )
+        return [payment for payment, _ in created_payments]
 
     @staticmethod
     @db_transaction.atomic

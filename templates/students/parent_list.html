@@ -40,6 +40,18 @@
             >
           </div>
 
+          <div class="col-md-3">
+            <label class="form-label">Relationship</label>
+            <select class="form-select" name="relationship">
+              <option value="">All relationships</option>
+              {% for value, label in relationship_choices %}
+              <option value="{{ value }}" {% if relationship_filter == value %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
          <div class="col-md-4 d-flex gap-2">
             <button type="submit" class="btn btn-gradient-primary w-100">
               <i class="mdi mdi-magnify"></i> Search
@@ -58,11 +70,16 @@
   <div class="card">
     <div class="card-body">
 
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-semibold mb-0">Parents / Guardians List</h5>
-        <span class="badge bg-light text-dark">
-          Total: {{ parents.paginator.count|default:parents|length }}
-        </span>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+          <h5 class="fw-semibold mb-0">Parents / Guardians List</h5>
+          <small class="text-muted">Only records from {{ organization.name|default:"your organization" }} are shown.</small>
+        </div>
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+          <span class="badge bg-light text-dark">
+            Total: {{ total_parents }}
+          </span>
+        </div>
       </div>
 
       <div class="table-responsive">
@@ -102,17 +119,23 @@
 
 
               <td class="text-end">
-                <a href="{% url 'students:parent_detail' parent.pk %}"
-                   class="btn btn-sm btn-outline-primary">
-                  <i class="mdi mdi-eye"></i>
-                </a>
+                <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Parent actions">
+                  <a href="{% url 'students:parent_detail' parent.pk %}"
+                     class="btn btn-outline-primary"
+                     title="View {{ parent.full_name }}">
+                    <i class="mdi mdi-eye"></i>
+                    <span class="d-none d-md-inline"> View</span>
+                  </a>
 
-                {% if is_admin %}
-                <a href="{% url 'students:parent_update' parent.pk %}"
-                   class="btn btn-sm btn-outline-warning">
-                  <i class="mdi mdi-pencil"></i>
-                </a>
-                {% endif %}
+                  {% if is_admin %}
+                  <a href="{% url 'students:parent_update' parent.pk %}"
+                     class="btn btn-outline-warning"
+                     title="Edit {{ parent.full_name }}">
+                    <i class="mdi mdi-pencil"></i>
+                    <span class="d-none d-md-inline"> Edit</span>
+                  </a>
+                  {% endif %}
+                </div>
               </td>
             </tr>
 

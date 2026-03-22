@@ -7,8 +7,8 @@
 <div class="content-wrapper">
     <div class="page-header d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="page-title mb-0">Match Bank Transaction</h3>
-            <small class="text-muted">Manually match unreconciled transaction to a student</small>
+            <h3 class="page-title mb-0">Reconcile Bank Transaction</h3>
+            <small class="text-muted">Search by student name, admission number, or parent phone and allocate this payment across one or more students.</small>
         </div>
         <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary">
             <i class="mdi mdi-arrow-left"></i> Back to List
@@ -16,194 +16,159 @@
     </div>
 
     <div class="row">
-        <!-- Transaction Details -->
-        <div class="col-md-5">
+        <div class="col-md-4">
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">
-                        <i class="mdi mdi-bank text-primary"></i> Transaction Details
-                    </h5>
-                    
-                    <table class="table table-sm table-borderless">
-                        <tr>
-                            <td class="text-muted" style="width:140px;">Transaction ID:</td>
-                            <td><strong><code>{{ transaction.transaction_id|default:transaction.pk }}</code></strong></td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Amount:</td>
-                            <td><span class="badge bg-success fs-6">KES {{ transaction.amount|floatformat:2|intcomma }}</span></td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Gateway:</td>
-                            <td>{{ transaction.get_gateway_display|default:transaction.gateway }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Bank Status:</td>
-                            <td><span class="badge bg-secondary">{{ transaction.bank_status|default:"N/A" }}</span></td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Processing Status:</td>
-                            <td>
-                                {% if transaction.processing_status == 'received' %}
-                                    <span class="badge bg-primary">Received (Unmatched)</span>
-                                {% elif transaction.processing_status == 'matched' %}
-                                    <span class="badge bg-success">Already Matched</span>
-                                {% elif transaction.processing_status == 'failed' %}
-                                    <span class="badge bg-danger">Failed</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ transaction.processing_status|default:"N/A" }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Received At:</td>
-                            <td>{{ transaction.callback_received_at|date:"d M Y H:i"|default:transaction.created_at|date:"d M Y H:i" }}</td>
-                        </tr>
+                    <h5 class="card-title mb-3"><i class="mdi mdi-bank text-primary"></i> Transaction Details</h5>
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td class="text-muted" style="width:140px;">Transaction ID:</td><td><strong><code>{{ transaction.transaction_id|default:transaction.pk }}</code></strong></td></tr>
+                        <tr><td class="text-muted">Reference:</td><td>{{ transaction.transaction_reference|default:"-" }}</td></tr>
+                        <tr><td class="text-muted">Amount:</td><td><span class="badge bg-success fs-6">KES {{ transaction.amount|floatformat:2|intcomma }}</span></td></tr>
+                        <tr><td class="text-muted">Allocated:</td><td>KES {{ transaction.allocated_amount|floatformat:2|intcomma }}</td></tr>
+                        <tr><td class="text-muted">Remaining:</td><td><strong>KES {{ transaction.remaining_amount|floatformat:2|intcomma }}</strong></td></tr>
+                        <tr><td class="text-muted">Received At:</td><td>{{ transaction.effective_received_at|date:"d M Y H:i" }}</td></tr>
                     </table>
-                    
-                    <!-- Matching Hints - KEY INFO for finding the student -->
+
                     {% with hints=transaction.get_matching_hints %}
                     <div class="alert alert-warning mt-3 mb-0">
-                        <h6 class="alert-heading mb-2">
-                            <i class="mdi mdi-magnify"></i> Matching Hints
-                        </h6>
-                        <div class="row">
-                            {% if hints.student_hint %}
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Student Ref:</small>
-                                <code class="fs-6">{{ hints.student_hint }}</code>
-                            </div>
-                            {% endif %}
-                            {% if hints.payer_phone %}
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Payer Phone:</small>
-                                <code>{{ hints.payer_phone }}</code>
-                            </div>
-                            {% endif %}
-                            {% if hints.payer_name %}
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Payer Name:</small>
-                                <strong>{{ hints.payer_name }}</strong>
-                            </div>
-                            {% endif %}
-                            {% if hints.payment_channel %}
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Channel:</small>
-                                <span class="badge bg-info">{{ hints.payment_channel }}</span>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% if hints.all_references %}
-                        <div class="mt-2">
-                            <small class="text-muted d-block mb-1">All References:</small>
-                            {% for ref in hints.all_references %}
-                                <span class="badge bg-dark me-1">{{ ref }}</span>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
+                        <h6 class="alert-heading mb-2"><i class="mdi mdi-magnify"></i> Matching Hints</h6>
+                        {% if hints.student_hint %}<div><small class="text-muted d-block">Student Ref</small><code>{{ hints.student_hint }}</code></div>{% endif %}
+                        {% if hints.payer_phone %}<div class="mt-2"><small class="text-muted d-block">Payer Phone</small><code>{{ hints.payer_phone }}</code></div>{% endif %}
+                        {% if hints.payer_name %}<div class="mt-2"><small class="text-muted d-block">Payer Name</small><strong>{{ hints.payer_name }}</strong></div>{% endif %}
                     </div>
                     {% endwith %}
-
-                    {% if transaction.payment %}
-                    <div class="alert alert-warning mt-3 mb-0">
-                        <i class="mdi mdi-alert-circle"></i>
-                        This transaction is already linked to 
-                        <a href="{% url 'finance:payment_detail' transaction.payment.pk %}">
-                            Payment {{ transaction.payment.payment_reference }}
-                        </a>
-                    </div>
-                    {% endif %}
-
-                    {% if transaction.processing_notes %}
-                    <div class="mt-3">
-                        <small class="text-muted">Processing Notes:</small>
-                        <div class="p-2 bg-light rounded">{{ transaction.processing_notes }}</div>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
 
-            <!-- Tips -->
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h6><i class="mdi mdi-lightbulb-outline text-warning"></i> Matching Tips</h6>
-                    <ul class="small text-muted mb-0">
-                        <li>Search for student by admission number or name</li>
-                        <li>Invoice selection is <strong>optional</strong> — the system will allocate to oldest unpaid invoices first</li>
-                        <li>Payment will be recorded with the transaction amount: <strong>KES {{ transaction.amount|floatformat:2|intcomma }}</strong></li>
-                        <li>If the amount exceeds the invoice balance, the excess becomes a credit (prepayment)</li>
+                    <h6><i class="mdi mdi-lightbulb-outline text-warning"></i> Reconciliation Tips</h6>
+                    <ul class="small text-muted mb-0 ps-3">
+                        <li>Use the search box to find students by name, admission number, or parent phone.</li>
+                        <li>Add as many students as needed and assign a per-student amount.</li>
+                        <li>Invoice selection is optional and recorded for audit, but actual allocation still follows the shared payment allocation rules.</li>
+                        <li>You can save a partial allocation now and return later for the remaining amount.</li>
                     </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Match Form -->
-        <div class="col-md-7">
-            <div class="card shadow-sm">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">
-                        <i class="mdi mdi-account-search text-success"></i> Match to Student
-                    </h5>
-
-                    {% if transaction.payment %}
-                        <div class="alert alert-danger">
-                            <strong>Cannot Re-Match!</strong> This transaction is already linked to a payment.
-                            <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-sm btn-outline-danger mt-2">
-                                Go Back
-                            </a>
+                    <h5 class="card-title mb-3"><i class="mdi mdi-account-search text-success"></i> Find Students</h5>
+                    <form method="get" class="row g-2">
+                        <div class="col-md-9">
+                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search student name, admission number, or parent phone">
                         </div>
-                    {% else %}
-                        <form method="post">
-                            {% csrf_token %}
-                            
-                            <div class="mb-3">
-                                <label for="id_student" class="form-label">Student <span class="text-danger">*</span></label>
-                                {{ form.student }}
-                                {% if form.student.errors %}
-                                    <div class="text-danger small">{{ form.student.errors }}</div>
-                                {% endif %}
-                                <small class="text-muted">Search by admission number or name</small>
-                            </div>
+                        <div class="col-md-3 d-grid">
+                            <button type="submit" class="btn btn-outline-primary"><i class="mdi mdi-magnify"></i> Search</button>
+                        </div>
+                    </form>
 
-                            <div class="mb-3">
-                                <label for="id_invoice" class="form-label">Invoice (Optional)</label>
-                                {{ form.invoice }}
-                                {% if form.invoice.errors %}
-                                    <div class="text-danger small">{{ form.invoice.errors }}</div>
-                                {% endif %}
-                                <small class="text-muted">Leave empty to auto-allocate to oldest unpaid invoices</small>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="id_notes" class="form-label">Notes</label>
-                                {{ form.notes }}
-                                {% if form.notes.errors %}
-                                    <div class="text-danger small">{{ form.notes.errors }}</div>
-                                {% endif %}
-                            </div>
-
-                            <div class="d-flex justify-content-between">
-                                <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary">
-                                    Cancel
-                                </a>
-                                <button type="submit" class="btn btn-success">
-                                    <i class="mdi mdi-check"></i> Match Transaction
+                    {% if search_query %}
+                    <div class="mt-3">
+                        {% for student in search_results %}
+                        <div class="border rounded p-3 mb-2 search-result"
+                             data-student-id="{{ student.pk }}"
+                             data-student-name="{{ student.full_name|escape }}"
+                             data-admission-number="{{ student.admission_number|default:''|escape }}">
+                            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+                                <div>
+                                    <div class="fw-semibold">{{ student.full_name }}</div>
+                                    <div class="small text-muted">Adm: {{ student.admission_number|default:"-" }}</div>
+                                    {% with parent=student.primary_parent %}
+                                        {% if parent %}
+                                        <div class="small text-muted">Parent: {{ parent.full_name }} · {{ parent.phone_primary }}</div>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <div class="d-none invoice-options">
+                                        <option value="">Oldest outstanding invoices</option>
+                                        {% for invoice in student.invoices.all %}
+                                            {% if invoice.is_active and invoice.balance > 0 %}
+                                            <option value="{{ invoice.pk }}">{{ invoice.invoice_number }} · Bal KES {{ invoice.balance|floatformat:2 }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-success add-allocation-btn">
+                                    <i class="mdi mdi-plus"></i> Add Allocation
                                 </button>
                             </div>
-                        </form>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-light border mt-3 mb-0">No students found for <strong>{{ search_query }}</strong>.</div>
+                        {% endfor %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Student Preview (JS-populated) -->
-            <div id="student-preview" class="card shadow-sm mt-4 d-none">
+            <div class="card shadow-sm">
                 <div class="card-body">
-                    <h6><i class="mdi mdi-account"></i> Selected Student</h6>
-                    <div id="student-info"></div>
-                    <div id="student-invoices" class="mt-3">
-                        <small class="text-muted">Outstanding Invoices:</small>
-                        <div id="invoice-list" class="mt-2"></div>
-                    </div>
+                    <h5 class="card-title mb-3"><i class="mdi mdi-cash-multiple text-success"></i> Allocation Plan</h5>
+
+                    <form method="post" id="reconciliation-form">
+                        {% csrf_token %}
+                        {{ allocation_formset.management_form }}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="id_notes" class="form-label">Notes</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}<div class="text-danger small">{{ form.notes.errors }}</div>{% endif %}
+                            {{ form.search_query.as_hidden }}
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table align-middle" id="allocation-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Invoice Preference</th>
+                                        <th style="width: 160px;">Amount</th>
+                                        <th style="width: 48px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allocation-body">
+                                    {% for row in allocation_rows %}
+                                    <tr>
+                                        <td>
+                                            {{ row.form.student }}
+                                            <div class="fw-semibold student-name">{{ row.student.full_name|default:"Select a student from search results" }}</div>
+                                            <small class="text-muted student-adm">{{ row.student.admission_number|default:"" }}</small>
+                                            {% if row.form.student.errors %}<div class="text-danger small">{{ row.form.student.errors }}</div>{% endif %}
+                                        </td>
+                                        <td>
+                                            {{ row.form.invoice }}
+                                            {% if row.form.invoice.errors %}<div class="text-danger small">{{ row.form.invoice.errors }}</div>{% endif %}
+                                        </td>
+                                        <td>
+                                            {{ row.form.amount }}
+                                            {% if row.form.amount.errors %}<div class="text-danger small">{{ row.form.amount.errors }}</div>{% endif %}
+                                        </td>
+                                        <td class="text-end"><button type="button" class="btn btn-outline-danger btn-sm remove-allocation"><i class="mdi mdi-close"></i></button></td>
+                                    </tr>
+                                    {% empty %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <div class="small text-muted">Allocated total: <strong id="allocated-total">0.00</strong></div>
+                                <div class="small text-muted">Remaining on transaction: <strong id="remaining-total">{{ transaction.remaining_amount|floatformat:2 }}</strong></div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-success"><i class="mdi mdi-check"></i> Save Reconciliation</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -212,36 +177,84 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const studentSelect = document.getElementById('id_student');
-    const invoiceSelect = document.getElementById('id_invoice');
-    const studentPreview = document.getElementById('student-preview');
-    const studentInfo = document.getElementById('student-info');
-    const invoiceList = document.getElementById('invoice-list');
+    const tbody = document.getElementById('allocation-body');
+    const totalForms = document.getElementById('id_allocations-TOTAL_FORMS');
+    const allocatedTotal = document.getElementById('allocated-total');
+    const remainingTotal = document.getElementById('remaining-total');
+    const transactionRemaining = parseFloat('{{ transaction.remaining_amount }}');
 
-    if (studentSelect) {
-        studentSelect.addEventListener('change', function() {
-            const studentId = this.value;
-            if (!studentId) {
-                studentPreview.classList.add('d-none');
-                invoiceSelect.innerHTML = '<option value="">---------</option>';
-                return;
-            }
-
-            // Fetch student invoices via API (if you have one)
-            // For now, we'll just show a loading message
-            studentInfo.innerHTML = '<span class="text-muted">Loading...</span>';
-            studentPreview.classList.remove('d-none');
-            
-            // You can add an AJAX call here to load student info and invoices
-            // For example:
-            // fetch(`/api/students/${studentId}/invoices/`)
-            //     .then(response => response.json())
-            //     .then(data => { ... });
+    function updateTotals() {
+        let total = 0;
+        tbody.querySelectorAll('input[name$="-amount"]').forEach((input) => {
+            const value = parseFloat(input.value || '0');
+            if (!Number.isNaN(value)) total += value;
         });
+        allocatedTotal.textContent = total.toFixed(2);
+        remainingTotal.textContent = (transactionRemaining - total).toFixed(2);
     }
+
+    function bindRow(row) {
+        row.querySelectorAll('input[name$="-amount"]').forEach((input) => {
+            input.addEventListener('input', updateTotals);
+        });
+        const removeButton = row.querySelector('.remove-allocation');
+        if (removeButton) {
+            removeButton.addEventListener('click', function() {
+                row.remove();
+                reindexRows();
+                updateTotals();
+            });
+        }
+    }
+
+    function reindexRows() {
+        Array.from(tbody.querySelectorAll('tr')).forEach((row, index) => {
+            row.querySelectorAll('input, select').forEach((field) => {
+                field.name = field.name.replace(/allocations-\d+-/, `allocations-${index}-`);
+                field.id = field.id.replace(/allocations-\d+-/, `allocations-${index}-`);
+            });
+        });
+        totalForms.value = tbody.querySelectorAll('tr').length;
+    }
+
+    function addRow(studentCard) {
+        const index = tbody.querySelectorAll('tr').length;
+        const studentId = studentCard.dataset.studentId;
+        const studentName = studentCard.dataset.studentName;
+        const admissionNumber = studentCard.dataset.admissionNumber;
+        const invoiceOptionsHtml = studentCard.querySelector('.invoice-options').innerHTML;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <input type="hidden" name="allocations-${index}-student" id="id_allocations-${index}-student" value="${studentId}">
+                <div class="fw-semibold student-name">${studentName}</div>
+                <small class="text-muted student-adm">${admissionNumber || ''}</small>
+            </td>
+            <td>
+                <select name="allocations-${index}-invoice" id="id_allocations-${index}-invoice" class="form-select form-select-sm">
+                    ${invoiceOptionsHtml}
+                </select>
+            </td>
+            <td>
+                <input type="number" name="allocations-${index}-amount" id="id_allocations-${index}-amount" class="form-control form-control-sm" step="0.01" min="0.01" required>
+            </td>
+            <td class="text-end"><button type="button" class="btn btn-outline-danger btn-sm remove-allocation"><i class="mdi mdi-close"></i></button></td>
+        `;
+        tbody.appendChild(row);
+        totalForms.value = index + 1;
+        bindRow(row);
+        updateTotals();
+    }
+
+    document.querySelectorAll('.add-allocation-btn').forEach((button) => {
+        button.addEventListener('click', function() {
+            addRow(this.closest('.search-result'));
+        });
+    });
+
+    tbody.querySelectorAll('tr').forEach(bindRow);
+    updateTotals();
 });
 </script>
 {% endblock %}
-
-
-

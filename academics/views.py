@@ -17,7 +17,7 @@ from .models import (
 )
 from .forms import (
     AcademicYearForm, TermForm, SubjectForm, ClassForm,
-    ClassSubjectForm, ExamForm, AttendanceForm, GradeForm
+    ClassSubjectForm, ExamForm, AttendanceForm, GradeForm, StaffOnboardingForm
 )
 from students.models import Student
 
@@ -580,25 +580,31 @@ class StaffListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMix
 
 
 class StaffCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
-    """Create a new staff member."""
+    """Create a new staff member through the supported onboarding workflow."""
     model = Staff
+    form_class = StaffOnboardingForm
     template_name = 'academics/staff_form.html'
-    fields = ['user', 'staff_number', 'staff_type', 'department', 'id_number', 'tsc_number', 
-              'date_of_birth', 'gender', 'phone_number', 'address', 'date_joined', 
-              'employment_type', 'qualifications', 'specialization', 'status']
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     success_url = reverse_lazy('academics:staff_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = self.request.organization
+        return kwargs
 
 
 class StaffUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
-    """Update staff member."""
+    """Update staff member and linked user details through the supported onboarding workflow."""
     model = Staff
+    form_class = StaffOnboardingForm
     template_name = 'academics/staff_form.html'
-    fields = ['user', 'staff_number', 'staff_type', 'department', 'id_number', 'tsc_number', 
-              'date_of_birth', 'gender', 'phone_number', 'address', 'date_joined', 
-              'employment_type', 'qualifications', 'specialization', 'status']
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     success_url = reverse_lazy('academics:staff_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = self.request.organization
+        return kwargs
 
 
 class StaffDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):

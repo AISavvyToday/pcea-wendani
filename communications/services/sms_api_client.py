@@ -23,16 +23,19 @@ class SMSAPIClient:
     def __init__(self):
         self.api_url = getattr(settings, 'SMS_SERVICE_API_URL', 'https://sms.swiftresidetech.co.ke/api/v1')
         self.api_token = getattr(settings, 'SMS_SERVICE_API_TOKEN', '')
-        
-        if not self.api_token:
-            logger.warning("SMS_SERVICE_API_TOKEN not configured - SMS sending will fail")
-    
+
     def _get_headers(self):
         """Get request headers with authentication."""
         return {
             'Authorization': f'Bearer {self.api_token}',
             'Content-Type': 'application/json',
         }
+
+    def _configuration_error(self):
+        """Return a user-facing configuration error for missing API credentials."""
+        if self.api_token:
+            return None
+        return "SMS central service API token is not configured"
     
     def _normalize_phone(self, phone):
         """
@@ -74,7 +77,11 @@ class SMSAPIClient:
         """
         if not organization or not hasattr(organization, 'sms_account_number') or not organization.sms_account_number:
             return {'success': False, 'error': 'Organization missing SMS account number'}
-        
+
+        configuration_error = self._configuration_error()
+        if configuration_error:
+            return {'success': False, 'error': configuration_error}
+
         try:
             url = f"{self.api_url}/balance/"
             params = {'sms_account_number': organization.sms_account_number}
@@ -131,6 +138,14 @@ class SMSAPIClient:
                 phone_number, message, organization, purpose,
                 error_msg, related_student, triggered_by
             )
+
+        configuration_error = self._configuration_error()
+        if configuration_error:
+            logger.error(configuration_error)
+            return self._create_failed_notification(
+                phone_number, message, organization, purpose,
+                configuration_error, related_student, triggered_by
+            )
         
         # Normalize phone number
         normalized_phone = self._normalize_phone(phone_number)
@@ -175,8 +190,7 @@ class SMSAPIClient:
                 if data.get('success'):
                     notification.status = 'sent'
                     notification.sent_at = timezone.now()
-                    notification.message_id = data.get('message_id', '')
-                    notification.save(update_fields=['status', 'sent_at', 'message_id'])
+                    notification.save(update_fields=['status', 'sent_at'])
                     logger.info(f"SMS sent successfully to {normalized_phone}")
                 else:
                     notification.status = 'failed'
@@ -239,6 +253,18 @@ class SMSAPIClient:
                     recipient.get('student'), triggered_by
                 ))
             return notifications
+
+        configuration_error = self._configuration_error()
+        if configuration_error:
+            logger.error(configuration_error)
+            notifications = []
+            for recipient in recipients:
+                phone = recipient.get('phone', '')
+                notifications.append(self._create_failed_notification(
+                    phone, message, organization, purpose,
+                    configuration_error, recipient.get('student'), triggered_by
+                ))
+            return notifications
         
         # Prepare recipients for bulk API
         api_recipients = []
@@ -294,7 +320,6 @@ class SMSAPIClient:
                                 message=recipient_message,
                                 status=result.get('status', 'sent'),
                                 sent_at=timezone.now() if result.get('status') == 'sent' else None,
-                                message_id=result.get('message_id', ''),
                                 error_message=result.get('error', '') if result.get('status') != 'sent' else '',
                                 purpose=purpose or 'bulk',
                                 related_student=recipient.get('student'),
@@ -384,4 +409,3 @@ class SMSAPIClient:
 
 # Create singleton instance
 sms_api_client = SMSAPIClient()
-
