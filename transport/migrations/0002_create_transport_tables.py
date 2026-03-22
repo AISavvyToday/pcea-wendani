@@ -5,28 +5,12 @@ from django.db import migrations
 
 def create_tables_if_not_exist(apps, schema_editor):
     """Create tables only if they don't exist"""
-    db_alias = schema_editor.connection.alias
-    
+    existing_tables = set(schema_editor.connection.introspection.table_names())
+
     with schema_editor.connection.cursor() as cursor:
-        # Check if transport_routes table exists
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'transport_routes'
-            );
-        """)
-        routes_exists = cursor.fetchone()[0]
-        
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'transport_fees'
-            );
-        """)
-        fees_exists = cursor.fetchone()[0]
-        
+        routes_exists = "transport_routes" in existing_tables
+        fees_exists = "transport_fees" in existing_tables
+
         # If tables don't exist, create them
         if not routes_exists:
             cursor.execute("""
@@ -44,14 +28,7 @@ def create_tables_if_not_exist(apps, schema_editor):
         
         if not fees_exists:
             # First ensure transport_routes exists (in case it was created above)
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND table_name = 'transport_routes'
-                );
-            """)
-            if cursor.fetchone()[0]:
+            if routes_exists or "transport_routes" in set(schema_editor.connection.introspection.table_names()):
                 cursor.execute("""
                     CREATE TABLE transport_fees (
                         created_at TIMESTAMP NOT NULL,

@@ -647,6 +647,7 @@ class ParentListView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, Organi
     ]
 
     def get_queryset(self):
+        queryset = super().get_queryset().prefetch_related('children')
         queryset = self.get_parent_queryset().prefetch_related('children')
 
         # Search functionality
@@ -669,6 +670,7 @@ class ParentListView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, Organi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['total_parents'] = self.get_queryset().count()
         parent_queryset = self.get_parent_queryset()
         context['total_parents'] = parent_queryset.count()
         context['query'] = self.request.GET.get('query', '')
