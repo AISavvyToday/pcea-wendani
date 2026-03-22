@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db.models import Q, Sum
-from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
+from django.http import HttpResponseRedirect, HttpResponse, JsonResponse, Http404
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.shortcuts import render, redirect, get_object_or_404
@@ -20,12 +20,26 @@ from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
 from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
+from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from core.models import UserRole, InvoiceStatus
 from finance.models import Invoice
 
 logger = logging.getLogger(__name__)
+
+
+class ParentOrganizationQuerysetMixin:
+    """Centralize organization-safe parent lookups for parent management views."""
+
+    def get_parent_queryset(self):
+        queryset = Parent.objects.all()
+        organization = getattr(self.request, 'organization', None)
+
+        if organization is None:
+            return queryset.none()
+
+        return queryset.filter(organization=organization)
 
 
 class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
@@ -43,30 +57,35 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     ]
 
     def get_queryset(self):
-        queryset = super().get_queryset()  # OrganizationFilterMixin filters by organization
-        queryset = queryset.select_related('current_class').prefetch_related('parents')
-
-        # Get filter parameters
-        query = self.request.GET.get('query', '')
-        class_id = self.request.GET.get('current_class', '')  # Use 'current_class' as per form field name
-        status = self.request.GET.get('status', 'active')  # Default to 'active' if not specified
-        gender = self.request.GET.get('gender', '')  # Use 'gender' as per form field name
-        is_boarder = self.request.GET.get('is_boarder', '')  # Use 'is_boarder' as per form field name
-        stream = self.request.GET.get('stream', '')  # ADD THIS LINE: Get stream from form
-
-        # Apply filters via service
-        organization = getattr(self.request, 'organization', None)
-        queryset = StudentService.search_students(
-            query=query if query else None,
-            class_id=class_id if class_id else None,
-            status=status if status else 'active',  # Default to 'active' if empty
-            gender=gender if gender else None,  # ADD THIS LINE
-            is_boarder=is_boarder if is_boarder else None,  # ADD THIS LINE
-            stream=stream if stream else None,  # ADD THIS LINE
-            organization=organization
+        base_queryset = self.get_base_filtered_queryset()
+        status = self.request.GET.get('status', 'active') or 'active'
+        term = self.get_current_term()
+        queryset = apply_student_filters(
+            base_queryset,
+            status=status,
+            term=term,
         )
+        return queryset.order_by('admission_number')
 
-        return queryset
+    def get_current_term(self):
+        if not hasattr(self, '_current_term'):
+            organization = getattr(self.request, 'organization', None)
+            self._current_term = get_current_term(organization=organization)
+        return self._current_term
+
+    def get_base_filtered_queryset(self):
+        organization = getattr(self.request, 'organization', None)
+        queryset = get_student_base_queryset(organization=organization)
+        queryset = queryset.select_related('current_class').prefetch_related('parents')
+        return apply_student_filters(
+            queryset,
+            query=self.request.GET.get('query', '') or None,
+            class_id=self.request.GET.get('current_class', '') or None,
+            status=None,
+            gender=self.request.GET.get('gender', '') or None,
+            is_boarder=self.request.GET.get('is_boarder', '') or None,
+            stream=self.request.GET.get('stream', '') or None,
+        )
 
     def get_paginate_by(self, queryset):
         per_page = self.request.GET.get('per_page')
@@ -80,24 +99,18 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        base_queryset = self.get_base_filtered_queryset()
+        term = self.get_current_term()
+        status_counts = get_student_status_counters(base_queryset, term=term)
+
         context['search_form'] = StudentSearchForm(self.request.GET)
-        context['total_students'] = Student.objects.count()
-        
-        # Get counts for each status
-        context['status_counts'] = {
-            'active': Student.objects.filter(status='active').count(),
-            'graduated': Student.objects.filter(status='graduated').count(),
-            'transferred': Student.objects.filter(status='transferred').count(),
-            'suspended': Student.objects.filter(status='suspended').count(),
-            'expelled': Student.objects.filter(status='expelled').count(),
-            'withdrawn': Student.objects.filter(status='withdrawn').count(),
-            'inactive': Student.objects.filter(status='inactive').count(),
-        }
-        context['active_students'] = context['status_counts']['active']
-        
+        context['total_students'] = base_queryset.count()
+        context['status_counts'] = status_counts
+        context['active_students'] = status_counts['active']
+
         # Get current status from request (default to 'active' if not specified)
         context['current_status'] = self.request.GET.get('status', '') or 'active'
-        
+
         return context
 
 
@@ -619,7 +632,7 @@ class StudentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
 # students/views.py - Add these views at the end
 
-class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
+class ParentListView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all parents/guardians with search"""
 
     model = Parent
@@ -634,10 +647,10 @@ class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMi
     ]
 
     def get_queryset(self):
-        queryset = Parent.objects.prefetch_related('children').all()
+        queryset = self.get_parent_queryset().prefetch_related('children')
 
         # Search functionality
-        query = self.request.GET.get('query', '')
+        query = self.request.GET.get('query', '').strip()
         if query:
             queryset = queryset.filter(
                 Q(first_name__icontains=query) |
@@ -648,7 +661,7 @@ class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMi
             )
 
         # Filter by relationship
-        relationship = self.request.GET.get('relationship', '')
+        relationship = self.request.GET.get('relationship', '').strip()
         if relationship:
             queryset = queryset.filter(relationship=relationship)
 
@@ -656,14 +669,15 @@ class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['total_parents'] = Parent.objects.count()
+        parent_queryset = self.get_parent_queryset()
+        context['total_parents'] = parent_queryset.count()
         context['query'] = self.request.GET.get('query', '')
         context['relationship_filter'] = self.request.GET.get('relationship', '')
         context['relationship_choices'] = Parent.RELATIONSHIP_CHOICES
         return context
 
 
-class ParentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
+class ParentDetailView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
     """Parent profile with their children"""
 
     model = Parent
@@ -676,12 +690,20 @@ class ParentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
         UserRole.TEACHER
     ]
 
+    def get_queryset(self):
+        return self.get_parent_queryset().prefetch_related(
+            'children',
+            'parent_students__student',
+            'parent_students__student__current_class',
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         # Get all children with their relationships
         context['children'] = StudentParent.objects.filter(
-            parent=self.object
+            parent=self.object,
+            student__organization=getattr(self.request, 'organization', None),
         ).select_related('student', 'student__current_class')
 
         # Get total outstanding balance for all children
@@ -720,13 +742,16 @@ class ParentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
         return super().form_valid(form)
 
 
-class ParentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
+class ParentUpdateView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
     """Edit existing parent/guardian"""
 
     model = Parent
     form_class = ParentForm
     template_name = 'students/parent_form.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_queryset(self):
+        return self.get_parent_queryset()
 
     def get_success_url(self):
         return reverse_lazy('students:parent_detail', kwargs={'pk': self.object.pk})
@@ -743,7 +768,7 @@ class ParentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
         return super().form_valid(form)
 
 
-class ParentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
+class ParentDeleteView(LoginRequiredMixin, ParentOrganizationQuerysetMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
     """Soft delete a parent/guardian"""
 
     model = Parent
@@ -751,6 +776,9 @@ class ParentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequired
     success_url = reverse_lazy('students:parent_list')
     context_object_name = 'parent'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_queryset(self):
+        return self.get_parent_queryset().prefetch_related('children')
 
     def form_valid(self, form):
         self.object = self.get_object()
@@ -791,13 +819,20 @@ class ParentChildrenAPIView(LoginRequiredMixin, View):
         from django.db.models import Sum
         from finance.models import Invoice
 
+        organization = getattr(request, 'organization', None)
+        if organization is None:
+            raise Http404('Organization not found for request')
+
         try:
-            parent = Parent.objects.get(pk=pk)
+            parent = Parent.objects.get(pk=pk, organization=organization)
         except Parent.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Parent not found'}, status=404)
 
         # Get all children linked to this parent
-        student_parents = StudentParent.objects.filter(parent=parent).select_related(
+        student_parents = StudentParent.objects.filter(
+            parent=parent,
+            student__organization=organization,
+        ).select_related(
             'student', 'student__current_class'
         )
 

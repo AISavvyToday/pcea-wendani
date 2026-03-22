@@ -20,7 +20,7 @@
     <div class="col-12 grid-margin">
       <div class="card">
         <div class="card-body">
-          <form method="post" class="forms-sample">
+          <form method="post" class="forms-sample" novalidate>
             {% csrf_token %}
 
             {% if form.non_field_errors %}
@@ -165,13 +165,19 @@
               </div>
             </div>
 
-            <div class="mt-4">
-              <button type="submit" class="btn btn-gradient-primary me-2">
+            <div class="mt-4 d-flex flex-wrap gap-2">
+              <button type="submit" class="btn btn-gradient-primary">
                 <i class="mdi mdi-content-save"></i> {{ button_text }}
               </button>
+              {% if is_edit %}
+              <a href="{% url 'students:parent_detail' object.pk %}" class="btn btn-light">
+                <i class="mdi mdi-arrow-left"></i> Cancel
+              </a>
+              {% else %}
               <a href="{% url 'students:parent_list' %}" class="btn btn-light">
                 <i class="mdi mdi-arrow-left"></i> Cancel
               </a>
+              {% endif %}
             </div>
           </form>
         </div>

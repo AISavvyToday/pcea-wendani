@@ -13,6 +13,11 @@
           <div class="card-body">
             <h5>Current Balance</h5>
             <h2>{{ sms_balance }} SMS Credits</h2>
+            {% if balance_api_available %}
+            <small>Live balance from the central SMS service.</small>
+            {% else %}
+            <small>Showing the last recorded local balance.</small>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -25,6 +30,12 @@
         </div>
       </div>
     </div>
+
+    {% if balance_error %}
+    <div class="alert alert-warning">
+      <strong>Live balance unavailable.</strong> {{ balance_error }} Please continue using the payment details below and try refreshing this page in a few minutes.
+    </div>
+    {% endif %}
 
     {% if payment_account %}
     <div class="card mb-4">
@@ -70,4 +81,3 @@
   </div>
 </div>
 {% endblock %}
-

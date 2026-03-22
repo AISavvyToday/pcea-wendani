@@ -266,8 +266,10 @@ SMS_SERVICE_API_URL = os.environ.get('SMS_SERVICE_API_URL', 'https://sms.swiftre
 SMS_SERVICE_API_TOKEN = os.environ.get('SMS_SERVICE_API_TOKEN', '')
 
 # Swift Reside Tech KCB Integration (for SMS credit purchases)
-# These are used by KCB callback endpoints if KCB calls this webapp directly
-# If KCB only calls the central service, these can have defaults for display purposes
+# The preferred topology is central-service-only. This webapp should only
+# register direct callback endpoints when explicitly enabled.
+# If KCB only calls the central service, these can have defaults for display purposes.
+SWIFT_SMS_ENABLE_DIRECT_CALLBACKS = os.environ.get('SWIFT_SMS_ENABLE_DIRECT_CALLBACKS', 'False') == 'True'
 SWIFT_RESIDE_PAYBILL = os.environ.get('SWIFT_RESIDE_PAYBILL', '522533')
 SWIFT_RESIDE_TILL = os.environ.get('SWIFT_RESIDE_TILL', 'SWIFTTECH')
 SWIFT_SMS_PRICE = float(os.environ.get('SWIFT_SMS_PRICE', '1.0'))  # KSH per SMS credit
