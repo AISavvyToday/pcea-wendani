@@ -239,25 +239,27 @@ body {
   z-index: 10;
 }
 
-/* Column widths for landscape - UPDATED for 9 columns */
+/* Column widths for landscape */
 .report-table th:nth-child(1),
 .report-table td:nth-child(1) { width: 6%; } /* Year */
 .report-table th:nth-child(2),
 .report-table td:nth-child(2) { width: 10%; } /* Admission */
 .report-table th:nth-child(3),
-.report-table td:nth-child(3) { width: 18%; } /* Name */
+.report-table td:nth-child(3) { width: 16%; } /* Name */
 .report-table th:nth-child(4),
 .report-table td:nth-child(4) { width: 8%; } /* Grade */
 .report-table th:nth-child(5),
-.report-table td:nth-child(5) { width: 9%; } /* Balance B/F */
+.report-table td:nth-child(5) { width: 16%; } /* Parent Contact */
 .report-table th:nth-child(6),
-.report-table td:nth-child(6) { width: 9%; } /* Prepayment */
+.report-table td:nth-child(6) { width: 8%; } /* Balance B/F */
 .report-table th:nth-child(7),
-.report-table td:nth-child(7) { width: 10%; } /* Total Billed */
+.report-table td:nth-child(7) { width: 8%; } /* Prepayment */
 .report-table th:nth-child(8),
-.report-table td:nth-child(8) { width: 9%; } /* Paid */
+.report-table td:nth-child(8) { width: 9%; } /* Total Billed */
 .report-table th:nth-child(9),
-.report-table td:nth-child(9) { width: 11%; } /* Outstanding Balance */
+.report-table td:nth-child(9) { width: 8%; } /* Paid */
+.report-table th:nth-child(10),
+.report-table td:nth-child(10) { width: 11%; } /* Outstanding Balance */
 
 .report-table tbody tr:nth-child(even) {
   background: #f8f8f8;
@@ -517,6 +519,13 @@ body {
         </div>
         {% endif %}
 
+        {% if filters.student_class %}
+        <div class="filter-item">
+          <span class="filter-label">Grade:</span>
+          <span class="filter-value">{{ filters.student_class }}</span>
+        </div>
+        {% endif %}
+
         {% if filters.balance_op and filters.balance_op != 'any' %}
         <div class="filter-item">
           <span class="filter-label">Balance Filter:</span>
@@ -526,6 +535,7 @@ body {
       </div>
     </div>
     {% endif %}
+    <div class="meta-info">{{ filters.filter_rule }}</div>
 
     <!-- SUMMARY BOX -->
     <div class="summary-box">
@@ -561,6 +571,7 @@ body {
             <th>Admission No</th>
             <th>Name</th>
             <th>Grade</th>
+            <th>Parent / Guardian Contact</th>
             <th class="text-right">Balance B/F</th>
             <th class="text-right">Prepayment</th>
             <th class="text-right">Total Billed</th>
@@ -582,6 +593,7 @@ body {
               {% endif %}
             </td>
             <td>{{ r.student__current_class__name|default:"—" }}</td>
+            <td>{{ r.parent_contact|default:"—" }}</td>
 
             <!-- Balance B/F -->
             <td class="text-right amount-cell {% if r.total_balance_bf > 0 %}amount-medium{% else %}amount-zero{% endif %}">
@@ -617,7 +629,7 @@ body {
         </tbody>
         <tfoot>
           <tr class="totals-row">
-            <th colspan="4" class="text-right">GRAND TOTALS</th>
+            <th colspan="5" class="text-right">GRAND TOTALS</th>
             <th class="text-right">{{ totals.total_balance_bf|floatformat:2|default:"0.00" }}</th>
             <th class="text-right">{{ totals.total_prepayment|floatformat:2|default:"0.00" }}</th>
             <th class="text-right">{{ totals.total_billed|floatformat:2|default:"0.00" }}</th>

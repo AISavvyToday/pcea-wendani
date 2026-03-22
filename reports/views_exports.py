@@ -28,6 +28,11 @@ from transport.models import TransportRoute
 from core.models import InvoiceStatus
 from core.mixins import OrganizationFilterMixin
 from students.models import Student
+from .views import (
+    apply_outstanding_balance_invoice_filters,
+    enrich_outstanding_balance_rows_with_parent_contact,
+    get_outstanding_balance_filter_spec,
+)
 
 
 # ---------- Helpers ----------
@@ -1148,16 +1153,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
-        # Balance filter preset - same spec as main report view
-        BALANCE_PRESETS = {
-            'lt_5000': ('<', Decimal('5000')),
-            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
-            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
-            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
-            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
-            'gte_100000': ('>=', Decimal('100000')),
-        }
-        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+        balance_filter_spec = get_outstanding_balance_filter_spec(balance_filter)
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -1170,17 +1166,14 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         # Only include active students - exclude all non-active statuses
         invoices = invoices.filter(student__status='active')
 
-        if academic_year:
-            invoices = invoices.filter(term__academic_year=academic_year)
-            if term:
-                invoices = invoices.filter(term__term=term)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-        # Apply student_class filter - ensure it's applied correctly
-        if student_class:
-            invoices = invoices.filter(student__current_class__name=student_class)
+        invoices = apply_outstanding_balance_invoice_filters(
+            invoices,
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            student_class=student_class,
+        )
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -1218,13 +1211,13 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         # Balance filter
         if balance_filter_spec:
             if balance_filter_spec[0] == 'range':
-                _, min_amt, max_amt = balance_filter_spec
+                _, min_amt, max_amt, _ = balance_filter_spec
                 grouped_qs = grouped_qs.filter(
                     total_balance__gte=min_amt,
                     total_balance__lt=max_amt
                 )
             else:
-                op, amt = balance_filter_spec
+                op, amt, _ = balance_filter_spec
                 lookup = {
                     '=': 'total_balance',
                     '>': 'total_balance__gt',
@@ -1238,7 +1231,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         if not include_zero:
             grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
 
-        rows = list(grouped_qs)
+        rows = enrich_outstanding_balance_rows_with_parent_contact(grouped_qs)
 
         # Build Excel
         wb = openpyxl.Workbook()
@@ -1252,7 +1245,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
                 title += f" Term {term}"
         add_common_header(ws, title)
 
-        headers = ['Year', 'Admission No', 'Name', 'Class', 'Emergency Contact', 'Balance B/F', 'Prepayment',
+        headers = ['Year', 'Admission No', 'Name', 'Class', 'Parent / Guardian Contact', 'Balance B/F', 'Prepayment',
                    'Total Billed',
                    'Paid', 'Balance']
         for c, h in enumerate(headers, start=1):
@@ -1274,8 +1267,8 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
             # Class
             ws.cell(row=row_num, column=4, value=r.get('student__current_class__name') or '—')
             
-            # Emergency Contact (placeholder for now)
-            ws.cell(row=row_num, column=5, value='—')
+            # Parent / Guardian Contact
+            ws.cell(row=row_num, column=5, value=r.get('parent_contact') or '—')
 
             # Money columns
             money_columns = [6, 7, 8, 9, 10]
@@ -1342,16 +1335,9 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
-        # Balance filter preset - same spec as main report view
-        BALANCE_PRESETS = {
-            'lt_5000': ('<', Decimal('5000')),
-            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
-            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
-            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
-            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
-            'gte_100000': ('>=', Decimal('100000')),
-        }
-        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+        balance_op = cleaned.get('balance_operator') or 'any'
+        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
+        balance_filter_spec = get_outstanding_balance_filter_spec(balance_filter)
         include_zero = cleaned.get('show_zero_balances')
 
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -1364,17 +1350,14 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         # Only include active students - exclude all non-active statuses
         invoices = invoices.filter(student__status='active')
             
-        if academic_year:
-            invoices = invoices.filter(term__academic_year=academic_year)
-            if term:
-                invoices = invoices.filter(term__term=term)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-        # Apply student_class filter - ensure it's applied correctly
-        if student_class:
-            invoices = invoices.filter(student__current_class__name=student_class)
+        invoices = apply_outstanding_balance_invoice_filters(
+            invoices,
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            student_class=student_class,
+        )
 
         annotations = {
             'total_billed': ExpressionWrapper(
@@ -1412,13 +1395,13 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         # Balance filter
         if balance_filter_spec:
             if balance_filter_spec[0] == 'range':
-                _, min_amt, max_amt = balance_filter_spec
+                _, min_amt, max_amt, _ = balance_filter_spec
                 grouped_qs = grouped_qs.filter(
                     total_balance__gte=min_amt,
                     total_balance__lt=max_amt
                 )
             else:
-                op, amt = balance_filter_spec
+                op, amt, _ = balance_filter_spec
                 lookup = {
                     '=': 'total_balance',
                     '>': 'total_balance__gt',
@@ -1432,7 +1415,7 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         if not include_zero:
             grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
 
-        rows = list(grouped_qs)
+        rows = enrich_outstanding_balance_rows_with_parent_contact(grouped_qs)
         totals = {
             'total_balance_bf': sum((r['total_balance_bf'] or Decimal('0.00')) for r in rows),
             'total_prepayment': sum((r['total_prepayment'] or Decimal('0.00')) for r in rows),
@@ -1441,42 +1424,22 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
             'total_balance': sum((r['total_balance'] or Decimal('0.00')) for r in rows),
         }
 
-        # Process rows to include full_name and contact_info
-        processed_rows = []
-        for r in rows:
-            # Build full name
-            first = r.get('student__first_name', '')
-            middle = r.get('student__middle_name', '')
-            last = r.get('student__last_name', '')
-            full_name = f"{first} {middle} {last}".strip()
-            full_name = ' '.join(full_name.split())
-
-
-
-            processed_rows.append({
-                'term__academic_year__year': r.get('term__academic_year__year'),
-                'student__admission_number': r.get('student__admission_number'),
-                'student__first_name': first,
-                'student__middle_name': middle,
-                'student__last_name': last,
-                'student__current_class__name': r.get('student__current_class__name'),
-                'total_balance_bf': r.get('total_balance_bf'),
-                'total_prepayment': r.get('total_prepayment'),
-                'total_billed': r.get('total_billed'),
-                'total_paid': r.get('total_paid'),
-                'total_balance': r.get('total_balance'),
-            })
-
         context = {
-            'rows': grouped_qs,  # Pass the queryset directly, not processed_rows
+            'rows': rows,
             'totals': totals,
             'filters': {
                 'start_date': start_date,
                 'end_date': end_date,
                 'academic_year': academic_year,
                 'term': term,
+                'student_class': student_class,
                 'balance_op': balance_op,
                 'balance_amt': balance_amt,
+                'filter_rule': (
+                    'Academic year/term scope is applied first when selected, '
+                    'then invoice issue date range is applied within that scope. '
+                    'Without an academic year, the date range applies across all invoices.'
+                ),
             },
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
@@ -2680,4 +2643,3 @@ class OtherItemsReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-
