@@ -11,7 +11,17 @@ from django.db.models import Q
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import UserRole
 from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
-from .forms import OtherIncomeInvoiceForm, OtherIncomeItemFormSet, OtherIncomePaymentForm
+from .forms import (
+    OtherIncomeInvoiceForm,
+    OtherIncomeItemFormSet,
+    OtherIncomePaymentForm,
+    OtherIncomeReportStagingFilterForm,
+)
+from .reporting import (
+    OtherIncomeReportFilters,
+    build_other_income_report_dataset,
+    build_other_income_report_inventory,
+)
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 
@@ -275,6 +285,64 @@ class OtherIncomeRecordPaymentView(LoginRequiredMixin, OrganizationFilterMixin, 
         except Exception as e:
             messages.error(self.request, f"Error recording payment: {e}")
             return self.render_to_response(self.get_context_data(form=form))
+
+
+class OtherIncomeReportStagingView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
+    """
+    Planning/staging page for the upcoming other-income reports.
+
+    This deliberately stops short of the final HTML/Excel/PDF outputs until the
+    Wendani team confirms the exact report template, but it centralizes the
+    shared filters and data inventory so those outputs can be added quickly.
+    """
+    template_name = 'other_income/report_staging.html'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        form = OtherIncomeReportStagingFilterForm(self.request.GET or None)
+        form.is_valid()
+        cleaned = getattr(form, 'cleaned_data', {})
+
+        filters = OtherIncomeReportFilters(
+            search=cleaned.get('search', ''),
+            status=cleaned.get('status', ''),
+            issue_date_from=cleaned.get('issue_date_from'),
+            issue_date_to=cleaned.get('issue_date_to'),
+            due_date_from=cleaned.get('due_date_from'),
+            due_date_to=cleaned.get('due_date_to'),
+            payment_date_from=cleaned.get('payment_date_from'),
+            payment_date_to=cleaned.get('payment_date_to'),
+            payment_method=cleaned.get('payment_method', ''),
+        )
+        organization = getattr(self.request, 'organization', None)
+
+        context.update({
+            'form': form,
+            'pending_template_questions': [
+                'Which columns should appear in the final report?',
+                'Should rows be grouped by invoice, client, payment date, payment method, or another business dimension?',
+                'Which totals/subtotals are required in the body and footer?',
+                'Which date filters should drive the report: issue date, due date, payment date, or a combination?',
+                'Which invoice/payment dimensions must remain filterable across HTML, Excel, and PDF outputs?',
+                'Should the export layouts be identical across HTML, Excel, and PDF, or tailored per format?',
+            ],
+            'report_inventory': build_other_income_report_inventory(
+                organization=organization,
+                filters=filters,
+            ),
+            'preview_rows': build_other_income_report_dataset(
+                organization=organization,
+                filters=filters,
+                limit=5,
+            ),
+            'future_implementation_notes': [
+                'Use the shared dataset in other_income.reporting for the final HTML view.',
+                'Mirror the same filters in Excel/PDF exports so every output uses one ruleset.',
+                'Reuse report formatting helpers from reports/views.py and reports/views_exports.py for headers, totals, and export response handling.',
+            ],
+        })
+        return context
 
 
 class OtherIncomePaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):

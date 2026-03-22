@@ -58,3 +58,75 @@ class OtherIncomePaymentForm(forms.ModelForm):
         if amt is None or amt <= Decimal('0.00'):
             raise forms.ValidationError("Amount must be greater than zero.")
         return amt
+
+
+class OtherIncomeReportStagingFilterForm(forms.Form):
+    """
+    Staging filter set for the upcoming other-income reports.
+
+    These filters deliberately stick to dimensions that already exist in the
+    current domain model so the same rules can later be reused for HTML, Excel,
+    and PDF outputs once the business template is confirmed.
+    """
+
+    search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Invoice #, client, or reference'}),
+        label='Search'
+    )
+    status = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All statuses')] + list(OtherIncomeInvoice.STATUS_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Invoice Status'
+    )
+    issue_date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Issue Date From'
+    )
+    issue_date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Issue Date To'
+    )
+    due_date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Due Date From'
+    )
+    due_date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Due Date To'
+    )
+    payment_date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Payment Date From'
+    )
+    payment_date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Payment Date To'
+    )
+    payment_method = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All payment methods')],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Payment Method'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        payment_methods = [
+            method for method in
+            OtherIncomePayment.objects.filter(is_active=True)
+            .exclude(payment_method='')
+            .values_list('payment_method', flat=True)
+            .distinct()
+            .order_by('payment_method')
+        ]
+        self.fields['payment_method'].choices = [('', 'All payment methods')] + [
+            (method, method.replace('_', ' ').title()) for method in payment_methods
+        ]
