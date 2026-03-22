@@ -108,10 +108,13 @@
                         {% endif %}
                       </div>
                       <div class="col-md-4">
-                        <label>Current Grade <span class="text-danger">*</span></label>
+                        <label>Current Grade / Stream <span class="text-danger">*</span></label>
                         {{ form.current_class }}
                         {% if form.current_class.errors %}
                           <div class="text-danger small">{{ form.current_class.errors }}</div>
+                        {% endif %}
+                        {% if form.current_class.help_text %}
+                          <small class="text-muted">{{ form.current_class.help_text }}</small>
                         {% endif %}
                       </div>
                       <div class="col-md-4">
@@ -193,6 +196,19 @@
                   <div class="col-md-6">
                     <label>Residence Area</label>
                     {{ form.residence }}
+                  </div>
+                </div>
+
+                <div class="row mt-3">
+                  <div class="col-md-12">
+                    <label>Club Memberships</label>
+                    {{ form.clubs }}
+                    {% if form.clubs.errors %}
+                      <div class="text-danger small">{{ form.clubs.errors }}</div>
+                    {% endif %}
+                    {% if form.clubs.help_text %}
+                      <small class="text-muted">{{ form.clubs.help_text }}</small>
+                    {% endif %}
                   </div>
                 </div>
 
@@ -428,10 +444,13 @@
                     {% endif %}
                   </div>
                   <div class="col-md-3">
-                    <label>Current Grade</label>
+                    <label>Current Grade / Stream</label>
                     {{ form.current_class }}
                     {% if form.current_class.errors %}
                       <div class="text-danger small">{{ form.current_class.errors }}</div>
+                    {% endif %}
+                    {% if form.current_class.help_text %}
+                      <small class="text-muted">{{ form.current_class.help_text }}</small>
                     {% endif %}
                   </div>
                   <div class="col-md-3">
@@ -502,6 +521,19 @@
               <div class="col-md-6">
                 <label>Residence</label>
                 {{ form.residence }}
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-12">
+                <label>Club Memberships</label>
+                {{ form.clubs }}
+                {% if form.clubs.errors %}
+                  <div class="text-danger small">{{ form.clubs.errors }}</div>
+                {% endif %}
+                {% if form.clubs.help_text %}
+                  <small class="text-muted">{{ form.clubs.help_text }}</small>
+                {% endif %}
               </div>
             </div>
 

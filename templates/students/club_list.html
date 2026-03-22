@@ -1,0 +1,73 @@
+{% extends 'base/base.html' %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">Clubs</h3>
+      <p class="text-muted mb-0">Manage clubs and assign them from the student form.</p>
+    </div>
+    {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+    <a href="{% url 'students:club_create' %}" class="btn btn-gradient-success btn-sm">
+      <i class="mdi mdi-plus"></i> New Club
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-10">
+          <label class="form-label">Search clubs</label>
+          <input type="search" name="query" value="{{ query }}" class="form-control" placeholder="Search by club name or description">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-gradient-primary btn-sm" type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Patron</th>
+              <th>Members</th>
+              <th>Description</th>
+              {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+              <th class="text-end">Actions</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for club in clubs %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ club.name }}</div>
+              </td>
+              <td>{{ club.patron|default:'—' }}</td>
+              <td><span class="badge bg-info">{{ club.students.count }}</span></td>
+              <td>{{ club.description|default:'—'|truncatechars:100 }}</td>
+              {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+              <td class="text-end">
+                <a href="{% url 'students:club_update' club.pk %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                <a href="{% url 'students:club_delete' club.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">No clubs found yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

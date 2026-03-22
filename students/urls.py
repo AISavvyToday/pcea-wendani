@@ -8,6 +8,7 @@ app_name = 'students'
 urlpatterns = [
     path('', views.StudentListView.as_view(), name='list'),
     path('create/', views.StudentCreateView.as_view(), name='create'),
+    path('bulk-stream-update/', views.StudentBulkStreamUpdateView.as_view(), name='bulk_stream_update'),
     path('<uuid:pk>/', views.StudentDetailView.as_view(), name='detail'),
     path('<uuid:pk>/edit/', views.StudentUpdateView.as_view(), name='update'),
     path('<uuid:pk>/delete/', views.StudentDeleteView.as_view(), name='delete'),
@@ -27,6 +28,12 @@ urlpatterns = [
     path('parents/<uuid:pk>/', views.ParentDetailView.as_view(), name='parent_detail'),
     path('parents/<uuid:pk>/edit/', views.ParentUpdateView.as_view(), name='parent_update'),
     path('parents/<uuid:pk>/delete/', views.ParentDeleteView.as_view(), name='parent_delete'),
+
+    # Club URLs
+    path('clubs/', views.ClubListView.as_view(), name='club_list'),
+    path('clubs/create/', views.ClubCreateView.as_view(), name='club_create'),
+    path('clubs/<uuid:pk>/edit/', views.ClubUpdateView.as_view(), name='club_update'),
+    path('clubs/<uuid:pk>/delete/', views.ClubDeleteView.as_view(), name='club_delete'),
 
     # API endpoints
     path('api/parents/<uuid:pk>/children/', views.ParentChildrenAPIView.as_view(), name='api_parent_children'),

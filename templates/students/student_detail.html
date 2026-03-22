@@ -239,6 +239,19 @@
                     <h6 class="mb-2">Academic</h6>
                     <table class="table table-borderless table-sm mb-0">
                       <tr><td class="info-key">Grade</td><td class="info-val">{{ student.current_class|default:"Not Assigned" }}</td></tr>
+                      <tr><td class="info-key">Stream</td><td class="info-val">{% if student.current_class %}{{ student.current_class.get_stream_display }}{% else %}—{% endif %}</td></tr>
+                      <tr>
+                        <td class="info-key">Clubs</td>
+                        <td class="info-val">
+                          {% if clubs %}
+                            {% for club in clubs %}
+                              <span class="badge bg-light text-dark border">{{ club.name }}</span>
+                            {% endfor %}
+                          {% else %}
+                            —
+                          {% endif %}
+                        </td>
+                      </tr>
                       <tr><td class="info-key">Status</td><td class="info-val">{{ student.get_status_display }}</td></tr>
                     </table>
                   </div>

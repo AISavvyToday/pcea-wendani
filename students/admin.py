@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
-    Parent, Student, StudentParent, StudentDocument,
+    Club, ClubMembership, Parent, Student, StudentParent, StudentDocument,
     DisciplineRecord, MedicalRecord
 )
 
@@ -13,6 +13,12 @@ class StudentParentInline(admin.TabularInline):
     model = StudentParent
     extra = 1
     autocomplete_fields = ['parent']
+
+
+class ClubMembershipInline(admin.TabularInline):
+    model = ClubMembership
+    extra = 0
+    autocomplete_fields = ['club']
 
 
 class StudentDocumentInline(admin.TabularInline):
@@ -70,7 +76,7 @@ class ParentAdmin(admin.ModelAdmin):
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
     list_display = ['admission_number', 'full_name', 'current_class', 'uses_school_transport', 'transport_route']
-    list_filter = ['uses_school_transport', 'transport_route', 'current_class__grade_level']
+    list_filter = ['uses_school_transport', 'transport_route', 'current_class__grade_level', 'current_class__stream']
     search_fields = ('admission_number', 'first_name', 'middle_name', 'last_name', 'birth_certificate_number')
     ordering = ('admission_number',)
     autocomplete_fields = ['current_class', 'transport_route']
@@ -107,7 +113,7 @@ class StudentAdmin(admin.ModelAdmin):
         }),
     )
     
-    inlines = [StudentParentInline, StudentDocumentInline, DisciplineRecordInline, MedicalRecordInline]
+    inlines = [StudentParentInline, ClubMembershipInline, StudentDocumentInline, DisciplineRecordInline, MedicalRecordInline]
     
     def primary_parent_display(self, obj):
         parent = obj.primary_parent
@@ -140,6 +146,25 @@ class StudentParentAdmin(admin.ModelAdmin):
     list_filter = ('relationship', 'is_primary', 'is_emergency_contact')
     search_fields = ('student__admission_number', 'student__first_name', 'parent__first_name', 'parent__phone_primary')
     autocomplete_fields = ['student', 'parent']
+
+
+@admin.register(Club)
+class ClubAdmin(admin.ModelAdmin):
+    list_display = ('name', 'organization', 'patron', 'member_count', 'is_active')
+    list_filter = ('organization', 'is_active')
+    search_fields = ('name', 'description', 'patron__user__first_name', 'patron__user__last_name')
+    autocomplete_fields = ['patron']
+
+    def member_count(self, obj):
+        return obj.students.count()
+
+
+@admin.register(ClubMembership)
+class ClubMembershipAdmin(admin.ModelAdmin):
+    list_display = ('student', 'club', 'joined_on', 'is_active')
+    list_filter = ('club', 'joined_on', 'is_active')
+    search_fields = ('student__admission_number', 'student__first_name', 'club__name')
+    autocomplete_fields = ['student', 'club']
 
 
 @admin.register(StudentDocument)

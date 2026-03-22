@@ -62,6 +62,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
+        club_id = request.GET.get('club', '')
         organization = getattr(request, 'organization', None)
 
         queryset = StudentService.search_students(
@@ -71,6 +72,7 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
             stream=stream if stream else None,
+            club_id=club_id if club_id else None,
             organization=organization
         )
 
@@ -121,6 +123,8 @@ class StudentListExcelView(LoginRequiredMixin, RoleRequiredMixin, View):
             filter_info.append(f"Boarding: {is_boarder}")
         if stream:
             filter_info.append(f"Stream: {stream}")
+        if club_id:
+            filter_info.append("Club filter applied")
         ws['A3'] = f"Filters: {', '.join(filter_info) if filter_info else 'All Students'}"
         ws['A3'].font = Font(size=9)
         ws['A3'].alignment = Alignment(horizontal='center')
@@ -217,6 +221,7 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         gender = request.GET.get('gender', '')
         is_boarder = request.GET.get('is_boarder', '')
         stream = request.GET.get('stream', '')
+        club_id = request.GET.get('club', '')
         organization = getattr(request, 'organization', None)
 
         queryset = StudentService.search_students(
@@ -226,6 +231,7 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
             gender=gender if gender else None,
             is_boarder=is_boarder if is_boarder else None,
             stream=stream if stream else None,
+            club_id=club_id if club_id else None,
             organization=organization
         )
 
@@ -248,6 +254,8 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
             filter_info.append(f"Boarding: {is_boarder}")
         if stream:
             filter_info.append(f"Stream: {stream}")
+        if club_id:
+            filter_info.append("Club filter applied")
 
         # Build context
         context = {
@@ -278,6 +286,5 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-
 
 

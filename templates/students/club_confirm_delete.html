@@ -1,0 +1,18 @@
+{% extends 'base/base.html' %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="card border-danger">
+    <div class="card-body">
+      <h4 class="text-danger">Delete Club</h4>
+      <p>Are you sure you want to delete <strong>{{ club.name }}</strong>?</p>
+      <p class="text-muted">Students will simply lose the membership links to this club.</p>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">Delete club</button>
+        <a href="{% url 'students:club_list' %}" class="btn btn-outline-secondary btn-sm">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

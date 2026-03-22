@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Q
 from .models import Student, Parent, StudentParent
 from academics.models import AcademicYear, Term, Class
-from core.models import TermChoices
+from core.models import StreamChoices, TermChoices
 
 
 class StudentService:
@@ -142,7 +142,7 @@ class StudentService:
 
     @staticmethod
     def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None,
-                        stream=None, organization=None):  # ADD 'stream=None', 'organization=None'
+                        stream=None, club_id=None, organization=None):
         """
         Search and filter students based on various criteria.
 
@@ -152,7 +152,8 @@ class StudentService:
             status: Filter by student status
             gender: Filter by gender
             is_boarder: Filter by boarding status ('yes', 'no', or None)
-            stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH') # ADD THIS ARG DESCRIPTION
+            stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH')
+            club_id: Filter by club membership
             organization: Organization to filter by (required for multi-tenancy)
 
         Returns:
@@ -186,10 +187,13 @@ class StudentService:
         elif is_boarder == 'no':
             students = students.filter(is_boarder=False)
 
-        if stream:  # ADD THIS BLOCK
+        if stream:
             students = students.filter(current_class__stream=stream)
 
-        return students.order_by('admission_number')
+        if club_id:
+            students = students.filter(clubs__id=club_id)
+
+        return students.order_by('admission_number').distinct()
 
     @staticmethod
     @transaction.atomic
@@ -216,6 +220,55 @@ class StudentService:
             promoted_count += 1
 
         return promoted_count
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_reassign_stream(student_ids, target_stream, target_class=None, organization=None):
+        """
+        Move multiple students to a different stream while keeping Class.stream
+        as the single source of truth.
+
+        When target_class is omitted, each student is moved to the class in the
+        requested stream that matches the student's current grade level and
+        academic year.
+        """
+        students = Student.objects.select_related('current_class', 'current_class__academic_year').filter(
+            id__in=student_ids
+        )
+        if organization:
+            students = students.filter(organization=organization)
+
+        moved_count = 0
+        missing_targets = []
+
+        for student in students:
+            if target_class:
+                destination = target_class
+            else:
+                if not student.current_class:
+                    missing_targets.append(student.full_name)
+                    continue
+
+                destination = Class.objects.filter(
+                    organization=student.organization,
+                    academic_year=student.current_class.academic_year,
+                    grade_level=student.current_class.grade_level,
+                    stream=target_stream,
+                ).order_by('name').first()
+
+            if not destination:
+                missing_targets.append(student.full_name)
+                continue
+
+            if student.current_class_id != destination.id:
+                student.current_class = destination
+                student.save(update_fields=['current_class', 'updated_at'])
+                moved_count += 1
+
+        return {
+            'moved_count': moved_count,
+            'missing_targets': missing_targets,
+        }
 
     @staticmethod
     def get_student_profile_data(student):
@@ -468,20 +521,19 @@ class StudentService:
     @staticmethod
     def _create_classes(academic_year):
         """Create all classes and return mapping keyed by normalized Excel class names."""
-        STREAM_EAST = "East"
         class_config = [
-            ("PLAYGROUP", "pp1", STREAM_EAST),
-            ("PP1", "pp1", STREAM_EAST),
-            ("PP2", "pp2", STREAM_EAST),
-            ("GRADE 1", "grade_1", STREAM_EAST),
-            ("GRADE 2", "grade_2", STREAM_EAST),
-            ("GRADE 3", "grade_3", STREAM_EAST),
-            ("GRADE 4", "grade_4", STREAM_EAST),
-            ("GRADE 5", "grade_5", STREAM_EAST),
-            ("GRADE 6", "grade_6", STREAM_EAST),
-            ("GRADE SEVEN-JSS", "grade_7", STREAM_EAST),
-            ("GRADE EIGHT-JSS", "grade_8", STREAM_EAST),
-            ("GRADE NINE-JSS", "grade_9", STREAM_EAST),
+            ("PLAYGROUP", "play_group", StreamChoices.EAST),
+            ("PP1", "pp1", StreamChoices.EAST),
+            ("PP2", "pp2", StreamChoices.EAST),
+            ("GRADE 1", "grade_1", StreamChoices.EAST),
+            ("GRADE 2", "grade_2", StreamChoices.EAST),
+            ("GRADE 3", "grade_3", StreamChoices.EAST),
+            ("GRADE 4", "grade_4", StreamChoices.EAST),
+            ("GRADE 5", "grade_5", StreamChoices.EAST),
+            ("GRADE 6", "grade_6", StreamChoices.EAST),
+            ("GRADE SEVEN-JSS", "grade_7", StreamChoices.EAST),
+            ("GRADE EIGHT-JSS", "grade_8", StreamChoices.EAST),
+            ("GRADE NINE-JSS", "grade_9", StreamChoices.EAST),
         ]
 
         mapping = {}

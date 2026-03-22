@@ -12,9 +12,9 @@ from django.utils import timezone
 
 from academics.models import AcademicYear, Term, Class
 from students.models import Student, Parent, StudentParent
-from core.models import TermChoices
+from core.models import StreamChoices, TermChoices
 
-STREAM_EAST = "East"  # change if your Class.stream choices require something else
+STREAM_EAST = StreamChoices.EAST
 
 
 def normalize_class_key(value: str) -> str:
