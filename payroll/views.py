@@ -18,7 +18,7 @@ from .models import (
 )
 from .forms import (
     SalaryStructureForm, AllowanceForm, DeductionForm,
-    StaffSalaryForm, PayrollPeriodForm
+    StaffSalaryForm, PayrollPeriodForm, supported_staff_queryset
 )
 from .services.payroll_calculator import PayrollCalculator
 from decimal import Decimal
@@ -137,13 +137,10 @@ class StaffSalaryCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     success_url = reverse_lazy('payroll:staff_salary_list')
     
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        form.fields['staff'].queryset = Staff.objects.filter(organization=self.request.organization)
-        form.fields['salary_structure'].queryset = SalaryStructure.objects.filter(organization=self.request.organization)
-        form.fields['allowances'].queryset = Allowance.objects.filter(organization=self.request.organization)
-        form.fields['deductions'].queryset = Deduction.objects.filter(organization=self.request.organization)
-        return form
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = self.request.organization
+        return kwargs
     
     def form_valid(self, form):
         form.instance.organization = self.request.organization
@@ -156,6 +153,11 @@ class StaffSalaryUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
     template_name = 'payroll/staff_salary_form.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
     success_url = reverse_lazy('payroll:staff_salary_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = self.request.organization
+        return kwargs
 
 
 # ============== PAYROLL PERIODS ==============
@@ -209,8 +211,7 @@ class PayrollGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
                 return redirect('payroll:payroll_generate')
             
             # Get all active staff with salary configurations
-            staff_with_salary = Staff.objects.filter(
-                organization=request.organization,
+            staff_with_salary = supported_staff_queryset(request.organization).filter(
                 status='active',
                 salary__isnull=False
             ).select_related('salary', 'salary__salary_structure')
