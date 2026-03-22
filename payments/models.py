@@ -3,8 +3,10 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from decimal import Decimal
+from datetime import time
 from core.models import BaseModel, PaymentMethod, PaymentStatus, PaymentSource
 from accounts.models import User
+from django.utils import timezone
 
 
 class Payment(BaseModel):
@@ -161,6 +163,11 @@ class BankTransaction(BaseModel):
         Payment, on_delete=models.SET_NULL, 
         null=True, blank=True, related_name='bank_transactions'
     )
+    matched_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bank_transactions_matched'
+    )
+    matched_at = models.DateTimeField(null=True, blank=True)
     
     # Bank/Gateway
     GATEWAY_CHOICES = [
@@ -218,6 +225,63 @@ class BankTransaction(BaseModel):
 
     def __str__(self):
         return f"{self.gateway} - {self.transaction_id} - KES {self.amount}"
+
+    @property
+    def allocated_amount(self):
+        if hasattr(self, "_allocated_amount_cache"):
+            return self._allocated_amount_cache
+
+        total = (
+            self.reconciliations.filter(is_active=True)
+            .aggregate(total=models.Sum("amount"))
+            .get("total")
+        )
+        if total is not None:
+            return total
+
+        if self.payment_id:
+            return self.payment.amount
+
+        return Decimal("0.00")
+
+    @property
+    def remaining_amount(self):
+        return max(Decimal("0.00"), (self.amount or Decimal("0.00")) - self.allocated_amount)
+
+    @property
+    def is_fully_matched(self):
+        return self.remaining_amount <= Decimal("0.00")
+
+    @property
+    def effective_matched_at(self):
+        if self.matched_at:
+            return self.matched_at
+        reconciliation = self.reconciliations.filter(is_active=True).order_by("-matched_at").first()
+        if reconciliation:
+            return reconciliation.matched_at
+        if self.payment_id and self.payment.reconciled_at:
+            return self.payment.reconciled_at
+        return None
+
+    @property
+    def effective_received_at(self):
+        bank_timestamp = self.bank_timestamp
+        if bank_timestamp:
+            if bank_timestamp.timetz().replace(tzinfo=None) != time(0, 0):
+                return bank_timestamp
+            return self.callback_received_at or bank_timestamp
+        return self.callback_received_at or self.created_at
+
+    @property
+    def matched_students(self):
+        reconciliations = list(
+            self.reconciliations.filter(is_active=True).select_related("student")
+        )
+        if reconciliations:
+            return [reconciliation.student for reconciliation in reconciliations]
+        if self.payment_id:
+            return [self.payment.student]
+        return []
 
     def get_matching_hints(self):
         """
@@ -334,6 +398,55 @@ class BankTransaction(BaseModel):
             parts.append(f"Channel: {hints['payment_channel']}")
             
         return ' | '.join(parts) if parts else 'No matching info available'
+
+
+class BankTransactionReconciliation(BaseModel):
+    """
+    Audit record for allocating a bank transaction to one or more student payments.
+    """
+
+    bank_transaction = models.ForeignKey(
+        BankTransaction,
+        on_delete=models.CASCADE,
+        related_name="reconciliations",
+    )
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.CASCADE,
+        related_name="bank_transaction_reconciliations",
+    )
+    student = models.ForeignKey(
+        "students.Student",
+        on_delete=models.PROTECT,
+        related_name="bank_transaction_reconciliations",
+    )
+    invoice = models.ForeignKey(
+        "finance.Invoice",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_transaction_reconciliations",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    matched_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_transaction_reconciliations",
+    )
+    matched_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "bank_transaction_reconciliations"
+        ordering = ["matched_at", "created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.bank_transaction.transaction_id} → "
+            f"{self.student.admission_number}: {self.amount}"
+        )
 
 
 class PaymentAllocation(BaseModel):

@@ -5,7 +5,6 @@
 
 {% block content %}
 <div class="content-wrapper">
-    <!-- Header Section -->
     <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start mb-4">
         <div>
             <h3 class="page-title mb-1">Bank Transaction Details</h3>
@@ -18,22 +17,19 @@
             <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary">
                 <i class="mdi mdi-arrow-left"></i> Back to List
             </a>
-            {% if not transaction.payment %}
+            {% if not transaction.is_fully_matched %}
             <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary">
-                <i class="mdi mdi-link"></i> Match Transaction
+                <i class="mdi mdi-link"></i> Reconcile Transaction
             </a>
             {% endif %}
         </div>
     </div>
 
     <div class="row">
-        <!-- Transaction Information -->
         <div class="col-md-8">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="mdi mdi-information"></i> Transaction Information
-                    </h5>
+                    <h5 class="mb-0"><i class="mdi mdi-information"></i> Transaction Information</h5>
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
@@ -49,35 +45,31 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Gateway:</strong></td>
-                                    <td>
-                                        <span class="badge bg-info">
-                                            {{ transaction.get_gateway_display|default:transaction.gateway }}
-                                        </span>
-                                    </td>
+                                    <td><span class="badge bg-info">{{ transaction.get_gateway_display|default:transaction.gateway }}</span></td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Amount:</strong></td>
-                                    <td>
-                                        <span class="badge bg-success fs-6">
-                                            {{ transaction.currency }} {{ transaction.amount|floatformat:2|intcomma }}
-                                        </span>
-                                    </td>
+                                    <td><span class="badge bg-success fs-6">{{ transaction.currency }} {{ transaction.amount|floatformat:2|intcomma }}</span></td>
                                 </tr>
                                 <tr>
-                                    <td class="text-muted"><strong>Bank Status:</strong></td>
-                                    <td>
-                                        <span class="badge bg-secondary">{{ transaction.bank_status|default:"N/A" }}</span>
-                                    </td>
+                                    <td class="text-muted"><strong>Allocated:</strong></td>
+                                    <td>KES {{ transaction.allocated_amount|floatformat:2|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Remaining:</strong></td>
+                                    <td>KES {{ transaction.remaining_amount|floatformat:2|intcomma }}</td>
                                 </tr>
                             </table>
                         </div>
                         <div class="col-md-6">
                             <table class="table table-sm table-borderless mb-0">
                                 <tr>
-                                    <td class="text-muted" style="width: 180px;"><strong>Processing Status:</strong></td>
+                                    <td class="text-muted" style="width: 180px;"><strong>Status:</strong></td>
                                     <td>
                                         {% if transaction.processing_status == 'matched' %}
-                                            <span class="badge bg-success">{{ transaction.get_processing_status_display }}</span>
+                                            <span class="badge bg-success">Fully matched</span>
+                                        {% elif transaction.processing_status == 'processing' %}
+                                            <span class="badge bg-warning text-dark">Partially matched</span>
                                         {% elif transaction.processing_status == 'failed' %}
                                             <span class="badge bg-danger">{{ transaction.get_processing_status_display }}</span>
                                         {% elif transaction.processing_status == 'duplicate' %}
@@ -89,19 +81,19 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Received At:</strong></td>
-                                    <td>{{ transaction.callback_received_at|date:"d M Y H:i" }}</td>
+                                    <td>{{ transaction.effective_received_at|date:"d M Y H:i" }}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Bank Timestamp:</strong></td>
                                     <td>{{ transaction.bank_timestamp|date:"d M Y H:i"|default:"N/A" }}</td>
                                 </tr>
                                 <tr>
-                                    <td class="text-muted"><strong>Created At:</strong></td>
-                                    <td>{{ transaction.created_at|date:"d M Y H:i" }}</td>
+                                    <td class="text-muted"><strong>Matched At:</strong></td>
+                                    <td>{{ transaction.effective_matched_at|date:"d M Y H:i"|default:"N/A" }}</td>
                                 </tr>
                                 <tr>
-                                    <td class="text-muted"><strong>Updated At:</strong></td>
-                                    <td>{{ transaction.updated_at|date:"d M Y H:i" }}</td>
+                                    <td class="text-muted"><strong>Matched By:</strong></td>
+                                    <td>{{ transaction.matched_by.full_name|default:"N/A" }}</td>
                                 </tr>
                             </table>
                         </div>
@@ -115,15 +107,14 @@
                     {% endif %}
 
                     {% if transaction.processing_notes %}
-                    <div class="mb-3">
-                        <strong>Processing Notes:</strong>
+                    <div class="mb-0">
+                        <strong>Reconciliation Notes:</strong>
                         <p class="text-muted mb-0">{{ transaction.processing_notes }}</p>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Matching Information (Key for manual reconciliation) -->
             <div class="card shadow-sm mb-4 border-warning">
                 <div class="card-header bg-warning text-dark">
                     <h5 class="mb-0">
@@ -138,33 +129,15 @@
                             <table class="table table-sm table-borderless mb-0">
                                 <tr>
                                     <td class="text-muted" style="width: 140px;"><strong>Student Ref:</strong></td>
-                                    <td>
-                                        {% if hints.student_hint %}
-                                            <code class="bg-light p-1 rounded fs-6">{{ hints.student_hint }}</code>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{% if hints.student_hint %}<code class="bg-light p-1 rounded fs-6">{{ hints.student_hint }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Bill Reference:</strong></td>
-                                    <td>
-                                        {% if hints.bill_reference %}
-                                            <code class="bg-light p-1 rounded">{{ hints.bill_reference }}</code>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{% if hints.bill_reference %}<code class="bg-light p-1 rounded">{{ hints.bill_reference }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Payer Phone:</strong></td>
-                                    <td>
-                                        {% if hints.payer_phone %}
-                                            <code class="bg-light p-1 rounded">{{ hints.payer_phone }}</code>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{% if hints.payer_phone %}<code class="bg-light p-1 rounded">{{ hints.payer_phone }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                 </tr>
                             </table>
                         </div>
@@ -172,28 +145,15 @@
                             <table class="table table-sm table-borderless mb-0">
                                 <tr>
                                     <td class="text-muted" style="width: 140px;"><strong>Payer Name:</strong></td>
-                                    <td>
-                                        {% if hints.payer_name %}
-                                            {{ hints.payer_name }}
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{% if hints.payer_name %}{{ hints.payer_name }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Channel:</strong></td>
-                                    <td>
-                                        {% if hints.payment_channel %}
-                                            <span class="badge bg-info">{{ hints.payment_channel }}</span>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{% if hints.payment_channel %}<span class="badge bg-info">{{ hints.payment_channel }}</span>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                 </tr>
                             </table>
                         </div>
                     </div>
-                    
                     {% if hints.all_references %}
                     <div class="mt-3 p-2 bg-light rounded">
                         <small class="text-muted d-block mb-1"><strong>All References:</strong></small>
@@ -203,109 +163,58 @@
                     </div>
                     {% endif %}
                     {% endwith %}
-                    
-                    <!-- Legacy payer fields for backwards compatibility -->
-                    {% if transaction.payer_name or transaction.payer_account %}
-                    <hr class="my-3">
-                    <small class="text-muted d-block mb-2">Legacy Payer Fields:</small>
-                    <table class="table table-sm table-borderless mb-0">
-                        <tr>
-                            <td class="text-muted" style="width: 140px;">Payer Name:</td>
-                            <td>{{ transaction.payer_name|default:"N/A" }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">Payer Account:</td>
-                            <td>{{ transaction.payer_account|default:"N/A" }}</td>
-                        </tr>
-                    </table>
-                    {% endif %}
                 </div>
             </div>
-
-            <!-- Raw Data -->
-            {% if transaction.raw_request %}
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="mdi mdi-code-json"></i> Raw Request Data
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"><code>{{ transaction.raw_request|pprint }}</code></pre>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
-        <!-- Sidebar -->
         <div class="col-md-4">
-            <!-- Payment Link -->
-            {% if transaction.payment %}
             <div class="card shadow-sm mb-4 border-success">
                 <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="mdi mdi-check-circle"></i> Linked Payment
-                    </h5>
+                    <h5 class="mb-0"><i class="mdi mdi-format-list-bulleted"></i> Reconciliation Audit</h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-2">
-                        <strong>Payment Reference:</strong><br>
-                        <a href="{% url 'finance:payment_detail' transaction.payment.pk %}" class="text-decoration-none">
-                            {{ transaction.payment.payment_reference }}
-                        </a>
-                    </p>
-                    <p class="mb-2">
-                        <strong>Student:</strong><br>
-                        <a href="{% url 'students:student_detail' transaction.payment.student.pk %}" class="text-decoration-none">
-                            {{ transaction.payment.student.full_name }}
-                        </a>
-                    </p>
-                    <p class="mb-2">
-                        <strong>Amount:</strong><br>
-                        KES {{ transaction.payment.amount|floatformat:2|intcomma }}
-                    </p>
-                    <p class="mb-0">
-                        <strong>Status:</strong><br>
-                        <span class="badge bg-success">{{ transaction.payment.get_status_display }}</span>
-                    </p>
-                    <div class="mt-3">
-                        <a href="{% url 'finance:payment_detail' transaction.payment.pk %}" class="btn btn-sm btn-primary w-100">
-                            <i class="mdi mdi-eye"></i> View Payment
-                        </a>
+                    {% for reconciliation in reconciliations %}
+                    <div class="border rounded p-2 mb-2">
+                        <div class="fw-semibold">
+                            <a href="{% url 'students:student_detail' reconciliation.student.pk %}" class="text-decoration-none">
+                                {{ reconciliation.student.full_name }}
+                            </a>
+                        </div>
+                        <div class="small text-muted">KES {{ reconciliation.amount|floatformat:2|intcomma }}</div>
+                        <div class="small text-muted">Matched {{ reconciliation.matched_at|date:"d M Y H:i" }}</div>
+                        {% if reconciliation.invoice %}
+                        <div class="small text-muted">Invoice preference: {{ reconciliation.invoice.invoice_number }}</div>
+                        {% endif %}
+                        <div class="small mt-1">
+                            Payment:
+                            <a href="{% url 'finance:payment_detail' reconciliation.payment.pk %}" class="text-decoration-none">
+                                {{ reconciliation.payment.payment_reference }}
+                            </a>
+                        </div>
                     </div>
-                </div>
-            </div>
-            {% else %}
-            <div class="card shadow-sm mb-4 border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">
-                        <i class="mdi mdi-alert-circle"></i> Not Matched
-                    </h5>
-                </div>
-                <div class="card-body">
+                    {% empty %}
                     <p class="mb-3">This transaction has not been matched to a payment yet.</p>
+                    {% if not transaction.is_fully_matched %}
                     <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary w-100">
                         <i class="mdi mdi-link"></i> Match Transaction
                     </a>
+                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
-            {% endif %}
 
-            <!-- Quick Actions -->
             <div class="card shadow-sm">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="mdi mdi-cog"></i> Quick Actions
-                    </h5>
+                    <h5 class="mb-0"><i class="mdi mdi-cog"></i> Quick Actions</h5>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         <a href="{% url 'finance:bank_transaction_list' %}" class="btn btn-outline-secondary btn-sm">
                             <i class="mdi mdi-arrow-left"></i> Back to List
                         </a>
-                        {% if not transaction.payment %}
+                        {% if not transaction.is_fully_matched %}
                         <a href="{% url 'finance:bank_transaction_match' transaction.pk %}" class="btn btn-primary btn-sm">
-                            <i class="mdi mdi-link"></i> Match to Student
+                            <i class="mdi mdi-link"></i> Continue Matching
                         </a>
                         {% endif %}
                     </div>
@@ -315,4 +224,3 @@
     </div>
 </div>
 {% endblock %}
-
