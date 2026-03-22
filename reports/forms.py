@@ -112,6 +112,12 @@ class FeesCollectionFilterForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'}),
         label='Payment Source'
     )
+    category = forms.MultipleChoiceField(
+        required=False,
+        choices=[],
+        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '6'}),
+        label='Categories / Other Items'
+    )
     student_class = forms.ChoiceField(
         required=False,
         choices=[('', 'All Classes')],

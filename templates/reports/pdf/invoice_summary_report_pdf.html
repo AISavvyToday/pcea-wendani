@@ -300,13 +300,13 @@ body {
             <th class="text-right">Collected (KES)</th>
             <th class="text-right">Outstanding (KES)</th>
             <th class="text-right">Bal B/F (KES)</th>
-            <th class="text-right">Prepayment (KES)</th>
+            <th class="text-right">Prepayments (KES)</th>
           </tr>
         </thead>
         <tbody>
           {% for row in report_rows %}
           <tr>
-            <td class="category">{{ row.category|title }}</td>
+            <td class="category">{{ row.category_display }}</td>
             <td class="text-right">{{ row.total_billed|floatformat:2 }}</td>
             <td class="text-right">{{ row.collected|floatformat:2 }}</td>
             <td class="text-right">
@@ -322,6 +322,14 @@ body {
             <td class="text-right">-</td>
           </tr>
           {% endfor %}
+          <tr>
+            <td class="category">Current Term Adjustments</td>
+            <td class="text-right">-</td>
+            <td class="text-right">-</td>
+            <td class="text-right">-</td>
+            <td class="text-right">{{ current_term_adjustments.balance_bf|floatformat:2 }}</td>
+            <td class="text-right">{{ current_term_adjustments.prepayment_display|floatformat:2 }}</td>
+          </tr>
         </tbody>
         <tfoot>
           <tr>
@@ -330,7 +338,7 @@ body {
             <th class="text-right">{{ totals.collected|floatformat:2 }}</th>
             <th class="text-right">{{ totals.outstanding|floatformat:2 }}</th>
             <th class="text-right">{{ totals.balance_bf|floatformat:2 }}</th>
-            <th class="text-right">{{ totals.prepayment|floatformat:2 }}</th>
+            <th class="text-right">{{ totals.prepayment_display|floatformat:2 }}</th>
           </tr>
         </tfoot>
       </table>

@@ -1,5 +1,6 @@
 # reports/views.py
 from django.conf import settings
+from datetime import datetime, time
 from django.utils import timezone
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -24,6 +25,255 @@ from academics.models import AcademicYear, Term
 from transport.models import TransportFee
 from students.models import Student, StudentParent
 from core.models import InvoiceStatus
+from .report_utils import (
+    build_invoice_summary_rows,
+    get_invoice_adjustment_totals,
+    get_invoice_detail_category_choices,
+    get_invoice_detail_category_display,
+)
+
+
+FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'assessment', 'activity', 'transport']
+
+
+def get_fees_collection_category_choices(organization=None):
+    categories_list = [(cat, cat.title()) for cat in FEES_COLLECTION_STANDARD_CATEGORIES]
+
+    other_items_qs = InvoiceItem.objects.filter(
+        category='other',
+        is_active=True,
+    )
+    if organization:
+        other_items_qs = other_items_qs.filter(invoice__organization=organization)
+
+    other_descriptions_raw = other_items_qs.exclude(
+        description__isnull=True
+    ).exclude(
+        description=''
+    ).values_list('description', flat=True).distinct()
+
+    seen_descriptions = set()
+    unique_descriptions = []
+    for desc in other_descriptions_raw:
+        if not desc:
+            continue
+        desc_normalized = desc.strip()
+        desc_lower = desc_normalized.lower()
+        if desc_lower not in seen_descriptions:
+            seen_descriptions.add(desc_lower)
+            unique_descriptions.append(desc_normalized)
+
+    for desc in sorted(unique_descriptions, key=str.lower):
+        categories_list.append((f'other:{desc}', f'Other: {desc}'))
+
+    if unique_descriptions:
+        categories_list.append(('other', 'Other'))
+
+    return categories_list
+
+
+def populate_fees_collection_filter_form(form, organization=None):
+    class_names = set(Payment.objects.exclude(
+        student__current_class__name__isnull=True
+    ).exclude(
+        student__current_class__name=''
+    ).values_list('student__current_class__name', flat=True).distinct())
+    class_names.update(
+        Payment.objects.exclude(
+            invoice__student__current_class__name__isnull=True
+        ).exclude(
+            invoice__student__current_class__name=''
+        ).values_list('invoice__student__current_class__name', flat=True).distinct()
+    )
+    form.fields['student_class'].choices = [('', 'All Classes')] + [
+        (class_name, class_name) for class_name in sorted(class_names)
+    ]
+    form.fields['category'].choices = get_fees_collection_category_choices(organization=organization)
+    return form
+
+
+def get_fees_collection_filter_labels(form, selected_categories):
+    choice_map = dict(form.fields['category'].choices)
+    return [choice_map.get(value, value) for value in selected_categories]
+
+
+def build_fees_collection_category_filter(selected_categories, prefix='invoice_item__'):
+    category_filters = Q()
+    for cat_choice in selected_categories:
+        if cat_choice.startswith('other:'):
+            desc = cat_choice.replace('other:', '', 1)
+            category_filters |= Q(**{
+                f'{prefix}category': 'other',
+                f'{prefix}description__iexact': desc,
+            })
+        else:
+            category_filters |= Q(**{f'{prefix}category': cat_choice})
+    return category_filters
+
+
+def get_fees_collection_datetime_bounds(start_date=None, end_date=None):
+    current_tz = timezone.get_current_timezone()
+    start_datetime = None
+    end_datetime = None
+
+    if start_date:
+        start_datetime = timezone.make_aware(datetime.combine(start_date, time.min), current_tz)
+    if end_date:
+        end_datetime = timezone.make_aware(datetime.combine(end_date, time.max), current_tz)
+
+    return start_datetime, end_datetime
+
+
+def get_fees_collection_reference(payment):
+    return (
+        getattr(payment, 'receipt_number', '') or
+        getattr(payment, 'payment_reference', '') or
+        getattr(payment, 'transaction_reference', '') or
+        ''
+    )
+
+
+def get_fees_collection_base_queryset(request):
+    payments_qs = Payment.objects.filter(
+        is_active=True,
+        status='completed',
+    )
+    organization = getattr(request, 'organization', None)
+    if organization:
+        payments_qs = payments_qs.filter(
+            Q(organization=organization) |
+            Q(organization__isnull=True, student__organization=organization)
+        )
+    return payments_qs
+
+
+def build_fees_collection_rows(request, cleaned_data, form=None):
+    start_date = cleaned_data.get('start_date')
+    end_date = cleaned_data.get('end_date')
+    payment_source = cleaned_data.get('payment_source') or ''
+    selected_class = cleaned_data.get('student_class') or ''
+    group_by = cleaned_data.get('group_by') or 'none'
+    selected_categories = cleaned_data.get('category') or []
+
+    start_datetime, end_datetime = get_fees_collection_datetime_bounds(
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    payments_qs = get_fees_collection_base_queryset(request)
+
+    if start_datetime:
+        payments_qs = payments_qs.filter(payment_date__gte=start_datetime)
+    if end_datetime:
+        payments_qs = payments_qs.filter(payment_date__lte=end_datetime)
+    if payment_source:
+        payments_qs = payments_qs.filter(payment_source=payment_source)
+    if selected_class:
+        payments_qs = payments_qs.filter(
+            Q(student__current_class__name=selected_class) |
+            Q(invoice__student__current_class__name=selected_class)
+        )
+
+    matched_amount_map = {}
+    if selected_categories:
+        allocations_qs = PaymentAllocation.objects.filter(
+            payment__in=payments_qs,
+            is_active=True,
+            payment__is_active=True,
+            payment__status='completed',
+            invoice_item__is_active=True,
+        ).filter(build_fees_collection_category_filter(selected_categories))
+
+        matched_amount_map = {
+            row['payment_id']: row['matched_amount'] or Decimal('0.00')
+            for row in allocations_qs.values('payment_id').annotate(
+                matched_amount=Coalesce(
+                    Sum('amount'),
+                    Value(Decimal('0.00')),
+                    output_field=DecimalField(),
+                )
+            )
+        }
+        payments_qs = payments_qs.filter(pk__in=matched_amount_map.keys())
+
+    payments_list_qs = payments_qs.select_related(
+        'student',
+        'student__current_class',
+        'invoice',
+        'invoice__student',
+        'invoice__student__current_class',
+    ).order_by('payment_date', 'pk')
+
+    rows = []
+    total_collected = Decimal('0.00')
+    for payment in payments_list_qs:
+        if getattr(payment, 'student', None):
+            student_obj = payment.student
+            student_name = getattr(student_obj, 'full_name', None) or str(student_obj)
+            admission = getattr(student_obj, 'admission_number', '') or ''
+            student_class_obj = getattr(student_obj, 'current_class', None)
+        elif getattr(payment, 'invoice', None) and getattr(payment.invoice, 'student', None):
+            student_obj = payment.invoice.student
+            student_name = getattr(student_obj, 'full_name', None) or str(student_obj)
+            admission = getattr(student_obj, 'admission_number', '') or ''
+            student_class_obj = getattr(student_obj, 'current_class', None)
+        else:
+            student_name = getattr(payment, 'payer_name', '') or getattr(payment, 'payment_source', '') or '—'
+            admission = ''
+            student_class_obj = None
+
+        amount = matched_amount_map.get(payment.pk, payment.amount or Decimal('0.00'))
+        student_class = str(student_class_obj) if student_class_obj else ''
+        bank_display = (
+            getattr(payment, 'bank', None) or
+            getattr(payment, 'payment_source', None) or
+            getattr(payment, 'payment_method', None) or
+            ''
+        )
+
+        rows.append({
+            'date': payment.payment_date,
+            'reference': get_fees_collection_reference(payment),
+            'student': student_name,
+            'admission': admission,
+            'class': student_class,
+            'amount': amount,
+            'method': payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else getattr(payment, 'payment_method', ''),
+            'bank': bank_display,
+        })
+        total_collected += amount
+
+    grouped = None
+    if group_by == 'class':
+        group_totals = {}
+        for row in rows:
+            key = row['class'] or 'Unassigned'
+            group_totals[key] = group_totals.get(key, Decimal('0.00')) + row['amount']
+        grouped = [{'group': group, 'total': total} for group, total in sorted(group_totals.items(), key=lambda item: item[0])]
+    elif group_by == 'date':
+        group_totals = {}
+        for row in rows:
+            key = row['date'].date() if row['date'] else None
+            group_totals[key] = group_totals.get(key, Decimal('0.00')) + row['amount']
+        grouped = [{'group': group, 'total': total} for group, total in sorted(group_totals.items(), key=lambda item: item[0] or timezone.now().date())]
+
+    return {
+        'rows': rows,
+        'summary': {
+            'total_collected': total_collected,
+            'count': len(rows),
+        },
+        'grouped': grouped,
+        'filters': {
+            'start_date': start_date,
+            'end_date': end_date,
+            'payment_source': payment_source,
+            'student_class': selected_class,
+            'group_by': group_by,
+            'category': selected_categories,
+            'category_labels': get_fees_collection_filter_labels(form, selected_categories) if form else [],
+        },
+    }
 
 
 OUTSTANDING_BALANCE_PRESETS = {
@@ -213,42 +463,13 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                         share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
                         collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
 
-            # Build the set of categories present
-            categories = set(billed_map.keys()) | set(collected_map.keys())
+            rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
+                billed_map=billed_map,
+                collected_map=collected_map,
+                show_zero=show_zero,
+            )
 
-            # Optional: ensure an ordered list of categories (tuition, meals, assessment, activity, transport, other)
-            preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
-            ordered = []
-            for p in preferred_order:
-                if p in categories:
-                    ordered.append(p)
-            for c in sorted(categories):
-                if c not in ordered:
-                    ordered.append(c)
-
-            rows = []
-            total_billed = Decimal('0.00')
-            total_collected = Decimal('0.00')
-            total_outstanding = Decimal('0.00')
-            for cat in ordered:
-                billed = billed_map.get(cat, Decimal('0.00'))
-                collected = collected_map.get(cat, Decimal('0.00'))
-                outstanding = billed - collected
-                if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal('0.00'):
-                    continue
-                rows.append({
-                    'category': cat,
-                    'total_billed': billed,
-                    'collected': collected,
-                    'outstanding': outstanding
-                })
-                total_billed += billed
-                total_collected += collected
-                total_outstanding += outstanding
-
-            # Calculate balance_bf and prepayment totals from invoices
-            balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-            prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+            adjustment_totals = get_invoice_adjustment_totals(invoices)
             invoice_count = invoices.count()
 
             context.update({
@@ -257,9 +478,11 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                     'billed': total_billed,
                     'collected': total_collected,
                     'outstanding': total_outstanding,
-                    'balance_bf': balance_bf_total,
-                    'prepayment': prepayment_total,
+                    'balance_bf': adjustment_totals['balance_bf'],
+                    'prepayment': adjustment_totals['prepayment'],
+                    'prepayment_display': adjustment_totals['prepayment_display'],
                 },
+                'current_term_adjustments': adjustment_totals,
                 'invoice_count': invoice_count,
                 'academic_year': academic_year,
                 'term': term,
@@ -288,35 +511,9 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
         except Exception:
             pass
 
-        # Populate category choices dynamically from invoice items
+        # Populate category choices dynamically from canonical invoice categories
         try:
-            categories_list = []
-            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
-            for cat in standard_categories:
-                categories_list.append((cat, cat.title()))
-
-            other_descriptions_raw = InvoiceItem.objects.filter(
-                category='other',
-                is_active=True
-            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
-
-            seen_descriptions = set()
-            unique_descriptions = []
-            for desc in other_descriptions_raw:
-                if desc:
-                    desc_normalized = desc.strip()
-                    desc_lower = desc_normalized.lower()
-                    if desc_lower not in seen_descriptions:
-                        seen_descriptions.add(desc_lower)
-                        unique_descriptions.append(desc_normalized)
-
-            for desc in sorted(unique_descriptions, key=str.lower):
-                categories_list.append((f'other:{desc}', f'Other: {desc}'))
-
-            if unique_descriptions:
-                categories_list.append(('other', 'Other'))
-
-            form.fields['category'].choices = categories_list
+            form.fields['category'].choices = get_invoice_detail_category_choices()
         except Exception:
             pass
 
@@ -481,10 +678,7 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
             if payment_source and key not in matched_source_keys:
                 continue
 
-            if category == 'other' and description:
-                category_display = description
-            else:
-                category_display = category.title()
+            category_display = get_invoice_detail_category_display(category, description)
 
             billed = row['total_billed'] or Decimal('0.00')
             paid = collected_map.get(key, Decimal('0.00'))
@@ -537,14 +731,7 @@ class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View
 
         # initialize form with GET params
         form = FeesCollectionFilterForm(request.GET or None)
-
-        # populate dynamic choices for class using available Payment records
-        # classes: collect from payment.student.current_class or payment.invoice.student.current_class
-        class_qs = Payment.objects.values_list('student__current_class', flat=True).distinct()
-        inv_class_qs = Payment.objects.values_list('invoice__student__current_class', flat=True).distinct()
-        raw_classes = set([c for c in class_qs if c]) | set([c for c in inv_class_qs if c])
-        class_choices = [('', 'All Classes')] + [(c, c) for c in sorted(raw_classes)]
-        form.fields['student_class'].choices = class_choices
+        populate_fees_collection_filter_form(form, organization=getattr(request, 'organization', None))
 
         # School branding context
         context = {
@@ -572,31 +759,7 @@ class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View
         if not form.is_valid():
             return render(request, self.template_name, context)
 
-        # extract filters
-        start_date = form.cleaned_data.get('start_date')
-        end_date = form.cleaned_data.get('end_date')
-        payment_source = form.cleaned_data.get('payment_source') or ''
-        selected_class = form.cleaned_data.get('student_class') or ''
-        group_by = form.cleaned_data.get('group_by') or 'none'
-
-        # base queryset
-        payments_qs = Payment.objects.all()
-
-        if start_date:
-            payments_qs = payments_qs.filter(payment_date__gte=start_date)
-        if end_date:
-            payments_qs = payments_qs.filter(payment_date__lte=end_date)
-
-        # Filter by payment source
-        if payment_source:
-            payments_qs = payments_qs.filter(payment_source=payment_source)
-
-        # Filter by class: we check both Payment.student and Payment.invoice.student
-        if selected_class:
-            payments_qs = payments_qs.filter(
-                Q(student__current_class=selected_class) |
-                Q(invoice__student__current_class=selected_class)
-            )
+        report_data = build_fees_collection_rows(request, form.cleaned_data, form=form)
 
         # Optionally record the request (non-blocking)
         try:
@@ -606,82 +769,23 @@ class FeesCollectionReportView(LoginRequiredMixin, OrganizationFilterMixin, View
                 academic_year=None,
                 term=None,
                 params={
-                    'start_date': str(start_date) if start_date else None,
-                    'end_date': str(end_date) if end_date else None,
-                    'payment_source': payment_source,
-                    'class': selected_class,
-                    'group_by': group_by
+                    'start_date': str(report_data['filters']['start_date']) if report_data['filters']['start_date'] else None,
+                    'end_date': str(report_data['filters']['end_date']) if report_data['filters']['end_date'] else None,
+                    'payment_source': report_data['filters']['payment_source'],
+                    'class': report_data['filters']['student_class'],
+                    'group_by': report_data['filters']['group_by'],
+                    'category': report_data['filters']['category'],
                 }
             )
         except Exception:
             # ignore logging errors
             pass
 
-        # Build the payment rows for display (detailed list)
-        payments_list_qs = payments_qs.select_related('student', 'invoice').order_by('payment_date')
-
-        rows = []
-        total_collected = Decimal('0.00')
-        for p in payments_list_qs:
-            # get student name and class (try multiple paths)
-            student_name = None
-            student_class_obj = None
-            if hasattr(p, 'student') and p.student:
-                student_name = getattr(p.student, 'full_name', None) or getattr(p.student, 'name', None) or str(p.student)
-                student_class_obj = getattr(p.student, 'current_class', None)
-            elif hasattr(p, 'invoice') and getattr(p, 'invoice', None) and getattr(p.invoice, 'student', None):
-                st = p.invoice.student
-                student_name = getattr(st, 'full_name', None) or getattr(st, 'name', None) or str(st)
-                student_class_obj = getattr(st, 'current_class', None)
-            else:
-                student_name = getattr(p, 'payer_name', None) or getattr(p, 'payment_source', None) or '—'
-
-            # Convert Class object to string (like in student_list template)
-            student_class = str(student_class_obj) if student_class_obj else ''
-
-            bank_display = getattr(p, 'bank', None) or getattr(p, 'payment_source', None) or getattr(p, 'payment_method', None) or ''
-
-            rows.append({
-                'date': p.payment_date,
-                'reference': getattr(p, 'payment_reference', ''),
-                'student': student_name,
-                'class': student_class,
-                'amount': p.amount or Decimal('0.00'),
-                'method': p.get_payment_method_display() if hasattr(p, 'get_payment_method_display') else getattr(p, 'payment_method', ''),
-                'bank': bank_display,
-            })
-            total_collected += p.amount or Decimal('0.00')
-
-        # Build grouping summary if requested
-        grouped = None
-        if group_by == 'class':
-            # annotate a class name for each payment and aggregate
-            class_expr = Case(
-                When(student__isnull=False, then=F('student__current_class')),
-                When(invoice__isnull=False, then=F('invoice__student__current_class')),
-                default=Value('Unassigned'),
-                output_field=CharField()
-            )
-            grp_qs = payments_qs.annotate(class_name=class_expr).values('class_name').annotate(total=Coalesce(Sum('amount'), Value(0))).order_by('class_name')
-            grouped = [{'group': g['class_name'] or 'Unassigned', 'total': g['total']} for g in grp_qs]
-        elif group_by == 'date':
-            grp_qs = payments_qs.annotate(pay_date=TruncDate('payment_date')).values('pay_date').annotate(total=Coalesce(Sum('amount'), Value(0))).order_by('pay_date')
-            grouped = [{'group': g['pay_date'], 'total': g['total']} for g in grp_qs]
-
         context.update({
-            'rows': rows,
-            'summary': {
-                'total_collected': total_collected,
-                'count': payments_list_qs.count()
-            },
-            'grouped': grouped,
-            'filters': {
-                'start_date': start_date,
-                'end_date': end_date,
-                'payment_source': payment_source,
-                'student_class': selected_class,
-                'group_by': group_by,
-            },
+            'rows': report_data['rows'],
+            'summary': report_data['summary'],
+            'grouped': report_data['grouped'],
+            'filters': report_data['filters'],
             'form': form,
         })
 
