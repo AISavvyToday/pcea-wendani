@@ -8,6 +8,7 @@ from typing import List, Optional
 import pandas as pd
 from django.db import transaction
 from django.db.models import Q
+from .metrics import apply_student_filters, get_current_term, get_student_base_queryset
 from .models import Student, Parent, StudentParent
 from academics.models import AcademicYear, Term, Class
 from core.models import TermChoices
@@ -142,7 +143,7 @@ class StudentService:
 
     @staticmethod
     def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None,
-                        stream=None, organization=None):  # ADD 'stream=None', 'organization=None'
+                        stream=None, organization=None, term=None):  # ADD 'stream=None', 'organization=None'
         """
         Search and filter students based on various criteria.
 
@@ -154,41 +155,24 @@ class StudentService:
             is_boarder: Filter by boarding status ('yes', 'no', or None)
             stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH') # ADD THIS ARG DESCRIPTION
             organization: Organization to filter by (required for multi-tenancy)
+            term: Optional current term override for derived filters like 'new'
 
         Returns:
             QuerySet of Student objects
         """
-        students = Student.objects.select_related('current_class').prefetch_related('parents')
-        
-        # Filter by organization (required for multi-tenancy)
-        if organization:
-            students = students.filter(organization=organization)
-
-        if query:
-            students = students.filter(
-                Q(first_name__icontains=query) |
-                Q(middle_name__icontains=query) |
-                Q(last_name__icontains=query) |
-                Q(admission_number__icontains=query)
-            )
-
-        if class_id:
-            students = students.filter(current_class_id=class_id)
-
-        if status:
-            students = students.filter(status=status)
-
-        if gender:
-            students = students.filter(gender=gender)
-
-        if is_boarder == 'yes':
-            students = students.filter(is_boarder=True)
-        elif is_boarder == 'no':
-            students = students.filter(is_boarder=False)
-
-        if stream:  # ADD THIS BLOCK
-            students = students.filter(current_class__stream=stream)
-
+        students = get_student_base_queryset(organization=organization).select_related('current_class').prefetch_related('parents')
+        if status == 'new' and term is None:
+            term = get_current_term(organization=organization)
+        students = apply_student_filters(
+            students,
+            query=query,
+            class_id=class_id,
+            status=status,
+            gender=gender,
+            is_boarder=is_boarder,
+            stream=stream,
+            term=term,
+        )
         return students.order_by('admission_number')
 
     @staticmethod
@@ -323,6 +307,7 @@ class StudentService:
 
         Args:
             organization: Organization to filter by (required for multi-tenancy)
+            term: Optional current term override for derived filters like 'new'
 
         Returns:
             str: Next admission number (preserves format: "PWA2245" or "2245")

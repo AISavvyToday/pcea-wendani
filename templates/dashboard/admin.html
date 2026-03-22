@@ -87,14 +87,15 @@
             <h2 class="mb-0">{{ card.value }}</h2>
           </div>
           <div class="card-helper-wrapper">
-            {% if card.helper %}
+            {% if card.helper_lines %}
               <p class="mb-0 small text-white-50" style="font-size: 0.75rem; line-height: 1.6;">
-                {% if card.helper_extra %}
-                  <span style="display: block; padding-left: 8px;">{{ card.helper }}</span>
-                  <span style="display: block; padding-left: 8px;">{{ card.helper_extra }}</span>
-                {% else %}
-                  {{ card.helper }}
-                {% endif %}
+                {% for line in card.helper_lines %}
+                  <span style="display: block; padding-left: 8px;">{{ line }}</span>
+                {% endfor %}
+              </p>
+            {% elif card.helper %}
+              <p class="mb-0 small text-white-50" style="font-size: 0.75rem; line-height: 1.6;">
+                {{ card.helper }}
               </p>
             {% else %}
               <p class="mb-0 small text-white-50" style="font-size: 0.75rem; line-height: 1.6; visibility: hidden;">&nbsp;</p>
