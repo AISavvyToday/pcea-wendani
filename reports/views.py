@@ -23,7 +23,7 @@ from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
 from academics.models import AcademicYear, Term
 from transport.models import TransportFee
-from students.models import Student
+from students.models import Student, StudentParent
 from core.models import InvoiceStatus
 from .report_utils import (
     build_invoice_summary_rows,
@@ -274,6 +274,104 @@ def build_fees_collection_rows(request, cleaned_data, form=None):
             'category_labels': get_fees_collection_filter_labels(form, selected_categories) if form else [],
         },
     }
+
+
+OUTSTANDING_BALANCE_PRESETS = {
+    'lt_5000': ('<', Decimal('5000'), 'Under 5,000'),
+    'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000'), '5,000 - 10,000'),
+    'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000'), '10,000 - 25,000'),
+    'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000'), '25,000 - 50,000'),
+    'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000'), '50,000 - 100,000'),
+    'gte_100000': ('>=', Decimal('100000'), 'Over 100,000'),
+}
+
+
+def get_outstanding_balance_filter_spec(balance_filter):
+    return OUTSTANDING_BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+
+
+def apply_outstanding_balance_invoice_filters(
+    invoices,
+    *,
+    academic_year=None,
+    term=None,
+    start_date=None,
+    end_date=None,
+    student_class=None,
+):
+    """
+    Canonical outstanding-balances filtering rule.
+
+    1. Start from active invoices for active students.
+    2. If an academic year is selected, constrain to that academic year first.
+       If a term is also selected, further constrain to that term.
+    3. Apply the optional invoice issue_date range within the already-selected
+       academic year/term scope.
+    4. If no academic year is selected, the date range works on its own across
+       all terms/years.
+    """
+    if academic_year:
+        invoices = invoices.filter(term__academic_year=academic_year)
+        if term:
+            invoices = invoices.filter(term__term=term)
+
+    if start_date:
+        invoices = invoices.filter(issue_date__gte=start_date)
+    if end_date:
+        invoices = invoices.filter(issue_date__lte=end_date)
+
+    if student_class:
+        invoices = invoices.filter(student__current_class__name=student_class)
+
+    return invoices
+
+
+def _format_parent_contact(parent):
+    if not parent:
+        return {
+            'parent_contact_name': '',
+            'parent_contact_phone': '',
+            'parent_contact': '—',
+        }
+
+    contact_name = (parent.full_name or '').strip()
+    contact_phone = (parent.phone_primary or '').strip()
+
+    if contact_name and contact_phone:
+        display = f'{contact_name} — {contact_phone}'
+    else:
+        display = contact_phone or contact_name or '—'
+
+    return {
+        'parent_contact_name': contact_name,
+        'parent_contact_phone': contact_phone,
+        'parent_contact': display,
+    }
+
+
+def enrich_outstanding_balance_rows_with_parent_contact(rows):
+    rows = list(rows)
+    student_ids = [row.get('student__pk') for row in rows if row.get('student__pk')]
+    if not student_ids:
+        return rows
+
+    parent_contact_map = {}
+    student_parents = (
+        StudentParent.objects
+        .filter(student_id__in=student_ids)
+        .select_related('parent')
+        .order_by('student_id', '-is_primary', 'id')
+    )
+
+    for student_parent in student_parents:
+        if student_parent.student_id in parent_contact_map:
+            continue
+        parent_contact_map[student_parent.student_id] = _format_parent_contact(student_parent.parent)
+
+    for row in rows:
+        row.update(parent_contact_map.get(row.get('student__pk'), _format_parent_contact(None)))
+
+    return rows
 
 
 class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
@@ -750,16 +848,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         include_zero = form.cleaned_data.get('show_zero_balances')
 
         # Balance filter preset overrides operator+amount when set
-        BALANCE_PRESETS = {
-            'lt_5000': ('<', Decimal('5000'), 'Under 5,000'),
-            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000'), '5,000 - 10,000'),
-            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000'), '10,000 - 25,000'),
-            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000'), '25,000 - 50,000'),
-            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000'), '50,000 - 100,000'),
-            'gte_100000': ('>=', Decimal('100000'), 'Over 100,000'),
-        }
         balance_filter_label = ''
-        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+        balance_filter_spec = get_outstanding_balance_filter_spec(balance_filter)
 
         # Base queryset: invoices
         invoices = Invoice.objects.select_related('student', 'term__academic_year')
@@ -772,19 +862,14 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         # Only include active students - exclude all non-active statuses
         invoices = invoices.filter(student__status='active')
 
-        # Filter by academic_year/term or date range if provided
-        if academic_year:
-            invoices = invoices.filter(term__academic_year=academic_year)
-            if term:
-                invoices = invoices.filter(term__term=term)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-
-        # Filter by student class if specified (match by class name)
-        if student_class:
-            invoices = invoices.filter(student__current_class__name=student_class)
+        invoices = apply_outstanding_balance_invoice_filters(
+            invoices,
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            student_class=student_class,
+        )
 
         # Aggregate per student
         # Use Coalesce to ensure numeric 0 instead of None
@@ -846,7 +931,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         if not include_zero:
             grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
 
-        rows = list(grouped_qs)
+        rows = enrich_outstanding_balance_rows_with_parent_contact(grouped_qs)
 
         # Resolve selected term pk for statement links (when filtered by academic_year + term)
         selected_term_id = None
@@ -899,6 +984,11 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
                 'balance_op': balance_op,
                 'balance_amt': balance_amt,
                 'balance_filter_label': balance_filter_label,
+                'filter_rule': (
+                    'Academic year/term scope is applied first when selected, '
+                    'then invoice issue date range is applied within that scope. '
+                    'Without an academic year, the date range applies across all invoices.'
+                ),
             }
         })
 
