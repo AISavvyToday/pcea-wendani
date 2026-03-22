@@ -6,6 +6,7 @@ app_name = 'other_income'
 
 urlpatterns = [
     path('', views.OtherIncomeListView.as_view(), name='invoice_list'),
+    path('reports/staging/', views.OtherIncomeReportStagingView.as_view(), name='report_staging'),
     path('create/', views.OtherIncomeCreateView.as_view(), name='invoice_create'),
     path('<uuid:pk>/', views.OtherIncomeDetailView.as_view(), name='invoice_detail'),
     path('<uuid:pk>/delete/', views.OtherIncomeInvoiceDeleteView.as_view(), name='invoice_delete'),
