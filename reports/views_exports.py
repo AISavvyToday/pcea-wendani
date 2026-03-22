@@ -28,6 +28,12 @@ from transport.models import TransportRoute
 from core.models import InvoiceStatus
 from core.mixins import OrganizationFilterMixin
 from students.models import Student
+from .report_utils import (
+    build_invoice_summary_rows,
+    get_invoice_adjustment_totals,
+    get_invoice_detail_category_choices,
+    get_invoice_detail_category_display,
+    get_selected_category_labels,
 from .views import (
     build_fees_collection_rows,
     populate_fees_collection_filter_form,
@@ -146,40 +152,12 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
                     share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
                     collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
 
-        # Build the set of categories present
-        categories = set(billed_map.keys()) | set(collected_map.keys())
-        preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
-        ordered = []
-        for p in preferred_order:
-            if p in categories:
-                ordered.append(p)
-        for c in sorted(categories):
-            if c not in ordered:
-                ordered.append(c)
-
-        rows = []
-        total_billed = Decimal('0.00')
-        total_collected = Decimal('0.00')
-        total_outstanding = Decimal('0.00')
-        for cat in ordered:
-            billed = billed_map.get(cat, Decimal('0.00'))
-            collected = collected_map.get(cat, Decimal('0.00'))
-            outstanding = billed - collected
-            if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal('0.00'):
-                continue
-            rows.append({
-                'category': cat,
-                'total_billed': billed,
-                'collected': collected,
-                'outstanding': outstanding
-            })
-            total_billed += billed
-            total_collected += collected
-            total_outstanding += outstanding
-
-        # Calculate balance B/F and prepayment totals from invoices
-        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+        rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
+            billed_map=billed_map,
+            collected_map=collected_map,
+            show_zero=show_zero,
+        )
+        adjustment_totals = get_invoice_adjustment_totals(invoices)
 
         # Build workbook
         wb = openpyxl.Workbook()
@@ -196,23 +174,32 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
             header_title += " (" + " ".join(date_parts) + ")"
         add_common_header(ws, header_title)
 
-        headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)', 'Bal B/F (KES)', 'Prepayment (KES)']
+        headers = ['Category', 'Total Billed (KES)', 'Collected (KES)', 'Outstanding (KES)', 'Bal B/F (KES)', 'Prepayments (KES)']
         for c, h in enumerate(headers, start=1):
             ws.cell(row=5, column=c, value=h).font = Font(bold=True)
 
         row_num = 6
         for r in rows:
-            ws.cell(row=row_num, column=1, value=r['category'].title())
+            ws.cell(row=row_num, column=1, value=r['category_display'])
             ws.cell(row=row_num, column=2, value=float(r['total_billed']))
             format_money_cell(ws.cell(row=row_num, column=2))
             ws.cell(row=row_num, column=3, value=float(r['collected']))
             format_money_cell(ws.cell(row=row_num, column=3))
             ws.cell(row=row_num, column=4, value=float(r['outstanding']))
             format_money_cell(ws.cell(row=row_num, column=4))
-            # Balance B/F and Prepayment are invoice-level, so show empty for category rows
             ws.cell(row=row_num, column=5, value='-')
             ws.cell(row=row_num, column=6, value='-')
             row_num += 1
+
+        ws.cell(row=row_num, column=1, value='Current Term Adjustments').font = Font(bold=True)
+        ws.cell(row=row_num, column=2, value='-')
+        ws.cell(row=row_num, column=3, value='-')
+        ws.cell(row=row_num, column=4, value='-')
+        ws.cell(row=row_num, column=5, value=float(adjustment_totals['balance_bf']))
+        format_money_cell(ws.cell(row=row_num, column=5))
+        ws.cell(row=row_num, column=6, value=float(adjustment_totals['prepayment_display']))
+        format_money_cell(ws.cell(row=row_num, column=6))
+        row_num += 1
 
         # Totals row
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
@@ -222,9 +209,9 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         format_money_cell(ws.cell(row=row_num, column=3))
         ws.cell(row=row_num, column=4, value=float(total_outstanding))
         format_money_cell(ws.cell(row=row_num, column=4))
-        ws.cell(row=row_num, column=5, value=float(balance_bf_total))
+        ws.cell(row=row_num, column=5, value=float(adjustment_totals['balance_bf']))
         format_money_cell(ws.cell(row=row_num, column=5))
-        ws.cell(row=row_num, column=6, value=float(prepayment_total))
+        ws.cell(row=row_num, column=6, value=float(adjustment_totals['prepayment_display']))
         format_money_cell(ws.cell(row=row_num, column=6))
 
         # Auto width columns
@@ -305,39 +292,12 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
                     share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
                     collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
 
-        categories = set(billed_map.keys()) | set(collected_map.keys())
-        preferred_order = ['tuition', 'meals', 'assessment', 'activity', 'transport', 'other']
-        ordered = []
-        for p in preferred_order:
-            if p in categories:
-                ordered.append(p)
-        for c in sorted(categories):
-            if c not in ordered:
-                ordered.append(c)
-
-        rows = []
-        total_billed = Decimal('0.00')
-        total_collected = Decimal('0.00')
-        total_outstanding = Decimal('0.00')
-        for cat in ordered:
-            billed = billed_map.get(cat, Decimal('0.00'))
-            collected = collected_map.get(cat, Decimal('0.00'))
-            outstanding = billed - collected
-            if not show_zero and billed == Decimal('0.00') and collected == Decimal('0.00') and outstanding == Decimal('0.00'):
-                continue
-            rows.append({
-                'category': cat,
-                'total_billed': billed,
-                'collected': collected,
-                'outstanding': outstanding
-            })
-            total_billed += billed
-            total_collected += collected
-            total_outstanding += outstanding
-
-        # Calculate balance B/F and prepayment totals from invoices
-        balance_bf_total = invoices.aggregate(total=Sum('balance_bf'))['total'] or Decimal('0.00')
-        prepayment_total = invoices.aggregate(total=Sum('prepayment'))['total'] or Decimal('0.00')
+        rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
+            billed_map=billed_map,
+            collected_map=collected_map,
+            show_zero=show_zero,
+        )
+        adjustment_totals = get_invoice_adjustment_totals(invoices)
 
         context = {
             'report_rows': rows,
@@ -345,9 +305,11 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
                 'billed': total_billed,
                 'collected': total_collected,
                 'outstanding': total_outstanding,
-                'balance_bf': balance_bf_total,
-                'prepayment': prepayment_total
+                'balance_bf': adjustment_totals['balance_bf'],
+                'prepayment': adjustment_totals['prepayment'],
+                'prepayment_display': adjustment_totals['prepayment_display'],
             },
+            'current_term_adjustments': adjustment_totals,
             'academic_year': academic_year,
             'term': term,
             'start_date': start_date,
@@ -389,33 +351,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         form = InvoiceDetailedReportFilterForm(request.GET)
 
         try:
-            categories_list = []
-            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
-            for cat in standard_categories:
-                categories_list.append((cat, cat.title()))
-
-            other_descriptions_raw = InvoiceItem.objects.filter(
-                category='other',
-                is_active=True
-            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
-
-            seen_descriptions = set()
-            unique_descriptions = []
-            for desc in other_descriptions_raw:
-                if desc:
-                    desc_normalized = desc.strip()
-                    desc_lower = desc_normalized.lower()
-                    if desc_lower not in seen_descriptions:
-                        seen_descriptions.add(desc_lower)
-                        unique_descriptions.append(desc_normalized)
-
-            for desc in sorted(unique_descriptions, key=str.lower):
-                categories_list.append((f'other:{desc}', f'Other: {desc}'))
-
-            if unique_descriptions:
-                categories_list.append(('other', 'Other'))
-
-            form.fields['category'].choices = categories_list
+            form.fields['category'].choices = get_invoice_detail_category_choices()
         except Exception:
             pass
 
@@ -562,10 +498,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             if payment_source and key not in matched_source_keys:
                 continue
 
-            if category == 'other' and description:
-                category_display = description
-            else:
-                category_display = category.title()
+            category_display = get_invoice_detail_category_display(category, description)
 
             billed = Decimal(g.get('total_billed') or 0)
             paid = collected_map.get(key, Decimal('0.00'))
@@ -656,33 +589,7 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         form = InvoiceDetailedReportFilterForm(request.GET)
 
         try:
-            categories_list = []
-            standard_categories = ['tuition', 'meals', 'assessment', 'activity', 'transport']
-            for cat in standard_categories:
-                categories_list.append((cat, cat.title()))
-
-            other_descriptions_raw = InvoiceItem.objects.filter(
-                category='other',
-                is_active=True
-            ).exclude(description__isnull=True).exclude(description='').values_list('description', flat=True).distinct()
-
-            seen_descriptions = set()
-            unique_descriptions = []
-            for desc in other_descriptions_raw:
-                if desc:
-                    desc_normalized = desc.strip()
-                    desc_lower = desc_normalized.lower()
-                    if desc_lower not in seen_descriptions:
-                        seen_descriptions.add(desc_lower)
-                        unique_descriptions.append(desc_normalized)
-
-            for desc in sorted(unique_descriptions, key=str.lower):
-                categories_list.append((f'other:{desc}', f'Other: {desc}'))
-
-            if unique_descriptions:
-                categories_list.append(('other', 'Other'))
-
-            form.fields['category'].choices = categories_list
+            form.fields['category'].choices = get_invoice_detail_category_choices()
         except Exception:
             pass
 
@@ -829,10 +736,7 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
             if payment_source and key not in matched_source_keys:
                 continue
 
-            if category == 'other' and description:
-                category_display = description
-            else:
-                category_display = category.title()
+            category_display = get_invoice_detail_category_display(category, description)
 
             billed = Decimal(g.get('total_billed') or 0)
             paid = collected_map.get(key, Decimal('0.00'))
@@ -881,7 +785,7 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                 'payment_source': payment_source_display,
                 'name': name,
                 'admission': admission,
-                'category': ', '.join(selected_categories) if selected_categories else '',
+                'category': ', '.join(get_selected_category_labels(selected_categories)) if selected_categories else '',
                 'start_date': start_date,
                 'end_date': end_date,
             },
