@@ -1148,6 +1148,8 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
+        balance_op = cleaned.get('balance_operator') or 'any'
+        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
         # Balance filter preset - same spec as main report view
         BALANCE_PRESETS = {
             'lt_5000': ('<', Decimal('5000')),
@@ -1342,6 +1344,8 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         if not student_class:
             student_class = None
         balance_filter = cleaned.get('balance_filter') or ''
+        balance_op = cleaned.get('balance_operator') or 'any'
+        balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
         # Balance filter preset - same spec as main report view
         BALANCE_PRESETS = {
             'lt_5000': ('<', Decimal('5000')),
@@ -2680,4 +2684,3 @@ class OtherItemsReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, View)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-

@@ -634,7 +634,7 @@ class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMi
     ]
 
     def get_queryset(self):
-        queryset = Parent.objects.prefetch_related('children').all()
+        queryset = super().get_queryset().prefetch_related('children')
 
         # Search functionality
         query = self.request.GET.get('query', '')
@@ -656,7 +656,7 @@ class ParentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['total_parents'] = Parent.objects.count()
+        context['total_parents'] = self.get_queryset().count()
         context['query'] = self.request.GET.get('query', '')
         context['relationship_filter'] = self.request.GET.get('relationship', '')
         context['relationship_choices'] = Parent.RELATIONSHIP_CHOICES

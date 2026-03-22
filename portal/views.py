@@ -515,8 +515,9 @@ def dashboard_admin(request):
     # - Balance B/F stat remains unchanged (frozen value)
     
     total_expected = (balances_bf + billed) - prepayments
-    # Outstanding should be Total Expected - Collected (not just billed - collected)
-    outstanding = total_expected - collected
+    # Use the KPI service's outstanding value so the dashboard matches the
+    # finance/reporting surfaces that are already based on the reconciled KPI set.
+    outstanding = Decimal(str(term_stats["outstanding"] or 0))
     rate = (collected / billed * 100) if billed > 0 else Decimal("0")
 
     year_billed = Decimal(str(year_stats["billed"] or 0))
