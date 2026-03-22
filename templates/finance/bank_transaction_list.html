@@ -1,4 +1,3 @@
-<!-- templates/finance/bank_transaction_list.html -->
 {% extends 'base/base.html' %}
 {% load static %}
 
@@ -61,43 +60,43 @@
 
 <div class="card">
   <div class="card-body">
-
     <div class="table-responsive">
       <table class="table table-striped table-hover align-middle">
         <thead>
           <tr>
-            <th>Transaction</th>
-            <th>Gateway</th>
+            <th>Date</th>
+            <th>Reference</th>
             <th class="text-nowrap">Amount</th>
             <th>Payer</th>
-            <th>Bank Status</th>
-            <th>Processing</th>
+            <th>Payee</th>
             <th class="text-nowrap">Received At</th>
-            <th>Linked Payment</th>
+            <th class="text-nowrap">Matched Date</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
 
         <tbody>
           {% for transaction in txs %}
+          {% with hints=transaction.get_matching_hints %}
           <tr>
-            <td>
-              <div class="fw-semibold">
-                <a href="{% url 'finance:bank_transaction_detail' transaction.pk %}" class="text-decoration-none">
-                  <code class="text-dark">
-                    {{ transaction.transaction_id|default:transaction.pk|truncatechars:18 }}
-                  </code>
-                </a>
-              </div>
-              <small class="text-muted d-block">
-                ID: {{ transaction.pk }}
-              </small>
+            <td class="text-nowrap">
+              {% if transaction.bank_timestamp %}
+                {{ transaction.bank_timestamp|date:"d/m/Y" }}
+              {% else %}
+                {{ transaction.effective_received_at|date:"d/m/Y" }}
+              {% endif %}
             </td>
 
             <td>
-              <span class="badge bg-info">
-                {{ transaction.get_gateway_display|default:transaction.gateway|default:"-" }}
-              </span>
+              <div class="fw-semibold">
+                <a href="{% url 'finance:bank_transaction_detail' transaction.pk %}" class="text-decoration-none">
+                  <code class="text-dark">{{ transaction.transaction_reference|default:transaction.transaction_id|truncatechars:24 }}</code>
+                </a>
+              </div>
+              <small class="text-muted d-block">Txn ID: {{ transaction.transaction_id|truncatechars:24 }}</small>
+              {% if transaction.remaining_amount > 0 and transaction.allocated_amount > 0 %}
+                <small class="text-warning d-block">Partially allocated · Remaining KES {{ transaction.remaining_amount|floatformat:2 }}</small>
+              {% endif %}
             </td>
 
             <td class="text-nowrap">
@@ -105,60 +104,71 @@
             </td>
 
             <td>
-              {% with hints=transaction.get_matching_hints %}
               {% if hints.student_hint %}
                 <small class="d-block"><strong>Ref:</strong> <code>{{ hints.student_hint }}</code></small>
               {% endif %}
-              {% if hints.payer_name %}
-                <small class="d-block">{{ hints.payer_name|truncatechars:30 }}</small>
-              {% endif %}
-              {% if hints.payer_phone %}
-                <small class="text-muted d-block">📱 {{ hints.payer_phone }}</small>
+              {% if transaction.gateway == 'equity' %}
+                {% if hints.payer_name %}
+                  <small class="d-block">{{ hints.payer_name|truncatechars:30 }}</small>
+                {% endif %}
+                {% if hints.payer_phone %}
+                  <small class="text-muted d-block">📱 {{ hints.payer_phone }}</small>
+                {% endif %}
+              {% else %}
+                {% if hints.payer_name %}
+                  <small class="d-block">{{ hints.payer_name|truncatechars:30 }}</small>
+                {% endif %}
+                {% if hints.payer_phone %}
+                  <small class="text-muted d-block">📱 {{ hints.payer_phone }}</small>
+                {% endif %}
               {% endif %}
               {% if not hints.student_hint and not hints.payer_name and not hints.payer_phone %}
                 <small class="text-muted">-</small>
               {% endif %}
-              {% endwith %}
             </td>
 
             <td>
-              <span class="badge bg-secondary">
-                {{ transaction.bank_status|default:"-" }}
-              </span>
-            </td>
-
-            <td>
-              {% if transaction.processing_status == 'received' %}
-                <span class="badge bg-primary">Received</span>
-              {% elif transaction.processing_status == 'matched' %}
-                <span class="badge bg-success">Matched</span>
-              {% elif transaction.processing_status == 'failed' %}
-                <span class="badge bg-danger">Failed</span>
-              {% elif transaction.processing_status == 'duplicate' %}
-                <span class="badge bg-warning text-dark">Duplicate</span>
+              {% if transaction.reconciliations.all %}
+                {% for reconciliation in transaction.reconciliations.all %}
+                  {% if reconciliation.is_active %}
+                  <div>
+                    <a href="{% url 'students:student_detail' reconciliation.student.pk %}" class="text-decoration-none">
+                      {{ reconciliation.student.full_name }}
+                    </a>
+                    <small class="text-muted d-block">KES {{ reconciliation.amount|floatformat:2 }}</small>
+                  </div>
+                  {% endif %}
+                {% empty %}
+                  {% if transaction.payment %}
+                    <a href="{% url 'students:student_detail' transaction.payment.student.pk %}" class="text-decoration-none">
+                      {{ transaction.payment.student.full_name }}
+                    </a>
+                  {% else %}
+                    <span class="text-muted">Not matched</span>
+                  {% endif %}
+                {% endfor %}
+              {% elif transaction.payment %}
+                <a href="{% url 'students:student_detail' transaction.payment.student.pk %}" class="text-decoration-none">
+                  {{ transaction.payment.student.full_name }}
+                </a>
               {% else %}
-                <span class="badge bg-secondary">
-                  {{ transaction.get_processing_status_display|default:transaction.processing_status|default:"-" }}
-                </span>
+                <span class="text-muted">Not matched</span>
               {% endif %}
             </td>
 
             <td class="text-nowrap">
-              {% firstof transaction.callback_received_at transaction.received_at transaction.created_at transaction.created_on "-" as received_dt %}
-              {% if received_dt != "-" %}
-                {{ received_dt|date:"d/m/Y H:i" }}
+              {% if transaction.effective_received_at %}
+                {{ transaction.effective_received_at|date:"d/m/Y H:i" }}
               {% else %}
                 -
               {% endif %}
             </td>
 
-            <td>
-              {% if transaction.payment %}
-                <a href="{% url 'finance:payment_detail' transaction.payment.pk %}" class="text-decoration-none">
-                  {{ transaction.payment.payment_reference|default:transaction.payment.pk }}
-                </a>
+            <td class="text-nowrap">
+              {% if transaction.effective_matched_at %}
+                {{ transaction.effective_matched_at|date:"d/m/Y H:i" }}
               {% else %}
-                <span class="text-muted">Not linked</span>
+                <span class="text-muted">-</span>
               {% endif %}
             </td>
 
@@ -171,18 +181,18 @@
 
                 <a href="{% url 'finance:bank_transaction_match' transaction.pk %}"
                    class="btn btn-outline-success"
-                   title="{% if transaction.payment %}Re-match{% else %}Match{% endif %}">
+                   title="{% if transaction.is_fully_matched %}View Reconciliation{% else %}Match{% endif %}">
                   <i class="mdi mdi-link"></i>
                 </a>
               </div>
             </td>
           </tr>
+          {% endwith %}
           {% empty %}
           <tr>
-            <td colspan="9" class="text-center py-4">
+            <td colspan="8" class="text-center py-4">
               <i class="mdi mdi-bank-remove mdi-36px text-muted"></i>
               <p class="mt-2 mb-1">No bank transactions found.</p>
-
             </td>
           </tr>
           {% endfor %}

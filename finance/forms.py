@@ -316,26 +316,98 @@ class PaymentRecordForm(forms.Form):
                 pass
 
 
-class BankTransactionMatchForm(forms.Form):
-    """Form for manually matching bank transactions to students."""
+class BankTransactionAllocationForm(forms.Form):
+    """Single allocation row for bank transaction reconciliation."""
 
     student = forms.ModelChoiceField(
-        queryset=Student.objects.filter(is_active=True),
-        widget=forms.Select(attrs={'class': 'form-control select2'}),
-        help_text="Select student to match this transaction to"
+        queryset=Student.objects.none(),
+        widget=forms.HiddenInput(),
     )
-
     invoice = forms.ModelChoiceField(
         queryset=Invoice.objects.none(),
-        widget=forms.Select(attrs={'class': 'form-control'}),
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
         required=False,
-        help_text="Select specific invoice (optional)"
+    )
+    amount = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        widget=forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'step': '0.01', 'min': '0.01'}),
     )
 
+    def __init__(self, *args, **kwargs):
+        organization = kwargs.pop('organization', None)
+        super().__init__(*args, **kwargs)
+        student_queryset = Student.objects.filter(
+            is_active=True,
+            status__in=['active', 'graduated', 'transferred']
+        ).order_by('admission_number', 'last_name', 'first_name')
+        if organization:
+            student_queryset = student_queryset.filter(organization=organization)
+        self.fields['student'].queryset = student_queryset
+
+        student_value = (
+            self.data.get(self.add_prefix('student'))
+            if self.is_bound
+            else self.initial.get('student')
+        )
+        if student_value:
+            self.fields['invoice'].queryset = Invoice.objects.filter(
+                student_id=student_value,
+                is_active=True,
+                balance__gt=0,
+            ).order_by('issue_date', 'created_at')
+
+
+from django.forms import formset_factory, BaseFormSet
+
+
+class BaseBankTransactionAllocationFormSet(BaseFormSet):
+    def __init__(self, *args, **kwargs):
+        self.organization = kwargs.pop('organization', None)
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs['organization'] = self.organization
+        return kwargs
+
+    def clean(self):
+        super().clean()
+        valid_forms = [
+            form for form in self.forms
+            if hasattr(form, 'cleaned_data') and form.cleaned_data and not form.errors
+        ]
+        if not valid_forms:
+            raise ValidationError("Add at least one student allocation.")
+
+
+BankTransactionAllocationFormSet = formset_factory(
+    BankTransactionAllocationForm,
+    formset=BaseBankTransactionAllocationFormSet,
+    extra=0,
+    min_num=1,
+    validate_min=True,
+)
+
+
+class BankTransactionMatchForm(forms.Form):
+    """Top-level form for bank transaction reconciliation workflow."""
+
+    search_query = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Search student name, admission number, or parent phone',
+            }
+        ),
+        help_text="Use student name, admission number, or parent phone number.",
+    )
     notes = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-        help_text="Notes about this manual match"
+        help_text="Notes about this reconciliation",
     )
 
 
