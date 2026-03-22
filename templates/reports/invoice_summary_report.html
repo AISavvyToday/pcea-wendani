@@ -111,6 +111,8 @@
                 <th class="text-right">Billed (KES)</th>
                 <th class="text-right">Collected (KES)</th>
                 <th class="text-right">Outstanding (KES)</th>
+                <th class="text-right">Balance B/F (KES)</th>
+                <th class="text-right">Prepayments (KES)</th>
                 <th class="text-center">Collection %</th>
               </tr>
             </thead>
@@ -118,7 +120,7 @@
               {% for row in report_rows %}
               <tr>
                 <td>
-                  <strong>{{ row.category|title }}</strong>
+                  <strong>{{ row.category_display }}</strong>
                   {% if row.category == 'tuition' %}
                     <span class="badge bg-primary ms-1">Core</span>
                   {% elif row.category == 'transport' %}
@@ -140,6 +142,8 @@
                     <span class="amount-zero">KES {{ row.outstanding|floatformat:2|intcomma }}</span>
                   {% endif %}
                 </td>
+                <td class="text-right">—</td>
+                <td class="text-right">—</td>
                 <td class="text-center">
                   {% if row.total_billed > 0 %}
                     {% with row.collected|default:0|divide:row.total_billed|multiply:100 as percentage %}
@@ -158,12 +162,21 @@
               </tr>
               {% empty %}
               <tr>
-                <td colspan="5" class="text-center text-muted py-4">
+                <td colspan="7" class="text-center text-muted py-4">
                   <i class="mdi mdi-information-outline me-1"></i>
                   No invoice data found for the selected filters.
                 </td>
               </tr>
               {% endfor %}
+              <tr class="table-light">
+                <td><strong>Current Term Adjustments</strong></td>
+                <td class="text-right">—</td>
+                <td class="text-right">—</td>
+                <td class="text-right">—</td>
+                <td class="text-right">KES {{ current_term_adjustments.balance_bf|floatformat:2|intcomma }}</td>
+                <td class="text-right">KES {{ current_term_adjustments.prepayment_display|floatformat:2|intcomma }}</td>
+                <td class="text-center"><span class="badge bg-secondary">N/A</span></td>
+              </tr>
             </tbody>
             <tfoot>
               <tr>
@@ -179,6 +192,8 @@
                     <span class="amount-zero">KES {{ totals.outstanding|floatformat:2|intcomma }}</span>
                   {% endif %}
                 </th>
+                <th class="text-right">KES {{ totals.balance_bf|floatformat:2|intcomma }}</th>
+                <th class="text-right">KES {{ totals.prepayment_display|floatformat:2|intcomma }}</th>
                 <th class="text-center">
                   {% if totals.billed > 0 %}
                     {% with totals.collected|default:0|divide:totals.billed|multiply:100 as total_percentage %}
@@ -214,7 +229,7 @@
               <div class="summary-card">
                 <div class="summary-label">Total Prepayments</div>
                 <div class="summary-value text-success">
-                  KES {{ totals.prepayment|floatformat:2|intcomma }}
+                  KES {{ totals.prepayment_display|floatformat:2|intcomma }}
                 </div>
               </div>
             </div>
@@ -241,4 +256,3 @@
   {% endif %}
 </div>
 {% endblock %}
-

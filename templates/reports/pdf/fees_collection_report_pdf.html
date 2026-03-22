@@ -385,6 +385,7 @@ body {
             {% if filters.start_date %}From {{ filters.start_date|date:"d M Y" }}{% endif %}
             {% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}
             {% if filters.group_by and filters.group_by != 'none' %} • Grouped by: {{ filters.group_by|title }}{% endif %}
+            {% if filters.category_labels %} • Categories: {{ filters.category_labels|join:", " }}{% endif %}
           </div>
         </div>
         {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
@@ -417,7 +418,19 @@ body {
         </div>
         {% endif %}
 
-        
+        {% if filters.payment_source %}
+        <div class="filter-item">
+          <span class="filter-label">Payment Source:</span>
+          <span class="filter-value">{{ filters.payment_source|title }}</span>
+        </div>
+        {% endif %}
+
+        {% if filters.category_labels %}
+        <div class="filter-item">
+          <span class="filter-label">Categories:</span>
+          <span class="filter-value">{{ filters.category_labels|join:", " }}</span>
+        </div>
+        {% endif %}
 
         {% if filters.group_by and filters.group_by != 'none' %}
         <div class="filter-item">
@@ -473,7 +486,7 @@ body {
         <thead>
           <tr>
             <th>Date</th>
-            <th>Receipt/Ref</th>
+            <th>Receipt / Ref</th>
             <th>Student</th>
             <th>Admission #</th>
             <th>Grade</th>

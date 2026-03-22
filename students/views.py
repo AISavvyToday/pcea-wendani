@@ -28,6 +28,9 @@ from .forms import (
     StudentPromotionForm,
     StudentSearchForm,
 )
+from .models import Student, Parent, StudentParent
+from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
+from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from core.models import UserRole, InvoiceStatus
@@ -62,8 +65,23 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         is_boarder = self.request.GET.get('is_boarder', '')  # Use 'is_boarder' as per form field name
         stream = self.request.GET.get('stream', '')
         club_id = self.request.GET.get('club', '')
+        base_queryset = self.get_base_filtered_queryset()
+        status = self.request.GET.get('status', 'active') or 'active'
+        term = self.get_current_term()
+        queryset = apply_student_filters(
+            base_queryset,
+            status=status,
+            term=term,
+        )
+        return queryset.order_by('admission_number')
 
-        # Apply filters via service
+    def get_current_term(self):
+        if not hasattr(self, '_current_term'):
+            organization = getattr(self.request, 'organization', None)
+            self._current_term = get_current_term(organization=organization)
+        return self._current_term
+
+    def get_base_filtered_queryset(self):
         organization = getattr(self.request, 'organization', None)
         queryset = StudentService.search_students(
             query=query if query else None,
@@ -74,9 +92,17 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             stream=stream if stream else None,
             club_id=club_id if club_id else None,
             organization=organization
+        queryset = get_student_base_queryset(organization=organization)
+        queryset = queryset.select_related('current_class').prefetch_related('parents')
+        return apply_student_filters(
+            queryset,
+            query=self.request.GET.get('query', '') or None,
+            class_id=self.request.GET.get('current_class', '') or None,
+            status=None,
+            gender=self.request.GET.get('gender', '') or None,
+            is_boarder=self.request.GET.get('is_boarder', '') or None,
+            stream=self.request.GET.get('stream', '') or None,
         )
-
-        return queryset
 
     def get_paginate_by(self, queryset):
         per_page = self.request.GET.get('per_page')
@@ -108,9 +134,18 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         }
         context['active_students'] = context['status_counts']['active']
         
+        base_queryset = self.get_base_filtered_queryset()
+        term = self.get_current_term()
+        status_counts = get_student_status_counters(base_queryset, term=term)
+
+        context['search_form'] = StudentSearchForm(self.request.GET)
+        context['total_students'] = base_queryset.count()
+        context['status_counts'] = status_counts
+        context['active_students'] = status_counts['active']
+
         # Get current status from request (default to 'active' if not specified)
         context['current_status'] = self.request.GET.get('status', '') or 'active'
-        
+
         return context
 
 

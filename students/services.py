@@ -8,6 +8,7 @@ from typing import List, Optional
 import pandas as pd
 from django.db import transaction
 from django.db.models import Q
+from .metrics import apply_student_filters, get_current_term, get_student_base_queryset
 from .models import Student, Parent, StudentParent
 from academics.models import AcademicYear, Term, Class
 from core.models import StreamChoices, TermChoices
@@ -143,6 +144,7 @@ class StudentService:
     @staticmethod
     def search_students(query=None, class_id=None, status=None, gender=None, is_boarder=None,
                         stream=None, club_id=None, organization=None):
+                        stream=None, organization=None, term=None):  # ADD 'stream=None', 'organization=None'
         """
         Search and filter students based on various criteria.
 
@@ -155,6 +157,7 @@ class StudentService:
             stream: Filter by stream (e.g., 'EAST', 'WEST', 'SOUTH')
             club_id: Filter by club membership
             organization: Organization to filter by (required for multi-tenancy)
+            term: Optional current term override for derived filters like 'new'
 
         Returns:
             QuerySet of Student objects
@@ -194,6 +197,20 @@ class StudentService:
             students = students.filter(clubs__id=club_id)
 
         return students.order_by('admission_number').distinct()
+        students = get_student_base_queryset(organization=organization).select_related('current_class').prefetch_related('parents')
+        if status == 'new' and term is None:
+            term = get_current_term(organization=organization)
+        students = apply_student_filters(
+            students,
+            query=query,
+            class_id=class_id,
+            status=status,
+            gender=gender,
+            is_boarder=is_boarder,
+            stream=stream,
+            term=term,
+        )
+        return students.order_by('admission_number')
 
     @staticmethod
     @transaction.atomic
@@ -376,6 +393,7 @@ class StudentService:
 
         Args:
             organization: Organization to filter by (required for multi-tenancy)
+            term: Optional current term override for derived filters like 'new'
 
         Returns:
             str: Next admission number (preserves format: "PWA2245" or "2245")

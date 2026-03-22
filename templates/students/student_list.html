@@ -221,16 +221,25 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'active' %}active{% endif %}" 
                       id="active-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="active">
                 Active <span class="badge bg-success ms-1">{{ status_counts.active }}</span>
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link {% if current_status == 'new' %}active{% endif %}"
+                      id="new-tab"
+                      type="button"
+                      role="tab"
+                      data-status="new">
+                New <span class="badge bg-primary ms-1">{{ status_counts.new }}</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'graduated' %}active{% endif %}" 
                       id="graduated-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="graduated">
                 Graduated <span class="badge bg-info ms-1">{{ status_counts.graduated }}</span>
@@ -239,7 +248,7 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'transferred' %}active{% endif %}" 
                       id="transferred-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="transferred">
                 Transferred <span class="badge bg-warning ms-1">{{ status_counts.transferred }}</span>
@@ -248,7 +257,7 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'suspended' %}active{% endif %}" 
                       id="suspended-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="suspended">
                 Suspended <span class="badge bg-danger ms-1">{{ status_counts.suspended }}</span>
@@ -257,7 +266,7 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'expelled' %}active{% endif %}" 
                       id="expelled-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="expelled">
                 Expelled <span class="badge bg-dark ms-1">{{ status_counts.expelled }}</span>
@@ -266,7 +275,7 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'withdrawn' %}active{% endif %}" 
                       id="withdrawn-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="withdrawn">
                 Withdrawn <span class="badge bg-secondary ms-1">{{ status_counts.withdrawn }}</span>
@@ -275,7 +284,7 @@
             <li class="nav-item" role="presentation">
               <button class="nav-link {% if current_status == 'inactive' %}active{% endif %}" 
                       id="inactive-tab" 
-                      type="button" 
+                      type="button"
                       role="tab"
                       data-status="inactive">
                 Inactive <span class="badge bg-secondary ms-1">{{ status_counts.inactive }}</span>
