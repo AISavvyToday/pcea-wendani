@@ -18,6 +18,16 @@ from django.views.generic import DeleteView
 from django.contrib import messages
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
+from .models import Club, Student, Parent, StudentParent
+from .forms import (
+    BulkStreamReassignmentForm,
+    ClubForm,
+    ParentForm,
+    StudentForm,
+    StudentImportForm,
+    StudentPromotionForm,
+    StudentSearchForm,
+)
 from .models import Student, Parent, StudentParent
 from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
 from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
@@ -44,6 +54,17 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     ]
 
     def get_queryset(self):
+        queryset = super().get_queryset()  # OrganizationFilterMixin filters by organization
+        queryset = queryset.select_related('current_class').prefetch_related('parents', 'clubs')
+
+        # Get filter parameters
+        query = self.request.GET.get('query', '')
+        class_id = self.request.GET.get('current_class', '')  # Use 'current_class' as per form field name
+        status = self.request.GET.get('status', 'active')  # Default to 'active' if not specified
+        gender = self.request.GET.get('gender', '')  # Use 'gender' as per form field name
+        is_boarder = self.request.GET.get('is_boarder', '')  # Use 'is_boarder' as per form field name
+        stream = self.request.GET.get('stream', '')
+        club_id = self.request.GET.get('club', '')
         base_queryset = self.get_base_filtered_queryset()
         status = self.request.GET.get('status', 'active') or 'active'
         term = self.get_current_term()
@@ -62,6 +83,15 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
     def get_base_filtered_queryset(self):
         organization = getattr(self.request, 'organization', None)
+        queryset = StudentService.search_students(
+            query=query if query else None,
+            class_id=class_id if class_id else None,
+            status=status if status else 'active',  # Default to 'active' if empty
+            gender=gender if gender else None,  # ADD THIS LINE
+            is_boarder=is_boarder if is_boarder else None,  # ADD THIS LINE
+            stream=stream if stream else None,
+            club_id=club_id if club_id else None,
+            organization=organization
         queryset = get_student_base_queryset(organization=organization)
         queryset = queryset.select_related('current_class').prefetch_related('parents')
         return apply_student_filters(
@@ -86,6 +116,24 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        organization = getattr(self.request, 'organization', None)
+        context['search_form'] = StudentSearchForm(self.request.GET, organization=organization)
+        context['bulk_stream_form'] = BulkStreamReassignmentForm(organization=organization)
+        totals_qs = Student.objects.filter(organization=organization) if organization else Student.objects.none()
+        context['total_students'] = totals_qs.count()
+        
+        # Get counts for each status
+        context['status_counts'] = {
+            'active': totals_qs.filter(status='active').count(),
+            'graduated': totals_qs.filter(status='graduated').count(),
+            'transferred': totals_qs.filter(status='transferred').count(),
+            'suspended': totals_qs.filter(status='suspended').count(),
+            'expelled': totals_qs.filter(status='expelled').count(),
+            'withdrawn': totals_qs.filter(status='withdrawn').count(),
+            'inactive': totals_qs.filter(status='inactive').count(),
+        }
+        context['active_students'] = context['status_counts']['active']
+        
         base_queryset = self.get_base_filtered_queryset()
         term = self.get_current_term()
         status_counts = get_student_status_counters(base_queryset, term=term)
@@ -109,6 +157,11 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     template_name = 'students/student_form.html'
     success_url = reverse_lazy('students:list')
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -204,6 +257,7 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         
         # Save student first (admission_number will be auto-generated in model's save() if not provided)
         student.save()
+        form.save_m2m()
 
         # Prepare parents data
         parents_data = []
@@ -298,6 +352,11 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     form_class = StudentForm
     template_name = 'students/student_form.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
 
     def get_success_url(self):
         return reverse_lazy('students:detail', kwargs={'pk': self.object.pk})
@@ -497,6 +556,7 @@ class StudentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
         # Parents (from service)
         context['student_parents'] = profile_data.get('student_parents', [])
+        context['clubs'] = student.clubs.order_by('name')
 
         # Active tab (server-side fallback)
         context['active_tab'] = self.request.GET.get('tab', 'overview')
@@ -524,12 +584,21 @@ class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
         else:
             students = Student.objects.filter(status='active')
 
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            students = students.filter(organization=organization)
+
         kwargs['students'] = students
+        kwargs['organization'] = organization
         return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['classes'] = Class.objects.all()
+        organization = getattr(self.request, 'organization', None)
+        classes = Class.objects.all()
+        if organization:
+            classes = classes.filter(organization=organization)
+        context['classes'] = classes
         context['selected_class'] = self.request.GET.get('class_id')
         context['current_year'] = AcademicYear.objects.filter(is_current=True).first()
         context['current_term'] = Term.objects.filter(is_current=True).first()
@@ -563,6 +632,52 @@ class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
             messages.error(self.request, f'Error promoting students: {str(e)}')
 
         return redirect(self.success_url)
+
+
+class StudentBulkStreamUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
+    """Bulk move selected students to a different stream/class."""
+
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def post(self, request, *args, **kwargs):
+        organization = getattr(request, 'organization', None)
+        students = Student.objects.filter(status='active')
+        if organization:
+            students = students.filter(organization=organization)
+
+        form = BulkStreamReassignmentForm(request.POST, students=students, organization=organization)
+        if not form.is_valid():
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field.replace("_", " ").title()}: {error}')
+            return redirect('students:list')
+
+        result = StudentService.bulk_reassign_stream(
+            student_ids=form.cleaned_data['student_ids'],
+            target_stream=form.cleaned_data['target_stream'],
+            target_class=form.cleaned_data['target_class'],
+            organization=organization,
+        )
+
+        if result['moved_count']:
+            messages.success(
+                request,
+                f"Moved {result['moved_count']} student(s) to "
+                f"{form.cleaned_data['target_class'] or form.cleaned_data['target_stream']}."
+            )
+
+        if result['missing_targets']:
+            messages.warning(
+                request,
+                "Could not resolve a matching class for: "
+                + ", ".join(result['missing_targets'][:5])
+                + ("..." if len(result['missing_targets']) > 5 else "")
+            )
+
+        if not result['moved_count'] and not result['missing_targets']:
+            messages.info(request, 'No student records were updated.')
+
+        return redirect('students:list')
 
 
 class StudentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
@@ -828,6 +943,78 @@ class ParentChildrenAPIView(LoginRequiredMixin, View):
             'parent_phone': parent.phone_primary,
             'children': children_data,
         })
+
+
+class ClubListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
+    model = Club
+    template_name = 'students/club_list.html'
+    context_object_name = 'clubs'
+    paginate_by = 20
+    allowed_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.SCHOOL_ADMIN,
+        UserRole.TEACHER,
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('patron').prefetch_related('students')
+        query = self.request.GET.get('query', '')
+        if query:
+            queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
+        return queryset.order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('query', '')
+        return context
+
+
+class ClubCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
+    model = Club
+    form_class = ClubForm
+    template_name = 'students/club_form.html'
+    success_url = reverse_lazy('students:club_list')
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Club {form.instance.name} created successfully.')
+        return super().form_valid(form)
+
+
+class ClubUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
+    model = Club
+    form_class = ClubForm
+    template_name = 'students/club_form.html'
+    success_url = reverse_lazy('students:club_list')
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Club {form.instance.name} updated successfully.')
+        return super().form_valid(form)
+
+
+class ClubDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DeleteView):
+    model = Club
+    template_name = 'students/club_confirm_delete.html'
+    success_url = reverse_lazy('students:club_list')
+    context_object_name = 'club'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def form_valid(self, form):
+        club_name = self.get_object().name
+        response = super().form_valid(form)
+        messages.success(self.request, f'Club {club_name} deleted successfully.')
+        return response
 
 
 class StudentImportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, FormView):

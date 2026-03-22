@@ -121,6 +121,13 @@ class Student(BaseModel):
         'academics.Class', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='students'
     )
+
+    clubs = models.ManyToManyField(
+        'Club',
+        through='ClubMembership',
+        related_name='students',
+        blank=True,
+    )
     
     # Parent/Guardian relationships
     parents = models.ManyToManyField(Parent, through='StudentParent', related_name='children')
@@ -364,6 +371,51 @@ class Student(BaseModel):
 
         super().save(*args, **kwargs)
 
+
+class Club(BaseModel):
+    """Co-curricular club or society that students can join."""
+
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='clubs',
+        null=True,
+        blank=True,
+        help_text="Organization this club belongs to",
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    patron = models.ForeignKey(
+        'academics.Staff',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clubs_led',
+    )
+
+    class Meta:
+        db_table = 'clubs'
+        ordering = ['name']
+        unique_together = ['organization', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class ClubMembership(BaseModel):
+    """Tracks club membership for a student."""
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='club_memberships')
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='memberships')
+    joined_on = models.DateField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'club_memberships'
+        ordering = ['club__name', 'student__admission_number']
+        unique_together = ['student', 'club']
+
+    def __str__(self):
+        return f"{self.student.full_name} → {self.club.name}"
 
 
 class StudentParent(models.Model):

@@ -43,6 +43,10 @@
         <i class="mdi mdi-upload"></i> Import Students
       </a>
 
+      <a href="{% url 'students:club_list' %}" class="btn btn-outline-primary btn-sm">
+        <i class="mdi mdi-account-group"></i> Clubs
+      </a>
+
       <a href="{% url 'students:create' %}" class="btn btn-gradient-success btn-sm">
         <i class="mdi mdi-plus"></i> New Student
       </a>
@@ -127,6 +131,10 @@
                   {{ search_form.stream }}
                 </div>
 
+                <div style="min-width:160px;">
+                  <label class="filter-label">Club</label>
+                  {{ search_form.club }}
+                </div>
               </div>
             </div>
           </div>
@@ -183,6 +191,30 @@
               Total: <strong>{{ total_students }}</strong>
             </div>
           </div>
+
+          {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+          <form method="post" action="{% url 'students:bulk_stream_update' %}" id="bulkStreamForm" class="border rounded p-3 bg-light mb-3">
+            {% csrf_token %}
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4">
+                <label class="filter-label">Target stream</label>
+                {{ bulk_stream_form.target_stream }}
+              </div>
+              <div class="col-md-5">
+                <label class="filter-label">Target class (optional)</label>
+                {{ bulk_stream_form.target_class }}
+                <small class="text-muted d-block mt-1">{{ bulk_stream_form.target_class.help_text }}</small>
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-gradient-warning btn-sm w-100">
+                  <i class="mdi mdi-swap-horizontal"></i> Move selected students
+                </button>
+              </div>
+            </div>
+            <div id="bulkSelectedContainer"></div>
+            <small class="text-muted d-block mt-2">Select students below, then move them to another stream. Leave target class blank to auto-match each student's grade in the chosen stream.</small>
+          </form>
+          {% endif %}
 
           <!-- Status Tabs -->
           <ul class="nav nav-tabs mb-3" id="statusTabs" role="tablist">
@@ -266,6 +298,11 @@
                 <table class="table table-hover table-striped align-middle mb-0">
                   <thead class="table-light">
                     <tr>
+                      {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+                      <th style="width:40px">
+                        <input type="checkbox" id="selectAllStudents" aria-label="Select all students">
+                      </th>
+                      {% endif %}
                       <th style="width:120px">Admission No.</th>
                       <th>Name</th>
                       <th style="width:160px">Grade</th>
@@ -276,6 +313,11 @@
                   <tbody>
                     {% for student in students %}
                     <tr>
+                      {% if user.role == 'super_admin' or user.role == 'school_admin' %}
+                      <td>
+                        <input type="checkbox" class="student-select" value="{{ student.pk }}" aria-label="Select {{ student.full_name }}">
+                      </td>
+                      {% endif %}
                       <td>
                         <a href="{% url 'students:detail' student.pk %}" class="text-decoration-none">
                           <strong>{{ student.admission_number }}</strong>
@@ -301,9 +343,19 @@
                         <div>{{ student.current_class|default:"Not assigned" }}</div>
                         <div class="small text-muted">
                           {% if student.current_class and student.current_class.stream %}
-                            {{ student.current_class.stream }}
+                            {{ student.current_class.get_stream_display }}
                           {% endif %}
                         </div>
+                        {% if student.clubs.count %}
+                        <div class="mt-1">
+                          {% for club in student.clubs.all|slice:":2" %}
+                            <span class="badge bg-light text-dark border">{{ club.name }}</span>
+                          {% endfor %}
+                          {% if student.clubs.count > 2 %}
+                            <span class="badge bg-secondary">+{{ student.clubs.count|add:"-2" }}</span>
+                          {% endif %}
+                        </div>
+                        {% endif %}
                       </td>
                       <td>
                         {% if student.status == 'active' %}
@@ -324,7 +376,7 @@
                         <a href="{% url 'students:detail' student.pk %}" class="btn btn-sm btn-outline-info me-1">
                           <i class="mdi mdi-eye"></i> View
                         </a>
-                        {% if user.role == 'SUPER_ADMIN' or user.role == 'SCHOOL_ADMIN' %}
+                        {% if user.role == 'super_admin' or user.role == 'school_admin' %}
                         <a href="{% url 'students:update' student.pk %}" class="btn btn-sm btn-outline-warning me-1">
                           <i class="mdi mdi-pencil"></i> Edit
                         </a>
@@ -338,7 +390,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                      <td colspan="5" class="text-center text-muted py-4">No students found.</td>
+                      <td colspan="{% if user.role == 'super_admin' or user.role == 'school_admin' %}6{% else %}5{% endif %}" class="text-center text-muted py-4">No students found.</td>
                     </tr>
                     {% endfor %}
                   </tbody>
@@ -415,6 +467,10 @@
     const clearBtn = document.getElementById('btnClear');
     const paginationButtons = document.querySelectorAll('.pagination-btn');
     const statusTabs = document.querySelectorAll('[data-status]');
+    const selectAllStudents = document.getElementById('selectAllStudents');
+    const studentCheckboxes = Array.from(document.querySelectorAll('.student-select'));
+    const bulkSelectedContainer = document.getElementById('bulkSelectedContainer');
+    const bulkStreamForm = document.getElementById('bulkStreamForm');
 
     function syncSearchFields() {
       hiddenSearch.value = qInput.value || '';
@@ -521,6 +577,42 @@
         form.submit();
       }
     });
+
+    function syncBulkSelection() {
+      if (!bulkSelectedContainer) return;
+      bulkSelectedContainer.innerHTML = '';
+      const selectedValues = studentCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+      selectedValues.forEach(function (value) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'student_ids';
+        input.value = value;
+        bulkSelectedContainer.appendChild(input);
+      });
+    }
+
+    if (selectAllStudents) {
+      selectAllStudents.addEventListener('change', function () {
+        studentCheckboxes.forEach((checkbox) => {
+          checkbox.checked = selectAllStudents.checked;
+        });
+        syncBulkSelection();
+      });
+    }
+
+    studentCheckboxes.forEach(function (checkbox) {
+      checkbox.addEventListener('change', syncBulkSelection);
+    });
+
+    if (bulkStreamForm) {
+      bulkStreamForm.addEventListener('submit', function (event) {
+        syncBulkSelection();
+        if (!bulkSelectedContainer.querySelector('input[name=\"student_ids\"]')) {
+          event.preventDefault();
+          alert('Please select at least one student to move.');
+        }
+      });
+    }
   })();
 </script>
 {% endblock %}
