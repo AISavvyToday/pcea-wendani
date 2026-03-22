@@ -93,6 +93,7 @@ class SMSNotification(BaseModel):
     
     # Tracking
     sent_at = models.DateTimeField(null=True, blank=True)
+    message_id = models.CharField(max_length=100, blank=True, help_text="Central SMS service message identifier")
     error_message = models.TextField(blank=True, help_text="Error message if sending failed")
     
     # Purpose/Context
