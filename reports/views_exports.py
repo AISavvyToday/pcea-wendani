@@ -33,7 +33,10 @@ from .report_utils import (
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     get_invoice_detail_category_display,
+    build_invoice_detail_category_choices,
+    get_invoice_detail_sort_key,
     get_selected_category_labels,
+)
 from .views import (
     build_fees_collection_rows,
     populate_fees_collection_filter_form,
@@ -351,7 +354,8 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         form = InvoiceDetailedReportFilterForm(request.GET)
 
         try:
-            form.fields['category'].choices = get_invoice_detail_category_choices()
+            bound_categories = (getattr(form, 'data', None) and form.data.getlist('category')) or []
+            form.fields['category'].choices = build_invoice_detail_category_choices(bound_categories, include_all_other_descriptions=not bool(bound_categories))
         except Exception:
             pass
 
@@ -519,6 +523,8 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
                 'admission': admission,
                 'student_class': student_cls,
                 'payment_source': payment_source_display,
+                'raw_category': category,
+                'raw_description': description,
                 'category': category_display,
                 'billed': billed,
                 'collected': paid,
@@ -528,6 +534,8 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
             total_billed += billed
             total_collected += paid
             total_balance += balance
+
+        rows.sort(key=lambda row: (row['student_name'].lower(), get_invoice_detail_sort_key(row.get('raw_category'), row.get('raw_description', ''))))
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -589,7 +597,8 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         form = InvoiceDetailedReportFilterForm(request.GET)
 
         try:
-            form.fields['category'].choices = get_invoice_detail_category_choices()
+            bound_categories = (getattr(form, 'data', None) and form.data.getlist('category')) or []
+            form.fields['category'].choices = build_invoice_detail_category_choices(bound_categories, include_all_other_descriptions=not bool(bound_categories))
         except Exception:
             pass
 
@@ -757,6 +766,8 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
                 'admission': admission,
                 'student_class': student_cls,
                 'payment_source': payment_source_display,
+                'raw_category': category,
+                'raw_description': description,
                 'category': category_display,
                 'billed': billed,
                 'collected': paid,

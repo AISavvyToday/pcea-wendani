@@ -157,6 +157,7 @@ class StaffOnboardingForm(forms.ModelForm):
         email = User.objects.normalize_email(self.cleaned_data['email']).lower()
         user_qs = User.objects.filter(email__iexact=email)
 
+        is_editing = bool(getattr(self.instance, 'pk', None)) and not self.instance._state.adding
         current_user = getattr(self.instance, 'user', None)
         if current_user:
             user_qs = user_qs.exclude(pk=current_user.pk)
@@ -165,9 +166,9 @@ class StaffOnboardingForm(forms.ModelForm):
         if existing_user:
             if existing_user.organization_id and self.organization and existing_user.organization_id != self.organization.id:
                 raise forms.ValidationError('A user with this email belongs to a different organization.')
-            if self.instance.pk:
+            if is_editing:
                 raise forms.ValidationError('Another user with this email already exists.')
-            if hasattr(existing_user, 'staff_profile'):
+            if Staff.objects.filter(user=existing_user).exists():
                 raise forms.ValidationError('A staff profile with this email already exists.')
             self.linked_user = existing_user
 
@@ -176,7 +177,7 @@ class StaffOnboardingForm(forms.ModelForm):
     def clean_staff_number(self):
         staff_number = self.cleaned_data['staff_number'].strip()
         qs = Staff.objects.filter(staff_number__iexact=staff_number)
-        if self.instance.pk:
+        if bool(getattr(self.instance, 'pk', None)) and not self.instance._state.adding:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise forms.ValidationError('This staff number is already in use.')
@@ -185,7 +186,7 @@ class StaffOnboardingForm(forms.ModelForm):
     def clean_id_number(self):
         id_number = self.cleaned_data['id_number'].strip()
         qs = Staff.objects.filter(id_number__iexact=id_number)
-        if self.instance.pk:
+        if bool(getattr(self.instance, 'pk', None)) and not self.instance._state.adding:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise forms.ValidationError('This ID number is already in use.')
@@ -204,6 +205,7 @@ class StaffOnboardingForm(forms.ModelForm):
         if user and self.organization and user.organization_id and user.organization_id != self.organization.id:
             self.add_error('email', 'User organization must match the staff organization.')
 
+        is_editing = bool(getattr(self.instance, 'pk', None)) and not self.instance._state.adding
         current_user = getattr(self.instance, 'user', None)
         if current_user and self.organization and current_user.organization_id and current_user.organization_id != self.organization.id:
             self.add_error(None, 'The linked user belongs to a different organization than this staff record.')

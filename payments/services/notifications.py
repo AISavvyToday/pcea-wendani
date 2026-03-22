@@ -7,6 +7,7 @@
 # ============================================================
 
 import logging
+from django.conf import settings
 from django.utils import timezone
 
 from payments.models import Payment
@@ -20,12 +21,13 @@ class NotificationService:
     """Service for sending payment notifications and receipts."""
 
     RECEIPT_TEMPLATE = (
-        "Dear {parent.first_name}, we have received {payment.amount} for "
+        f"{getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy')} acknowledges receipt of {{payment.amount}} for "
         "{student.name} ({student.admission_number}) on {payment.payment_date}. "
         "Ref: {payment.transaction_reference}. Receipt No: {payment.receipt_number}. "
         "Remaining balance: {payment.remaining_balance}. "
         "Receipt: {receipt.link}. Thank you."
     )
+
 
     @staticmethod
     def send_payment_receipt(payment: Payment) -> bool:

@@ -363,7 +363,7 @@ class SMSAPIClientTests(TestCase):
         self.assertEqual(notification.status, 'sent')
         self.assertIsNotNone(notification.sent_at)
         self.assertEqual(notification.purpose, 'greeting')
-        self.assertFalse(hasattr(notification, 'message_id'))
+        self.assertEqual(notification.message_id, 'remote-123')
         mock_post.assert_called_once()
 
     @override_settings(

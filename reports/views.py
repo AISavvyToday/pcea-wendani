@@ -30,6 +30,8 @@ from .report_utils import (
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     get_invoice_detail_category_display,
+    build_invoice_detail_category_choices,
+    get_invoice_detail_sort_key,
 )
 
 
@@ -415,7 +417,8 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
 
         # Populate category choices dynamically from canonical invoice categories
         try:
-            form.fields['category'].choices = get_invoice_detail_category_choices()
+            bound_categories = (getattr(form, 'data', None) and form.data.getlist('category')) or []
+            form.fields['category'].choices = build_invoice_detail_category_choices(bound_categories, include_all_other_descriptions=not bool(bound_categories))
         except Exception:
             pass
 
@@ -602,6 +605,8 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
                 'student__admission_number': row.get('invoice__student__admission_number', ''),
                 'student__current_class__name': row.get('invoice__student__current_class__name', ''),
                 'payment_source': payment_source_display,
+                'raw_category': category,
+                'raw_description': description,
                 'description': category_display,
                 'total_billed': billed,
                 'total_paid': paid,

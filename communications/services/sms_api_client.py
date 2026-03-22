@@ -190,7 +190,8 @@ class SMSAPIClient:
                 if data.get('success'):
                     notification.status = 'sent'
                     notification.sent_at = timezone.now()
-                    notification.save(update_fields=['status', 'sent_at'])
+                    notification.message_id = data.get('message_id', '') or ''
+                    notification.save(update_fields=['status', 'sent_at', 'message_id'])
                     logger.info(f"SMS sent successfully to {normalized_phone}")
                 else:
                     notification.status = 'failed'

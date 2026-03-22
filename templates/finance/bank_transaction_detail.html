@@ -1,4 +1,5 @@
 {% extends 'base/base.html' %}
+{% load tz %}
 {% load static humanize %}
 
 {% block title %}Bank Transaction Details{% endblock %}
@@ -81,15 +82,15 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Received At:</strong></td>
-                                    <td>{{ transaction.effective_received_at|date:"d M Y H:i" }}</td>
+                                    <td>{% localtime off %}{{ transaction.effective_received_at|date:"d M Y H:i" }}{% endlocaltime %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Bank Timestamp:</strong></td>
-                                    <td>{{ transaction.bank_timestamp|date:"d M Y H:i"|default:"N/A" }}</td>
+                                    <td>{% localtime off %}{{ transaction.bank_timestamp|date:"d M Y H:i"|default:"N/A" }}{% endlocaltime %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Matched At:</strong></td>
-                                    <td>{{ transaction.effective_matched_at|date:"d M Y H:i"|default:"N/A" }}</td>
+                                    <td>{% localtime off %}{{ transaction.effective_matched_at|date:"d M Y H:i"|default:"N/A" }}{% endlocaltime %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Matched By:</strong></td>
@@ -181,7 +182,7 @@
                             </a>
                         </div>
                         <div class="small text-muted">KES {{ reconciliation.amount|floatformat:2|intcomma }}</div>
-                        <div class="small text-muted">Matched {{ reconciliation.matched_at|date:"d M Y H:i" }}</div>
+                        <div class="small text-muted">Matched {% localtime off %}{{ reconciliation.matched_at|date:"d M Y H:i" }}{% endlocaltime %}</div>
                         {% if reconciliation.invoice %}
                         <div class="small text-muted">Invoice preference: {{ reconciliation.invoice.invoice_number }}</div>
                         {% endif %}

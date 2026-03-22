@@ -273,7 +273,9 @@
           </a>
           <div class="collapse" id="parent-finance-menu">
             <ul class="nav flex-column sub-menu">
+              {% if request.user.profile.student.pk %}
               <li class="nav-item"><a class="nav-link" href="{% url 'finance:student_statement' student_pk=request.user.profile.student.pk %}">My Child Statement</a></li>
+              {% endif %}
               <li class="nav-item"><a class="nav-link" href="{% url 'finance:invoice_list' %}">Invoices</a></li>
             </ul>
           </div>

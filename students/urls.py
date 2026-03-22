@@ -7,8 +7,10 @@ app_name = 'students'
 
 urlpatterns = [
     path('', views.StudentListView.as_view(), name='list'),
+    path('my-students/', views.StudentListView.as_view(), name='my_students'),
     path('create/', views.StudentCreateView.as_view(), name='create'),
     path('<uuid:pk>/', views.StudentDetailView.as_view(), name='detail'),
+    path('<uuid:pk>/detail/', views.StudentDetailView.as_view(), name='student_detail'),
     path('<uuid:pk>/edit/', views.StudentUpdateView.as_view(), name='update'),
     path('<uuid:pk>/delete/', views.StudentDeleteView.as_view(), name='delete'),
     path('promote/', views.StudentPromotionView.as_view(), name='promote'),

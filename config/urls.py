@@ -1,11 +1,14 @@
 # config/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("dashboard/", RedirectView.as_view(pattern_name="portal:home", permanent=False), name="dashboard"),
+    path("contact/", RedirectView.as_view(pattern_name="portal:home", permanent=False), name="contact"),
     path("", include("portal.urls", namespace="portal")),
     path('api/payments/', include('payments.urls', namespace='payments-api')),
     path('students/', include('students.urls')),

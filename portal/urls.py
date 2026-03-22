@@ -16,6 +16,8 @@ urlpatterns = [
     # HOME & DASHBOARDS
     # =========================================================================
     path('', views.home, name='home'),
+    path('dashboard/', views.role_redirect, name='dashboard'),
+    path('contact/', views.home, name='contact'),
     path('dashboard/admin/', views.dashboard_admin, name='dashboard_admin'),
     path('dashboard/bursar/', views.dashboard_bursar, name='dashboard_bursar'),
     path('dashboard/teacher/', views.dashboard_teacher, name='dashboard_teacher'),

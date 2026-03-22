@@ -113,37 +113,56 @@ def display_prepayment_amount(value):
     return abs(value or Decimal("0.00"))
 
 
-def get_invoice_detail_category_choices():
+
+
+def build_invoice_detail_category_choices(selected_categories=None, include_all_other_descriptions=True):
     categories_list = [
         (category, get_report_category_label(category))
         for category in DETAIL_FILTER_CATEGORY_SEQUENCE
     ]
 
-    other_descriptions_raw = (
-        InvoiceItem.objects.filter(category=FeeCategory.OTHER, is_active=True)
-        .exclude(description__isnull=True)
-        .exclude(description="")
-        .values_list("description", flat=True)
-        .distinct()
-    )
+    if not include_all_other_descriptions and selected_categories:
+        unique_descriptions = []
+        seen = set()
+        for category in selected_categories:
+            if not str(category).startswith(f"{FeeCategory.OTHER}:"):
+                continue
+            description = str(category).split(':', 1)[1].strip()
+            lowered = description.lower()
+            if description and lowered not in seen:
+                seen.add(lowered)
+                unique_descriptions.append(description)
+    else:
+        other_descriptions_raw = (
+            InvoiceItem.objects.filter(category=FeeCategory.OTHER, is_active=True)
+            .exclude(description__isnull=True)
+            .exclude(description="")
+            .values_list("description", flat=True)
+            .distinct()
+        )
 
-    seen_descriptions = set()
-    unique_descriptions = []
-    for description in other_descriptions_raw:
-        if not description:
-            continue
-        normalized = description.strip()
-        lowered = normalized.lower()
-        if lowered in seen_descriptions:
-            continue
-        seen_descriptions.add(lowered)
-        unique_descriptions.append(normalized)
+        seen_descriptions = set()
+        unique_descriptions = []
+        for description in other_descriptions_raw:
+            if not description:
+                continue
+            normalized = description.strip()
+            lowered = normalized.lower()
+            if lowered in seen_descriptions:
+                continue
+            seen_descriptions.add(lowered)
+            unique_descriptions.append(normalized)
 
-    for description in sorted(unique_descriptions, key=str.lower):
+        unique_descriptions.sort(key=str.lower)
+
+    for description in unique_descriptions:
         categories_list.append((f"{FeeCategory.OTHER}:{description}", f"Other: {description}"))
 
     categories_list.append((FeeCategory.OTHER, get_report_category_label(FeeCategory.OTHER)))
     return categories_list
+
+def get_invoice_detail_category_choices():
+    return build_invoice_detail_category_choices()
 
 
 def get_invoice_detail_category_display(category, description=""):
@@ -160,3 +179,12 @@ def get_selected_category_labels(selected_categories):
             continue
         labels.append(get_report_category_label(category))
     return labels
+
+
+def get_invoice_detail_sort_key(category, description=""):
+    try:
+        category_index = REPORT_CATEGORY_SEQUENCE.index(category)
+    except ValueError:
+        category_index = len(REPORT_CATEGORY_SEQUENCE)
+    display = get_invoice_detail_category_display(category, description)
+    return (category_index, display.lower(), description.lower())
