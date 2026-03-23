@@ -1,0 +1,67 @@
+{% extends 'base/base.html' %}
+{% block title %}Clubs{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">Clubs & Societies</h3>
+      <small class="text-muted">Create clubs and manage student memberships.</small>
+    </div>
+    {% if is_admin %}
+    <a href="{% url 'students:club_create' %}" class="btn btn-primary btn-sm">New Club</a>
+    {% endif %}
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label">Search</label>
+          <input type="text" name="query" value="{{ request.GET.query|default:'' }}" class="form-control" placeholder="Search club name, code, patron...">
+        </div>
+        <div class="col-md-6 text-md-end">
+          <button class="btn btn-outline-primary">Search</button>
+          <a href="{% url 'students:club_list' %}" class="btn btn-light">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Code</th>
+              <th>Patron</th>
+              <th>Members</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for club in clubs %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ club.name }}</div>
+                <small class="text-muted">{{ club.description|default:'No description'|truncatechars:70 }}</small>
+              </td>
+              <td>{{ club.code|default:'—' }}</td>
+              <td>{{ club.patron_name|default:'—' }}</td>
+              <td>{{ club.active_member_count }}</td>
+              <td class="text-end">
+                <a href="{% url 'students:club_detail' club.pk %}" class="btn btn-sm btn-outline-primary">Open</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-4 text-muted">No clubs found yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

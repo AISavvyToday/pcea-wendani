@@ -6,15 +6,15 @@
     <div class="page-header d-flex justify-content-between align-items-center">
         <h3 class="page-title">Other Income</h3>
         <div class="d-flex gap-2">
-            <a href="{% url 'other_income:report_staging' %}" class="btn btn-outline-info">Report Staging</a>
+            <a href="{% url 'other_income:report' %}" class="btn btn-outline-info">Other Income Report</a>
             <a href="{% url 'other_income:invoice_create' %}" class="btn btn-primary">Create Invoice</a>
         </div>
     </div>
 
     <div class="alert alert-info">
-        <strong>Other-income reporting is being staged.</strong>
-        Use <a href="{% url 'other_income:report_staging' %}" class="alert-link">Report Staging</a>
-        to review the reusable data inventory and the shared filter rules that will power the final HTML, Excel, and PDF outputs once the business template is confirmed.
+        <strong>Need a summary?</strong>
+        Open the <a href="{% url 'other_income:report' %}" class="alert-link">Other Income Report</a>
+        for on-screen totals plus Excel and PDF downloads.
     </div>
 
     <!-- Search -->

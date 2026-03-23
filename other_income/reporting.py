@@ -1,3 +1,4 @@
+from decimal import Decimal
 from dataclasses import dataclass
 from typing import Optional
 
@@ -208,4 +209,50 @@ def build_other_income_report_inventory(*, organization=None, filters=None):
         ],
         'statuses': statuses,
         'payment_methods': payment_methods,
+    }
+
+
+
+def build_other_income_flat_rows(*, organization=None, filters=None):
+    """Flatten invoice-level other-income data for HTML / Excel / PDF outputs."""
+    dataset = build_other_income_report_dataset(organization=organization, filters=filters)
+    rows = []
+    for row in dataset:
+        invoice = row['invoice']
+        payment_history = row['payment_history']
+        payment_methods = sorted({p['payment_method'] for p in payment_history if p.get('payment_method')})
+        latest_payment = payment_history[-1] if payment_history else None
+        rows.append({
+            'invoice_number': invoice['invoice_number'],
+            'client_name': invoice['client_name'],
+            'client_contact': invoice['client_contact'],
+            'description': invoice['description'],
+            'status': invoice['status'],
+            'issue_date': invoice['issue_date'],
+            'due_date': invoice['due_date'],
+            'total_amount': invoice['total_amount'],
+            'amount_paid': invoice['amount_paid'],
+            'balance': invoice['balance'],
+            'item_count': row['dimensions']['item_count'],
+            'payment_count': row['dimensions']['payment_count'],
+            'payment_methods': payment_methods,
+            'payment_methods_display': ', '.join(payment_methods) if payment_methods else '—',
+            'last_payment_date': latest_payment['payment_date'] if latest_payment else None,
+            'last_reference': (
+                (latest_payment.get('receipt_number') or latest_payment.get('payment_reference') or latest_payment.get('transaction_reference'))
+                if latest_payment else ''
+            ),
+        })
+    return rows
+
+
+def build_other_income_summary(rows):
+    total_invoiced = sum((row['total_amount'] for row in rows), Decimal('0.00'))
+    total_paid = sum((row['amount_paid'] for row in rows), Decimal('0.00'))
+    total_balance = sum((row['balance'] for row in rows), Decimal('0.00'))
+    return {
+        'invoice_count': len(rows),
+        'total_invoiced': total_invoiced,
+        'total_paid': total_paid,
+        'total_balance': total_balance,
     }

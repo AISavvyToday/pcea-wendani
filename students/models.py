@@ -7,6 +7,7 @@ from core.models import BaseModel, Gender, GradeLevel
 from accounts.models import User
 
 from django.db.models import Sum
+from django.utils import timezone
 
 
 class Parent(BaseModel):
@@ -304,9 +305,6 @@ class Student(BaseModel):
         return self.outstanding_balance 
 
 
-    from django.db.models import Sum
-    from decimal import Decimal
-
     def save(self, *args, **kwargs):
         """
         Override save to auto-generate admission_number if not provided.
@@ -478,3 +476,42 @@ class MedicalRecord(BaseModel):
 
     def __str__(self):
         return f"{self.student.admission_number} - {self.record_type} - {self.record_date}"
+
+class Club(BaseModel):
+    """Student clubs and societies."""
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='clubs',
+        null=True,
+        blank=True,
+        help_text="Organization this club belongs to"
+    )
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=30, blank=True)
+    description = models.TextField(blank=True)
+    patron_name = models.CharField(max_length=100, blank=True)
+    students = models.ManyToManyField(Student, through='ClubMembership', related_name='clubs')
+
+    class Meta:
+        db_table = 'clubs'
+        ordering = ['name']
+        unique_together = [('organization', 'name')]
+
+    def __str__(self):
+        return self.name
+
+
+class ClubMembership(BaseModel):
+    """Link students to clubs while keeping membership history soft-deletable."""
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='memberships')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='club_memberships')
+    joined_on = models.DateField(default=timezone.now)
+
+    class Meta:
+        db_table = 'club_memberships'
+        ordering = ['club__name', 'student__admission_number']
+        unique_together = [('club', 'student')]
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.club.name}"

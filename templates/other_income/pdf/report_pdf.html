@@ -1,0 +1,63 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Other Income Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #222; }
+    h1 { margin-bottom: 4px; }
+    .meta { color: #666; margin-bottom: 12px; }
+    .summary { margin-bottom: 12px; }
+    .summary td { padding: 4px 8px 4px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+    th { background: #f4f4f4; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Other Income Report</h1>
+  <div class="meta">Generated {{ generated_at|date:'d M Y H:i' }}{% if organization %} • {{ organization.name }}{% endif %}</div>
+  <table class="summary">
+    <tr>
+      <td><strong>Invoices:</strong> {{ summary.invoice_count }}</td>
+      <td><strong>Total Invoiced:</strong> KES {{ summary.total_invoiced|floatformat:2|intcomma }}</td>
+      <td><strong>Total Paid:</strong> KES {{ summary.total_paid|floatformat:2|intcomma }}</td>
+      <td><strong>Outstanding:</strong> KES {{ summary.total_balance|floatformat:2|intcomma }}</td>
+    </tr>
+  </table>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Invoice</th>
+        <th>Client</th>
+        <th>Issue Date</th>
+        <th>Status</th>
+        <th>Total</th>
+        <th>Paid</th>
+        <th>Balance</th>
+        <th>Payment Methods</th>
+        <th>Receipt / Ref</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.invoice_number }}<br><small>{{ row.description|default:'No description' }}</small></td>
+        <td>{{ row.client_name }}<br><small>{{ row.client_contact|default:'—' }}</small></td>
+        <td>{{ row.issue_date|date:'d M Y' }}</td>
+        <td>{{ row.status|title }}</td>
+        <td>KES {{ row.total_amount|floatformat:2|intcomma }}</td>
+        <td>KES {{ row.amount_paid|floatformat:2|intcomma }}</td>
+        <td>KES {{ row.balance|floatformat:2|intcomma }}</td>
+        <td>{{ row.payment_methods_display }}</td>
+        <td>{{ row.last_reference|default:'—' }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9">No records found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

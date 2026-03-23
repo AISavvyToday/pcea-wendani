@@ -1,263 +1,88 @@
 {% extends 'base/base.html' %}
 {% load humanize %}
-{% block title %}Other Income Report Staging{% endblock %}
+{% block title %}Other Income Report{% endblock %}
+
 {% block content %}
 <div class="content-wrapper">
-    <div class="page-header d-flex justify-content-between align-items-center">
-        <div>
-            <h3 class="page-title mb-1">Other Income Report Staging</h3>
-            <p class="text-muted mb-0">
-                This page prepares the shared filters and reusable dataset for the final report package while the business template is still pending.
-            </p>
-        </div>
-        <a href="{% url 'other_income:invoice_list' %}" class="btn btn-outline-secondary">Back to Other Income</a>
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">Other Income Report</h3>
+      <small class="text-muted">Invoice and payment activity for non-student income.</small>
     </div>
-
-    <div class="alert alert-warning">
-        <strong>Template still required.</strong>
-        HTML, Excel, and PDF outputs are intentionally not finalized yet. The goal here is to lock down reusable data and consistent filter rules so implementation can move quickly once the Wendani team shares the desired layout.
+    <div class="d-flex gap-2">
+      <a href="{% url 'other_income:report_export_excel' %}?{{ request.GET.urlencode }}" class="btn btn-outline-success btn-sm">Excel</a>
+      <a href="{% url 'other_income:report_export_pdf' %}?{{ request.GET.urlencode }}" class="btn btn-outline-danger btn-sm">PDF</a>
     </div>
+  </div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <h4 class="card-title">Shared Filter Rules</h4>
-            <form method="get" class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">{{ form.search.label }}</label>
-                    {{ form.search }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.status.label }}</label>
-                    {{ form.status }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.payment_method.label }}</label>
-                    {{ form.payment_method }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.issue_date_from.label }}</label>
-                    {{ form.issue_date_from }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.issue_date_to.label }}</label>
-                    {{ form.issue_date_to }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.due_date_from.label }}</label>
-                    {{ form.due_date_from }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.due_date_to.label }}</label>
-                    {{ form.due_date_to }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.payment_date_from.label }}</label>
-                    {{ form.payment_date_from }}
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ form.payment_date_to.label }}</label>
-                    {{ form.payment_date_to }}
-                </div>
-                <div class="col-12 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Refresh Preview</button>
-                    <a href="{% url 'other_income:report_staging' %}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">{{ form.search.label_tag }}{{ form.search }}</div>
+        <div class="col-md-3">{{ form.status.label_tag }}{{ form.status }}</div>
+        <div class="col-md-3">{{ form.payment_method.label_tag }}{{ form.payment_method }}</div>
+        <div class="col-md-3 text-md-end">
+          <button class="btn btn-primary">Filter</button>
+          <a href="{% url 'other_income:report' %}" class="btn btn-light">Clear</a>
         </div>
+        <div class="col-md-3">{{ form.issue_date_from.label_tag }}{{ form.issue_date_from }}</div>
+        <div class="col-md-3">{{ form.issue_date_to.label_tag }}{{ form.issue_date_to }}</div>
+        <div class="col-md-3">{{ form.payment_date_from.label_tag }}{{ form.payment_date_from }}</div>
+        <div class="col-md-3">{{ form.payment_date_to.label_tag }}{{ form.payment_date_to }}</div>
+      </form>
     </div>
+  </div>
 
-    <div class="row">
-        <div class="col-lg-5 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="card-title">Business Questions to Confirm</h4>
-                    <ol class="mb-0 ps-3">
-                        {% for question in pending_template_questions %}
-                        <li class="mb-2">{{ question }}</li>
-                        {% endfor %}
-                    </ol>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-7 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h4 class="card-title">Reusable Data Inventory</h4>
-                    <div class="row text-center mb-3">
-                        <div class="col-md-4 mb-2">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">Invoices</div>
-                                <div class="h4 mb-0">{{ report_inventory.counts.invoice_count|default:0 }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">Line Items</div>
-                                <div class="h4 mb-0">{{ report_inventory.counts.line_item_count|default:0 }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">Payments</div>
-                                <div class="h4 mb-0">{{ report_inventory.counts.payment_count|default:0 }}</div>
-                            </div>
-                        </div>
-                    </div>
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Invoices</div><div class="h4 mb-0">{{ summary.invoice_count }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Total Invoiced</div><div class="h4 mb-0">KES {{ summary.total_invoiced|floatformat:2|intcomma }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Total Paid</div><div class="h4 mb-0">KES {{ summary.total_paid|floatformat:2|intcomma }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Outstanding</div><div class="h4 mb-0">KES {{ summary.total_balance|floatformat:2|intcomma }}</div></div></div></div>
+  </div>
 
-                    <h6>Available Columns</h6>
-                    <div class="mb-3">
-                        {% for column in report_inventory.available_columns %}
-                        <span class="badge badge-outline-primary border me-1 mb-1">{{ column }}</span>
-                        {% endfor %}
-                    </div>
-
-                    <h6>Available Grouping/Filter Dimensions</h6>
-                    <div class="mb-3">
-                        {% for dimension in report_inventory.available_grouping_dimensions %}
-                        <span class="badge badge-outline-info border me-1 mb-1">{{ dimension }}</span>
-                        {% endfor %}
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Statuses Seen</h6>
-                            <ul class="mb-0 ps-3">
-                                {% for status in report_inventory.statuses %}
-                                <li>{{ status }}</li>
-                                {% empty %}
-                                <li class="text-muted">No statuses matched the current filters.</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Payment Methods Seen</h6>
-                            <ul class="mb-0 ps-3">
-                                {% for method in report_inventory.payment_methods %}
-                                <li>{{ method }}</li>
-                                {% empty %}
-                                <li class="text-muted">No payment methods matched the current filters.</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Client</th>
+              <th>Issue Date</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Payment Methods</th>
+              <th>Last Receipt / Ref</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ row.invoice_number }}</div>
+                <small class="text-muted">{{ row.description|default:'No description'|truncatechars:60 }}</small>
+              </td>
+              <td>
+                <div>{{ row.client_name }}</div>
+                <small class="text-muted">{{ row.client_contact|default:'—' }}</small>
+              </td>
+              <td>{{ row.issue_date|date:'d M Y' }}</td>
+              <td>{{ row.status|title }}</td>
+              <td>KES {{ row.total_amount|floatformat:2|intcomma }}</td>
+              <td>KES {{ row.amount_paid|floatformat:2|intcomma }}</td>
+              <td>KES {{ row.balance|floatformat:2|intcomma }}</td>
+              <td>{{ row.payment_methods_display }}</td>
+              <td>{{ row.last_reference|default:'—' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="text-center py-4 text-muted">No records found for the selected filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-
-    <div class="card mb-4">
-        <div class="card-body">
-            <h4 class="card-title">Future Implementation Notes</h4>
-            <ul class="mb-0 ps-3">
-                {% for note in future_implementation_notes %}
-                <li class="mb-2">{{ note }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-body">
-            <h4 class="card-title">Dataset Preview (first {{ preview_rows|length }} invoice{{ preview_rows|length|pluralize }})</h4>
-            {% if preview_rows %}
-            <div class="accordion" id="reportPreviewAccordion">
-                {% for row in preview_rows %}
-                <div class="card mb-3 border">
-                    <div class="card-header">
-                        <div class="d-flex flex-wrap justify-content-between gap-2">
-                            <div>
-                                <strong>{{ row.invoice.invoice_number }}</strong> — {{ row.invoice.client_name }}
-                                <div class="text-muted small">
-                                    Status: {{ row.invoice.status }} |
-                                    Issue Date: {{ row.invoice.issue_date|date:"d M Y" }} |
-                                    Due Date: {{ row.invoice.due_date|date:"d M Y"|default:"—" }}
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <div>Total: KES {{ row.invoice.total_amount|floatformat:2|intcomma }}</div>
-                                <div>Paid: KES {{ row.invoice.amount_paid|floatformat:2|intcomma }}</div>
-                                <div>Balance: KES {{ row.invoice.balance|floatformat:2|intcomma }}</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-lg-6 mb-3">
-                                <h6>Invoice Header</h6>
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-5">Client Contact</dt>
-                                    <dd class="col-sm-7">{{ row.invoice.client_contact|default:"—" }}</dd>
-                                    <dt class="col-sm-5">Description</dt>
-                                    <dd class="col-sm-7">{{ row.invoice.description|default:"—" }}</dd>
-                                    <dt class="col-sm-5">Payment Methods</dt>
-                                    <dd class="col-sm-7">
-                                        {% if row.dimensions.payment_methods %}
-                                            {{ row.dimensions.payment_methods|join:", " }}
-                                        {% else %}
-                                            —
-                                        {% endif %}
-                                    </dd>
-                                    <dt class="col-sm-5">Counts</dt>
-                                    <dd class="col-sm-7">
-                                        {{ row.dimensions.item_count }} line item{{ row.dimensions.item_count|pluralize }},
-                                        {{ row.dimensions.payment_count }} payment{{ row.dimensions.payment_count|pluralize }}
-                                    </dd>
-                                </dl>
-                            </div>
-                            <div class="col-lg-6 mb-3">
-                                <h6>Line Items</h6>
-                                <ul class="list-group">
-                                    {% for item in row.line_items %}
-                                    <li class="list-group-item d-flex justify-content-between">
-                                        <span>{{ item.description }}</span>
-                                        <strong>KES {{ item.amount|floatformat:2|intcomma }}</strong>
-                                    </li>
-                                    {% empty %}
-                                    <li class="list-group-item text-muted">No line items found.</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-
-                        <h6>Payment History</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Reference</th>
-                                        <th>Receipt</th>
-                                        <th>Payer</th>
-                                        <th>Method</th>
-                                        <th>Date</th>
-                                        <th class="text-end">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for payment in row.payment_history %}
-                                    <tr>
-                                        <td>{{ payment.payment_reference }}</td>
-                                        <td>{{ payment.receipt_number|default:"—" }}</td>
-                                        <td>{{ payment.payer_name|default:"—" }}</td>
-                                        <td>{{ payment.payment_method|default:"—" }}</td>
-                                        <td>{{ payment.payment_date|date:"d M Y H:i" }}</td>
-                                        <td class="text-end">KES {{ payment.amount|floatformat:2|intcomma }}</td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted">No payments found.</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="text-muted">No invoices matched the current staging filters.</div>
-            {% endif %}
-        </div>
-    </div>
+  </div>
 </div>
 {% endblock %}

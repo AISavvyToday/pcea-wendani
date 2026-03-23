@@ -1,0 +1,55 @@
+{% extends 'base/base.html' %}
+{% block title %}Bulk Move Students{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">Bulk Move Students Between Streams</h3>
+      <small class="text-muted">Filter students by class or stream, then move them to a new destination class.</small>
+    </div>
+    <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">Back to students</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label">Source Class</label>
+            {{ form.source_class }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Source Stream</label>
+            {{ form.source_stream }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Destination Class <span class="text-danger">*</span></label>
+            {{ form.target_class }}
+            {% if form.target_class.errors %}<div class="text-danger small mt-1">{{ form.target_class.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="alert alert-info mb-3">
+          Pick the source filters, review the loaded students below, then choose the destination class and submit.
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Students <span class="text-danger">*</span></label>
+          <div class="border rounded p-3" style="max-height: 420px; overflow-y: auto;">
+            {{ form.students }}
+          </div>
+          <small class="text-muted">Use the source filters above to narrow the list before moving students.</small>
+          {% if form.students.errors %}<div class="text-danger small mt-1">{{ form.students.errors }}</div>{% endif %}
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
+          <button type="submit" class="btn btn-warning">Move Selected Students</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

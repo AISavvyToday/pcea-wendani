@@ -100,20 +100,37 @@
                     {{ form.status_reason }}
 
                     <div class="row">
-                      <div class="col-md-4">
+                      <div class="col-md-3">
                         <label>Admission Date <span class="text-danger">*</span></label>
                         {{ form.admission_date }}
                         {% if form.admission_date.errors %}
                           <div class="text-danger small">{{ form.admission_date.errors }}</div>
                         {% endif %}
                       </div>
-                      <div class="col-md-4">
-                        <label>Current Grade <span class="text-danger">*</span></label>
+                      <div class="col-md-3">
+                        <label>Grade Level <span class="text-danger">*</span></label>
+                        {{ form.grade_level }}
+                        {% if form.grade_level.errors %}
+                          <div class="text-danger small">{{ form.grade_level.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-3">
+                        <label>Stream <span class="text-danger">*</span></label>
+                        {{ form.stream }}
+                        {% if form.stream.errors %}
+                          <div class="text-danger small">{{ form.stream.errors }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-3">
+                        <label>Class <span class="text-danger">*</span></label>
                         {{ form.current_class }}
                         {% if form.current_class.errors %}
                           <div class="text-danger small">{{ form.current_class.errors }}</div>
                         {% endif %}
                       </div>
+                    </div>
+
+                    <div class="row mt-3">
                       <div class="col-md-4">
                         <label>Gender <span class="text-danger">*</span></label>
                         {{ form.gender }}
@@ -428,13 +445,29 @@
                     {% endif %}
                   </div>
                   <div class="col-md-3">
-                    <label>Current Grade</label>
+                    <label>Grade Level</label>
+                    {{ form.grade_level }}
+                    {% if form.grade_level.errors %}
+                      <div class="text-danger small">{{ form.grade_level.errors }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-3">
+                    <label>Stream</label>
+                    {{ form.stream }}
+                    {% if form.stream.errors %}
+                      <div class="text-danger small">{{ form.stream.errors }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="row mt-2">
+                  <div class="col-md-4">
+                    <label>Class</label>
                     {{ form.current_class }}
                     {% if form.current_class.errors %}
                       <div class="text-danger small">{{ form.current_class.errors }}</div>
                     {% endif %}
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-4">
                     <label>Status</label>
                     {{ form.status }}
                   </div>

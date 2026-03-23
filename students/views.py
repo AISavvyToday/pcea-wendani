@@ -19,7 +19,8 @@ from django.contrib import messages
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
-from .forms import StudentForm, ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
+from .forms import ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
+from .forms_enhancements import StudentEnrollmentForm
 from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
@@ -118,10 +119,15 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     """Create a new student"""
 
     model = Student
-    form_class = StudentForm
+    form_class = StudentEnrollmentForm
     template_name = 'students/student_form.html'
     success_url = reverse_lazy('students:list')
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -210,7 +216,8 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         # Save student form (admission_number will be auto-generated in model's save() if not set)
         # Use commit=False to get instance without saving, then add parents
         student = form.save(commit=False)
-        
+        student.organization = getattr(self.request, 'organization', None) or student.organization
+
         # Ensure status is set to 'active' for new students
         if not student.status:
             student.status = 'active'
@@ -259,18 +266,25 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
                     # Check if parent already exists by phone or ID
                     parent = None
+                    organization = getattr(self.request, 'organization', None)
+                    parent_queryset = Parent.objects.all()
+                    if organization is not None:
+                        parent_queryset = parent_queryset.filter(organization=organization)
+
                     if parent_info.get('phone_primary'):
-                        parent = Parent.objects.filter(
+                        parent = parent_queryset.filter(
                             phone_primary=parent_info['phone_primary']
                         ).first()
 
                     if not parent and parent_info.get('id_number'):
-                        parent = Parent.objects.filter(
+                        parent = parent_queryset.filter(
                             id_number=parent_info['id_number']
                         ).first()
 
                     # Create parent if doesn't exist
                     if not parent:
+                        if organization is not None:
+                            parent_info['organization'] = organization
                         parent = Parent.objects.create(**parent_info)
 
                     # Create StudentParent relationship
@@ -308,12 +322,17 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     """Edit existing student - preserves financial records on status change"""
 
     model = Student
-    form_class = StudentForm
+    form_class = StudentEnrollmentForm
     template_name = 'students/student_form.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def get_success_url(self):
         return reverse_lazy('students:detail', kwargs={'pk': self.object.pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['organization'] = getattr(self.request, 'organization', None)
+        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

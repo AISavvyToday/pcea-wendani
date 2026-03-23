@@ -1,0 +1,87 @@
+{% extends 'base/base.html' %}
+{% block title %}{{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="page-title mb-0">{{ club.name }}</h3>
+      <small class="text-muted">{{ club.code|default:'No code' }}{% if club.patron_name %} • Patron: {{ club.patron_name }}{% endif %}</small>
+    </div>
+    <div class="d-flex gap-2">
+      {% if is_admin %}<a href="{% url 'students:club_update' club.pk %}" class="btn btn-outline-primary btn-sm">Edit Club</a>{% endif %}
+      <a href="{% url 'students:club_list' %}" class="btn btn-outline-secondary btn-sm">Back to clubs</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Club Details</h5>
+          <p class="mb-2"><strong>Description:</strong><br>{{ club.description|default:'No description provided.' }}</p>
+          <p class="mb-0"><strong>Active Members:</strong> {{ memberships|length }}</p>
+        </div>
+      </div>
+
+      {% if is_admin %}
+      <div class="card mt-3">
+        <div class="card-body">
+          <h5 class="mb-3">Add Students</h5>
+          <form method="post" action="{% url 'students:club_members_add' club.pk %}">
+            {% csrf_token %}
+            <div class="border rounded p-3" style="max-height: 360px; overflow-y: auto;">
+              {{ membership_form.students }}
+            </div>
+            {% if membership_form.students.errors %}<div class="text-danger small mt-1">{{ membership_form.students.errors }}</div>{% endif %}
+            <button type="submit" class="btn btn-primary btn-sm mt-3">Add Selected Students</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Admission</th>
+                  <th>Class</th>
+                  <th>Joined</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for membership in memberships %}
+                <tr>
+                  <td>
+                    <a href="{% url 'students:detail' membership.student.pk %}">{{ membership.student.full_name }}</a>
+                  </td>
+                  <td>{{ membership.student.admission_number|default:'—' }}</td>
+                  <td>{{ membership.student.current_class|default:'Not assigned' }}</td>
+                  <td>{{ membership.joined_on|date:'d M Y' }}</td>
+                  <td class="text-end">
+                    {% if is_admin %}
+                    <form method="post" action="{% url 'students:club_member_remove' club.pk membership.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center py-4 text-muted">No students assigned yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

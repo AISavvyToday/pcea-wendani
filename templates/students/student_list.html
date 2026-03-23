@@ -43,6 +43,14 @@
         <i class="mdi mdi-upload"></i> Import Students
       </a>
 
+      <a href="{% url 'students:bulk_stream_transfer' %}" class="btn btn-outline-warning btn-sm">
+        <i class="mdi mdi-swap-horizontal"></i> Move Streams
+      </a>
+
+      <a href="{% url 'students:club_list' %}" class="btn btn-outline-primary btn-sm">
+        <i class="mdi mdi-account-group-outline"></i> Clubs
+      </a>
+
       <a href="{% url 'students:create' %}" class="btn btn-gradient-success btn-sm">
         <i class="mdi mdi-plus"></i> New Student
       </a>

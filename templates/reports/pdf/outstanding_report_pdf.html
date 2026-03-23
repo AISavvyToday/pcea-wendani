@@ -477,8 +477,7 @@ body {
         <div class="report-period">
           {% if filters.academic_year %}{{ filters.academic_year.year }}{% endif %}
           {% if filters.term %} • Term {{ filters.term }}{% endif %}
-          {% if filters.start_date %} • From: {{ filters.start_date|date:"d M Y" }}{% endif %}
-          {% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}
+          {% if filters.as_of_date %} • As at: {{ filters.as_of_date|date:"d M Y" }}{% else %}{% if filters.start_date %} • From: {{ filters.start_date|date:"d M Y" }}{% endif %}{% if filters.end_date %} to {{ filters.end_date|date:"d M Y" }}{% endif %}{% endif %}
         </div>
         </div>
         {% if SPONSOR_LOGO_URL %}<img src="{{ SPONSOR_LOGO_URL }}" class="logo" alt="Sponsor Logo">{% endif %}
@@ -510,11 +509,18 @@ body {
         </div>
         {% endif %}
 
-        {% if filters.end_date %}
+        {% if filters.as_of_date %}
         <div class="filter-item">
-          <span class="filter-label">To Date:</span>
-          <span class="filter-value">{{ filters.end_date|date:"d M Y" }}</span>
+          <span class="filter-label">As At:</span>
+          <span class="filter-value">{{ filters.as_of_date|date:"d M Y" }}</span>
         </div>
+        {% else %}
+          {% if filters.end_date %}
+          <div class="filter-item">
+            <span class="filter-label">To Date:</span>
+            <span class="filter-value">{{ filters.end_date|date:"d M Y" }}</span>
+          </div>
+          {% endif %}
         {% endif %}
 
         {% if filters.balance_op and filters.balance_op != 'any' %}
@@ -561,6 +567,7 @@ body {
             <th>Admission No</th>
             <th>Name</th>
             <th>Grade</th>
+            <th>Parent Contact</th>
             <th class="text-right">Balance B/F</th>
             <th class="text-right">Prepayment</th>
             <th class="text-right">Total Billed</th>
@@ -582,6 +589,7 @@ body {
               {% endif %}
             </td>
             <td>{{ r.student__current_class__name|default:"—" }}</td>
+            <td>{{ r.parent_contact|default:"—" }}</td>
 
             <!-- Balance B/F -->
             <td class="text-right amount-cell {% if r.total_balance_bf > 0 %}amount-medium{% else %}amount-zero{% endif %}">
@@ -617,7 +625,7 @@ body {
         </tbody>
         <tfoot>
           <tr class="totals-row">
-            <th colspan="4" class="text-right">GRAND TOTALS</th>
+            <th colspan="5" class="text-right">GRAND TOTALS</th>
             <th class="text-right">{{ totals.total_balance_bf|floatformat:2|default:"0.00" }}</th>
             <th class="text-right">{{ totals.total_prepayment|floatformat:2|default:"0.00" }}</th>
             <th class="text-right">{{ totals.total_billed|floatformat:2|default:"0.00" }}</th>

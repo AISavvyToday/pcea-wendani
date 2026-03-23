@@ -29,6 +29,8 @@
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'students:list' %}">All Students</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'students:promote' %}">Promote Students</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:bulk_stream_transfer' %}">Move Students Between Streams</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'students:club_list' %}">Clubs & Societies</a></li>
             </ul>
           </div>
         </li>
@@ -48,6 +50,9 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'finance:bank_transaction_list' %}">Bank Transactions</a></li>
                 <li class="nav-item">
                 <a class="nav-link" href="{% url 'other_income:invoice_list' %}">Other Income</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'other_income:report' %}">Other Income Report</a>
               </li>
             </ul>
           </div>
@@ -144,7 +149,7 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'reports:transport_report' %}">Transport Report</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'reports:transferred_students_report' %}">Transferred Students Report</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'reports:admitted_students_report' %}">Admitted Students Report</a></li>
-              <!-- add more report links here as new reports are implemented -->
+              <li class="nav-item"><a class="nav-link" href="{% url 'other_income:report' %}">Other Income Report</a></li>
             </ul>
           </div>
         </li>
@@ -161,12 +166,9 @@
           <div class="collapse" id="comms-menu">
             <ul class="nav flex-column sub-menu">
               <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_list' %}">Announcements</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_create' %}">Send Announcement</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:send_single_sms' %}">Send SMS</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:balance_reminder_sms' %}">Balance Reminders</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:invoice_sms' %}">Invoice SMS</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_notification_list' %}">SMS History</a></li>
-<li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_settings' %}">SMS Settings</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:announcement_create' %}">Send Announcement</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:send_single_sms' %}">Send SMS</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'communications:sms_notification_list' %}">SMS History</a></li>
             </ul>
           </div>
         </li>

@@ -76,8 +76,7 @@
       <div class="text-muted">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
       <h5 style="margin-top:8px">Balances Report</h5>
       <small class="text-muted">
-        {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
-        {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+        {% if filters.as_of_date %} As at {{ filters.as_of_date }} {% else %}{% if filters.start_date %} From {{ filters.start_date }} {% endif %}{% if filters.end_date %} To {{ filters.end_date }} {% endif %}{% endif %}
         {% if filters.academic_year %} • Year: {{ filters.academic_year }} {% endif %}
         {% if filters.term %} • Term: {{ filters.term }} {% endif %}
         {% if filters.student_class %} • Grade: {{ filters.student_class }} {% endif %}
@@ -95,6 +94,7 @@
                 <th>Admission No</th>
                 <th>Student Name</th>
                 <th>Grade</th>
+                <th>Parent Contact</th>
                 <th class="text-right">Balance B/F</th>
                 <th class="text-right">Prepayment</th>
                 <th class="text-right">Total Billed</th>
@@ -116,6 +116,7 @@
                   {% endif %}
                 </td>
                 <td>{{ r.student__current_class__name|default:"—" }}</td>
+                <td>{{ r.parent_contact|default:"—" }}</td>
                 <td class="text-right">KES {{ r.total_balance_bf|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_prepayment|floatformat:2|intcomma }}</td>
                 <td class="text-right">KES {{ r.total_billed|floatformat:2|intcomma }}</td>
@@ -136,7 +137,7 @@
             </tbody>
             <tfoot>
               <tr>
-                <th colspan="4">Total</th>
+                <th colspan="5">Total</th>
                 <th class="text-right">KES {{ totals.total_balance_bf|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_prepayment|floatformat:2|intcomma }}</th>
                 <th class="text-right">KES {{ totals.total_billed|floatformat:2|intcomma }}</th>

@@ -32,10 +32,10 @@ from .report_utils import (
     build_invoice_summary_rows,
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
-    get_invoice_detail_category_display,
     build_invoice_detail_category_choices,
-    get_invoice_detail_sort_key,
     get_selected_category_labels,
+    build_invoice_detailed_report_data,
+    build_outstanding_balances_report_data,
 )
 from .views import (
     build_fees_collection_rows,
@@ -366,7 +366,7 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         term = cleaned.get('term')
         student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
         if not student_class:
-            student_class = None
+            student_class = ''
         payment_source = cleaned.get('payment_source') or ''
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
@@ -375,167 +375,38 @@ class InvoiceDetailedReportExcelView(LoginRequiredMixin, OrganizationFilterMixin
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        invoices_qs = Invoice.objects.filter(
-            is_active=True
-        ).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).select_related('student', 'term__academic_year')
-
-        organization = getattr(request, 'organization', None)
-        if organization:
-            invoices_qs = invoices_qs.filter(organization=organization)
-
-        invoices_qs = invoices_qs.filter(student__status='active')
-
-        if not show_all:
-            if academic_year:
-                invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
-                if term:
-                    invoices_qs = invoices_qs.filter(term__term=term)
-            if student_class:
-                invoices_qs = invoices_qs.filter(student__current_class__name=student_class)
-            if name:
-                invoices_qs = invoices_qs.filter(
-                    Q(student__first_name__icontains=name) |
-                    Q(student__middle_name__icontains=name) |
-                    Q(student__last_name__icontains=name)
-                )
-            if admission:
-                invoices_qs = invoices_qs.filter(student__admission_number__icontains=admission)
-            if start_date:
-                invoices_qs = invoices_qs.filter(issue_date__gte=start_date)
-            if end_date:
-                invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
-
-        items_qs = InvoiceItem.objects.filter(
-            invoice__in=invoices_qs,
-            is_active=True
-        ).select_related('invoice__student', 'invoice')
-
-        if selected_categories and not show_all:
-            category_filters = Q()
-            for cat_choice in selected_categories:
-                if cat_choice.startswith('other:'):
-                    desc = cat_choice.replace('other:', '', 1)
-                    category_filters |= Q(category='other', description__iexact=desc)
-                else:
-                    category_filters |= Q(category=cat_choice)
-            items_qs = items_qs.filter(category_filters)
-
-        grouped = items_qs.values(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'category',
-            'description',
-        ).annotate(
-            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
-        ).order_by(
-            'invoice__student__first_name',
-            'invoice__student__last_name',
-            'category',
-            'description'
+        report_data = build_invoice_detailed_report_data(
+            organization=getattr(request, 'organization', None),
+            academic_year=academic_year,
+            term=term,
+            student_class=student_class,
+            payment_source=payment_source,
+            name=name,
+            admission=admission,
+            selected_categories=selected_categories,
+            start_date=start_date,
+            end_date=end_date,
+            show_all=show_all,
         )
 
-        collected_map = {}
-        source_map = {}
-        matched_source_keys = set()
-
-        if PaymentAllocation is not None:
-            allocation_filters = Q(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            )
-
-            alloc_totals_qs = PaymentAllocation.objects.filter(allocation_filters).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__category',
-                'invoice_item__description'
-            ).annotate(
-                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
-            )
-
-            for row in alloc_totals_qs:
-                key = (
-                    row['invoice_item__invoice__student__pk'],
-                    row['invoice_item__category'],
-                    row['invoice_item__description'] or ''
-                )
-                collected_map[key] = row['collected'] or Decimal('0.00')
-
-            alloc_sources_qs = PaymentAllocation.objects.filter(allocation_filters).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__category',
-                'invoice_item__description',
-                'payment__payment_source'
-            ).distinct()
-
-            for row in alloc_sources_qs:
-                key = (
-                    row['invoice_item__invoice__student__pk'],
-                    row['invoice_item__category'],
-                    row['invoice_item__description'] or ''
-                )
-                source_value = row.get('payment__payment_source')
-                if source_value:
-                    source_label = dict(Payment._meta.get_field('payment_source').choices).get(source_value, source_value)
-                    source_map.setdefault(key, set()).add(source_label)
-                if payment_source and source_value == payment_source:
-                    matched_source_keys.add(key)
-
         rows = []
-        total_billed = Decimal('0.00')
-        total_collected = Decimal('0.00')
-        total_balance = Decimal('0.00')
-
-        for g in grouped:
-            student_pk = g.get('invoice__student__pk')
-            category = g.get('category')
-            description = g.get('description') or ''
-            key = (student_pk, category, description)
-
-            if payment_source and key not in matched_source_keys:
-                continue
-
-            category_display = get_invoice_detail_category_display(category, description)
-
-            billed = Decimal(g.get('total_billed') or 0)
-            paid = collected_map.get(key, Decimal('0.00'))
-            balance = billed - paid
-
-            first_name = g.get('invoice__student__first_name') or ''
-            middle_name = g.get('invoice__student__middle_name') or ''
-            last_name = g.get('invoice__student__last_name') or ''
-            student_name = f"{first_name} {middle_name} {last_name}".strip()
-            student_name = ' '.join(student_name.split())
-
-            admission = g.get('invoice__student__admission_number') or ''
-            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
-            payment_source_display = dict(Payment._meta.get_field('payment_source').choices).get(payment_source, payment_source) if payment_source else (', '.join(sorted(source_map.get(key, set()))) or '—')
-
+        for row in report_data['rows']:
             rows.append({
-                'student_name': student_name,
-                'admission': admission,
-                'student_class': student_cls,
-                'payment_source': payment_source_display,
-                'raw_category': category,
-                'raw_description': description,
-                'category': category_display,
-                'billed': billed,
-                'collected': paid,
-                'balance': balance
+                'student_name': row['student__full_name'],
+                'admission': row['student__admission_number'],
+                'student_class': row['student__current_class__name'] or 'Not assigned',
+                'payment_source': row['payment_source'],
+                'raw_category': row['raw_category'],
+                'raw_description': row['raw_description'],
+                'category': row['description'],
+                'billed': row['total_billed'],
+                'collected': row['total_paid'],
+                'balance': row['total_balance'],
             })
 
-            total_billed += billed
-            total_collected += paid
-            total_balance += balance
-
-        rows.sort(key=lambda row: (row['student_name'].lower(), get_invoice_detail_sort_key(row.get('raw_category'), row.get('raw_description', ''))))
+        total_billed = report_data['totals']['total_billed']
+        total_collected = report_data['totals']['total_paid']
+        total_balance = report_data['totals']['total_balance']
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -608,8 +479,6 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
         student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
-        if not student_class:
-            student_class = None
         payment_source = cleaned.get('payment_source') or ''
         name = cleaned.get('name') or ''
         admission = cleaned.get('admission') or ''
@@ -618,165 +487,35 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         end_date = cleaned.get('end_date')
         show_all = cleaned.get('show_all', False)
 
-        invoices_qs = Invoice.objects.filter(
-            is_active=True
-        ).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).select_related('student', 'term__academic_year')
-
-        organization = getattr(request, 'organization', None)
-        if organization:
-            invoices_qs = invoices_qs.filter(organization=organization)
-
-        invoices_qs = invoices_qs.filter(student__status='active')
-
-        if not show_all:
-            if academic_year:
-                invoices_qs = invoices_qs.filter(term__academic_year=academic_year)
-                if term:
-                    invoices_qs = invoices_qs.filter(term__term=term)
-            if student_class:
-                invoices_qs = invoices_qs.filter(student__current_class__name=student_class)
-            if name:
-                invoices_qs = invoices_qs.filter(
-                    Q(student__first_name__icontains=name) |
-                    Q(student__middle_name__icontains=name) |
-                    Q(student__last_name__icontains=name)
-                )
-            if admission:
-                invoices_qs = invoices_qs.filter(student__admission_number__icontains=admission)
-            if start_date:
-                invoices_qs = invoices_qs.filter(issue_date__gte=start_date)
-            if end_date:
-                invoices_qs = invoices_qs.filter(issue_date__lte=end_date)
-
-        items_qs = InvoiceItem.objects.filter(
-            invoice__in=invoices_qs,
-            is_active=True
-        ).select_related('invoice__student', 'invoice')
-
-        if selected_categories and not show_all:
-            category_filters = Q()
-            for cat_choice in selected_categories:
-                if cat_choice.startswith('other:'):
-                    desc = cat_choice.replace('other:', '', 1)
-                    category_filters |= Q(category='other', description__iexact=desc)
-                else:
-                    category_filters |= Q(category=cat_choice)
-            items_qs = items_qs.filter(category_filters)
-
-        grouped = items_qs.values(
-            'invoice__student__pk',
-            'invoice__student__first_name',
-            'invoice__student__middle_name',
-            'invoice__student__last_name',
-            'invoice__student__admission_number',
-            'invoice__student__current_class__name',
-            'category',
-            'description',
-        ).annotate(
-            total_billed=Coalesce(Sum('net_amount'), Value(Decimal('0.00')), output_field=DecimalField())
-        ).order_by(
-            'invoice__student__first_name',
-            'invoice__student__last_name',
-            'category',
-            'description'
+        report_data = build_invoice_detailed_report_data(
+            organization=getattr(request, 'organization', None),
+            academic_year=academic_year,
+            term=term,
+            student_class=student_class,
+            payment_source=payment_source,
+            name=name,
+            admission=admission,
+            selected_categories=selected_categories,
+            start_date=start_date,
+            end_date=end_date,
+            show_all=show_all,
         )
 
-        collected_map = {}
-        source_map = {}
-        matched_source_keys = set()
-
-        if PaymentAllocation is not None:
-            allocation_filters = Q(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            )
-
-            alloc_totals_qs = PaymentAllocation.objects.filter(allocation_filters).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__category',
-                'invoice_item__description'
-            ).annotate(
-                collected=Coalesce(Sum('amount'), Value(Decimal('0.00')), output_field=DecimalField())
-            )
-
-            for row in alloc_totals_qs:
-                key = (
-                    row['invoice_item__invoice__student__pk'],
-                    row['invoice_item__category'],
-                    row['invoice_item__description'] or ''
-                )
-                collected_map[key] = row['collected'] or Decimal('0.00')
-
-            alloc_sources_qs = PaymentAllocation.objects.filter(allocation_filters).values(
-                'invoice_item__invoice__student__pk',
-                'invoice_item__category',
-                'invoice_item__description',
-                'payment__payment_source'
-            ).distinct()
-
-            for row in alloc_sources_qs:
-                key = (
-                    row['invoice_item__invoice__student__pk'],
-                    row['invoice_item__category'],
-                    row['invoice_item__description'] or ''
-                )
-                source_value = row.get('payment__payment_source')
-                if source_value:
-                    source_label = dict(Payment._meta.get_field('payment_source').choices).get(source_value, source_value)
-                    source_map.setdefault(key, set()).add(source_label)
-                if payment_source and source_value == payment_source:
-                    matched_source_keys.add(key)
-
-        rows = []
-        total_billed = Decimal('0.00')
-        total_collected = Decimal('0.00')
-        total_balance = Decimal('0.00')
-
-        for g in grouped:
-            student_pk = g.get('invoice__student__pk')
-            category = g.get('category')
-            description = g.get('description') or ''
-            key = (student_pk, category, description)
-
-            if payment_source and key not in matched_source_keys:
-                continue
-
-            category_display = get_invoice_detail_category_display(category, description)
-
-            billed = Decimal(g.get('total_billed') or 0)
-            paid = collected_map.get(key, Decimal('0.00'))
-            balance = billed - paid
-
-            first_name = g.get('invoice__student__first_name') or ''
-            middle_name = g.get('invoice__student__middle_name') or ''
-            last_name = g.get('invoice__student__last_name') or ''
-            student_name = f"{first_name} {middle_name} {last_name}".strip()
-            student_name = ' '.join(student_name.split())
-
-            admission = g.get('invoice__student__admission_number') or ''
-            student_cls = g.get('invoice__student__current_class__name') or 'Not assigned'
-            payment_source_display = dict(Payment._meta.get_field('payment_source').choices).get(payment_source, payment_source) if payment_source else (', '.join(sorted(source_map.get(key, set()))) or '—')
-
-            rows.append({
-                'student_name': student_name,
-                'admission': admission,
-                'student_class': student_cls,
-                'payment_source': payment_source_display,
-                'raw_category': category,
-                'raw_description': description,
-                'category': category_display,
-                'billed': billed,
-                'collected': paid,
-                'balance': balance
-            })
-
-            total_billed += billed
-            total_collected += paid
-            total_balance += balance
+        rows = [
+            {
+                'student_name': row['student__full_name'],
+                'admission': row['student__admission_number'],
+                'student_class': row['student__current_class__name'] or 'Not assigned',
+                'payment_source': row['payment_source'],
+                'raw_category': row['raw_category'],
+                'raw_description': row['raw_description'],
+                'category': row['description'],
+                'billed': row['total_billed'],
+                'collected': row['total_paid'],
+                'balance': row['total_balance'],
+            }
+            for row in report_data['rows']
+        ]
 
         payment_source_display = ''
         if payment_source:
@@ -785,9 +524,9 @@ class InvoiceDetailedReportPDFView(LoginRequiredMixin, OrganizationFilterMixin, 
         context = {
             'rows': rows,
             'totals': {
-                'total_billed': total_billed,
-                'total_collected': total_collected,
-                'total_balance': total_balance,
+                'total_billed': report_data['totals']['total_billed'],
+                'total_collected': report_data['totals']['total_paid'],
+                'total_balance': report_data['totals']['total_balance'],
             },
             'filters': {
                 'academic_year': academic_year,
@@ -937,105 +676,25 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
         end_date = cleaned.get('end_date')
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        # Read student_class directly from request.GET to ensure we get the value even if not in form choices
-        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class')
-        # Ensure student_class is not empty string
-        if not student_class:
-            student_class = None
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
         balance_filter = cleaned.get('balance_filter') or ''
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
-        # Balance filter preset - same spec as main report view
-        BALANCE_PRESETS = {
-            'lt_5000': ('<', Decimal('5000')),
-            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
-            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
-            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
-            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
-            'gte_100000': ('>=', Decimal('100000')),
-        }
-        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
         include_zero = cleaned.get('show_zero_balances')
 
-        invoices = Invoice.objects.select_related('student', 'term__academic_year')
-        
-        # Apply organization filter
-        organization = getattr(request, 'organization', None)
-        if organization:
-            invoices = invoices.filter(organization=organization)
-
-        # Only include active students - exclude all non-active statuses
-        invoices = invoices.filter(student__status='active')
-
-        if academic_year:
-            invoices = invoices.filter(term__academic_year=academic_year)
-            if term:
-                invoices = invoices.filter(term__term=term)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-        # Apply student_class filter - ensure it's applied correctly
-        if student_class:
-            invoices = invoices.filter(student__current_class__name=student_class)
-
-        annotations = {
-            'total_billed': ExpressionWrapper(
-                Coalesce(Sum('total_amount'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_paid': ExpressionWrapper(
-                Coalesce(Sum('amount_paid'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_balance': ExpressionWrapper(
-                Coalesce(Sum('balance'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_balance_bf': ExpressionWrapper(
-                Coalesce(Sum('balance_bf'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_prepayment': ExpressionWrapper(
-                Coalesce(Sum('prepayment'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-        }
-
-        grouped_qs = invoices.values(
-            'student__pk',
-            'student__admission_number',
-            'student__first_name',
-            'student__middle_name',
-            'student__last_name',
-            'student__current_class__name',
-            'term__academic_year__year',
-        ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
-
-        # Balance filter
-        if balance_filter_spec:
-            if balance_filter_spec[0] == 'range':
-                _, min_amt, max_amt = balance_filter_spec
-                grouped_qs = grouped_qs.filter(
-                    total_balance__gte=min_amt,
-                    total_balance__lt=max_amt
-                )
-            else:
-                op, amt = balance_filter_spec
-                lookup = {
-                    '=': 'total_balance',
-                    '>': 'total_balance__gt',
-                    '<': 'total_balance__lt',
-                    '>=': 'total_balance__gte',
-                    '<=': 'total_balance__lte',
-                }.get(op, None)
-                if lookup:
-                    grouped_qs = grouped_qs.filter(**{lookup: amt})
-
-        if not include_zero:
-            grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
-
-        rows = list(grouped_qs)
+        report_data = build_outstanding_balances_report_data(
+            organization=getattr(request, 'organization', None),
+            start_date=start_date,
+            end_date=end_date,
+            academic_year=academic_year,
+            term=term,
+            student_class=student_class,
+            balance_filter=balance_filter,
+            balance_op=balance_op,
+            balance_amt=balance_amt,
+            include_zero=include_zero,
+        )
+        rows = report_data['rows']
 
         # Build Excel
         wb = openpyxl.Workbook()
@@ -1049,7 +708,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
                 title += f" Term {term}"
         add_common_header(ws, title)
 
-        headers = ['Year', 'Admission No', 'Name', 'Class', 'Emergency Contact', 'Balance B/F', 'Prepayment',
+        headers = ['Year', 'Admission No', 'Name', 'Class', 'Parent Contact', 'Balance B/F', 'Prepayment',
                    'Total Billed',
                    'Paid', 'Balance']
         for c, h in enumerate(headers, start=1):
@@ -1071,8 +730,8 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
             # Class
             ws.cell(row=row_num, column=4, value=r.get('student__current_class__name') or '—')
             
-            # Emergency Contact (placeholder for now)
-            ws.cell(row=row_num, column=5, value='—')
+            # Parent Contact
+            ws.cell(row=row_num, column=5, value=r.get('parent_contact') or '—')
 
             # Money columns
             money_columns = [6, 7, 8, 9, 10]
@@ -1091,13 +750,7 @@ class OutstandingBalancesExcelView(LoginRequiredMixin, OrganizationFilterMixin, 
             row_num += 1
 
         # Totals row
-        totals = {
-            'total_balance_bf': sum((r['total_balance_bf'] or Decimal('0.00')) for r in rows),
-            'total_prepayment': sum((r['total_prepayment'] or Decimal('0.00')) for r in rows),
-            'total_billed': sum((r['total_billed'] or Decimal('0.00')) for r in rows),
-            'total_paid': sum((r['total_paid'] or Decimal('0.00')) for r in rows),
-            'total_balance': sum((r['total_balance'] or Decimal('0.00')) for r in rows),
-        }
+        totals = report_data['totals']
 
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
         for col_idx, value in zip(money_columns, [
@@ -1133,150 +786,29 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         end_date = cleaned.get('end_date')
         academic_year = cleaned.get('academic_year')
         term = cleaned.get('term')
-        # Read student_class directly from request.GET to ensure we get the value even if not in form choices
-        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class')
-        # Ensure student_class is not empty string
-        if not student_class:
-            student_class = None
+        student_class = request.GET.get('student_class', '').strip() or cleaned.get('student_class') or ''
         balance_filter = cleaned.get('balance_filter') or ''
         balance_op = cleaned.get('balance_operator') or 'any'
         balance_amt = cleaned.get('balance_amount') or Decimal('0.00')
-        # Balance filter preset - same spec as main report view
-        BALANCE_PRESETS = {
-            'lt_5000': ('<', Decimal('5000')),
-            'gte_5000_lt_10000': ('range', Decimal('5000'), Decimal('10000')),
-            'gte_10000_lt_25000': ('range', Decimal('10000'), Decimal('25000')),
-            'gte_25000_lt_50000': ('range', Decimal('25000'), Decimal('50000')),
-            'gte_50000_lt_100000': ('range', Decimal('50000'), Decimal('100000')),
-            'gte_100000': ('>=', Decimal('100000')),
-        }
-        balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
         include_zero = cleaned.get('show_zero_balances')
 
-        invoices = Invoice.objects.select_related('student', 'term__academic_year')
-        
-        # Apply organization filter
-        organization = getattr(request, 'organization', None)
-        if organization:
-            invoices = invoices.filter(organization=organization)
-
-        # Only include active students - exclude all non-active statuses
-        invoices = invoices.filter(student__status='active')
-            
-        if academic_year:
-            invoices = invoices.filter(term__academic_year=academic_year)
-            if term:
-                invoices = invoices.filter(term__term=term)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-        # Apply student_class filter - ensure it's applied correctly
-        if student_class:
-            invoices = invoices.filter(student__current_class__name=student_class)
-
-        annotations = {
-            'total_billed': ExpressionWrapper(
-                Coalesce(Sum('total_amount'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_paid': ExpressionWrapper(
-                Coalesce(Sum('amount_paid'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_balance': ExpressionWrapper(
-                Coalesce(Sum('balance'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_balance_bf': ExpressionWrapper(
-                Coalesce(Sum('balance_bf'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-            'total_prepayment': ExpressionWrapper(
-                Coalesce(Sum('prepayment'), Value(Decimal('0.00'))),
-                output_field=DecimalField()
-            ),
-        }
-
-        grouped_qs = invoices.values(
-            'student__pk',
-            'student__admission_number',
-            'student__first_name',
-            'student__middle_name',
-            'student__last_name',
-            'student__current_class__name',
-            'term__academic_year__year',
-        ).annotate(**annotations).order_by('-total_balance', 'student__first_name', 'student__last_name')
-
-        # Balance filter
-        if balance_filter_spec:
-            if balance_filter_spec[0] == 'range':
-                _, min_amt, max_amt = balance_filter_spec
-                grouped_qs = grouped_qs.filter(
-                    total_balance__gte=min_amt,
-                    total_balance__lt=max_amt
-                )
-            else:
-                op, amt = balance_filter_spec
-                lookup = {
-                    '=': 'total_balance',
-                    '>': 'total_balance__gt',
-                    '<': 'total_balance__lt',
-                    '>=': 'total_balance__gte',
-                    '<=': 'total_balance__lte',
-                }.get(op, None)
-                if lookup:
-                    grouped_qs = grouped_qs.filter(**{lookup: amt})
-
-        if not include_zero:
-            grouped_qs = grouped_qs.exclude(total_balance=Decimal('0.00'))
-
-        rows = list(grouped_qs)
-        totals = {
-            'total_balance_bf': sum((r['total_balance_bf'] or Decimal('0.00')) for r in rows),
-            'total_prepayment': sum((r['total_prepayment'] or Decimal('0.00')) for r in rows),
-            'total_billed': sum((r['total_billed'] or Decimal('0.00')) for r in rows),
-            'total_paid': sum((r['total_paid'] or Decimal('0.00')) for r in rows),
-            'total_balance': sum((r['total_balance'] or Decimal('0.00')) for r in rows),
-        }
-
-        # Process rows to include full_name and contact_info
-        processed_rows = []
-        for r in rows:
-            # Build full name
-            first = r.get('student__first_name', '')
-            middle = r.get('student__middle_name', '')
-            last = r.get('student__last_name', '')
-            full_name = f"{first} {middle} {last}".strip()
-            full_name = ' '.join(full_name.split())
-
-
-
-            processed_rows.append({
-                'term__academic_year__year': r.get('term__academic_year__year'),
-                'student__admission_number': r.get('student__admission_number'),
-                'student__first_name': first,
-                'student__middle_name': middle,
-                'student__last_name': last,
-                'student__current_class__name': r.get('student__current_class__name'),
-                'total_balance_bf': r.get('total_balance_bf'),
-                'total_prepayment': r.get('total_prepayment'),
-                'total_billed': r.get('total_billed'),
-                'total_paid': r.get('total_paid'),
-                'total_balance': r.get('total_balance'),
-            })
+        report_data = build_outstanding_balances_report_data(
+            organization=getattr(request, 'organization', None),
+            start_date=start_date,
+            end_date=end_date,
+            academic_year=academic_year,
+            term=term,
+            student_class=student_class,
+            balance_filter=balance_filter,
+            balance_op=balance_op,
+            balance_amt=balance_amt,
+            include_zero=include_zero,
+        )
 
         context = {
-            'rows': grouped_qs,  # Pass the queryset directly, not processed_rows
-            'totals': totals,
-            'filters': {
-                'start_date': start_date,
-                'end_date': end_date,
-                'academic_year': academic_year,
-                'term': term,
-                'balance_op': balance_op,
-                'balance_amt': balance_amt,
-            },
+            'rows': report_data['rows'],
+            'totals': report_data['totals'],
+            'filters': report_data['filters'],
             'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
             'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
             'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
