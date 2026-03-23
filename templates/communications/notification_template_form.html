@@ -25,7 +25,9 @@
         <div class="col-12 mb-3">
           <label class="form-label">Template Text</label>
           {{ form.template_text }}
-          <small class="form-text text-muted">Use variables like {{ "{{" }} variable_name {{ "}}" }} in your template.</small>
+          <small class="form-text text-muted">
+            Use variables like {% templatetag openvariable %} student_name {% templatetag closevariable %} in your template.
+          </small>
         </div>
         <div class="col-12 mb-3">
           <label class="form-label">Variables</label>
@@ -45,4 +47,3 @@
   </div>
 </div>
 {% endblock %}
-
