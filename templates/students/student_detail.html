@@ -517,43 +517,75 @@
 
           <!-- Parents Panel -->
           <div id="panel-parents" class="panel {% if active_tab == 'parents' %}active{% endif %}">
-            <h5 class="mb-3">Parents / Guardians</h5>
-            <div class="table-responsive">
-              <table class="table table-hover table-sm">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Relationship</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>ID</th>
-                    <th>Primary</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for sp in student_parents %}
-                    <tr>
-                      <td><a href="{% url 'students:parent_detail' sp.parent.pk %}">{{ sp.parent.full_name }}</a></td>
-                      <td>{{ sp.get_relationship_display }}</td>
-                      <td>{{ sp.parent.phone_primary }}</td>
-                      <td>{{ sp.parent.email|default:"N/A" }}</td>
-                      <td>{{ sp.parent.id_number|default:"N/A" }}</td>
-                      <td>
-                        {% if sp.is_primary %}
-                          <span class="badge bg-success">Yes</span>
-                        {% else %}
-                          <span class="badge bg-secondary">No</span>
-                        {% endif %}
-                      </td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="6" class="text-center small-muted">No parents/guardians linked.</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">Parents / Guardians</h5>
+  {% if is_admin %}
+    <a href="{% url 'students:update' student.pk %}?tab=parents" class="btn btn-sm btn-primary">
+      <i class="mdi mdi-account-edit"></i> Manage Parents
+    </a>
+  {% endif %}
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover table-sm">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Relationship</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th>ID</th>
+        <th>Primary</th>
+        {% if is_admin %}
+          <th>Actions</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for sp in student_parents %}
+        <tr>
+          <td>
+            <a href="{% url 'students:parent_detail' sp.parent.pk %}">{{ sp.parent.full_name }}</a>
+          </td>
+          <td>{{ sp.get_relationship_display }}</td>
+          <td>{{ sp.parent.phone_primary }}</td>
+          <td>{{ sp.parent.email|default:"N/A" }}</td>
+          <td>{{ sp.parent.id_number|default:"N/A" }}</td>
+          <td>
+            {% if sp.is_primary %}
+              <span class="badge bg-success">Yes</span>
+            {% else %}
+              <span class="badge bg-secondary">No</span>
+            {% endif %}
+          </td>
+          {% if is_admin %}
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'students:parent_update' sp.parent.pk %}" class="btn btn-sm btn-outline-warning">
+                  Edit Parent
+                </a>
+                <a href="{% url 'students:update' student.pk %}?tab=parents" class="btn btn-sm btn-outline-primary">
+                  Manage in Student
+                </a>
+              </div>
+            </td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="{% if is_admin %}7{% else %}6{% endif %}" class="text-center">
+            <div class="small-muted mb-2">No parents/guardians linked.</div>
+            {% if is_admin %}
+              <a href="{% url 'students:update' student.pk %}?tab=parents" class="btn btn-sm btn-primary">
+                <i class="mdi mdi-account-plus"></i> Add Parent
+              </a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
           </div>
 
           <!-- Documents Panel -->

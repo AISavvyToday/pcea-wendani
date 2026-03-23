@@ -583,6 +583,11 @@
 
           <!-- PARENTS TAB (Edit Mode) -->
           <div class="tab-pane fade" id="parent-info">
+            <div class="alert alert-info mb-3">
+  <i class="mdi mdi-information-outline me-1"></i>
+  Use this section to add a missing parent, update an existing linked parent, or replace parent details for this student.
+  Save the student form to apply the parent changes.
+</div>
             <!-- ===== PARENT 1 ===== -->
             <h6 class="fw-bold mb-3">Parent / Guardian 1 <span class="text-muted">(Optional)</span></h6>
             {% if parent_form_1.errors %}
@@ -1087,5 +1092,18 @@
     }
     return true;
   }
+
+  {% if is_edit %}
+  document.addEventListener('DOMContentLoaded', function () {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (requestedTab === 'parents') {
+      const parentTabTrigger = document.querySelector('[data-bs-target="#parent-info"]');
+      if (parentTabTrigger && typeof bootstrap !== 'undefined') {
+        const tab = new bootstrap.Tab(parentTabTrigger);
+        tab.show();
+      }
+    }
+  });
+{% endif %}
 </script>
 {% endblock %}

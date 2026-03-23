@@ -272,20 +272,25 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                         parent_queryset = parent_queryset.filter(organization=organization)
 
                     if parent_info.get('phone_primary'):
-                        parent = parent_queryset.filter(
+                        parent = Parent.objects.filter(
+                            organization=self.request.organization,
                             phone_primary=parent_info['phone_primary']
                         ).first()
 
                     if not parent and parent_info.get('id_number'):
-                        parent = parent_queryset.filter(
+                        parent = Parent.objects.filter(
+                            organization=self.request.organization,
                             id_number=parent_info['id_number']
                         ).first()
 
-                    # Create parent if doesn't exist
                     if not parent:
-                        if organization is not None:
-                            parent_info['organization'] = organization
-                        parent = Parent.objects.create(**parent_info)
+                        parent = Parent.objects.create(
+                            organization=self.request.organization,
+                            **parent_info
+                        )
+                    elif not parent.organization:
+                        parent.organization = self.request.organization
+                        parent.save(update_fields=['organization'])
 
                     # Create StudentParent relationship
                     StudentParent.objects.create(
@@ -322,17 +327,12 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     """Edit existing student - preserves financial records on status change"""
 
     model = Student
-    form_class = StudentEnrollmentForm
+    form_class = StudentForm
     template_name = 'students/student_form.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def get_success_url(self):
         return reverse_lazy('students:detail', kwargs={'pk': self.object.pk})
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['organization'] = getattr(self.request, 'organization', None)
-        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -340,37 +340,66 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         context['button_text'] = 'Update Student'
         context['is_edit'] = True
         context['original_status'] = self.object.status
+
+        parent_forms, _ = _build_student_parent_forms(self.request, student=self.object)
+        context['parent_form_1'] = parent_forms['parent1']
+        context['parent_form_2'] = parent_forms['parent2']
+
         return context
 
     def form_valid(self, form):
+        parent_forms, slot_links = _build_student_parent_forms(self.request, student=self.object)
+        parent_form_1 = parent_forms['parent1']
+        parent_form_2 = parent_forms['parent2']
+
+        parent_1_valid = parent_form_1.is_valid()
+        parent_2_valid = parent_form_2.is_valid()
+
+        if not parent_1_valid or not parent_2_valid:
+            return self.form_invalid(form)
+
+        parent_1_phone = (parent_form_1.cleaned_data.get('phone_primary') or '').strip()
+        parent_2_phone = (parent_form_2.cleaned_data.get('phone_primary') or '').strip()
+        parent_1_id = (parent_form_1.cleaned_data.get('id_number') or '').strip()
+        parent_2_id = (parent_form_2.cleaned_data.get('id_number') or '').strip()
+
+        if parent_1_phone and parent_2_phone and parent_1_phone == parent_2_phone:
+            parent_form_2.add_error(
+                'phone_primary',
+                'Parent/Guardian 2 cannot use the same primary phone as Parent/Guardian 1.'
+            )
+            return self.form_invalid(form)
+
+        if parent_1_id and parent_2_id and parent_1_id == parent_2_id:
+            parent_form_2.add_error(
+                'id_number',
+                'Parent/Guardian 2 cannot use the same ID number as Parent/Guardian 1.'
+            )
+            return self.form_invalid(form)
+
         # Track status changes
         original_status = self.get_object().status
         new_status = form.cleaned_data.get('status')
-        
+
         if original_status != new_status:
             # Status is changing - update status_date
             form.instance.status_date = timezone.now()
-            
+
             # Handle invoice deletion and balance_bf restoration for graduated/transferred students
             if new_status in ['graduated', 'transferred']:
                 student = form.instance
-                
-                # Get ALL active invoices across ALL terms (not just current term)
-                # Transferred/graduated students should have NO active invoices
+
                 all_active_invoices = Invoice.objects.filter(
                     student=student,
                     is_active=True
                 ).exclude(status=InvoiceStatus.CANCELLED)
-                
+
                 if all_active_invoices.exists():
-                    # Restore frozen fields from invoices before deactivating them
                     current_credit = student.credit_balance or Decimal('0.00')
                     total_balance_bf = Decimal('0.00')
                     total_prepayment = Decimal('0.00')
-                    
+
                     for invoice in all_active_invoices:
-                        # Restore balance_bf_original to Student frozen field
-                        # Note: balance_bf is debt, not credit, so it's NOT added to credit_balance
                         if invoice.balance_bf_original and invoice.balance_bf_original > 0:
                             if form.instance.balance_bf_original == Decimal('0.00'):
                                 form.instance.balance_bf_original = invoice.balance_bf_original
@@ -378,15 +407,12 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                                 form.instance.balance_bf_original += invoice.balance_bf_original
                             total_balance_bf += invoice.balance_bf_original
                         elif invoice.balance_bf and invoice.balance_bf > 0:
-                            # Fallback if balance_bf_original not set
                             if form.instance.balance_bf_original == Decimal('0.00'):
                                 form.instance.balance_bf_original = invoice.balance_bf
                             else:
                                 form.instance.balance_bf_original += invoice.balance_bf
                             total_balance_bf += invoice.balance_bf
-                        
-                        # Restore prepayment_original to Student frozen field
-                        # Prepayment is stored as POSITIVE credit
+
                         if invoice.prepayment and invoice.prepayment > 0:
                             prepayment_amount = invoice.prepayment
                             if form.instance.prepayment_original == Decimal('0.00'):
@@ -395,65 +421,100 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                                 form.instance.prepayment_original += prepayment_amount
                             current_credit += prepayment_amount
                             total_prepayment += prepayment_amount
-                    
-                    # Soft delete ALL active invoices (set is_active=False)
-                    # This ensures transferred/graduated students have NO active invoices
+
                     all_active_invoices.update(is_active=False)
-                    
-                    # Update student's credit_balance and frozen fields
                     form.instance.credit_balance = current_credit
-                    
-                    # Build message
+
                     msg_parts = [f'Student status changed to "{new_status}". All active invoices deactivated.']
                     if total_balance_bf > 0:
                         msg_parts.append(f'Balance b/f ({total_balance_bf:,.2f}) restored.')
                     if total_prepayment > 0:
                         msg_parts.append(f'Prepayment ({total_prepayment:,.2f}) restored.')
-                    
+
                     messages.info(self.request, ' '.join(msg_parts))
-            
-            # Handle invoice restoration when student is reactivated
-            # This prevents the bug where invoices remain inactive after status is changed back
+
+            # Restore invoices if student becomes active again
             if original_status in ['graduated', 'transferred', 'suspended', 'expelled', 'withdrawn', 'inactive'] and new_status == 'active':
                 student = form.instance
                 current_term = Term.objects.filter(is_current=True).first()
-                
+
                 if current_term:
-                    # Restore soft-deleted invoices for current term
                     inactive_invoices = Invoice.objects.filter(
                         student=student,
                         term=current_term,
                         is_active=False
                     ).exclude(status=InvoiceStatus.CANCELLED)
-                    
+
                     restored_count = inactive_invoices.update(is_active=True)
-                    
+
                     if restored_count > 0:
-                        # Recompute student balances after restoring invoices
                         student.recompute_outstanding_balance()
                         messages.info(
                             self.request,
                             f'{restored_count} invoice(s) restored for current term. '
                             f'Outstanding balance recalculated.'
                         )
-            
-            # Add a note about who changed the status
+
             current_reason = form.instance.status_reason or ''
-            change_note = f"Status changed from {original_status} to {new_status} by {self.request.user.get_full_name()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+            change_note = (
+                f"Status changed from {original_status} to {new_status} by "
+                f"{self.request.user.get_full_name()} on {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+            )
             if current_reason:
                 form.instance.status_reason = f"{change_note}\n---\n{current_reason}"
             else:
                 form.instance.status_reason = change_note
-            
+
             if new_status not in ['graduated', 'transferred']:
                 messages.info(
                     self.request,
                     f'Student status changed from "{original_status}" to "{new_status}". '
                     f'Financial records have been preserved.'
                 )
-        
+
+        with transaction.atomic():
+            self.object = form.save()
+
+            linked_parent_ids = []
+
+            parent_1_id = _save_student_parent_slot(
+                student=self.object,
+                organization=self.request.organization,
+                form=parent_form_1,
+                existing_link=slot_links['parent1'],
+                is_primary=True,
+            )
+            if parent_1_id:
+                linked_parent_ids.append(parent_1_id)
+
+            parent_2_id = _save_student_parent_slot(
+                student=self.object,
+                organization=self.request.organization,
+                form=parent_form_2,
+                existing_link=slot_links['parent2'],
+                is_primary=False,
+            )
+            if parent_2_id and parent_2_id not in linked_parent_ids:
+                linked_parent_ids.append(parent_2_id)
+
+            if linked_parent_ids:
+                StudentParent.objects.filter(
+                    student=self.object
+                ).exclude(parent_id__in=linked_parent_ids).update(is_primary=False)
+
+                StudentParent.objects.filter(
+                    student=self.object,
+                    parent_id=linked_parent_ids[0]
+                ).update(is_primary=True)
+
+                if len(linked_parent_ids) > 1:
+                    StudentParent.objects.filter(
+                        student=self.object,
+                        parent_id=linked_parent_ids[1]
+                    ).update(is_primary=False)
+
         messages.success(self.request, 'Student updated successfully!')
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
 
 
@@ -1004,3 +1065,154 @@ class StudentTemplateDownloadView(LoginRequiredMixin, OrganizationFilterMixin, R
         
         wb.save(response)
         return response
+
+
+def _student_parent_links_for_slots(student):
+    """
+    Return up to 2 linked parent relationships for the student,
+    ordered with primary parent first.
+    """
+    if not student:
+        return {'parent1': None, 'parent2': None}
+
+    links = list(
+        StudentParent.objects.filter(student=student)
+        .select_related('parent')
+        .order_by('-is_primary', 'id')[:2]
+    )
+
+    return {
+        'parent1': links[0] if len(links) > 0 else None,
+        'parent2': links[1] if len(links) > 1 else None,
+    }
+
+
+def _build_student_parent_forms(request, student=None):
+    """
+    Build the 2 parent forms used on the student create/edit page.
+    For edit mode, prefill from existing linked parents.
+    """
+    slot_links = _student_parent_links_for_slots(student)
+    forms = {}
+
+    for prefix, link in slot_links.items():
+        instance = link.parent if link else None
+        initial = {
+            'relationship': link.relationship if link else 'guardian',
+        }
+
+        if request.method == 'POST':
+            forms[prefix] = ParentForm(
+                request.POST,
+                prefix=prefix,
+                instance=instance,
+                initial=initial,
+            )
+        else:
+            forms[prefix] = ParentForm(
+                prefix=prefix,
+                instance=instance,
+                initial=initial,
+            )
+
+    return forms, slot_links
+
+
+def _parent_form_has_data(cleaned_data):
+    """
+    Check whether any meaningful parent data was entered in the form.
+    """
+    return bool(
+        (cleaned_data.get('first_name') or '').strip()
+        or (cleaned_data.get('last_name') or '').strip()
+        or (cleaned_data.get('phone_primary') or '').strip()
+        or (cleaned_data.get('id_number') or '').strip()
+        or (cleaned_data.get('email') or '').strip()
+    )
+
+
+def _save_student_parent_slot(student, organization, form, existing_link=None, is_primary=False):
+    """
+    Save one parent slot for a student.
+
+    Behavior:
+    - if slot has no data, leave existing relationship untouched
+    - if linked parent already exists, update that parent
+    - if entered phone/ID matches another existing parent in this org, re-link to that parent
+    - if no match exists, create a new parent and link to student
+    """
+    cleaned_data = form.cleaned_data
+
+    if not _parent_form_has_data(cleaned_data):
+        return existing_link.parent_id if existing_link else None
+
+    relationship = cleaned_data.get('relationship') or (
+        existing_link.relationship if existing_link else 'guardian'
+    )
+
+    entered_phone = (cleaned_data.get('phone_primary') or '').strip()
+    entered_id = (cleaned_data.get('id_number') or '').strip()
+
+    matched_parent = None
+
+    if entered_phone:
+        phone_qs = Parent.objects.filter(
+            organization=organization,
+            phone_primary=entered_phone,
+        )
+        if existing_link:
+            phone_qs = phone_qs.exclude(pk=existing_link.parent_id)
+        matched_parent = phone_qs.first()
+
+    if not matched_parent and entered_id:
+        id_qs = Parent.objects.filter(
+            organization=organization,
+            id_number=entered_id,
+        )
+        if existing_link:
+            id_qs = id_qs.exclude(pk=existing_link.parent_id)
+        matched_parent = id_qs.first()
+
+    parent = matched_parent or (existing_link.parent if existing_link else None) or Parent(
+        organization=organization
+    )
+
+    parent_fields = [
+        'first_name',
+        'last_name',
+        'gender',
+        'id_number',
+        'phone_primary',
+        'phone_secondary',
+        'email',
+        'address',
+        'town',
+        'occupation',
+        'employer',
+    ]
+
+    for field in parent_fields:
+        setattr(parent, field, cleaned_data.get(field))
+
+    parent.relationship = relationship
+    parent.organization = organization
+    parent.save()
+
+    relationship_defaults = {
+        'relationship': relationship,
+        'is_primary': is_primary,
+        'is_emergency_contact': False,
+        'can_pickup': True,
+        'receives_notifications': True,
+    }
+
+    if existing_link and existing_link.parent_id != parent.id:
+        StudentParent.objects.filter(pk=existing_link.pk).delete()
+
+    StudentParent.objects.update_or_create(
+        student=student,
+        parent=parent,
+        defaults=relationship_defaults,
+    )
+
+    return parent.id
