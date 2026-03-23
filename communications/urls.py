@@ -23,4 +23,5 @@ urlpatterns = [
     path('send-sms/', views.SendSingleSMSView.as_view(), name='send_single_sms'),
     path('balance-reminders/', views.BalanceReminderSMSView.as_view(), name='balance_reminder_sms'),
     path('invoice-sms/', views.InvoiceSMSView.as_view(), name='invoice_sms'),
+    
 ]
