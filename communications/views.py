@@ -1,6 +1,4 @@
-"""
-Communications module views for announcements, SMS, and email management.
-"""
+"""Communications module views for announcements, SMS, and email management."""
 
 import logging
 
@@ -10,22 +8,43 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DetailView, ListView, TemplateView, View
+from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 
-from academics.models import Staff
+from academics.models import Staff, Term
 from core.mixins import OrganizationFilterMixin, RoleRequiredMixin
 from core.models import UserRole
 from students.models import Parent, Student
 
+from .forms import SMSWorkflowForm
 from .models import Announcement, EmailNotification, NotificationTemplate, SMSNotification
 from .services.sms_service import SMSService
+from .services.sms_template_service import SMSTemplateService
+from .services.sms_workflow_service import SMSWorkflowService
+from .utils import normalize_phone_number, parse_phone_numbers
 
 logger = logging.getLogger(__name__)
 
 
-class AnnouncementListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
-    """List all announcements."""
+BALANCE_REMINDER_TEMPLATE_NAME = 'Balance Reminder SMS'
+INVOICE_SMS_TEMPLATE_NAME = 'Invoice SMS'
+SMS_TEMPLATE_VARIABLES = [item['key'] for item in SMSTemplateService.get_available_placeholders()]
+DEFAULT_BALANCE_REMINDER_TEMPLATE = (
+    'Dear {parent.first_name}, this is a fee reminder for {student.name} '
+    '({student.admission_number}) in {student.class}. Outstanding balance: '
+    '{student.outstanding_balance}. Total due: {invoice.total_due}. Kindly pay by '
+    '{invoice.payment_deadline} via {invoice.paybill_account_1}. Invoice: {invoice.print_url}. '
+    '{school.name}'
+)
+DEFAULT_INVOICE_SMS_TEMPLATE = (
+    'Dear {parent.first_name}, invoice for {student.name} ({student.admission_number}) '
+    'in {student.class}: Current term fee {invoice.current_term_fee_amount}, '
+    'Bal B/F {invoice.balance_bf}, Prepayment {invoice.prepayment}, Total due {invoice.total_due}. '
+    'Pay by {invoice.payment_deadline} via {invoice.paybill_account_1}. Invoice: {invoice.print_url}. '
+    '{school.name}'
+)
 
+
+class AnnouncementListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     model = Announcement
     template_name = 'communications/announcement_list.html'
     context_object_name = 'announcements'
@@ -34,8 +53,6 @@ class AnnouncementListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
 
 
 class AnnouncementCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
-    """Create a new announcement."""
-
     model = Announcement
     template_name = 'communications/announcement_form.html'
     fields = ['title', 'message', 'target_audience', 'send_sms']
@@ -45,21 +62,17 @@ class AnnouncementCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRe
     def form_valid(self, form):
         form.instance.created_by = self.request.user
         form.instance.organization = self.request.organization
-        form.instance.send_email = False  # Email disabled
+        form.instance.send_email = False
         return super().form_valid(form)
 
 
 class AnnouncementDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, DetailView):
-    """View announcement details."""
-
     model = Announcement
     template_name = 'communications/announcement_detail.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
 
 class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
-    """Send an announcement to selected audience."""
-
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def post(self, request, pk):
@@ -76,8 +89,6 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
             email_count = 0
 
             if announcement.send_sms:
-                from .services.sms_template_service import SMSTemplateService
-
                 sms_service = _get_sms_service()
                 bulk_recipients = []
 
@@ -99,12 +110,14 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
                         context,
                     )
 
-                    bulk_recipients.append({
-                        'phone': phone,
-                        'message': personalized_message,
-                        'parent': recipient.get('parent'),
-                        'student': recipient.get('student'),
-                    })
+                    bulk_recipients.append(
+                        {
+                            'phone': phone,
+                            'message': personalized_message,
+                            'parent': recipient.get('parent'),
+                            'student': recipient.get('student'),
+                        }
+                    )
 
                 sms_notifications = sms_service.send_bulk_sms(
                     recipients=bulk_recipients,
@@ -152,18 +165,19 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('communications:announcement_detail', pk=pk)
 
     def _get_recipients(self, announcement, organization):
-        """Get recipients based on target audience."""
         recipients = []
 
         if announcement.target_audience in ['all', 'parents']:
             parents = Parent.objects.filter(organization=organization, is_active=True)
             for parent in parents:
-                recipients.append({
-                    'phone': getattr(parent, 'phone_primary', ''),
-                    'email': getattr(parent, 'email', ''),
-                    'parent': parent,
-                    'student': _get_first_child(parent),
-                })
+                recipients.append(
+                    {
+                        'phone': getattr(parent, 'phone_primary', ''),
+                        'email': getattr(parent, 'email', ''),
+                        'parent': parent,
+                        'student': _get_first_child(parent),
+                    }
+                )
 
         elif announcement.target_audience == 'teachers':
             staff_members = Staff.objects.filter(
@@ -172,10 +186,12 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
                 staff_type='teaching',
             ).select_related('user')
             for staff_member in staff_members:
-                recipients.append({
-                    'phone': getattr(staff_member, 'phone_number', '') or getattr(staff_member.user, 'phone_number', ''),
-                    'email': getattr(staff_member.user, 'email', ''),
-                })
+                recipients.append(
+                    {
+                        'phone': getattr(staff_member, 'phone_number', '') or getattr(staff_member.user, 'phone_number', ''),
+                        'email': getattr(staff_member.user, 'email', ''),
+                    }
+                )
 
         elif announcement.target_audience == 'staff':
             staff_members = Staff.objects.filter(
@@ -183,29 +199,31 @@ class SendAnnouncementView(LoginRequiredMixin, RoleRequiredMixin, View):
                 status='active',
             ).select_related('user')
             for staff_member in staff_members:
-                recipients.append({
-                    'phone': getattr(staff_member, 'phone_number', '') or getattr(staff_member.user, 'phone_number', ''),
-                    'email': getattr(staff_member.user, 'email', ''),
-                })
+                recipients.append(
+                    {
+                        'phone': getattr(staff_member, 'phone_number', '') or getattr(staff_member.user, 'phone_number', ''),
+                        'email': getattr(staff_member.user, 'email', ''),
+                    }
+                )
 
         elif announcement.target_audience == 'students':
-            students = Student.objects.filter(organization=organization, status='active').select_related('primary_parent')
+            students = Student.objects.filter(organization=organization, status='active').select_related('current_class')
             for student in students:
                 parent = getattr(student, 'primary_parent', None)
                 if parent:
-                    recipients.append({
-                        'phone': getattr(parent, 'phone_primary', ''),
-                        'email': getattr(parent, 'email', ''),
-                        'student': student,
-                        'parent': parent,
-                    })
+                    recipients.append(
+                        {
+                            'phone': getattr(parent, 'phone_primary', ''),
+                            'email': getattr(parent, 'email', ''),
+                            'student': student,
+                            'parent': parent,
+                        }
+                    )
 
         return recipients
 
 
 class SMSNotificationListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
-    """List SMS notifications."""
-
     model = SMSNotification
     template_name = 'communications/sms_notification_list.html'
     context_object_name = 'sms_notifications'
@@ -221,8 +239,6 @@ class SMSNotificationListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
 
 
 class EmailNotificationListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
-    """List email notifications."""
-
     model = EmailNotification
     template_name = 'communications/email_notification_list.html'
     context_object_name = 'email_notifications'
@@ -238,8 +254,6 @@ class EmailNotificationListView(LoginRequiredMixin, OrganizationFilterMixin, Rol
 
 
 class NotificationTemplateListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
-    """List notification templates."""
-
     model = NotificationTemplate
     template_name = 'communications/notification_template_list.html'
     context_object_name = 'templates'
@@ -248,8 +262,6 @@ class NotificationTemplateListView(LoginRequiredMixin, OrganizationFilterMixin, 
 
 
 class NotificationTemplateCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, CreateView):
-    """Create a new notification template."""
-
     model = NotificationTemplate
     template_name = 'communications/notification_template_form.html'
     fields = ['name', 'template_type', 'subject', 'template_text', 'variables', 'description']
@@ -261,9 +273,15 @@ class NotificationTemplateCreateView(LoginRequiredMixin, OrganizationFilterMixin
         return super().form_valid(form)
 
 
-class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
-    """SMS Credits Settings and Purchase Instructions."""
+class NotificationTemplateUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, UpdateView):
+    model = NotificationTemplate
+    template_name = 'communications/notification_template_form.html'
+    fields = ['name', 'template_type', 'subject', 'template_text', 'variables', 'description']
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    success_url = reverse_lazy('communications:notification_template_list')
 
+
+class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = 'communications/sms_settings.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
@@ -309,14 +327,9 @@ class SMSSettingsView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
 
 
 class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, View):
-    """Send SMS to single or multiple phone numbers."""
-
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def get(self, request):
-        """Show form for sending single SMS."""
-        from .services.sms_template_service import SMSTemplateService
-
         parents = Parent.objects.filter(
             organization=request.organization,
             is_active=True,
@@ -333,10 +346,6 @@ class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         )
 
     def post(self, request):
-        """Send SMS to provided phone numbers."""
-        from .services.sms_template_service import SMSTemplateService
-        from .utils import normalize_phone_number, parse_phone_numbers
-
         phone_input = request.POST.get('phone_numbers', '').strip()
         parent_ids = request.POST.getlist('parent_ids')
         message = request.POST.get('message', '').strip()
@@ -380,12 +389,14 @@ class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                 }
                 personalized_message = SMSTemplateService.replace_placeholders(message, context)
 
-                bulk_recipients.append({
-                    'phone': phone,
-                    'message': personalized_message,
-                    'parent': parent_obj,
-                    'student': student,
-                })
+                bulk_recipients.append(
+                    {
+                        'phone': phone,
+                        'message': personalized_message,
+                        'parent': parent_obj,
+                        'student': student,
+                    }
+                )
 
             sms_notifications = sms_service.send_bulk_sms(
                 recipients=bulk_recipients,
@@ -412,15 +423,165 @@ class SendSingleSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         return redirect('communications:send_single_sms')
 
 
+class BaseWorkflowSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
+    template_name = 'communications/sms_workflow.html'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+    page_title = ''
+    page_description = ''
+    template_record_name = ''
+    default_template_text = ''
+    template_description = ''
+    preview_method_name = ''
+    send_method_name = ''
+    success_url_name = ''
+    success_message_label = 'SMS'
+
+    def get(self, request, *args, **kwargs):
+        form = self._build_form()
+        return self.render_to_response(self.get_context_data(form=form, previews=[]))
+
+    def post(self, request, *args, **kwargs):
+        form = self._build_form(data=request.POST)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form, previews=[]))
+
+        template_record = self.get_template_record()
+        template_text = form.cleaned_data['template_text'].strip()
+        if template_text != template_record.template_text:
+            template_record.template_text = template_text
+            template_record.variables = SMS_TEMPLATE_VARIABLES
+            template_record.description = self.template_description
+            template_record.save(update_fields=['template_text', 'variables', 'description', 'updated_at'])
+
+        workflow_kwargs = {
+            'organization': request.organization,
+            'template': template_text,
+            'grade_levels': form.cleaned_data.get('grade_levels') or None,
+            'student_ids': [student.pk for student in form.cleaned_data.get('student_ids', [])] or None,
+            'term': form.cleaned_data.get('term'),
+            'deadline_date': form.cleaned_data.get('deadline_date'),
+        }
+
+        action = request.POST.get('action', 'preview')
+        if action == 'send':
+            result = getattr(SMSWorkflowService, self.send_method_name)(
+                **workflow_kwargs,
+                triggered_by=request.user,
+            )
+
+            sent_count = result.get('sent_count', 0)
+            failed_count = result.get('failed_count', 0)
+            warnings = result.get('warnings', [])
+            errors = result.get('error_messages', [])
+
+            if sent_count:
+                messages.success(request, f'{self.success_message_label} sent to {sent_count} recipient(s).')
+            if failed_count:
+                messages.warning(request, f'{failed_count} recipient(s) failed.')
+            if not sent_count and not failed_count:
+                messages.warning(request, 'No matching recipients were found for the selected filters.')
+            if warnings:
+                messages.warning(request, ' ; '.join(warnings[:3]))
+            if errors:
+                messages.warning(request, ' ; '.join(errors[:3]))
+            return redirect(self.success_url_name)
+
+        previews = getattr(SMSWorkflowService, self.preview_method_name)(**workflow_kwargs)
+        if not previews:
+            messages.warning(request, 'No matching recipients were found for the selected filters.')
+        return self.render_to_response(self.get_context_data(form=form, previews=previews, template_record=template_record))
+
+    def _build_form(self, data=None):
+        return SMSWorkflowForm(
+            data=data,
+            organization=self.request.organization,
+            default_template_text=self.get_template_record().template_text,
+            deadline_initial=self._default_deadline_date(),
+        )
+
+    def _default_deadline_date(self):
+        current_term = Term.objects.filter(organization=self.request.organization, is_current=True).first()
+        return getattr(current_term, 'fee_deadline', None)
+
+    def get_template_record(self):
+        return _get_or_create_sms_template(
+            organization=self.request.organization,
+            name=self.template_record_name,
+            default_text=self.default_template_text,
+            description=self.template_description,
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault('form', self._build_form())
+        context.setdefault('previews', [])
+        context['page_title'] = self.page_title
+        context['page_description'] = self.page_description
+        context['placeholder_docs'] = SMSTemplateService.get_available_placeholders()
+        context['template_record'] = kwargs.get('template_record') or self.get_template_record()
+        context['success_url_name'] = self.success_url_name
+        return context
+
+
+class BalanceReminderSMSView(BaseWorkflowSMSView):
+    page_title = 'Balance Reminder SMS'
+    page_description = 'Preview and send personalized outstanding balance reminders to parents.'
+    template_record_name = BALANCE_REMINDER_TEMPLATE_NAME
+    default_template_text = DEFAULT_BALANCE_REMINDER_TEMPLATE
+    template_description = 'Default SMS template used for balance reminder broadcasts.'
+    preview_method_name = 'preview_balance_reminders'
+    send_method_name = 'send_balance_reminders'
+    success_url_name = 'communications:balance_reminder_sms'
+    success_message_label = 'Balance reminder SMS'
+
+
+class InvoiceSMSView(BaseWorkflowSMSView):
+    page_title = 'Invoice SMS'
+    page_description = 'Preview and send invoice notifications for students with active invoices.'
+    template_record_name = INVOICE_SMS_TEMPLATE_NAME
+    default_template_text = DEFAULT_INVOICE_SMS_TEMPLATE
+    template_description = 'Default SMS template used for invoice notification broadcasts.'
+    preview_method_name = 'preview_invoice_notifications'
+    send_method_name = 'send_invoice_notifications'
+    success_url_name = 'communications:invoice_sms'
+    success_message_label = 'Invoice SMS'
+
+
 def _get_sms_service():
-    """Return a usable SMS service whether SMSService is a class or an already-created instance."""
     if isinstance(SMSService, type):
         return SMSService()
     return SMSService
 
 
+def _get_or_create_sms_template(*, organization, name, default_text, description=''):
+    template_obj, created = NotificationTemplate.objects.get_or_create(
+        organization=organization,
+        name=name,
+        template_type='sms',
+        defaults={
+            'template_text': default_text,
+            'variables': SMS_TEMPLATE_VARIABLES,
+            'description': description,
+        },
+    )
+
+    fields_to_update = []
+    if not template_obj.template_text:
+        template_obj.template_text = default_text
+        fields_to_update.append('template_text')
+    if not template_obj.variables:
+        template_obj.variables = SMS_TEMPLATE_VARIABLES
+        fields_to_update.append('variables')
+    if created and description and template_obj.description != description:
+        template_obj.description = description
+        fields_to_update.append('description')
+    if fields_to_update:
+        fields_to_update.append('updated_at')
+        template_obj.save(update_fields=fields_to_update)
+    return template_obj
+
+
 def _get_first_child(parent):
-    """Safely get the first child related to a parent, if any."""
     if not parent or not hasattr(parent, 'children'):
         return None
 
@@ -431,7 +592,6 @@ def _get_first_child(parent):
 
 
 def _candidate_parent_phone_values(phone):
-    """Build possible stored representations for a phone number."""
     if not phone:
         return []
 
@@ -460,7 +620,6 @@ def _candidate_parent_phone_values(phone):
 
 
 def _find_matching_parent(organization, phone):
-    """Find a parent whose stored phone matches the supplied phone."""
     if not organization or not phone:
         return None
 

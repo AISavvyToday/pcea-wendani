@@ -1,12 +1,15 @@
-# File: payments/services/notifications.py
 # ============================================================
-# RATIONALE: Handle sending payment receipts and notifications
-# - Sends SMS receipts to parents
+# PAYMENT NOTIFICATION SERVICE (manual + automated receipts)
+# ------------------------------------------------------------
+# Responsibilities:
+# - Sends SMS payment receipts to primary parent (fallback: payer phone)
 # - Sends email receipts (if email available)
 # - Updates payment record with receipt sent status
+# - Guards against duplicate receipt sends for the same payment
 # ============================================================
 
 import logging
+
 from django.conf import settings
 from django.utils import timezone
 
@@ -28,10 +31,13 @@ class NotificationService:
         "Receipt: {receipt.link}. Thank you."
     )
 
-
     @staticmethod
     def send_payment_receipt(payment: Payment) -> bool:
-        """Send payment receipt to the student's primary parent."""
+        """Send payment receipt to the student's primary parent, once per payment."""
+        if payment.receipt_sent:
+            logger.info('Receipt already sent for payment %s; skipping duplicate send.', payment.payment_reference)
+            return True
+
         student = payment.student
         sent = False
 
@@ -48,15 +54,15 @@ class NotificationService:
                 sms_sent = NotificationService.send_sms(phone, message, organization, student=student)
                 if sms_sent:
                     sent = True
-                    logger.info("SMS receipt sent for payment %s to %s", payment.payment_reference, phone)
+                    logger.info('SMS receipt sent for payment %s to %s', payment.payment_reference, phone)
             else:
-                logger.warning("Cannot send SMS receipt - no organization found for payment %s", payment.payment_reference)
+                logger.warning('Cannot send SMS receipt - no organization found for payment %s', payment.payment_reference)
 
         if parent_email:
             email_sent = NotificationService.send_email_receipt(parent_email, payment)
             if email_sent:
                 sent = True
-                logger.info("Email receipt sent for payment %s to %s", payment.payment_reference, parent_email)
+                logger.info('Email receipt sent for payment %s to %s', payment.payment_reference, parent_email)
 
         if sent:
             payment.receipt_sent = True
@@ -74,7 +80,7 @@ class NotificationService:
     def send_sms(phone: str, message: str, organization=None, student=None) -> bool:
         """Send SMS via central SMS service API."""
         if not organization:
-            logger.warning("SMS send called without organization - cannot send")
+            logger.warning('SMS send called without organization - cannot send')
             return False
 
         try:
@@ -86,8 +92,8 @@ class NotificationService:
                 related_student=student,
             )
             return notification.status == 'sent'
-        except Exception as e:
-            logger.error(f"SMS sending failed: {e}", exc_info=True)
+        except Exception as exc:
+            logger.error('SMS sending failed: %s', exc, exc_info=True)
             return False
 
     @staticmethod
@@ -115,5 +121,5 @@ class NotificationService:
         PCEA Wendani Academy
         """
 
-        logger.info(f"Email to {email}: {subject}")
+        logger.info('Email to %s: %s', email, subject)
         return True

@@ -88,6 +88,30 @@ class SMSWorkflowService:
         return accounts
 
     @classmethod
+    def _merge_context(cls, base: dict[str, Any], extra: dict[str, Any] | None) -> dict[str, Any]:
+        if not extra:
+            return base
+
+        merged = dict(base)
+        for key, value in extra.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = cls._merge_context(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
+    @staticmethod
+    def _workflow_extra_context(term: Term | None = None, deadline_date=None) -> dict[str, Any] | None:
+        deadline = deadline_date or getattr(term, 'fee_deadline', None)
+        if not deadline:
+            return None
+        return {
+            'invoice': {
+                'payment_deadline': deadline,
+            }
+        }
+
+    @classmethod
     def build_context(cls, student: Student, invoice: Invoice | None = None, payment=None, extra_context=None) -> dict[str, Any]:
         parent = student.primary_parent
         invoice = invoice or cls._current_invoice(student)
@@ -132,9 +156,7 @@ class SMSWorkflowService:
                 'name': getattr(student.organization, 'name', getattr(settings, 'SCHOOL_NAME', 'School')),
             },
         }
-        if extra_context:
-            context.update(extra_context)
-        return context
+        return cls._merge_context(context, extra_context)
 
     @classmethod
     def _render_recipient(cls, student: Student, template: str, invoice: Invoice | None = None, payment=None, preview=True, extra_context=None):
@@ -215,19 +237,27 @@ class SMSWorkflowService:
         }
 
     @classmethod
-    def preview_balance_reminders(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None):
+    def preview_balance_reminders(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, deadline_date=None):
         students = cls._student_queryset(organization, grade_levels=grade_levels, student_ids=student_ids).filter(outstanding_balance__gt=0)
+        extra_context = cls._workflow_extra_context(term=term, deadline_date=deadline_date)
         previews = []
         for student in students:
             invoice = cls._current_invoice(student, term=term)
-            previews.append(cls._render_recipient(student, template, invoice=invoice, preview=True))
+            previews.append(cls._render_recipient(student, template, invoice=invoice, preview=True, extra_context=extra_context))
         return previews
 
     @classmethod
-    def send_balance_reminders(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, triggered_by=None):
+    def send_balance_reminders(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, deadline_date=None, triggered_by=None):
         students = cls._student_queryset(organization, grade_levels=grade_levels, student_ids=student_ids).filter(outstanding_balance__gt=0)
+        extra_context = cls._workflow_extra_context(term=term, deadline_date=deadline_date)
         recipients = [
-            cls._render_recipient(student, template, invoice=cls._current_invoice(student, term=term), preview=False)
+            cls._render_recipient(
+                student,
+                template,
+                invoice=cls._current_invoice(student, term=term),
+                preview=False,
+                extra_context=extra_context,
+            )
             for student in students
         ]
         return cls._send_personalized_messages(
@@ -238,23 +268,27 @@ class SMSWorkflowService:
         )
 
     @classmethod
-    def preview_invoice_notifications(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None):
+    def preview_invoice_notifications(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, deadline_date=None):
         students = cls._student_queryset(organization, grade_levels=grade_levels, student_ids=student_ids)
+        extra_context = cls._workflow_extra_context(term=term, deadline_date=deadline_date)
         previews = []
         for student in students:
             invoice = cls._current_invoice(student, term=term)
             if invoice:
-                previews.append(cls._render_recipient(student, template, invoice=invoice, preview=True))
+                previews.append(cls._render_recipient(student, template, invoice=invoice, preview=True, extra_context=extra_context))
         return previews
 
     @classmethod
-    def send_invoice_notifications(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, triggered_by=None):
+    def send_invoice_notifications(cls, *, organization, template: str, grade_levels=None, student_ids=None, term=None, deadline_date=None, triggered_by=None):
         students = cls._student_queryset(organization, grade_levels=grade_levels, student_ids=student_ids)
+        extra_context = cls._workflow_extra_context(term=term, deadline_date=deadline_date)
         recipients = []
         for student in students:
             invoice = cls._current_invoice(student, term=term)
             if invoice:
-                recipients.append(cls._render_recipient(student, template, invoice=invoice, preview=False))
+                recipients.append(
+                    cls._render_recipient(student, template, invoice=invoice, preview=False, extra_context=extra_context)
+                )
         return cls._send_personalized_messages(
             organization=organization,
             recipients=recipients,

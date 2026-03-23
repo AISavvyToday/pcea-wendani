@@ -41,6 +41,7 @@ from .models import (
     FeeStructure, FeeItem, Discount, StudentDiscount,
     Invoice, InvoiceItem
 )
+from payments.services.notifications import NotificationService
 from .forms import (
     FeeStructureForm, FeeItemFormSet, DiscountForm, StudentDiscountForm,
     InvoiceGenerateForm, PaymentRecordForm, BankTransactionMatchForm, DateRangeFilterForm,
@@ -1363,7 +1364,22 @@ class PaymentRecordView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
             transaction_reference=transaction_reference,
         )
 
+        receipt_sent = False
+        try:
+            receipt_sent = NotificationService.send_payment_receipt(payment)
+        except Exception as exc:
+            logger.error(
+                'Manual payment recorded but receipt notification failed for %s: %s',
+                payment.payment_reference,
+                exc,
+                exc_info=True,
+            )
+
         messages.success(self.request, f'Payment of KES {payment.amount:,.2f} recorded successfully.')
+        if receipt_sent:
+            messages.info(self.request, 'Payment receipt SMS/email sent successfully.')
+        else:
+            messages.warning(self.request, 'Payment recorded, but receipt SMS/email could not be sent.')
         return redirect('finance:payment_detail', pk=payment.pk)
 
 
@@ -1514,6 +1530,8 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
         # Create payments for each child
         created_payments = []
+        receipt_sent_count = 0
+        receipt_failed_count = 0
         base_notes = f"Family payment from parent: {parent.full_name}. {notes}"
         
         for student_id, amount in allocations.items():
@@ -1532,6 +1550,20 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                     transaction_reference=transaction_reference,
                 )
                 created_payments.append(payment)
+
+                try:
+                    if NotificationService.send_payment_receipt(payment):
+                        receipt_sent_count += 1
+                    else:
+                        receipt_failed_count += 1
+                except Exception as exc:
+                    receipt_failed_count += 1
+                    logger.error(
+                        'Family payment recorded but receipt notification failed for %s: %s',
+                        payment.payment_reference,
+                        exc,
+                        exc_info=True,
+                    )
             except Student.DoesNotExist:
                 continue
 
@@ -1540,6 +1572,10 @@ class FamilyPaymentView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                 self.request, 
                 f'Family payment of KES {total_amount:,.2f} recorded successfully across {len(created_payments)} student(s).'
             )
+            if receipt_sent_count:
+                messages.info(self.request, f'Payment receipt SMS/email sent for {receipt_sent_count} payment(s).')
+            if receipt_failed_count:
+                messages.warning(self.request, f'Receipt SMS/email failed for {receipt_failed_count} payment(s).')
         else:
             messages.error(self.request, 'Failed to create payments.')
 

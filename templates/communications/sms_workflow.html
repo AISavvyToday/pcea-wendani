@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f6f7fb; color: #222; margin: 0; }
+    .container { max-width: 1200px; margin: 24px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    h1 { margin-top: 0; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .col { flex: 1 1 380px; min-width: 320px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    select, textarea, input[type="text"], input[type="date"] { width: 100%; padding: 10px; border: 1px solid #cdd3df; border-radius: 6px; box-sizing: border-box; }
+    textarea { min-height: 140px; }
+    .field { margin-bottom: 16px; }
+    .help, .muted { color: #6b7280; font-size: 13px; }
+    .messages { margin-bottom: 18px; }
+    .message { padding: 12px 14px; border-radius: 6px; margin-bottom: 8px; }
+    .success { background: #e8f7eb; color: #17643a; }
+    .warning { background: #fff6df; color: #8a6500; }
+    .error { background: #fdecec; color: #9b1c1c; }
+    .info { background: #eaf3ff; color: #1d4ed8; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { border: none; padding: 12px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-secondary { background: #111827; color: #fff; }
+    .btn-light { background: #eef2ff; color: #312e81; text-decoration: none; display: inline-block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    .errors ul { margin: 6px 0 0 18px; color: #9b1c1c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>{{ page_title }}</h1>
+    <p class="muted">{{ page_description }}</p>
+
+    <div class="actions" style="margin-bottom: 18px;">
+      <a class="btn btn-light" href="{% url 'communications:send_single_sms' %}">Manual SMS</a>
+      <a class="btn btn-light" href="{% url 'communications:sms_settings' %}">SMS Settings</a>
+      <a class="btn btn-light" href="{% url 'communications:notification_template_list' %}">Notification Templates</a>
+    </div>
+
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="message {{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="row">
+      <div class="col">
+        <form method="post">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="message error errors">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="field">
+            <label for="student-search">Search specific students</label>
+            <input type="text" id="student-search" placeholder="Type admission number or name to filter the list below">
+          </div>
+
+          <div class="field">
+            <label for="{{ form.grade_levels.id_for_label }}">{{ form.grade_levels.label }}</label>
+            {{ form.grade_levels }}
+            {% if form.grade_levels.errors %}<div class="errors">{{ form.grade_levels.errors }}</div>{% endif %}
+            <div class="help">{{ form.grade_levels.help_text }}</div>
+          </div>
+
+          <div class="field">
+            <label for="{{ form.student_ids.id_for_label }}">{{ form.student_ids.label }}</label>
+            {{ form.student_ids }}
+            {% if form.student_ids.errors %}<div class="errors">{{ form.student_ids.errors }}</div>{% endif %}
+            <div class="help">{{ form.student_ids.help_text }}</div>
+          </div>
+
+          <div class="field">
+            <label for="{{ form.term.id_for_label }}">{{ form.term.label }}</label>
+            {{ form.term }}
+            {% if form.term.errors %}<div class="errors">{{ form.term.errors }}</div>{% endif %}
+          </div>
+
+          <div class="field">
+            <label for="{{ form.deadline_date.id_for_label }}">{{ form.deadline_date.label }}</label>
+            {{ form.deadline_date }}
+            {% if form.deadline_date.errors %}<div class="errors">{{ form.deadline_date.errors }}</div>{% endif %}
+            <div class="help">{{ form.deadline_date.help_text }}</div>
+          </div>
+
+          <div class="field">
+            <label for="{{ form.template_text.id_for_label }}">{{ form.template_text.label }}</label>
+            {{ form.template_text }}
+            {% if form.template_text.errors %}<div class="errors">{{ form.template_text.errors }}</div>{% endif %}
+            <div class="help">{{ form.template_text.help_text }}</div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-secondary" type="submit" name="action" value="preview">Preview recipients</button>
+            <button class="btn btn-primary" type="submit" name="action" value="send">Send SMS</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <strong>Template source:</strong> {{ template_record.name }}<br>
+          <span class="muted">Changes you make here are saved back to the NotificationTemplate automatically.</span>
+        </div>
+
+        <div class="card">
+          <strong>Available placeholders</strong>
+          <ul>
+            {% for item in placeholder_docs %}
+              <li><code>{{ item.key }}</code> — {{ item.description }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {% if previews %}
+      <h2 style="margin-top: 28px;">Preview ({{ previews|length }} recipient{{ previews|length|pluralize }})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Parent</th>
+            <th>Phone</th>
+            <th>Message preview</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for preview in previews %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                {{ preview.student.full_name }}<br>
+                <span class="muted">{{ preview.student.admission_number }}</span>
+              </td>
+              <td>
+                {% if preview.parent %}
+                  {{ preview.parent.full_name }}
+                {% else %}
+                  <span class="muted">No parent linked</span>
+                {% endif %}
+              </td>
+              <td>{{ preview.phone|default:'—' }}</td>
+              <td>{{ preview.message }}</td>
+              <td>
+                {% if preview.warning %}{{ preview.warning }}<br>{% endif %}
+                {% if preview.unresolved_placeholders %}
+                  <span class="muted">Unresolved: {{ preview.unresolved_placeholders|join:", " }}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <script>
+    (function () {
+      const searchInput = document.getElementById('student-search');
+      const studentSelect = document.getElementById('{{ form.student_ids.id_for_label }}');
+      if (!searchInput || !studentSelect) return;
+
+      searchInput.addEventListener('input', function () {
+        const query = this.value.toLowerCase().trim();
+        Array.from(studentSelect.options).forEach(function (option) {
+          const visible = !query || option.text.toLowerCase().includes(query);
+          option.style.display = visible ? '' : 'none';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
