@@ -19,7 +19,7 @@ from django.contrib import messages
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
 from .models import Student, Parent, StudentParent
-from .forms import ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm
+from .forms import ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm, StudentForm
 from .forms_enhancements import StudentEnrollmentForm
 from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
 from .services import StudentService
