@@ -49,6 +49,7 @@ class DiscountAdmin(admin.ModelAdmin):
 
 @admin.register(StudentDiscount)
 class StudentDiscountAdmin(admin.ModelAdmin):
+    list_select_related = ('student', 'discount', 'approved_by')
     list_display = ('student', 'discount', 'custom_value', 'start_date', 'end_date', 'is_approved', 'approved_by')
     list_filter = ('discount', 'is_approved', 'start_date')
     search_fields = ('student__admission_number', 'student__first_name', 'student__last_name')
@@ -71,6 +72,7 @@ class InvoiceItemInline(admin.TabularInline):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
+    list_select_related = ('student', 'term', 'generated_by')
     list_display = (
         'invoice_number', 'student', 'term', 'subtotal_display',
         'discount_display', 'total_display', 'paid_display', 'balance_display', 'status', 'is_active'

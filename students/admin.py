@@ -37,6 +37,7 @@ class MedicalRecordInline(admin.TabularInline):
 
 @admin.register(Parent)
 class ParentAdmin(admin.ModelAdmin):
+    list_select_related = ('user',)
     list_display = ('full_name', 'phone_primary', 'email', 'relationship', 'children_count', 'is_active')
     list_filter = ('relationship', 'is_active', 'gender')
     search_fields = ('first_name', 'last_name', 'phone_primary', 'phone_secondary', 'email', 'id_number')
@@ -69,11 +70,12 @@ class ParentAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ['admission_number', 'full_name', 'current_class', 'uses_school_transport', 'transport_route']
-    list_filter = ['uses_school_transport', 'transport_route', 'current_class__grade_level']
+    list_display = ['admission_number', 'full_name', 'current_class', 'primary_parent_display', 'balance_display', 'status', 'uses_school_transport', 'transport_route']
+    list_filter = ['status', 'is_active', 'uses_school_transport', 'transport_route', 'current_class__grade_level']
     search_fields = ('admission_number', 'first_name', 'middle_name', 'last_name', 'birth_certificate_number')
     ordering = ('admission_number',)
-    autocomplete_fields = ['current_class', 'transport_route']
+    autocomplete_fields = ['current_class', 'transport_route', 'user']
+    list_select_related = ('current_class', 'transport_route', 'user')
     date_hierarchy = 'admission_date'
     readonly_fields = ('age',)
     
@@ -136,6 +138,7 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(StudentParent)
 class StudentParentAdmin(admin.ModelAdmin):
+    list_select_related = ('student', 'parent')
     list_display = ('student', 'parent', 'relationship', 'is_primary', 'is_emergency_contact', 'receives_notifications')
     list_filter = ('relationship', 'is_primary', 'is_emergency_contact')
     search_fields = ('student__admission_number', 'student__first_name', 'parent__first_name', 'parent__phone_primary')

@@ -9,8 +9,8 @@ from .models import User, AuditLog
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'full_name', 'role', 'organization', 'is_active', 'is_verified', 'is_locked_display', 'date_joined')
-    list_filter = ('role', 'is_staff', 'is_active', 'is_verified', 'date_joined')
     search_fields = ('email', 'first_name', 'last_name', 'phone_number')
+    list_select_related = ('organization',)
     ordering = ('-date_joined',)
     readonly_fields = ('date_joined', 'last_login', 'password_changed_at')
     
@@ -30,7 +30,7 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     
-    list_filter = ('role', 'is_staff', 'is_active', 'is_verified', 'organization', 'date_joined')
+    list_filter = ('role', 'organization', 'is_staff', 'is_active', 'is_verified', 'must_change_password', 'date_joined')
     
     def full_name(self, obj):
         return obj.full_name

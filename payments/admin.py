@@ -10,16 +10,18 @@ from .models import Payment, BankTransaction, PaymentAllocation, PaymentReminder
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
+    list_select_related = ('student', 'invoice', 'received_by', 'reconciled_by')
     list_display = [
         'payment_reference',
         'student',
         'amount',
         'payment_method',
+        'payment_source',
         'payment_date',
         'status',
         'receipt_number',
     ]
-    list_filter = ['status', 'payment_method', 'payment_date', 'is_reconciled']
+    list_filter = ['status', 'payment_method', 'payment_source', 'payment_date', 'is_reconciled']
     search_fields = [
         'payment_reference', 
         'receipt_number',
@@ -122,6 +124,7 @@ class BankTransactionAdmin(admin.ModelAdmin):
 
 @admin.register(PaymentAllocation)
 class PaymentAllocationAdmin(admin.ModelAdmin):
+    list_select_related = ('payment', 'invoice_item')
     list_display = ['payment', 'invoice_item', 'amount', 'created_at']
     list_filter = ['created_at']
     search_fields = ['payment__payment_reference', 'invoice_item__description']
@@ -132,6 +135,7 @@ class PaymentAllocationAdmin(admin.ModelAdmin):
 
 @admin.register(PaymentReminder)
 class PaymentReminderAdmin(admin.ModelAdmin):
+    list_select_related = ('invoice',)
     list_display = ['invoice', 'reminder_type', 'created_at']
     list_filter = ['reminder_type', 'created_at']
     search_fields = ['invoice__invoice_number']
