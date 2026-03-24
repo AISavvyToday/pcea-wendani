@@ -1,11 +1,5 @@
 # ============================================================
 # PAYMENT NOTIFICATION SERVICE (manual + automated receipts)
-# ------------------------------------------------------------
-# Responsibilities:
-# - Sends SMS payment receipts to primary parent (fallback: payer phone)
-# - Sends email receipts (if email available)
-# - Updates payment record with receipt sent status
-# - Guards against duplicate receipt sends for the same payment
 # ============================================================
 
 import logging
@@ -13,39 +7,67 @@ import logging
 from django.conf import settings
 from django.utils import timezone
 
-from payments.models import Payment
+from communications.models import NotificationTemplate
 from communications.services.sms_api_client import sms_api_client
 from communications.services.sms_workflow_service import SMSWorkflowService
+from payments.models import Payment
 
 logger = logging.getLogger(__name__)
+
+PAYMENT_RECEIPT_TEMPLATE_NAME = 'Payment Receipt SMS'
+DEFAULT_PAYMENT_RECEIPT_TEMPLATE = (
+    "Dear Parent/Guardian,\n"
+    "PCEA Wendani Academy acknowledges receipt of payment for the following:\n"
+    "Student: {student.full_name}\n"
+    "Admission No.: {student.admission_number}\n"
+    "Grade: {student.grade_compact}\n\n"
+    "Amount Paid: KES {payment.amount_plain}\n"
+    "Transaction Ref No.: {payment.transaction_reference}\n"
+    "Date of Payment: {payment.payment_date_long}\n\n"
+    "Balance Remaining: KES {payment.remaining_balance_plain}\n"
+    "Receipt link {receipt.link}\n"
+    "For queries, contact the office,"
+)
 
 
 class NotificationService:
     """Service for sending payment notifications and receipts."""
 
-    RECEIPT_TEMPLATE = (
-        f"{getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy')} acknowledges receipt of {{payment.amount}} for "
-        "{student.name} ({student.admission_number}) on {payment.payment_date}. "
-        "Ref: {payment.transaction_reference}. Receipt No: {payment.receipt_number}. "
-        "Remaining balance: {payment.remaining_balance}. "
-        "Receipt: {receipt.link}. Thank you."
-    )
+    RECEIPT_TEMPLATE = DEFAULT_PAYMENT_RECEIPT_TEMPLATE
+
+    @staticmethod
+    def _receipt_template_for(payment: Payment) -> str:
+        organization = getattr(payment, 'organization', None) or getattr(payment.student, 'organization', None)
+        if not organization:
+            return NotificationService.RECEIPT_TEMPLATE
+
+        template_obj, _ = NotificationTemplate.objects.get_or_create(
+            organization=organization,
+            name=PAYMENT_RECEIPT_TEMPLATE_NAME,
+            template_type='sms',
+            defaults={
+                'template_text': NotificationService.RECEIPT_TEMPLATE,
+                'variables': [],
+                'description': 'Default SMS template used for payment receipt notifications.',
+            },
+        )
+        if not template_obj.template_text:
+            template_obj.template_text = NotificationService.RECEIPT_TEMPLATE
+            template_obj.save(update_fields=['template_text', 'updated_at'])
+        return template_obj.template_text
 
     @staticmethod
     def send_payment_receipt(payment: Payment) -> bool:
-        """Send payment receipt to the student's primary parent, once per payment."""
         if payment.receipt_sent:
             logger.info('Receipt already sent for payment %s; skipping duplicate send.', payment.payment_reference)
             return True
 
         student = payment.student
         sent = False
-
         parent = student.primary_parent
         parent_phone = getattr(parent, 'phone_primary', None) if parent else None
         parent_email = getattr(parent, 'email', None) if parent else None
         phone = parent_phone or payment.payer_phone
-
         message = NotificationService.format_sms_receipt(payment)
 
         if phone:
@@ -73,16 +95,13 @@ class NotificationService:
 
     @staticmethod
     def format_sms_receipt(payment: Payment) -> str:
-        """Format SMS receipt message with remaining balance and receipt link."""
-        return SMSWorkflowService.build_payment_receipt_message(payment, NotificationService.RECEIPT_TEMPLATE)
+        return SMSWorkflowService.build_payment_receipt_message(payment, NotificationService._receipt_template_for(payment))
 
     @staticmethod
     def send_sms(phone: str, message: str, organization=None, student=None) -> bool:
-        """Send SMS via central SMS service API."""
         if not organization:
             logger.warning('SMS send called without organization - cannot send')
             return False
-
         try:
             notification = sms_api_client.send_sms(
                 phone_number=phone,
@@ -98,10 +117,8 @@ class NotificationService:
 
     @staticmethod
     def send_email_receipt(email: str, payment: Payment) -> bool:
-        """Send email receipt."""
         student = payment.student
         student_name = f"{student.first_name} {student.last_name}"
-
         subject = f"Payment Receipt - {payment.receipt_number}"
         body = f"""
         Dear Parent/Guardian,
@@ -118,8 +135,7 @@ class NotificationService:
 
         Thank you for your continued support.
 
-        PCEA Wendani Academy
+        {getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy')}
         """
-
         logger.info('Email to %s: %s', email, subject)
         return True

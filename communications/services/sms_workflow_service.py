@@ -9,6 +9,7 @@ from typing import Any
 
 from django.conf import settings
 from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
 
 from academics.models import Term
 from communications.models import SMSNotification
@@ -108,49 +109,103 @@ class SMSWorkflowService:
         return {
             'invoice': {
                 'payment_deadline': deadline,
+                'payment_deadline_long': deadline.strftime('%-d %B %Y'),
             }
         }
+
+    @staticmethod
+    def _format_plain_money(value: Decimal | None) -> str:
+        amount = value if isinstance(value, Decimal) else Decimal(str(value or '0.00'))
+        return f"{amount:,.0f}"
+
+    @staticmethod
+    def _format_long_date(value) -> str:
+        if not value:
+            return ''
+        if hasattr(value, 'date'):
+            try:
+                value = timezone.localtime(value).date()
+            except Exception:
+                value = value.date()
+        return value.strftime('%-d %B %Y')
+
+    @staticmethod
+    def _format_term_label(term: Term | None) -> str:
+        if not term:
+            return ''
+        raw_term = getattr(term, 'term', '') or ''
+        term_number = raw_term.split('_')[-1] if '_' in raw_term else raw_term
+        year = getattr(getattr(term, 'academic_year', None), 'year', '')
+        return f"Term {term_number}, {year}".strip(', ')
 
     @classmethod
     def build_context(cls, student: Student, invoice: Invoice | None = None, payment=None, extra_context=None) -> dict[str, Any]:
         parent = student.primary_parent
         invoice = invoice or cls._current_invoice(student)
         paybill_accounts = cls._paybill_accounts(student.admission_number or '')
-        remaining_balance = None
-        if payment is not None:
-            remaining_balance = invoice.balance if invoice else student.outstanding_balance
-
+        current_term_fee_amount = getattr(invoice, 'total_amount', Decimal('0.00')) if invoice else Decimal('0.00')
+        balance_bf = getattr(invoice, 'balance_bf', Decimal('0.00')) if invoice else Decimal('0.00')
+        prepayment = getattr(invoice, 'prepayment', Decimal('0.00')) if invoice else Decimal('0.00')
+        total_due = getattr(invoice, 'balance', student.outstanding_balance or Decimal('0.00')) if invoice else (student.outstanding_balance or Decimal('0.00'))
+        payment_deadline = getattr(invoice, 'due_date', None) if invoice else None
+        invoice_link = cls._build_url('finance:invoice_detail', invoice.pk) if invoice else ''
+        invoice_print_url = cls._build_url('finance:invoice_receipt_print', invoice.pk) if invoice else ''
+        receipt_link = cls._build_url('finance:payment_receipt', payment.pk) if payment else ''
+        grade_class = str(student.current_class) if student.current_class else ''
+        grade_level = getattr(student.current_class, 'grade_level', '') if student.current_class else ''
+        grade_compact = grade_level.split('_')[-1] if grade_level else grade_class.replace(' ', '')
+        balance_or_prepayment_line = ''
+        if balance_bf > 0:
+            balance_or_prepayment_line = f"Previous Term Balance: KES {cls._format_plain_money(balance_bf)}\n"
+        elif prepayment > 0:
+            balance_or_prepayment_line = f"Prepayment: KES {cls._format_plain_money(prepayment)}\n"
+        remaining_balance = student.outstanding_balance or Decimal('0.00')
+        if payment is None and invoice is not None:
+            remaining_balance = total_due
         context = {
             'parent': parent,
             'student': {
                 'full_name': student.full_name,
                 'admission_number': student.admission_number,
-                'grade_class': str(student.current_class) if student.current_class else '',
+                'grade_class': grade_class,
+                'grade_compact': grade_compact,
                 'outstanding_balance': student.outstanding_balance or Decimal('0.00'),
+                'outstanding_balance_plain': cls._format_plain_money(student.outstanding_balance or Decimal('0.00')),
             },
             'invoice': {
                 'invoice_number': getattr(invoice, 'invoice_number', ''),
-                'current_term_fee_amount': getattr(invoice, 'total_amount', Decimal('0.00')) if invoice else Decimal('0.00'),
-                'balance_bf': getattr(invoice, 'balance_bf', Decimal('0.00')) if invoice else Decimal('0.00'),
-                'prepayment': getattr(invoice, 'prepayment', Decimal('0.00')) if invoice else Decimal('0.00'),
-                'total_due': getattr(invoice, 'balance', student.outstanding_balance or Decimal('0.00')) if invoice else (student.outstanding_balance or Decimal('0.00')),
+                'term_label': cls._format_term_label(getattr(invoice, 'term', None)),
+                'current_term_fee_amount': current_term_fee_amount,
+                'current_term_fee_amount_plain': cls._format_plain_money(current_term_fee_amount),
+                'balance_bf': balance_bf,
+                'balance_bf_plain': cls._format_plain_money(balance_bf),
+                'prepayment': prepayment,
+                'prepayment_plain': cls._format_plain_money(prepayment),
+                'balance_or_prepayment_line': balance_or_prepayment_line,
+                'total_due': total_due,
+                'total_due_plain': cls._format_plain_money(total_due),
                 'due_date': getattr(invoice, 'due_date', None),
-                'payment_deadline': getattr(invoice, 'due_date', None),
-                'link': cls._build_url('finance:invoice_detail', invoice.pk) if invoice else '',
-                'print_url': cls._build_url('finance:invoice_receipt_print', invoice.pk) if invoice else '',
+                'payment_deadline': payment_deadline,
+                'payment_deadline_long': cls._format_long_date(payment_deadline),
+                'link': invoice_link,
+                'short_link': invoice_link,
+                'print_url': invoice_print_url,
                 'paybill_account_1': paybill_accounts.get('paybill_1', ''),
                 'paybill_account_2': paybill_accounts.get('paybill_2', ''),
             },
             'receipt': {
-                'link': cls._build_url('finance:payment_receipt', payment.pk) if payment else '',
-                'print_url': cls._build_url('finance:payment_receipt', payment.pk) if payment else '',
+                'link': receipt_link,
+                'print_url': receipt_link,
             },
             'payment': {
                 'transaction_reference': getattr(payment, 'transaction_reference', ''),
                 'payment_date': getattr(payment, 'payment_date', None),
-                'remaining_balance': remaining_balance if remaining_balance is not None else (student.outstanding_balance or Decimal('0.00')),
+                'payment_date_long': cls._format_long_date(getattr(payment, 'payment_date', None)),
+                'remaining_balance': remaining_balance,
+                'remaining_balance_plain': cls._format_plain_money(remaining_balance),
                 'receipt_number': getattr(payment, 'receipt_number', ''),
                 'amount': getattr(payment, 'amount', Decimal('0.00')),
+                'amount_plain': cls._format_plain_money(getattr(payment, 'amount', Decimal('0.00'))),
             },
             'school': {
                 'name': getattr(student.organization, 'name', getattr(settings, 'SCHOOL_NAME', 'School')),

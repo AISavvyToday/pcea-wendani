@@ -27,20 +27,88 @@ logger = logging.getLogger(__name__)
 
 BALANCE_REMINDER_TEMPLATE_NAME = 'Balance Reminder SMS'
 INVOICE_SMS_TEMPLATE_NAME = 'Invoice SMS'
+PAYMENT_RECEIPT_TEMPLATE_NAME = 'Payment Receipt SMS'
 SMS_TEMPLATE_VARIABLES = [item['key'] for item in SMSTemplateService.get_available_placeholders()]
-DEFAULT_BALANCE_REMINDER_TEMPLATE = (
-    'Dear {parent.first_name}, this is a fee reminder for {student.name} '
-    '({student.admission_number}) in {student.class}. Outstanding balance: '
-    '{student.outstanding_balance}. Total due: {invoice.total_due}. Kindly pay by '
-    '{invoice.payment_deadline} via {invoice.paybill_account_1}. Invoice: {invoice.print_url}. '
-    '{school.name}'
+
+
+LEGACY_BALANCE_REMINDER_TEMPLATE = (
+    "Christian greetings,\n"
+    "You are advised to clear {student.name} arrears of {student.outstanding_balance_display} by "
+    "{invoice.payment_deadline_display}. Kindly note that your child will not be allowed back in class "
+    "as of the stated date without clearance.\n\n"
+    "Pay through:\n"
+    "Paybill 247247\n"
+    "Account: 280029#{student.admission_number}\n"
+    "OR\n"
+    "Paybill 400222\n"
+    "Account: 393939#{student.admission_number}\n\n"
+    "NB: The bus will ONLY pick up the students who have cleared fees.\n"
+    "Kindly comply to avoid any inconvenience."
 )
+
+DEFAULT_BALANCE_REMINDER_TEMPLATE = (
+    "Christian greetings,\n"
+    "You are advised to clear {student.full_name} arrears of Ksh. {invoice.total_due_plain} by "
+    "{invoice.payment_deadline_long}. Kindly note that your child will not be allowed back in class as of the stated "
+    "date without clearance.\n"
+    "Pay through:\n"
+    "Paybill 247247\n"
+    "Account: 280029#{student.admission_number}\n"
+    "OR\n"
+    "Paybill 400222\n"
+    "Account: 393939#{student.admission_number}\n\n"
+    "NB: The bus will ONLY pick up the students who have cleared fees.\n"
+    "Kindly comply to avoid any inconvenience."
+)
+
+LEGACY_INVOICE_SMS_TEMPLATE = (
+    "Dear Parent/Guardian,\n"
+    "Christian Greetings,\n"
+    "Please find below the fee invoice for {invoice.term_label}.\n"
+    "Student: {student.name}\n"
+    "Admission No.: {student.admission_number}\n"
+    "Grade: {student.grade}\n\n"
+    "This Term's Fees: {invoice.current_term_fee_amount_display}\n"
+    "{invoice.balance_or_prepayment_lines}\n"
+    "TOTAL DUE: {invoice.total_due_display}\n"
+    "Detailed invoice {invoice.short_link}\n\n"
+    "Payment via M-Pesa:\n"
+    "Paybill 247247, Account 280029#{student.admission_number}\n"
+    "OR\n"
+    "Paybill 400222, Account 393939#{student.admission_number}\n\n"
+    "For queries, contact the office."
+)
+
 DEFAULT_INVOICE_SMS_TEMPLATE = (
-    'Dear {parent.first_name}, invoice for {student.name} ({student.admission_number}) '
-    'in {student.class}: Current term fee {invoice.current_term_fee_amount}, '
-    'Bal B/F {invoice.balance_bf}, Prepayment {invoice.prepayment}, Total due {invoice.total_due}. '
-    'Pay by {invoice.payment_deadline} via {invoice.paybill_account_1}. Invoice: {invoice.print_url}. '
-    '{school.name}'
+    "Dear Parent/Guardian,\n"
+    "Christian Greetings,\n"
+    "Please find below the fee invoice for {invoice.term_label}.\n"
+    "Student: {student.full_name}\n"
+    "Admission No.: {student.admission_number}\n"
+    "Grade: {student.grade_compact}\n\n"
+    "This Term's Fees: KES {invoice.current_term_fee_amount_plain}\n"
+    "{invoice.balance_or_prepayment_line}"
+    "TOTAL DUE: KES {invoice.total_due_plain}\n"
+    "Detailed invoice {invoice.link}\n\n"
+    "Payment via M-Pesa:\n"
+    "Paybill 247247, Account 280029#{student.admission_number}\n"
+    " OR\n"
+    "Paybill 400222, Account 393939#{student.admission_number}\n\n"
+    "For queries, contact the office."
+)
+
+DEFAULT_PAYMENT_RECEIPT_TEMPLATE = (
+    "Dear Parent/Guardian,\n"
+    "PCEA Wendani Academy acknowledges receipt of payment for the following:\n"
+    "Student: {student.full_name}\n"
+    "Admission No.: {student.admission_number}\n"
+    "Grade: {student.grade_compact}\n\n"
+    "Amount Paid: KES {payment.amount_plain}\n"
+    "Transaction Ref No.: {payment.transaction_reference}\n"
+    "Date of Payment: {payment.payment_date_long}\n\n"
+    "Balance Remaining: KES {payment.remaining_balance_plain}\n"
+    "Receipt link {receipt.link}\n"
+    "For queries, contact the office,"
 )
 
 
@@ -553,6 +621,15 @@ def _get_sms_service():
     return SMSService
 
 
+def _legacy_default_texts(name):
+    mapping = {
+        BALANCE_REMINDER_TEMPLATE_NAME: [LEGACY_BALANCE_REMINDER_TEMPLATE],
+        INVOICE_SMS_TEMPLATE_NAME: [LEGACY_INVOICE_SMS_TEMPLATE],
+        PAYMENT_RECEIPT_TEMPLATE_NAME: [],
+    }
+    return mapping.get(name, [])
+
+
 def _get_or_create_sms_template(*, organization, name, default_text, description=''):
     template_obj, created = NotificationTemplate.objects.get_or_create(
         organization=organization,
@@ -566,13 +643,13 @@ def _get_or_create_sms_template(*, organization, name, default_text, description
     )
 
     fields_to_update = []
-    if not template_obj.template_text:
+    if not template_obj.template_text or template_obj.template_text in _legacy_default_texts(name):
         template_obj.template_text = default_text
         fields_to_update.append('template_text')
     if not template_obj.variables:
         template_obj.variables = SMS_TEMPLATE_VARIABLES
         fields_to_update.append('variables')
-    if created and description and template_obj.description != description:
+    if description and template_obj.description != description:
         template_obj.description = description
         fields_to_update.append('description')
     if fields_to_update:

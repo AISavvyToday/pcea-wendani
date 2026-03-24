@@ -266,9 +266,8 @@ class PaymentReceiptNotificationTests(SMSWorkflowBaseTestCase):
         self.assertEqual(kwargs['purpose'], 'payment_receipt')
         self.assertEqual(kwargs['related_student'], self.student)
         self.assertIn('MPE123ABC', kwargs['message'])
-        self.assertIn('20 Mar 2026', kwargs['message'])
-        self.assertIn('KES 39,000.00', kwargs['message'])
-        self.assertIn(self.payment.receipt_number, kwargs['message'])
+        self.assertIn('20 March 2026', kwargs['message'])
+        self.assertIn('KES 39,000', kwargs['message'])
         self.assertIn(reverse('finance:payment_receipt', kwargs={'pk': self.payment.pk}), kwargs['message'])
 import subprocess
 import sys
@@ -525,3 +524,85 @@ class StartupCleanlinessTests(TestCase):
         self.assertNotIn('custom_filters', combined_output)
         self.assertNotIn('SMS_SERVICE_API_TOKEN not configured', combined_output)
         self.assertNotIn('imarabiz SMS API credentials not configured', combined_output)
+
+from communications.views import DEFAULT_BALANCE_REMINDER_TEMPLATE, DEFAULT_INVOICE_SMS_TEMPLATE
+
+
+class ExactSMSContentTests(SMSWorkflowBaseTestCase):
+    def test_balance_reminder_matches_required_wording(self):
+        preview = SMSWorkflowService.preview_balance_reminders(
+            organization=self.organization,
+            template=DEFAULT_BALANCE_REMINDER_TEMPLATE,
+            student_ids=[self.student.id],
+            term=self.term,
+            deadline_date=date(2026, 3, 1),
+        )[0]
+        expected = (
+            "Christian greetings,\n"
+            "You are advised to clear Jane Doe arrears of Ksh. 39,000 by 1 March 2026. Kindly note that your child will not be allowed back in class as of the stated date without clearance.\n"
+            "Pay through:\n"
+            "Paybill 247247\n"
+            "Account: 280029#PWA1001\n"
+            "OR\n"
+            "Paybill 400222\n"
+            "Account: 393939#PWA1001\n\n"
+            "NB: The bus will ONLY pick up the students who have cleared fees.\n"
+            "Kindly comply to avoid any inconvenience."
+        )
+        self.assertEqual(preview.message, expected)
+
+    def test_invoice_sms_matches_previous_balance_variant(self):
+        preview = SMSWorkflowService.preview_invoice_notifications(
+            organization=self.organization,
+            template=DEFAULT_INVOICE_SMS_TEMPLATE,
+            student_ids=[self.student.id],
+            term=self.term,
+        )[0]
+        expected = (
+            "Dear Parent/Guardian,\n"
+            "Christian Greetings,\n"
+            "Please find below the fee invoice for Term 1, 2026.\n"
+            "Student: Jane Doe\n"
+            "Admission No.: PWA1001\n"
+            "Grade: 5\n\n"
+            "This Term's Fees: KES 40,000\n"
+            "Previous Term Balance: KES 5,000\n"
+            f"TOTAL DUE: KES 39,000\nDetailed invoice {reverse('finance:invoice_detail', kwargs={'pk': self.invoice.pk})}\n\n"
+            "Payment via M-Pesa:\n"
+            "Paybill 247247, Account 280029#PWA1001\n"
+            " OR\n"
+            "Paybill 400222, Account 393939#PWA1001\n\n"
+            "For queries, contact the office."
+        )
+        self.assertEqual(preview.message, expected)
+
+    def test_invoice_sms_matches_prepayment_variant(self):
+        self.invoice.balance_bf = Decimal('0.00')
+        self.invoice.prepayment = Decimal('5000.00')
+        self.invoice.total_amount = Decimal('15000.00')
+        self.invoice.balance = Decimal('10000.00')
+        self.invoice.save(update_fields=['balance_bf', 'prepayment', 'total_amount', 'balance'])
+        preview = SMSWorkflowService.preview_invoice_notifications(
+            organization=self.organization,
+            template=DEFAULT_INVOICE_SMS_TEMPLATE,
+            student_ids=[self.student.id],
+            term=self.term,
+        )[0]
+        self.assertIn('Prepayment: KES 5,000', preview.message)
+        self.assertIn("TOTAL DUE: KES 5,000", preview.message)
+
+    def test_payment_receipt_matches_required_wording(self):
+        message = NotificationService.format_sms_receipt(self.payment)
+        expected = (
+            "Dear Parent/Guardian,\n"
+            "PCEA Wendani Academy acknowledges receipt of payment for the following:\n"
+            "Student: Jane Doe\n"
+            "Admission No.: PWA1001\n"
+            "Grade: 5\n\n"
+            "Amount Paid: KES 10,000\n"
+            "Transaction Ref No.: MPE123ABC\n"
+            "Date of Payment: 20 March 2026\n\n"
+            f"Balance Remaining: KES 39,000\nReceipt link {reverse('finance:payment_receipt', kwargs={'pk': self.payment.pk})}\n"
+            "For queries, contact the office,"
+        )
+        self.assertEqual(message, expected)
