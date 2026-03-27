@@ -505,7 +505,7 @@ def build_parent_contact_map(student_ids, organization=None):
     if not student_ids:
         return {}
 
-    student_parent_qs = StudentParent.objects.select_related('parent').order_by('-is_primary', 'created_at')
+    student_parent_qs = StudentParent.objects.select_related('parent').order_by('-is_primary', 'id')
     students_qs = (
         Student.objects.filter(pk__in=set(student_ids))
         .prefetch_related(Prefetch('student_parents', queryset=student_parent_qs))
