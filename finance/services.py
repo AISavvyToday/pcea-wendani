@@ -24,6 +24,7 @@ from payments.models import Payment, PaymentAllocation, BankTransaction
 from students.models import Student
 from academics.models import Term
 from core.models import PaymentStatus, PaymentSource
+from .services_kpi import build_term_kpis
 from other_income.models import OtherIncomeInvoice
 
 
@@ -535,6 +536,16 @@ class FinanceReportService:
     """Service for financial reports."""
 
     @staticmethod
+    def get_dashboard_stats(term=None, organization=None):
+        """Get finance dashboard statistics for active students only."""
+        kpi_payload = build_term_kpis(term=term, organization=organization)
+
+        total_invoiced = kpi_payload["totals"]["billed"]
+        total_collected = kpi_payload["totals"]["collected"]
+        total_outstanding = kpi_payload["totals"]["outstanding"]
+
+        collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
+
     def _build_dashboard_kpis(term=None, organization=None):
         """
         Build reconciled dashboard KPIs from invoice items and other income invoices.
@@ -649,8 +660,14 @@ class FinanceReportService:
         collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
 
         recent_payments = payments.select_related('student').order_by('-payment_date')[:10]
-        pending_transactions = BankTransaction.objects.filter(processing_status='pending').order_by(
-            '-callback_received_at')[:5]
+        pending_transactions = BankTransaction.objects.filter(processing_status='pending')
+        if organization:
+            pending_transactions = pending_transactions.filter(
+                Q(payment__organization=organization) |
+                Q(payment__organization__isnull=True, payment__student__organization=organization) |
+                Q(reconciliations__student__organization=organization)
+            )
+        pending_transactions = pending_transactions.order_by('-callback_received_at').distinct()[:5]
 
         return {
             'total_billed': total_billed,
@@ -659,6 +676,7 @@ class FinanceReportService:
             'total_collected': total_collected,
             'total_outstanding': total_outstanding,
             'collection_rate': collection_rate,
+            'kpi_payload': kpi_payload,
             'kpi_buckets': kpis['buckets'],
             'recent_payments': recent_payments,
             'pending_transactions': pending_transactions
