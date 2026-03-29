@@ -20,7 +20,6 @@ urlpatterns = [
     path('reports/', include('reports.urls', namespace='reports')),
     path('communications/', include('communications.urls', namespace='communications')),
     path('payroll/', include('payroll.urls', namespace='payroll')),
-    path('trash/', include('trash.urls', namespace='trash')),
 ]
 
 # KCB SMS Credits callbacks are disabled by default because the preferred

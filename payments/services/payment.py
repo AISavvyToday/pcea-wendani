@@ -197,7 +197,6 @@ class PaymentService:
         matched_at=None,
         additional_notes: str = "",
         link_bank_transaction: bool = True,
-        matched_at=None,
     ) -> Payment:
         """
         Create a Payment record from a BankTransaction and allocate it oldest-invoice-first.
@@ -251,7 +250,6 @@ class PaymentService:
                 is_reconciled=True,
                 reconciled_by=reconciled_by,
                 reconciled_at=reconciled_at,
-                reconciled_at=matched_at or timezone.now(),
                 organization=student.organization,  # Set organization from student
             )
 
@@ -342,7 +340,6 @@ class PaymentService:
                 matched_at=canonical_matched_at,
                 additional_notes=" | ".join(allocation_notes),
                 link_bank_transaction=not bank_tx.payment_id and index == 0,
-                matched_at=matched_timestamp,
             )
 
             reconciliation = BankTransactionReconciliation.objects.create(
@@ -352,7 +349,6 @@ class PaymentService:
                 invoice=invoice,
                 amount=amount,
                 matched_by=matched_by,
-                matched_at=matched_timestamp,
                 matched_at=canonical_matched_at,
                 notes=" | ".join(allocation_notes),
             )

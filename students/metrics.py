@@ -32,19 +32,6 @@ def get_current_term(organization=None):
             return org_term
 
     return _ordered(queryset.filter(organization__isnull=True)).first()
-        # 1) Prefer organization-level current term.
-        term = queryset.filter(organization=organization).first()
-        if term:
-            return term
-        # 2) Fallback to terms linked to the organization's current academic year.
-        academic_year = AcademicYear.objects.filter(
-            organization=organization,
-            is_current=True,
-        ).first()
-        if academic_year:
-            return Term.objects.filter(academic_year=academic_year).order_by('start_date').first()
-    # 3) Global fallback for legacy/system-wide setup.
-    return queryset.first()
 
 
 def get_student_base_queryset(organization=None):
