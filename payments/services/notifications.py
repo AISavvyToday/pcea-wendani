@@ -22,6 +22,7 @@ DEFAULT_PAYMENT_RECEIPT_TEMPLATE = (
     "Admission No.: {student.admission_number}\n"
     "Grade: {student.grade_compact}\n\n"
     "Amount Paid: KES {payment.amount_plain}\n"
+    "Receipt Number: {payment.receipt_number}\n"
     "Transaction Ref No.: {payment.transaction_reference}\n"
     "Date of Payment: {payment.payment_date_long}\n\n"
     "Balance Remaining: KES {payment.remaining_balance_plain}\n"
