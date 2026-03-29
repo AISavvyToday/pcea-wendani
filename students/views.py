@@ -689,6 +689,17 @@ class StudentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         self.object = self.get_object()
         success_url = self.get_success_url()
 
+        # Soft delete - change status to inactive
+        self.object.is_active = False
+        self.object.deleted_at = timezone.now()
+        self.object.deleted_by = self.request.user
+        self.object.status = 'inactive'
+        self.object.status_date = timezone.now()
+        self.object.status_reason = f"Deleted by {self.request.user.get_full_name()}"
+        self.object.save(update_fields=[
+            'is_active', 'deleted_at', 'deleted_by',
+            'status', 'status_date', 'status_reason', 'updated_at'
+        ])
         # Soft delete - change status to inactive and archive in trash.
         self.object.status = 'inactive'
         self.object.status_date = timezone.now()

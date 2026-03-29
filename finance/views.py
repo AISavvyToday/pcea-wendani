@@ -1185,6 +1185,7 @@ class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
         student = invoice.student
         try:
+            InvoiceService.delete_invoice(invoice, deleted_by=request.user)
             PaymentsInvoiceService.soft_delete_invoice(invoice, deleted_by=request.user)
             messages.success(request, f"Invoice {invoice.invoice_number} moved to trash.")            
             
@@ -1453,6 +1454,9 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         student = payment.student
         
         try:
+            # Use the InvoiceService to safely delete the payment
+            from payments.services.invoice import InvoiceService
+            InvoiceService.delete_payment(payment, deleted_by=request.user)
             # Soft-delete payment and reverse allocations
             PaymentsInvoiceService.soft_delete_payment(payment, deleted_by=request.user)
             

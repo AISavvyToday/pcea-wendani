@@ -72,6 +72,14 @@ class Payment(BaseModel):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments_reconciled'
     )
     reconciled_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payments_deleted'
+    )
 
     unallocated_amount = models.DecimalField(
         max_digits=10,
