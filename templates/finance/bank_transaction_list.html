@@ -168,15 +168,15 @@
 
             <td class="text-nowrap">
               {% if transaction.effective_received_at %}
-                {{ transaction.effective_received_at|date:"d/m/Y H:i" }}
+                {% localtime off %}{{ transaction.effective_received_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
                 -
               {% endif %}
             </td>
 
             <td class="text-nowrap">
-              {% if transaction.effective_matched_at %}
-                {% localtime off %}{{ transaction.effective_matched_at|date:"d/m/Y H:i" }}{% endlocaltime %}
+              {% if transaction.matched_at %}
+                {% localtime off %}{{ transaction.matched_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
                 <span class="text-muted">-</span>
               {% endif %}

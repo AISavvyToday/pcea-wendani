@@ -208,7 +208,11 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertContains(response, self.student_one.full_name)
         self.assertContains(response, '254700111222')
 
-    def test_matched_timestamp_visibility_uses_bank_timestamp_and_reconciliation_timestamp(self):
+    @override_settings(
+        TIME_ZONE='Africa/Nairobi',
+        STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
+    )
+    def test_matched_timestamp_visibility_uses_consistent_timezone_in_list_and_detail(self):
         self._create_invoice(self.student_one, 'INV-301', Decimal('500.00'))
         transaction = self._create_transaction(transaction_id='EQTIME', amount=Decimal('500.00'))
 
@@ -275,3 +279,12 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, unmatched.transaction_id)
         self.assertNotContains(response, 'EQ-MATCHED-1')
+        expected_received_list = transaction.effective_received_at.strftime('%d/%m/%Y %H:%M')
+        expected_matched_list = transaction.matched_at.strftime('%d/%m/%Y %H:%M')
+        expected_received_detail = transaction.effective_received_at.strftime('%d %b %Y %H:%M')
+        expected_matched_detail = transaction.effective_matched_at.strftime('%d %b %Y %H:%M')
+
+        self.assertContains(list_response, expected_received_list)
+        self.assertContains(list_response, expected_matched_list)
+        self.assertContains(detail_response, expected_received_detail)
+        self.assertContains(detail_response, expected_matched_detail)

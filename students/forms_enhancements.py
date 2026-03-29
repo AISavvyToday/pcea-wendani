@@ -193,7 +193,12 @@ class BulkStreamTransferForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         self.organization = kwargs.pop('organization', None)
+        self.require_move_fields = kwargs.pop('require_move_fields', True)
         super().__init__(*args, **kwargs)
+
+        if not self.require_move_fields:
+            self.fields['target_class'].required = False
+            self.fields['students'].required = False
 
         class_queryset = Class.objects.filter(is_active=True).select_related('academic_year')
         if self.organization is not None:
@@ -257,6 +262,8 @@ class BulkStreamTransferForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+        if not self.require_move_fields:
+            return cleaned_data
         students = cleaned_data.get('students')
         target_class = cleaned_data.get('target_class')
         if not students:

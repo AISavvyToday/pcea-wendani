@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -198,11 +198,32 @@ class EquityNotificationViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(bank_txn.gateway, "equity")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(bank_txn.matched_at, payment.reconciled_at)
 
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.amount_paid, Decimal("20000.00"))
         self.assertEqual(self.invoice.balance, Decimal("25000.00"))
         self.assertEqual(self.invoice.status, "partially_paid")
+
+    @patch("payments.views.equity.NotificationService.send_payment_receipt", return_value=True)
+    @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+    def test_notification_sets_canonical_matched_at_visible_in_list_and_detail(self, _mock_receipt):
+        response = self.client.post(self.url, data=self.payload(), format="json", **self.auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        bank_txn = BankTransaction.objects.get(transaction_id="EQ-REF-123456")
+        payment = Payment.objects.get(transaction_reference="EQ-REF-123456")
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(payment.reconciled_at, bank_txn.matched_at)
+
+        web_client = Client()
+        web_client.force_login(self.user)
+        list_response = web_client.get(reverse("finance:bank_transaction_list"), {"status": "matched"})
+        detail_response = web_client.get(reverse("finance:bank_transaction_detail", args=[bank_txn.pk]))
+
+        self.assertContains(list_response, bank_txn.matched_at.strftime("%d/%m/%Y %H:%M"))
+        self.assertContains(detail_response, bank_txn.matched_at.strftime("%d %b %Y %H:%M"))
 
     @patch("payments.views.equity.NotificationService.send_payment_receipt", return_value=True)
     def test_notification_idempotency(self, _mock_receipt):
@@ -297,6 +318,27 @@ class CoopIPNViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(bank_txn.gateway, "coop")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(bank_txn.matched_at, payment.reconciled_at)
+
+    @patch("payments.views.coop.NotificationService.send_payment_receipt", return_value=True)
+    @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
+    def test_ipn_sets_canonical_matched_at_visible_in_list_and_detail(self, _mock_receipt):
+        response = self.client.post(self.url, data=self.payload(), format="json", **self.auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        bank_txn = BankTransaction.objects.get(transaction_id="TXN-COOP-123456")
+        payment = Payment.objects.get(transaction_reference="TXN-COOP-123456")
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(payment.reconciled_at, bank_txn.matched_at)
+
+        web_client = Client()
+        web_client.force_login(self.user)
+        list_response = web_client.get(reverse("finance:bank_transaction_list"), {"status": "matched"})
+        detail_response = web_client.get(reverse("finance:bank_transaction_detail", args=[bank_txn.pk]))
+
+        self.assertContains(list_response, bank_txn.matched_at.strftime("%d/%m/%Y %H:%M"))
+        self.assertContains(detail_response, bank_txn.matched_at.strftime("%d %b %Y %H:%M"))
 
     def test_ipn_without_admission_in_narration(self):
         payload = self.payload()
