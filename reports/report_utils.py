@@ -129,6 +129,71 @@ def get_invoice_adjustment_totals(invoices):
     }
 
 
+def build_invoice_summary_report_data(
+    *,
+    academic_year,
+    term,
+    start_date=None,
+    end_date=None,
+    organization=None,
+    show_zero=False,
+):
+    invoices = (
+        Invoice.objects.filter(
+            is_active=True,
+            term__academic_year=academic_year,
+            term__term=term,
+            student__status='active',
+        )
+        .exclude(status=InvoiceStatus.CANCELLED)
+    )
+
+    if start_date:
+        invoices = invoices.filter(issue_date__gte=start_date)
+    if end_date:
+        invoices = invoices.filter(issue_date__lte=end_date)
+    if organization:
+        invoices = invoices.filter(organization=organization)
+
+    items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
+    billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
+    billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
+
+    alloc_qs = (
+        PaymentAllocation.objects.filter(
+            invoice_item__in=items_qs,
+            is_active=True,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+        )
+        .values('invoice_item__category')
+        .annotate(collected=Sum('amount'))
+    )
+    collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
+
+    rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
+        billed_map=billed_map,
+        collected_map=collected_map,
+        show_zero=show_zero,
+    )
+    adjustment_totals = get_invoice_adjustment_totals(invoices)
+
+    return {
+        'invoices': invoices,
+        'rows': rows,
+        'totals': {
+            'billed': total_billed,
+            'collected': total_collected,
+            'outstanding': total_outstanding,
+            'balance_bf': adjustment_totals['balance_bf'],
+            'prepayment': adjustment_totals['prepayment'],
+            'prepayment_display': adjustment_totals['prepayment_display'],
+        },
+        'current_term_adjustments': adjustment_totals,
+        'invoice_count': invoices.count(),
+    }
+
+
 def display_prepayment_amount(value):
     return abs(value or Decimal("0.00"))
 
