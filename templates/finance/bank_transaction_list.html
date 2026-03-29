@@ -106,7 +106,11 @@
             </td>
 
             <td>
-              {% if transaction.gateway %}{{ transaction.get_gateway_display|default:transaction.gateway|title }}{% else %}<span class="text-muted">Unknown</span>{% endif %}
+              {% if transaction.gateway %}
+                {{ transaction.get_gateway_display|default:transaction.gateway|title }}
+              {% else %}
+                <span class="text-muted">Unknown source</span>
+              {% endif %}
             </td>
 
             <td>

@@ -2242,7 +2242,9 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
         elif status == 'duplicate':
             queryset = queryset.filter(processing_status='duplicate')
         elif status == 'unmatched':
-            queryset = queryset.exclude(processing_status__in=['failed', 'duplicate', 'matched'])
+            queryset = queryset.filter(matched_at__isnull=True).exclude(
+                processing_status__in=['failed', 'duplicate']
+            )
         # If status is empty or 'all', show all (already filtered by organization above)
 
         return queryset.distinct().order_by('-callback_received_at')
@@ -2252,9 +2254,10 @@ class BankTransactionListView(LoginRequiredMixin, OrganizationFilterMixin, RoleR
         context['selected_status'] = self.request.GET.get('status', 'unmatched')
         # Count unmatched transactions (excluding failed/duplicate) - filtered by organization
         organization = getattr(self.request, 'organization', None)
-        unmatched_qs = BankTransaction.objects.filter(is_active=True).exclude(
-            processing_status__in=['failed', 'duplicate', 'matched']
-        )
+        unmatched_qs = BankTransaction.objects.filter(
+            is_active=True,
+            matched_at__isnull=True,
+        ).exclude(processing_status__in=['failed', 'duplicate'])
         unmatched_qs = _filter_bank_transactions_by_organization(unmatched_qs, organization=organization)
         context['unmatched_count'] = unmatched_qs.count()
         return context

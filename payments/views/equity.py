@@ -175,6 +175,9 @@ class EquityNotificationView(APIView):
                 payload=validated_data,
                 request_data=request.data,
             )
+            if bank_tx.gateway != "equity":
+                bank_tx.gateway = "equity"
+                bank_tx.save(update_fields=["gateway", "updated_at"])
 
             # Step 2: Resolve student from bill number
             try:
