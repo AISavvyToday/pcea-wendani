@@ -197,6 +197,8 @@ class EquityNotificationViewTests(PaymentTestDataMixin, TestCase):
         bank_txn = BankTransaction.objects.get(transaction_id="EQ-REF-123456")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(bank_txn.matched_at, payment.reconciled_at)
 
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.amount_paid, Decimal("20000.00"))
@@ -310,6 +312,8 @@ class CoopIPNViewTests(PaymentTestDataMixin, TestCase):
         bank_txn = BankTransaction.objects.get(transaction_id="TXN-COOP-123456")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
+        self.assertIsNotNone(bank_txn.matched_at)
+        self.assertEqual(bank_txn.matched_at, payment.reconciled_at)
 
     @patch("payments.views.coop.NotificationService.send_payment_receipt", return_value=True)
     @override_settings(STATICFILES_STORAGE="django.contrib.staticfiles.storage.StaticFilesStorage")
