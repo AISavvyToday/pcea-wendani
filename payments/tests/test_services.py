@@ -251,6 +251,8 @@ class PaymentCreationServiceTests(PaymentServiceFixtureMixin, TestCase):
         self.bank_tx.refresh_from_db()
         self.assertEqual(self.bank_tx.processing_status, "matched")
         self.assertEqual(self.bank_tx.payment, payment)
+        self.assertIsNotNone(self.bank_tx.matched_at)
+        self.assertEqual(self.bank_tx.matched_at, payment.reconciled_at)
 
     def test_create_payment_full_amount_marks_invoice_paid(self):
         self.bank_tx.amount = Decimal("50000.00")

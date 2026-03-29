@@ -164,7 +164,7 @@
 
             <td class="text-nowrap">
               {% if transaction.effective_received_at %}
-                {{ transaction.effective_received_at|date:"d/m/Y H:i" }}
+                {% localtime off %}{{ transaction.effective_received_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
                 -
               {% endif %}
