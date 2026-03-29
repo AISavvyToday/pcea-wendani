@@ -2,7 +2,7 @@
 import re
 import os
 from decimal import Decimal, InvalidOperation
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 import pandas as pd
@@ -502,6 +502,31 @@ class StudentService:
         return mapping
 
     @staticmethod
+    def _parse_admission_date(value):
+        """Validate and normalize admission date values from import files."""
+        if value is None:
+            return None
+        try:
+            if pd.isna(value):
+                return None
+        except Exception:
+            pass
+
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+
+        raw = str(value).strip()
+        if not raw or raw.lower() in {'nan', 'nat'}:
+            return None
+
+        parsed = pd.to_datetime(raw, errors='coerce')
+        if pd.isna(parsed):
+            return None
+        return parsed.date()
+
+    @staticmethod
     @transaction.atomic
     def import_students_from_excel(file_path, dry_run=False, limit=0):
         """
@@ -534,6 +559,8 @@ class StudentService:
                 columns={
                     "Year": "Year",
                     "#": "Admission_No",
+                    "Admission Date": "Admission_Date",
+                    "Admission_Date": "Admission_Date",
                     "Name": "Name",
                     "Class": "Class",
                     "Contacts": "Contacts",
@@ -544,6 +571,7 @@ class StudentService:
             required = [
                 "Year",
                 "Admission_No",
+                "Admission_Date",
                 "Name",
                 "Class",
                 "Contacts",
@@ -638,6 +666,10 @@ class StudentService:
             stats["rows_skipped"] += 1
             return
 
+        admission_date = StudentService._parse_admission_date(row.get("Admission_Date"))
+        if not admission_date:
+            raise ValueError("Missing or invalid Admission Date (expected a valid date value)")
+
         credit_balance = StudentService._to_decimal(row["Total_Balance"])
         
         # Set frozen original values based on Excel balance
@@ -657,7 +689,7 @@ class StudentService:
                 "credit_balance": credit_balance,
                 "balance_bf_original": balance_bf_original,  # Frozen debt from previous term
                 "prepayment_original": prepayment_original,  # Frozen prepayment from previous term
-                "admission_date": date(2025, 1, 6),
+                "admission_date": admission_date,
                 "date_of_birth": date(2015, 1, 1),  # placeholder
                 "gender": "M",  # placeholder
                 "status": "active",

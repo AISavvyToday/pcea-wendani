@@ -256,6 +256,12 @@ class StudentForm(forms.ModelForm):
         logger.debug(f"StudentForm.clean_admission_number - Returning: {admission_number}")
         return admission_number
 
+    def clean_admission_date(self):
+        admission_date = self.cleaned_data.get('admission_date')
+        if not admission_date:
+            raise ValidationError('Admission date is required for new student metrics.')
+        return admission_date
+
     def clean(self):
         logger.debug(f"StudentForm.clean - Called, instance.pk: {self.instance.pk}")
         logger.debug(f"StudentForm.clean - Calling super().clean()...")
