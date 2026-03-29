@@ -248,9 +248,9 @@ class FeesCollectionReportRegressionTests(TestCase):
         context = self.get_html_context()
 
         category_choices = context['form'].fields['category'].choices
-        self.assertIn(('other:Chess Club', 'Other: Chess Club'), category_choices)
-        self.assertIn(('other:Scout Trip', 'Other: Scout Trip'), category_choices)
-        self.assertIn(('other', 'Other'), category_choices)
+        self.assertIn(('other:Chess Club', 'Educational Activities: Chess Club'), category_choices)
+        self.assertIn(('other:Scout Trip', 'Educational Activities: Scout Trip'), category_choices)
+        self.assertIn(('other', 'Educational Activities'), category_choices)
         self.assertIn('Receipt / Ref', open('templates/reports/fees_collection_report.html').read())
 
     def test_html_report_filters_same_day_records_and_other_item_allocations(self):
@@ -267,7 +267,7 @@ class FeesCollectionReportRegressionTests(TestCase):
         self.assertEqual([row['reference'] for row in rows], ['RCP-HTML-001', 'PAY-HTML-002'])
         self.assertEqual([row['amount'] for row in rows], [Decimal('300.00'), Decimal('250.00')])
         self.assertEqual(context['summary']['total_collected'], Decimal('550.00'))
-        self.assertEqual(context['filters']['category_labels'], ['Other: Chess Club'])
+        self.assertEqual(context['filters']['category_labels'], ['Educational Activities: Chess Club'])
         self.assertNotIn('TXN-ONLY-003', [row['reference'] for row in rows])
 
     def test_html_pdf_and_excel_share_reference_and_amount_semantics(self):
@@ -293,7 +293,7 @@ class FeesCollectionReportRegressionTests(TestCase):
         self.assertIn('RCP-HTML-001', pdf_html)
         self.assertIn('PAY-HTML-002', pdf_html)
         self.assertIn('TXN-ONLY-003', pdf_html)
-        self.assertIn('Other: Chess Club, Other: Scout Trip', pdf_html)
+        self.assertIn('Educational Activities: Chess Club, Educational Activities: Scout Trip', pdf_html)
 
         excel_rows = self.get_excel_rows(params)
         self.assertEqual(

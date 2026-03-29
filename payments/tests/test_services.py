@@ -251,6 +251,8 @@ class PaymentCreationServiceTests(PaymentServiceFixtureMixin, TestCase):
         self.bank_tx.refresh_from_db()
         self.assertEqual(self.bank_tx.processing_status, "matched")
         self.assertEqual(self.bank_tx.payment, payment)
+        self.assertIsNotNone(self.bank_tx.matched_at)
+        self.assertEqual(self.bank_tx.matched_at, payment.reconciled_at)
 
     def test_create_payment_full_amount_marks_invoice_paid(self):
         self.bank_tx.amount = Decimal("50000.00")
@@ -263,6 +265,29 @@ class PaymentCreationServiceTests(PaymentServiceFixtureMixin, TestCase):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.balance, Decimal("0.00"))
         self.assertEqual(self.invoice.status, "paid")
+
+    def test_reconcile_bank_transaction_uses_bank_transaction_matched_at_as_canonical_timestamp(self):
+        payments = PaymentService.reconcile_bank_transaction(
+            bank_tx=self.bank_tx,
+            allocations=[
+                {
+                    "student": self.student,
+                    "invoice": self.invoice,
+                    "amount": Decimal("20000.00"),
+                }
+            ],
+            matched_by=self.user,
+            notes="Operator reconciliation",
+        )
+
+        self.assertEqual(len(payments), 1)
+        payment = payments[0]
+        self.bank_tx.refresh_from_db()
+        reconciliation = self.bank_tx.reconciliations.get()
+
+        self.assertIsNotNone(self.bank_tx.matched_at)
+        self.assertEqual(payment.reconciled_at, self.bank_tx.matched_at)
+        self.assertEqual(reconciliation.matched_at, self.bank_tx.matched_at)
 
 
 class NotificationServiceTests(PaymentServiceFixtureMixin, TestCase):

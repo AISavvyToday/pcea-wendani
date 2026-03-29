@@ -29,7 +29,8 @@ from core.models import InvoiceStatus
 from core.mixins import OrganizationFilterMixin
 from students.models import Student
 from .report_utils import (
-    build_invoice_summary_rows,
+    build_invoice_summary_report_data,
+    calculate_invoice_billed_collected_outstanding,
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     build_invoice_detail_category_choices,
@@ -108,6 +109,17 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
 
+        report_data = build_invoice_summary_report_data(
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            organization=getattr(request, 'organization', None),
+            show_zero=show_zero,
+        )
+        rows = report_data['rows']
+        totals = report_data['totals']
+        adjustment_totals = report_data['current_term_adjustments']
         # Select invoices for the academic year & term
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
         
@@ -125,41 +137,15 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         # Only include active students
         invoices = invoices.filter(student__status='active')
 
-        # All invoice items for those invoices
-        items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
-
-        # Sum billed per category
-        billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
-        billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
-
-        # Collected per category
-        collected_map = {}
-        if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            ).values('invoice_item__category').annotate(collected=Sum('amount'))
-            collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
-        else:
-            collected_map = {}
-            for inv in invoices:
-                inv_items = inv.items.filter(is_active=True)
-                inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
-                paid = inv.amount_paid or Decimal('0.00')
-                if inv_total <= Decimal('0.00'):
-                    continue
-                for it in inv_items:
-                    cat = it.category
-                    share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
-                    collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
-
-        rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
-            billed_map=billed_map,
-            collected_map=collected_map,
+        calc_data = calculate_invoice_billed_collected_outstanding(
+            invoices_qs=invoices,
+            mode='summary',
             show_zero=show_zero,
         )
+        rows = calc_data['rows']
+        total_billed = calc_data['totals']['total_billed']
+        total_collected = calc_data['totals']['total_collected']
+        total_outstanding = calc_data['totals']['total_outstanding']
         adjustment_totals = get_invoice_adjustment_totals(invoices)
 
         # Build workbook
@@ -206,11 +192,11 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
 
         # Totals row
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
-        ws.cell(row=row_num, column=2, value=float(total_billed))
+        ws.cell(row=row_num, column=2, value=float(totals['billed']))
         format_money_cell(ws.cell(row=row_num, column=2))
-        ws.cell(row=row_num, column=3, value=float(total_collected))
+        ws.cell(row=row_num, column=3, value=float(totals['collected']))
         format_money_cell(ws.cell(row=row_num, column=3))
-        ws.cell(row=row_num, column=4, value=float(total_outstanding))
+        ws.cell(row=row_num, column=4, value=float(totals['outstanding']))
         format_money_cell(ws.cell(row=row_num, column=4))
         ws.cell(row=row_num, column=5, value=float(adjustment_totals['balance_bf']))
         format_money_cell(ws.cell(row=row_num, column=5))
@@ -251,6 +237,17 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
 
+        report_data = build_invoice_summary_report_data(
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            organization=getattr(request, 'organization', None),
+            show_zero=show_zero,
+        )
+        rows = report_data['rows']
+        totals = report_data['totals']
+        adjustment_totals = report_data['current_term_adjustments']
         # Reuse logic from InvoiceSummaryReportExcelView to get data
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
         
@@ -268,49 +265,26 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
         # Only include active students
         invoices = invoices.filter(student__status='active')
         
-        items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
-
-        billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
-        billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
-
-        collected_map = {}
-        if PaymentAllocation is not None:
-            alloc_qs = PaymentAllocation.objects.filter(
-                invoice_item__in=items_qs,
-                is_active=True,
-                payment__is_active=True,
-                payment__status='completed'
-            ).values('invoice_item__category').annotate(collected=Sum('amount'))
-            collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
-        else:
-            collected_map = {}
-            for inv in invoices:
-                inv_items = inv.items.filter(is_active=True)
-                inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
-                paid = inv.amount_paid or Decimal('0.00')
-                if inv_total <= Decimal('0.00'):
-                    continue
-                for it in inv_items:
-                    cat = it.category
-                    share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
-                    collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
-
-        rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
-            billed_map=billed_map,
-            collected_map=collected_map,
+        calc_data = calculate_invoice_billed_collected_outstanding(
+            invoices_qs=invoices,
+            mode='summary',
             show_zero=show_zero,
         )
+        rows = calc_data['rows']
+        total_billed = calc_data['totals']['total_billed']
+        total_collected = calc_data['totals']['total_collected']
+        total_outstanding = calc_data['totals']['total_outstanding']
         adjustment_totals = get_invoice_adjustment_totals(invoices)
 
         context = {
             'report_rows': rows,
             'totals': {
-                'billed': total_billed,
-                'collected': total_collected,
-                'outstanding': total_outstanding,
-                'balance_bf': adjustment_totals['balance_bf'],
-                'prepayment': adjustment_totals['prepayment'],
-                'prepayment_display': adjustment_totals['prepayment_display'],
+                'billed': totals['billed'],
+                'collected': totals['collected'],
+                'outstanding': totals['outstanding'],
+                'balance_bf': totals['balance_bf'],
+                'prepayment': totals['prepayment'],
+                'prepayment_display': totals['prepayment_display'],
             },
             'current_term_adjustments': adjustment_totals,
             'academic_year': academic_year,

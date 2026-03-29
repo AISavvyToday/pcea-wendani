@@ -94,6 +94,9 @@ class CoopIPNView(APIView):
                 payload=validated_data,
                 request_data=request.data,
             )
+            if bank_tx.gateway != "coop":
+                bank_tx.gateway = "coop"
+                bank_tx.save(update_fields=["gateway", "updated_at"])
 
             # Step 4: Extract admission number from narration
             admission_number = ResolutionService.extract_admission_from_narration(

@@ -194,8 +194,10 @@ class PaymentService:
         payer_phone: str = "",
         payment_source=None,
         reconciled_by=None,
+        matched_at=None,
         additional_notes: str = "",
         link_bank_transaction: bool = True,
+        matched_at=None,
     ) -> Payment:
         """
         Create a Payment record from a BankTransaction and allocate it oldest-invoice-first.
@@ -232,6 +234,8 @@ class PaymentService:
             if additional_notes:
                 initial_note += f" | {additional_notes}"
             
+            reconciled_at = matched_at or timezone.now()
+
             payment = Payment.objects.create(
                 student=student,
                 invoice=None,  # payment may clear multiple invoices; don't pin to one invoice
@@ -246,15 +250,31 @@ class PaymentService:
                 notes=initial_note,
                 is_reconciled=True,
                 reconciled_by=reconciled_by,
-                reconciled_at=timezone.now(),
+                reconciled_at=reconciled_at,
+                reconciled_at=matched_at or timezone.now(),
                 organization=student.organization,  # Set organization from student
             )
 
             if link_bank_transaction:
+                matched_timestamp = bank_tx.matched_at or reconciled_at
                 bank_tx.payment = payment
+                bank_tx.matched_at = matched_timestamp
+                if not bank_tx.matched_by:
+                    bank_tx.matched_by = reconciled_by
+                bank_tx.matched_at = payment.reconciled_at
+                bank_tx.matched_by = reconciled_by
                 bank_tx.processing_status = "matched"
                 bank_tx.processing_notes = f"Matched to payment {payment.payment_reference}"
-                bank_tx.save(update_fields=["payment", "processing_status", "processing_notes", "updated_at"])
+                bank_tx.save(
+                    update_fields=[
+                        "payment",
+                        "matched_at",
+                        "matched_by",
+                        "processing_status",
+                        "processing_notes",
+                        "updated_at",
+                    ]
+                )
 
             PaymentService.process_completed_payment_against_invoices(payment)
 
@@ -294,7 +314,8 @@ class PaymentService:
             raise PaymentProcessingError("Allocated amount exceeds the bank transaction amount.")
 
         created_payments = []
-        now = timezone.now()
+        matched_timestamp = bank_tx.matched_at or timezone.now()
+        canonical_matched_at = timezone.now()
         base_note = notes.strip()
 
         for index, allocation in enumerate(allocations):
@@ -318,8 +339,10 @@ class PaymentService:
                 payer_name=bank_tx.payer_name or "",
                 payer_phone=bank_tx.payer_account or "",
                 reconciled_by=matched_by,
+                matched_at=canonical_matched_at,
                 additional_notes=" | ".join(allocation_notes),
                 link_bank_transaction=not bank_tx.payment_id and index == 0,
+                matched_at=matched_timestamp,
             )
 
             reconciliation = BankTransactionReconciliation.objects.create(
@@ -329,7 +352,8 @@ class PaymentService:
                 invoice=invoice,
                 amount=amount,
                 matched_by=matched_by,
-                matched_at=payment.reconciled_at or now,
+                matched_at=matched_timestamp,
+                matched_at=canonical_matched_at,
                 notes=" | ".join(allocation_notes),
             )
             created_payments.append((payment, reconciliation))
@@ -344,7 +368,10 @@ class PaymentService:
             f"Allocated KES {total_amount} across {len(created_payments)} payment(s); remaining KES {bank_tx.remaining_amount}"
         )
 
-        bank_tx.matched_at = now
+        bank_tx.matched_at = matched_timestamp
+        if not bank_tx.matched_by:
+            bank_tx.matched_by = matched_by
+        bank_tx.matched_at = canonical_matched_at
         bank_tx.matched_by = matched_by
         if not bank_tx.payment_id and created_payments:
             bank_tx.payment = created_payments[0][0]

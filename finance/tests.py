@@ -1,7 +1,7 @@
 from decimal import Decimal
 from datetime import date, timedelta
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -97,10 +97,17 @@ class BankTransactionReconciliationViewTests(TestCase):
         invoice.refresh_from_db()
         return invoice
 
-    def _create_transaction(self, transaction_id='EQ123', amount=Decimal('1000.00')):
+    def _create_transaction(
+        self,
+        transaction_id='EQ123',
+        amount=Decimal('1000.00'),
+        gateway='equity',
+        processing_status='received',
+        matched_at=None,
+    ):
         bank_timestamp = timezone.now().replace(hour=14, minute=35, second=0, microsecond=0)
         transaction = BankTransaction.objects.create(
-            gateway='equity',
+            gateway=gateway,
             transaction_id=transaction_id,
             transaction_reference='REF-001',
             amount=amount,
@@ -116,7 +123,8 @@ class BankTransactionReconciliationViewTests(TestCase):
                 'paymentMode': 'CASH',
             },
             raw_response={},
-            processing_status='received',
+            processing_status=processing_status,
+            matched_at=matched_at,
         )
         callback_time = bank_timestamp + timedelta(minutes=7)
         BankTransaction.objects.filter(pk=transaction.pk).update(callback_received_at=callback_time)
@@ -200,7 +208,11 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertContains(response, self.student_one.full_name)
         self.assertContains(response, '254700111222')
 
-    def test_matched_timestamp_visibility_uses_bank_timestamp_and_reconciliation_timestamp(self):
+    @override_settings(
+        TIME_ZONE='Africa/Nairobi',
+        STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
+    )
+    def test_matched_timestamp_visibility_uses_consistent_timezone_in_list_and_detail(self):
         self._create_invoice(self.student_one, 'INV-301', Decimal('500.00'))
         transaction = self._create_transaction(transaction_id='EQTIME', amount=Decimal('500.00'))
 
@@ -227,3 +239,52 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertContains(list_response, transaction.matched_at.strftime('%d/%m/%Y %H:%M'))
         self.assertContains(detail_response, transaction.effective_received_at.strftime('%d %b %Y %H:%M'))
         self.assertContains(detail_response, transaction.effective_matched_at.strftime('%d %b %Y %H:%M'))
+
+    @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
+    def test_unmatched_list_displays_equity_source_label(self):
+        self._create_transaction(transaction_id='EQ-SOURCE-1', gateway='equity')
+
+        response = self.client.get(reverse('finance:bank_transaction_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Equity Bank')
+
+    @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
+    def test_unmatched_list_displays_coop_source_label(self):
+        self._create_transaction(transaction_id='COOP-SOURCE-1', gateway='coop')
+
+        response = self.client.get(reverse('finance:bank_transaction_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Co-Operative Bank')
+
+    @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
+    def test_unmatched_filter_excludes_rows_with_matched_timestamp(self):
+        matched_time = timezone.now()
+        self._create_transaction(
+            transaction_id='EQ-MATCHED-1',
+            gateway='equity',
+            processing_status='received',
+            matched_at=matched_time,
+        )
+        unmatched = self._create_transaction(
+            transaction_id='EQ-UNMATCHED-1',
+            gateway='equity',
+            processing_status='matched',
+            matched_at=None,
+        )
+
+        response = self.client.get(reverse('finance:bank_transaction_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, unmatched.transaction_id)
+        self.assertNotContains(response, 'EQ-MATCHED-1')
+        expected_received_list = transaction.effective_received_at.strftime('%d/%m/%Y %H:%M')
+        expected_matched_list = transaction.matched_at.strftime('%d/%m/%Y %H:%M')
+        expected_received_detail = transaction.effective_received_at.strftime('%d %b %Y %H:%M')
+        expected_matched_detail = transaction.effective_matched_at.strftime('%d %b %Y %H:%M')
+
+        self.assertContains(list_response, expected_received_list)
+        self.assertContains(list_response, expected_matched_list)
+        self.assertContains(detail_response, expected_received_detail)
+        self.assertContains(detail_response, expected_matched_detail)

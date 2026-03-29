@@ -106,7 +106,11 @@
             </td>
 
             <td>
-              {% if transaction.gateway %}{{ transaction.get_gateway_display|default:transaction.gateway|title }}{% else %}<span class="text-muted">Unknown</span>{% endif %}
+              {% if transaction.gateway %}
+                {{ transaction.get_gateway_display|default:transaction.gateway|title }}
+              {% else %}
+                <span class="text-muted">Unknown source</span>
+              {% endif %}
             </td>
 
             <td>
@@ -164,15 +168,15 @@
 
             <td class="text-nowrap">
               {% if transaction.effective_received_at %}
-                {{ transaction.effective_received_at|date:"d/m/Y H:i" }}
+                {% localtime off %}{{ transaction.effective_received_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
                 -
               {% endif %}
             </td>
 
             <td class="text-nowrap">
-              {% if transaction.effective_matched_at %}
-                {% localtime off %}{{ transaction.effective_matched_at|date:"d/m/Y H:i" }}{% endlocaltime %}
+              {% if transaction.matched_at %}
+                {% localtime off %}{{ transaction.matched_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
                 <span class="text-muted">-</span>
               {% endif %}
