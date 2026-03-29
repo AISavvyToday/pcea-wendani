@@ -27,8 +27,11 @@ from students.models import Student
 from core.models import InvoiceStatus
 from .report_utils import (
     build_invoice_summary_report_data,
+    calculate_invoice_billed_collected_outstanding,
+    get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     build_invoice_detail_category_choices,
+    get_report_category_label,
     build_invoice_detailed_report_data,
     build_outstanding_balances_report_data,
 )
@@ -39,6 +42,7 @@ FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'assessment', 'activi
 
 def get_fees_collection_category_choices(organization=None):
     categories_list = [(cat, cat.title()) for cat in FEES_COLLECTION_STANDARD_CATEGORIES]
+    other_label = get_report_category_label('other')
 
     other_items_qs = InvoiceItem.objects.filter(
         category='other',
@@ -65,10 +69,10 @@ def get_fees_collection_category_choices(organization=None):
             unique_descriptions.append(desc_normalized)
 
     for desc in sorted(unique_descriptions, key=str.lower):
-        categories_list.append((f'other:{desc}', f'Other: {desc}'))
+        categories_list.append((f'other:{desc}', f'{other_label}: {desc}'))
 
     if unique_descriptions:
-        categories_list.append(('other', 'Other'))
+        categories_list.append(('other', other_label))
 
     return categories_list
 
@@ -320,8 +324,32 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
                 start_date=start_date,
                 end_date=end_date,
                 organization=getattr(request, 'organization', None),
+            # Select invoices for the academic year & term
+            invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
+            
+            # Apply date filter (by invoice issue_date)
+            if start_date:
+                invoices = invoices.filter(issue_date__gte=start_date)
+            if end_date:
+                invoices = invoices.filter(issue_date__lte=end_date)
+            
+            # Apply organization filter
+            organization = getattr(request, 'organization', None)
+            if organization:
+                invoices = invoices.filter(organization=organization)
+            
+            # Only include active students
+            invoices = invoices.filter(student__status='active')
+
+            calc_data = calculate_invoice_billed_collected_outstanding(
+                invoices_qs=invoices,
+                mode='summary',
                 show_zero=show_zero,
             )
+            rows = calc_data['rows']
+            total_billed = calc_data['totals']['total_billed']
+            total_collected = calc_data['totals']['total_collected']
+            total_outstanding = calc_data['totals']['total_outstanding']
 
             context.update({
                 'report_rows': report_data['rows'],

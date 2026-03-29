@@ -32,8 +32,8 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <p class="text-muted mb-1 small">Total Invoiced</p>
-                            <h4 class="mb-0 text-primary">KES {{ stats.total_invoiced|default:0|floatformat:0|intcomma }}</h4>
+                            <p class="text-muted mb-1 small">Total Billed</p>
+                            <h4 class="mb-0 text-primary">KES {{ stats.total_billed|default:stats.total_invoiced|default:0|floatformat:0|intcomma }}</h4>
                         </div>
                         <div class="text-end">
                             <i class="mdi mdi-file-document-outline mdi-24px text-primary" aria-hidden="true"></i>
@@ -95,6 +95,67 @@
                         <div class="progress-bar bg-info" style="width: {{ stats.collection_rate|default:0|floatformat:0 }}%;"></div>
                     </div>
                     <small class="text-muted d-block mt-1">Collections vs invoiced</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Buckets -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="card-title mb-0">Revenue Buckets</h5>
+                            <small class="text-muted">Billed, collected and outstanding by dashboard bucket</small>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Bucket</th>
+                                    <th class="text-end">Billed (KES)</th>
+                                    <th class="text-end">Collected (KES)</th>
+                                    <th class="text-end">Outstanding (KES)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Fees (Tuition + Meals + Activity + Examination)</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.fees.billed|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.fees.collected|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.fees.outstanding|default:0|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Transport</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.transport.billed|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.transport.collected|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.transport.outstanding|default:0|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Admission</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.admission.billed|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.admission.collected|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.admission.outstanding|default:0|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Educational Activities</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.educational_activities.billed|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.educational_activities.collected|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.educational_activities.outstanding|default:0|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Other Income</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.other_income.billed|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.other_income.collected|default:0|floatformat:0|intcomma }}</td>
+                                    <td class="text-end">{{ stats.kpi_buckets.other_income.outstanding|default:0|floatformat:0|intcomma }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

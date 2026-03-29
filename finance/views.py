@@ -130,12 +130,16 @@ class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
 
         # Get current term
         current_term = Term.objects.filter(is_current=True).first()
+        organization = getattr(self.request, 'organization', None)
 
         # Dashboard stats
-        context['stats'] = FinanceReportService.get_dashboard_stats(current_term)
+        context['stats'] = FinanceReportService.get_dashboard_stats(
+            current_term,
+            organization=organization
+        )
+        context['stats'] = FinanceReportService.get_dashboard_stats(current_term, organization=organization)
 
         # Recent payments - filtered by organization
-        organization = getattr(self.request, 'organization', None)
         recent_payments_qs = Payment.objects.filter(
             is_active=True,
             status=PaymentStatus.COMPLETED
@@ -1177,15 +1181,12 @@ class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
     ]
 
     def post(self, request, pk, *args, **kwargs):
-        print(f"Trying to delete invoice with PK: {pk}")
-        print(f"Request path: {request.path}")
-        print(f"Request full path: {request.get_full_path()}")
-
         invoice = get_object_or_404(Invoice, pk=pk)
 
         student = invoice.student
         try:
-            InvoiceService.delete_invoice(invoice)            
+            PaymentsInvoiceService.soft_delete_invoice(invoice, deleted_by=request.user)
+            messages.success(request, f"Invoice {invoice.invoice_number} moved to trash.")            
             
 
         except Exception as e:
@@ -1452,12 +1453,11 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         student = payment.student
         
         try:
-            # Use the InvoiceService to safely delete the payment
-            from payments.services.invoice import InvoiceService
-            InvoiceService.delete_payment(payment)
+            # Soft-delete payment and reverse allocations
+            PaymentsInvoiceService.soft_delete_payment(payment, deleted_by=request.user)
             
             logger.info(f"Payment {payment.payment_reference} deleted successfully for student {student.admission_number}")
-            messages.success(request, f'Payment {payment.payment_reference} deleted successfully. All balances have been restored.')
+            messages.success(request, f'Payment {payment.payment_reference} moved to trash. All balances have been restored.')
             
         except Exception as e:
             logger.error(f"Failed to delete payment {pk}: {str(e)}", exc_info=True)
