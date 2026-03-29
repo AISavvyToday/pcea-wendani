@@ -61,10 +61,12 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         base_queryset = self.get_base_filtered_queryset()
         status = self.request.GET.get('status', 'active') or 'active'
         term = self.get_current_term()
+        organization = getattr(self.request, 'organization', None)
         queryset = apply_student_filters(
             base_queryset,
             status=status,
             term=term,
+            organization=organization,
         )
         return queryset.order_by('admission_number')
 
@@ -102,7 +104,12 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         context = super().get_context_data(**kwargs)
         base_queryset = self.get_base_filtered_queryset()
         term = self.get_current_term()
-        status_counts = get_student_status_counters(base_queryset, term=term)
+        organization = getattr(self.request, 'organization', None)
+        status_counts = get_student_status_counters(
+            base_queryset,
+            term=term,
+            organization=organization,
+        )
 
         context['search_form'] = StudentSearchForm(self.request.GET)
         context['total_students'] = base_queryset.count()
@@ -111,6 +118,7 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
         # Get current status from request (default to 'active' if not specified)
         context['current_status'] = self.request.GET.get('status', '') or 'active'
+        context['term_resolution_warning'] = term is None
 
         return context
 
