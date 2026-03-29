@@ -195,6 +195,7 @@ class EquityNotificationViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(payment.student, self.student)
 
         bank_txn = BankTransaction.objects.get(transaction_id="EQ-REF-123456")
+        self.assertEqual(bank_txn.gateway, "equity")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
 
@@ -219,6 +220,10 @@ class EquityNotificationViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["responseCode"], "200")
         self.assertFalse(Payment.objects.filter(transaction_reference="EQ-REF-123456").exists())
+        self.assertEqual(
+            BankTransaction.objects.get(transaction_id="EQ-REF-123456").gateway,
+            "equity",
+        )
 
     def test_notification_missing_fields(self):
         response = self.client.post(self.url, data={"billNumber": self.student.admission_number}, format="json", **self.auth_headers())
@@ -289,6 +294,7 @@ class CoopIPNViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(payment.student, self.student)
 
         bank_txn = BankTransaction.objects.get(transaction_id="TXN-COOP-123456")
+        self.assertEqual(bank_txn.gateway, "coop")
         self.assertEqual(bank_txn.processing_status, "matched")
         self.assertEqual(bank_txn.payment, payment)
 
@@ -301,6 +307,7 @@ class CoopIPNViewTests(PaymentTestDataMixin, TestCase):
         self.assertEqual(response.json()["MessageCode"], "200")
 
         bank_txn = BankTransaction.objects.get(transaction_id="TXN-COOP-123456")
+        self.assertEqual(bank_txn.gateway, "coop")
         self.assertEqual(bank_txn.processing_status, "received")
         self.assertIsNone(bank_txn.payment)
 
