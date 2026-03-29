@@ -72,12 +72,28 @@ class Payment(BaseModel):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments_reconciled'
     )
     reconciled_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payments_deleted'
+    )
 
     unallocated_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payments_deleted",
     )
 
     @property
@@ -267,6 +283,7 @@ class BankTransaction(BaseModel):
         if self.payment_id and self.payment.reconciled_at:
             return self.payment.reconciled_at
         return None
+        return self.matched_at
 
     @property
     def effective_received_at(self):

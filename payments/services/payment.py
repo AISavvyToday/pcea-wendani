@@ -194,6 +194,7 @@ class PaymentService:
         payer_phone: str = "",
         payment_source=None,
         reconciled_by=None,
+        matched_at=None,
         additional_notes: str = "",
         link_bank_transaction: bool = True,
         matched_at=None,
@@ -250,6 +251,7 @@ class PaymentService:
                 is_reconciled=True,
                 reconciled_by=reconciled_by,
                 reconciled_at=reconciled_at,
+                reconciled_at=matched_at or timezone.now(),
                 organization=student.organization,  # Set organization from student
             )
 
@@ -259,6 +261,8 @@ class PaymentService:
                 bank_tx.matched_at = matched_timestamp
                 if not bank_tx.matched_by:
                     bank_tx.matched_by = reconciled_by
+                bank_tx.matched_at = payment.reconciled_at
+                bank_tx.matched_by = reconciled_by
                 bank_tx.processing_status = "matched"
                 bank_tx.processing_notes = f"Matched to payment {payment.payment_reference}"
                 bank_tx.save(
@@ -311,6 +315,7 @@ class PaymentService:
 
         created_payments = []
         matched_timestamp = bank_tx.matched_at or timezone.now()
+        canonical_matched_at = timezone.now()
         base_note = notes.strip()
 
         for index, allocation in enumerate(allocations):
@@ -334,6 +339,7 @@ class PaymentService:
                 payer_name=bank_tx.payer_name or "",
                 payer_phone=bank_tx.payer_account or "",
                 reconciled_by=matched_by,
+                matched_at=canonical_matched_at,
                 additional_notes=" | ".join(allocation_notes),
                 link_bank_transaction=not bank_tx.payment_id and index == 0,
                 matched_at=matched_timestamp,
@@ -347,6 +353,7 @@ class PaymentService:
                 amount=amount,
                 matched_by=matched_by,
                 matched_at=matched_timestamp,
+                matched_at=canonical_matched_at,
                 notes=" | ".join(allocation_notes),
             )
             created_payments.append((payment, reconciliation))
@@ -364,6 +371,8 @@ class PaymentService:
         bank_tx.matched_at = matched_timestamp
         if not bank_tx.matched_by:
             bank_tx.matched_by = matched_by
+        bank_tx.matched_at = canonical_matched_at
+        bank_tx.matched_by = matched_by
         if not bank_tx.payment_id and created_payments:
             bank_tx.payment = created_payments[0][0]
         bank_tx.processing_status = status

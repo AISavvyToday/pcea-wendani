@@ -1,13 +1,20 @@
 from datetime import date
 
 from django.test import TestCase
+from django.test.utils import override_settings
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from academics.models import AcademicYear, Class
 from accounts.models import User
+from core.models import GradeLevel, Organization, StreamChoices, UserRole
+from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
+from students.metrics import get_current_term, get_new_students_q
 from students.models import Parent, Student, StudentParent
 
 
+@override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
 class ParentManagementViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -151,3 +158,245 @@ class ParentManagementViewTests(TestCase):
         self.assertEqual(edit_response.status_code, 404)
         self.assertEqual(delete_response.status_code, 404)
         self.assertEqual(api_response.status_code, 404)
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+)
+class BulkStreamTransferViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = Organization.objects.create(name='Transfer School', code='TRF')
+        cls.admin = User.objects.create_user(
+            email='admin@transfer.test',
+            password='password123',
+            first_name='Transfer',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=cls.organization,
+        )
+        cls.current_year = AcademicYear.objects.create(
+            organization=cls.organization,
+            year=2026,
+            start_date=date(2026, 1, 5),
+            end_date=date(2026, 12, 1),
+            is_current=True,
+        )
+        cls.source_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 4 East',
+            grade_level=GradeLevel.GRADE_4,
+            stream=StreamChoices.EAST,
+            academic_year=cls.current_year,
+        )
+        cls.other_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 4 West',
+            grade_level=GradeLevel.GRADE_4,
+            stream=StreamChoices.WEST,
+            academic_year=cls.current_year,
+        )
+        cls.target_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 5 East',
+            grade_level=GradeLevel.GRADE_5,
+            stream=StreamChoices.EAST,
+            academic_year=cls.current_year,
+        )
+        cls.student_in_source = Student.objects.create(
+            organization=cls.organization,
+            admission_number='ADM-001',
+            admission_date=date(2026, 1, 7),
+            first_name='Amina',
+            middle_name='',
+            last_name='Njeri',
+            gender='F',
+            date_of_birth=date(2015, 2, 1),
+            status='active',
+            current_class=cls.source_class,
+        )
+        cls.student_in_other = Student.objects.create(
+            organization=cls.organization,
+            admission_number='ADM-002',
+            admission_date=date(2026, 1, 7),
+            first_name='Brian',
+            middle_name='',
+            last_name='Mwangi',
+            gender='M',
+            date_of_birth=date(2015, 4, 1),
+            status='active',
+            current_class=cls.other_class,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_get_search_filters_by_name_admission_and_class(self):
+        url = reverse('students:bulk_stream_transfer')
+
+        response_by_name = self.client.get(url, {'student_search': 'Amina'})
+        response_by_admission = self.client.get(url, {'student_search': 'ADM-001'})
+        response_by_class = self.client.get(url, {'student_search': 'Grade 4 East'})
+
+        for response in (response_by_name, response_by_admission, response_by_class):
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'Amina Njeri')
+            self.assertNotContains(response, 'Brian Mwangi')
+
+    def test_post_moves_students_and_shows_success_message(self):
+        response = self.client.post(
+            reverse('students:bulk_stream_transfer'),
+            data={
+                'source_class': str(self.source_class.pk),
+                'source_stream': self.source_class.stream,
+                'student_search': 'Amina',
+                'target_class': str(self.target_class.pk),
+                'students': [str(self.student_in_source.pk)],
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('students:bulk_stream_transfer'))
+        self.student_in_source.refresh_from_db()
+        self.assertEqual(self.student_in_source.current_class, self.target_class)
+        self.assertContains(response, f'Successfully moved 1 student(s) to {self.target_class.name}.')
+@override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
+class StudentMetricsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org_one = Organization.objects.create(name='Metrics Org One', code='MORG1')
+        cls.org_two = Organization.objects.create(name='Metrics Org Two', code='MORG2')
+
+        cls.admin = User.objects.create_user(
+            email='metrics-admin@org1.test',
+            password='password123',
+            first_name='Metrics',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=cls.org_one,
+        )
+
+    def _create_student(self, *, organization, admission_date, status='active', suffix='1'):
+        return Student.objects.create(
+            organization=organization,
+            admission_date=admission_date,
+            first_name=f'Student{suffix}',
+            middle_name='Test',
+            last_name='User',
+            gender='F',
+            date_of_birth=date(2018, 5, 10),
+            status=status,
+            admission_number=f'ADM-{organization.code}-{suffix}-{admission_date.isoformat()}',
+        )
+
+    def test_get_current_term_prefers_org_current_term(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2040,
+            start_date=date(2040, 1, 1),
+            end_date=date(2040, 12, 31),
+            is_current=True,
+        )
+        term = Term.objects.create(
+            organization=self.org_one,
+            academic_year=ay,
+            term='term_2',
+            start_date=date(2040, 5, 1),
+            end_date=date(2040, 8, 31),
+            is_current=True,
+        )
+
+        resolved = get_current_term(organization=self.org_one)
+
+        self.assertEqual(resolved, term)
+
+    def test_get_new_students_q_uses_academic_year_when_current_term_missing(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2041,
+            start_date=date(2041, 1, 1),
+            end_date=date(2041, 12, 31),
+            is_current=True,
+        )
+
+        in_year = self._create_student(
+            organization=self.org_one,
+            admission_date=date(2041, 6, 5),
+            suffix='in-year',
+        )
+        out_of_year = self._create_student(
+            organization=self.org_one,
+            admission_date=date(2042, 1, 5),
+            suffix='out-year',
+        )
+
+        matching_ids = set(
+            Student.objects.filter(
+                get_new_students_q(term=None, organization=self.org_one)
+            ).values_list('id', flat=True)
+        )
+
+        self.assertIn(in_year.id, matching_ids)
+        self.assertNotIn(out_of_year.id, matching_ids)
+        self.assertEqual(get_current_term(organization=self.org_one), None)
+        self.assertIsNotNone(ay)
+
+    def test_get_new_students_q_includes_term_boundaries(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_two,
+            year=2042,
+            start_date=date(2042, 1, 1),
+            end_date=date(2042, 12, 31),
+            is_current=False,
+        )
+        term = Term.objects.create(
+            organization=self.org_two,
+            academic_year=ay,
+            term='term_1',
+            start_date=date(2042, 1, 10),
+            end_date=date(2042, 4, 10),
+            is_current=True,
+        )
+
+        at_start = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 1, 10),
+            suffix='start',
+        )
+        at_end = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 4, 10),
+            suffix='end',
+        )
+        before_term = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 1, 9),
+            suffix='before',
+        )
+
+        matching_ids = set(
+            Student.objects.filter(get_new_students_q(term=term)).values_list('id', flat=True)
+        )
+
+        self.assertIn(at_start.id, matching_ids)
+        self.assertIn(at_end.id, matching_ids)
+        self.assertNotIn(before_term.id, matching_ids)
+
+    def test_student_list_shows_warning_when_current_term_unresolved(self):
+        self.client.force_login(self.admin)
+        AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2043,
+            start_date=date(2043, 1, 1),
+            end_date=date(2043, 12, 31),
+            is_current=False,
+        )
+
+        response = self.client.get(reverse('students:list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current term could not be resolved for this organization')
+        self.assertTrue(response.context['term_resolution_warning'])

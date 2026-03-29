@@ -223,9 +223,25 @@ class Invoice(BaseModel):
     generated_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="invoices_generated"
     )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices_deleted",
+    )
 
     fee_structure = models.ForeignKey(
         FeeStructure, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoices"
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices_deleted",
     )
 
     class Meta:
@@ -382,5 +398,4 @@ class InvoiceItem(BaseModel):
             self.net_amount = Decimal('0.00')
 
         super().save(*args, **kwargs)
-
 

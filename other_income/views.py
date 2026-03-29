@@ -193,7 +193,10 @@ class OtherIncomeInvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, 
     def post(self, request, *args, **kwargs):
         invoice = self.get_invoice()
         invoice_number = invoice.invoice_number
-        invoice.soft_delete()
+        invoice.is_active = False
+        invoice.deleted_at = timezone.now()
+        invoice.deleted_by = request.user
+        invoice.save(update_fields=['is_active', 'deleted_at', 'deleted_by', 'updated_at'])
         messages.success(request, f'Other income invoice {invoice_number} has been deleted successfully.')
         return redirect('other_income:invoice_list')
 
