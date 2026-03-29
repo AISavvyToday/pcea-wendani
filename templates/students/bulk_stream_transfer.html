@@ -14,6 +14,7 @@
   <div class="card">
     <div class="card-body">
       <form method="get" class="mb-4">
+      <form method="get" id="bulk-transfer-form">
         <div class="row g-3 mb-3">
           <div class="col-md-3">
             <label class="form-label">Source Class</label>
@@ -61,7 +62,18 @@
 
         <div class="d-flex justify-content-end gap-2">
           <a href="{% url 'students:list' %}" class="btn btn-light">Cancel</a>
-          <button type="submit" class="btn btn-warning">Move Selected Students</button>
+          <button type="submit" class="btn btn-outline-primary">Search/Filter</button>
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="btn btn-warning"
+            formmethod="post"
+            formaction="{% url 'students:bulk_stream_transfer' %}"
+            name="action"
+            value="move"
+          >
+            Move Selected Students
+          </button>
         </div>
       </form>
     </div>

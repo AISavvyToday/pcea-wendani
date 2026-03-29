@@ -1,0 +1,53 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Trash{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="card">
+    <div class="card-body">
+      <h4 class="card-title">Trash (Admin)</h4>
+      <form method="get" class="mb-3">
+        <label for="entity">Entity Type</label>
+        <select id="entity" name="entity" onchange="this.form.submit()" class="form-control" style="max-width: 360px;">
+          {% for item in entities %}
+            <option value="{{ item }}" {% if item == entity %}selected{% endif %}>{{ item|title }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Deleted At</th>
+              <th>Deleted By</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td>{{ row }}</td>
+                <td>{{ row.deleted_at|default:'-' }}</td>
+                <td>{{ row.deleted_by|default:'-' }}</td>
+                <td class="d-flex" style="gap:8px;">
+                  <form method="post" action="{% url 'trash:restore' entity row.pk %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-success" type="submit">Restore</button>
+                  </form>
+                  <form method="post" action="{% url 'trash:purge' entity row.pk %}" onsubmit="return confirm('Permanently purge this record?');">{% csrf_token %}
+                    <button class="btn btn-sm btn-danger" type="submit">Purge</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4">No trashed records for this entity.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

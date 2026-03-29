@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils.http import urlencode
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
@@ -249,6 +250,15 @@ class ClubMembersPDFExportView(LoginRequiredMixin, RoleRequiredMixin, View):
 class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = 'students/bulk_stream_transfer.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
+    filter_fields = ('source_class', 'source_stream', 'student_search')
+
+    def get_filter_query_string(self, data):
+        query_data = {
+            key: value
+            for key, value in ((field, data.get(field, '')) for field in self.filter_fields)
+            if value
+        }
+        return urlencode(query_data)
 
     def get_form(self, data=None, require_move_fields=False):
         return BulkStreamTransferForm(
@@ -261,6 +271,10 @@ class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
         form = self.get_form(data=request.GET, require_move_fields=False)
         return self.render_to_response(self.get_context_data(form=form))
 
+    def get(self, request, *args, **kwargs):
+        form = BulkStreamTransferForm(request.GET or None, organization=getattr(request, 'organization', None))
+        return self.render_to_response(self.get_context_data(form=form))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['form'] = kwargs.get('form') or self.get_form(data=self.request.GET, require_move_fields=False)
@@ -268,6 +282,19 @@ class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
 
     def post(self, request, *args, **kwargs):
         form = self.get_form(data=request.POST, require_move_fields=True)
+        form = kwargs.get('form') or self.get_form()
+        context['form'] = form
+        return context
+
+    def post(self, request, *args, **kwargs):
+        if request.POST.get('action') != 'move':
+            filter_query_string = self.get_filter_query_string(request.POST)
+            redirect_url = reverse_lazy('students:bulk_stream_transfer')
+            if filter_query_string:
+                redirect_url = f'{redirect_url}?{filter_query_string}'
+            return redirect(redirect_url)
+
+        form = BulkStreamTransferForm(request.POST, organization=getattr(request, 'organization', None))
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(form=form))
 
@@ -283,4 +310,8 @@ class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
                 moved_count += 1
 
         messages.success(request, f'Successfully moved {moved_count} student(s) to {target_class.name}.')
-        return redirect('students:bulk_stream_transfer')
+        filter_query_string = self.get_filter_query_string(request.POST)
+        redirect_url = reverse_lazy('students:bulk_stream_transfer')
+        if filter_query_string:
+            redirect_url = f'{redirect_url}?{filter_query_string}'
+        return redirect(redirect_url)
