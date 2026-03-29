@@ -1185,7 +1185,7 @@ class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
         student = invoice.student
         try:
-            InvoiceService.delete_invoice(invoice)            
+            InvoiceService.delete_invoice(invoice, deleted_by=request.user)
             
 
         except Exception as e:
@@ -1454,7 +1454,7 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         try:
             # Use the InvoiceService to safely delete the payment
             from payments.services.invoice import InvoiceService
-            InvoiceService.delete_payment(payment)
+            InvoiceService.delete_payment(payment, deleted_by=request.user)
             
             logger.info(f"Payment {payment.payment_reference} deleted successfully for student {student.admission_number}")
             messages.success(request, f'Payment {payment.payment_reference} deleted successfully. All balances have been restored.')

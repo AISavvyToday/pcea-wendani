@@ -44,6 +44,14 @@ class OtherIncomeInvoice(BaseModel):
     due_date = models.DateField(null=True, blank=True)
 
     generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='other_income_generated')
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='other_income_invoices_deleted'
+    )
 
     class Meta:
         db_table = 'other_income_invoices'

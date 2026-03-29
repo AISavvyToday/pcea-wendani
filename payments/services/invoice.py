@@ -16,6 +16,7 @@ from datetime import date as date_cls
 from django.db import transaction as db_transaction
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from core.models import InvoiceStatus, PaymentStatus
 from finance.models import Invoice, InvoiceItem
@@ -201,9 +202,9 @@ class InvoiceService:
         return allocated
     @staticmethod
     @db_transaction.atomic
-    def delete_payment(payment: Payment):
+    def delete_payment(payment: Payment, deleted_by=None):
         """
-        Hard-delete a payment and its allocations and restore all derived state.
+        Soft-delete a payment and its allocations and restore all derived state.
         
         Handles two cases:
         1. Payments allocated to invoices - reverse allocations
@@ -219,8 +220,10 @@ class InvoiceService:
         payment_notes = payment.notes or ""
 
         # 1. Capture allocations BEFORE deletion
-        allocations = list(payment.allocations.all())
-        bank_transactions = list(payment.bank_transactions.all())
+        if not payment.is_active:
+            return
+
+        allocations = list(payment.allocations.filter(is_active=True))
 
         invoice_ids = list(
             {a.invoice_item.invoice_id for a in allocations}
@@ -228,27 +231,27 @@ class InvoiceService:
 
         allocated_total = sum(a.amount for a in allocations)
 
-        # 2. Delete allocations
+        # 2. Soft-delete allocations
         for alloc in allocations:
-            alloc.delete()
+            alloc.is_active = False
+            alloc.save(update_fields=["is_active", "updated_at"])
 
-        # 3. Delete payment
-        Payment.objects.filter(pk=payment.pk).delete()
-
-        for bank_tx in bank_transactions:
-            bank_tx.payment = None
-            bank_tx.matched_at = None
-            bank_tx.matched_by = None
-            bank_tx.processing_status = "received"
-            bank_tx.processing_notes = ""
-            bank_tx.save(update_fields=[
-                "payment",
-                "matched_at",
-                "matched_by",
-                "processing_status",
-                "processing_notes",
-                "updated_at",
-            ])
+        # 3. Soft-delete payment
+        payment.is_active = False
+        payment.deleted_at = timezone.now()
+        payment.deleted_by = deleted_by
+        payment.is_reconciled = False
+        payment.reconciled_at = None
+        payment.reconciled_by = None
+        payment.save(update_fields=[
+            "is_active",
+            "deleted_at",
+            "deleted_by",
+            "is_reconciled",
+            "reconciled_at",
+            "reconciled_by",
+            "updated_at",
+        ])
 
         # 4. Check if this was a no-invoice payment (applied directly to outstanding_balance)
         no_invoice_marker = "Applied to outstanding balance (no invoices)"
@@ -335,6 +338,37 @@ class InvoiceService:
                 f"Payment {payment.payment_reference} deleted. "
                 f"Allocated={allocated_total}, Credit adjusted=-{unapplied_credit}"
             )
+
+    @staticmethod
+    @db_transaction.atomic
+    def restore_payment(payment: Payment):
+        """Restore a soft-deleted payment and allocations, then recalculate balances."""
+        if not payment or payment.is_active:
+            return
+
+        payment.is_active = True
+        payment.deleted_at = None
+        payment.deleted_by = None
+        payment.save(update_fields=["is_active", "deleted_at", "deleted_by", "updated_at"])
+
+        payment.allocations.filter(is_active=False).update(is_active=True, updated_at=timezone.now())
+
+        invoice_ids = list(payment.allocations.filter(is_active=True).values_list("invoice_item__invoice_id", flat=True).distinct())
+        for invoice in Invoice.objects.select_for_update().filter(id__in=invoice_ids):
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+        payment.student.recompute_outstanding_balance()
+
+    @staticmethod
+    @db_transaction.atomic
+    def purge_payment(payment: Payment):
+        """Permanently delete a soft-deleted payment."""
+        if not payment:
+            return
+        if payment.is_active:
+            raise ValueError("Payment must be in trash before permanent purge.")
+        PaymentAllocation.objects.filter(payment=payment).delete()
+        Payment.objects.filter(pk=payment.pk).delete()
 
 
     # @staticmethod

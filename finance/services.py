@@ -499,7 +499,7 @@ class InvoiceService:
         
     @staticmethod
     @transaction.atomic
-    def delete_invoice(invoice):
+    def delete_invoice(invoice, deleted_by=None):
         """
         Safely delete an invoice.
 
@@ -519,13 +519,45 @@ class InvoiceService:
         student = invoice.student
         restored_credit = invoice.prepayment or Decimal("0.00")
 
-        invoice.delete()
+        if not invoice.is_active:
+            return
+
+        invoice.is_active = False
+        invoice.deleted_at = timezone.now()
+        invoice.deleted_by = deleted_by
+        invoice.save(update_fields=["is_active", "deleted_at", "deleted_by", "updated_at"])
+        invoice.items.filter(is_active=True).update(is_active=False, updated_at=timezone.now())
 
         if restored_credit > 0:
             student.credit_balance = (student.credit_balance or Decimal("0.00")) + restored_credit
             student.save(update_fields=["credit_balance", "updated_at"])
 
         student.recompute_outstanding_balance()
+
+    @staticmethod
+    @transaction.atomic
+    def restore_invoice(invoice):
+        """Restore a soft-deleted invoice and recalculate affected totals."""
+        if invoice.is_active:
+            return
+
+        invoice.is_active = True
+        invoice.deleted_at = None
+        invoice.deleted_by = None
+        invoice.save(update_fields=["is_active", "deleted_at", "deleted_by", "updated_at"])
+        invoice.items.filter(is_active=False).update(is_active=True, updated_at=timezone.now())
+
+        from payments.services.invoice import InvoiceService as PaymentsInvoiceService
+        PaymentsInvoiceService._recalculate_invoice_fields(invoice)
+        invoice.student.recompute_outstanding_balance()
+
+    @staticmethod
+    @transaction.atomic
+    def purge_invoice(invoice):
+        """Permanently delete a soft-deleted invoice."""
+        if invoice.is_active:
+            raise ValueError("Invoice must be in trash before permanent purge.")
+        invoice.delete()
 
 
 
@@ -896,4 +928,3 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
     )
     
     return stats
-
