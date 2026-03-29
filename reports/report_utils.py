@@ -115,6 +115,112 @@ def build_invoice_summary_rows(billed_map, collected_map, show_zero=False):
     return rows, total_billed, total_collected, total_outstanding
 
 
+def calculate_invoice_billed_collected_outstanding(
+    *,
+    invoices_qs,
+    mode='summary',
+    items_qs=None,
+    allocation_filters=None,
+    show_zero=False,
+):
+    """
+    Single calculation entry point for billed/collected/outstanding datasets.
+
+    mode='summary' groups by invoice category.
+    mode='detailed' groups by (student, normalized category, description).
+    """
+    if mode not in {'summary', 'detailed'}:
+        raise ValueError(f"Unsupported invoice calculation mode: {mode}")
+
+    invoice_items_qs = items_qs or InvoiceItem.objects.filter(invoice__in=invoices_qs, is_active=True)
+    billed_map = {}
+    collected_map = {}
+    outstanding_map = {}
+
+    if mode == 'summary':
+        billed_rows = (
+            invoice_items_qs.values('category')
+            .annotate(total_billed=Sum('net_amount'))
+        )
+        billed_map = {
+            row['category']: (row['total_billed'] or Decimal('0.00'))
+            for row in billed_rows
+        }
+
+        allocation_qs = PaymentAllocation.objects.filter(
+            invoice_item__in=invoice_items_qs,
+            is_active=True,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+        )
+        collected_rows = allocation_qs.values('invoice_item__category').annotate(collected=Sum('amount'))
+        collected_map = {
+            row['invoice_item__category']: (row['collected'] or Decimal('0.00'))
+            for row in collected_rows
+        }
+    else:
+        billed_rows = (
+            invoice_items_qs.values(
+                'invoice__student__pk',
+                'category',
+                'description',
+            )
+            .annotate(total_billed=Sum('net_amount'))
+        )
+        for row in billed_rows:
+            key = (
+                row['invoice__student__pk'],
+                normalize_invoice_detail_category_value(row['category']),
+                row['description'] or '',
+            )
+            billed_map[key] = row['total_billed'] or Decimal('0.00')
+
+        active_allocation_filters = allocation_filters or Q(
+            invoice_item__in=invoice_items_qs,
+            is_active=True,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+        )
+        collected_rows = (
+            PaymentAllocation.objects.filter(active_allocation_filters)
+            .values(
+                'invoice_item__invoice__student__pk',
+                'invoice_item__category',
+                'invoice_item__description',
+            )
+            .annotate(collected=Sum('amount'))
+        )
+        for row in collected_rows:
+            key = (
+                row['invoice_item__invoice__student__pk'],
+                normalize_invoice_detail_category_value(row['invoice_item__category']),
+                row['invoice_item__description'] or '',
+            )
+            collected_map[key] = row['collected'] or Decimal('0.00')
+
+    all_keys = set(billed_map.keys()) | set(collected_map.keys())
+    for key in all_keys:
+        outstanding_map[key] = billed_map.get(key, Decimal('0.00')) - collected_map.get(key, Decimal('0.00'))
+
+    rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
+        billed_map=billed_map if mode == 'summary' else {},
+        collected_map=collected_map if mode == 'summary' else {},
+        show_zero=show_zero,
+    ) if mode == 'summary' else ([], sum(billed_map.values(), Decimal('0.00')), sum(collected_map.values(), Decimal('0.00')), sum(outstanding_map.values(), Decimal('0.00')))
+
+    return {
+        'billed_map': billed_map,
+        'collected_map': collected_map,
+        'outstanding_map': outstanding_map,
+        'rows': rows,
+        'totals': {
+            'total_billed': total_billed,
+            'total_collected': total_collected,
+            'total_outstanding': total_outstanding,
+        },
+    }
+
+
 def get_invoice_adjustment_totals(invoices):
     totals = invoices.aggregate(
         total_balance_bf=Sum("balance_bf"),
@@ -361,40 +467,29 @@ def build_invoice_detailed_report_data(
         )
     )
 
-    collected_map = {}
-    source_map = {}
-    matched_source_keys = set()
-
     allocation_filters = Q(
         invoice_item__in=items_qs,
         is_active=True,
         payment__is_active=True,
         payment__status=PaymentStatus.COMPLETED,
     )
-
     if not show_all:
         if start_date:
             allocation_filters &= Q(payment__payment_date__date__gte=start_date)
         if end_date:
             allocation_filters &= Q(payment__payment_date__date__lte=end_date)
 
-    alloc_totals_qs = (
-        PaymentAllocation.objects.filter(allocation_filters)
-        .values(
-            'invoice_item__invoice__student__pk',
-            'invoice_item__category',
-            'invoice_item__description',
-        )
-        .annotate(collected=Sum('amount'))
+    calc_data = calculate_invoice_billed_collected_outstanding(
+        invoices_qs=invoices_qs,
+        mode='detailed',
+        items_qs=items_qs,
+        allocation_filters=allocation_filters,
     )
-
-    for row in alloc_totals_qs:
-        key = (
-            row['invoice_item__invoice__student__pk'],
-            normalize_invoice_detail_category_value(row['invoice_item__category']),
-            row['invoice_item__description'] or '',
-        )
-        collected_map[key] = row['collected'] or Decimal('0.00')
+    billed_map = calc_data['billed_map']
+    collected_map = calc_data['collected_map']
+    outstanding_map = calc_data['outstanding_map']
+    source_map = {}
+    matched_source_keys = set()
 
     alloc_sources_qs = (
         PaymentAllocation.objects.filter(allocation_filters)
@@ -436,9 +531,9 @@ def build_invoice_detailed_report_data(
         if payment_source and key not in matched_source_keys:
             continue
 
-        billed = row['total_billed'] or Decimal('0.00')
+        billed = billed_map.get(key, row['total_billed'] or Decimal('0.00'))
         paid = collected_map.get(key, Decimal('0.00'))
-        balance = billed - paid
+        balance = outstanding_map.get(key, billed - paid)
 
         first = row.get('invoice__student__first_name', '')
         middle = row.get('invoice__student__middle_name', '')

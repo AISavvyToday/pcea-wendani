@@ -26,7 +26,7 @@ from transport.models import TransportFee
 from students.models import Student
 from core.models import InvoiceStatus
 from .report_utils import (
-    build_invoice_summary_rows,
+    calculate_invoice_billed_collected_outstanding,
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     build_invoice_detail_category_choices,
@@ -332,46 +332,15 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             # Only include active students
             invoices = invoices.filter(student__status='active')
 
-            # All invoice items for those invoices
-            items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
-
-            # Sum billed per category (net_amount preferred, fallback to amount)
-            billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
-            # Build mapping category -> billed amount
-            billed_map = {row['category']: (row['total_billed'] or Decimal('0.00')) for row in billed_qs}
-
-            # Collected per category: try to use PaymentAllocation if available
-            collected_map = {}
-            if PaymentAllocation is not None:
-                # annotate by invoice_item__category
-                alloc_qs = PaymentAllocation.objects.filter(
-                    invoice_item__in=items_qs,
-                    is_active=True,
-                    payment__is_active=True,
-                    payment__status='completed'
-                ).values('invoice_item__category').annotate(collected=Sum('amount'))
-                collected_map = {row['invoice_item__category']: (row['collected'] or Decimal('0.00')) for row in alloc_qs}
-            else:
-                # Fallback: use proportion of invoice.amount_paid distributed by item share
-                # Compute per-invoice -> item distribution
-                collected_map = {}
-                for inv in invoices:
-                    inv_items = inv.items.filter(is_active=True)
-                    inv_total = sum((i.net_amount or Decimal('0.00')) for i in inv_items)
-                    paid = inv.amount_paid or Decimal('0.00')
-                    if inv_total <= Decimal('0.00'):
-                        # Nothing to allocate
-                        continue
-                    for it in inv_items:
-                        cat = it.category
-                        share = ((it.net_amount or Decimal('0.00')) / inv_total) * paid
-                        collected_map[cat] = collected_map.get(cat, Decimal('0.00')) + (share or Decimal('0.00'))
-
-            rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
-                billed_map=billed_map,
-                collected_map=collected_map,
+            calc_data = calculate_invoice_billed_collected_outstanding(
+                invoices_qs=invoices,
+                mode='summary',
                 show_zero=show_zero,
             )
+            rows = calc_data['rows']
+            total_billed = calc_data['totals']['total_billed']
+            total_collected = calc_data['totals']['total_collected']
+            total_outstanding = calc_data['totals']['total_outstanding']
 
             adjustment_totals = get_invoice_adjustment_totals(invoices)
             invoice_count = invoices.count()
