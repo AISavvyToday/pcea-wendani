@@ -1,9 +1,13 @@
 from datetime import date
 
+from django.test import TestCase
+from django.test.utils import override_settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from academics.models import AcademicYear, Class
 from accounts.models import User
+from core.models import GradeLevel, Organization, StreamChoices, UserRole
 from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
 from students.metrics import get_current_term, get_new_students_q
@@ -156,6 +160,109 @@ class ParentManagementViewTests(TestCase):
         self.assertEqual(api_response.status_code, 404)
 
 
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+)
+class BulkStreamTransferViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = Organization.objects.create(name='Transfer School', code='TRF')
+        cls.admin = User.objects.create_user(
+            email='admin@transfer.test',
+            password='password123',
+            first_name='Transfer',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=cls.organization,
+        )
+        cls.current_year = AcademicYear.objects.create(
+            organization=cls.organization,
+            year=2026,
+            start_date=date(2026, 1, 5),
+            end_date=date(2026, 12, 1),
+            is_current=True,
+        )
+        cls.source_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 4 East',
+            grade_level=GradeLevel.GRADE_4,
+            stream=StreamChoices.EAST,
+            academic_year=cls.current_year,
+        )
+        cls.other_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 4 West',
+            grade_level=GradeLevel.GRADE_4,
+            stream=StreamChoices.WEST,
+            academic_year=cls.current_year,
+        )
+        cls.target_class = Class.objects.create(
+            organization=cls.organization,
+            name='Grade 5 East',
+            grade_level=GradeLevel.GRADE_5,
+            stream=StreamChoices.EAST,
+            academic_year=cls.current_year,
+        )
+        cls.student_in_source = Student.objects.create(
+            organization=cls.organization,
+            admission_number='ADM-001',
+            admission_date=date(2026, 1, 7),
+            first_name='Amina',
+            middle_name='',
+            last_name='Njeri',
+            gender='F',
+            date_of_birth=date(2015, 2, 1),
+            status='active',
+            current_class=cls.source_class,
+        )
+        cls.student_in_other = Student.objects.create(
+            organization=cls.organization,
+            admission_number='ADM-002',
+            admission_date=date(2026, 1, 7),
+            first_name='Brian',
+            middle_name='',
+            last_name='Mwangi',
+            gender='M',
+            date_of_birth=date(2015, 4, 1),
+            status='active',
+            current_class=cls.other_class,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_get_search_filters_by_name_admission_and_class(self):
+        url = reverse('students:bulk_stream_transfer')
+
+        response_by_name = self.client.get(url, {'student_search': 'Amina'})
+        response_by_admission = self.client.get(url, {'student_search': 'ADM-001'})
+        response_by_class = self.client.get(url, {'student_search': 'Grade 4 East'})
+
+        for response in (response_by_name, response_by_admission, response_by_class):
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'Amina Njeri')
+            self.assertNotContains(response, 'Brian Mwangi')
+
+    def test_post_moves_students_and_shows_success_message(self):
+        response = self.client.post(
+            reverse('students:bulk_stream_transfer'),
+            data={
+                'source_class': str(self.source_class.pk),
+                'source_stream': self.source_class.stream,
+                'student_search': 'Amina',
+                'target_class': str(self.target_class.pk),
+                'students': [str(self.student_in_source.pk)],
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('students:bulk_stream_transfer'))
+        self.student_in_source.refresh_from_db()
+        self.assertEqual(self.student_in_source.current_class, self.target_class)
+        self.assertContains(response, f'Successfully moved 1 student(s) to {self.target_class.name}.')
 @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
 class StudentMetricsTests(TestCase):
     @classmethod
