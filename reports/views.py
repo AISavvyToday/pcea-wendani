@@ -30,6 +30,7 @@ from .report_utils import (
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
     build_invoice_detail_category_choices,
+    get_report_category_label,
     build_invoice_detailed_report_data,
     build_outstanding_balances_report_data,
 )
@@ -40,6 +41,7 @@ FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'assessment', 'activi
 
 def get_fees_collection_category_choices(organization=None):
     categories_list = [(cat, cat.title()) for cat in FEES_COLLECTION_STANDARD_CATEGORIES]
+    other_label = get_report_category_label('other')
 
     other_items_qs = InvoiceItem.objects.filter(
         category='other',
@@ -66,10 +68,10 @@ def get_fees_collection_category_choices(organization=None):
             unique_descriptions.append(desc_normalized)
 
     for desc in sorted(unique_descriptions, key=str.lower):
-        categories_list.append((f'other:{desc}', f'Other: {desc}'))
+        categories_list.append((f'other:{desc}', f'{other_label}: {desc}'))
 
     if unique_descriptions:
-        categories_list.append(('other', 'Other'))
+        categories_list.append(('other', other_label))
 
     return categories_list
 
