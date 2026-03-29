@@ -24,6 +24,7 @@ from payments.models import Payment, PaymentAllocation, BankTransaction
 from students.models import Student
 from academics.models import Term
 from core.models import PaymentStatus, PaymentSource
+from .services_kpi import build_term_kpis
 
 
 class InvoiceService:
@@ -534,45 +535,43 @@ class FinanceReportService:
     """Service for financial reports."""
 
     @staticmethod
-    def get_dashboard_stats(term=None):
+    def get_dashboard_stats(term=None, organization=None):
         """Get finance dashboard statistics for active students only."""
+        kpi_payload = build_term_kpis(term=term, organization=organization)
 
-        # Filter to active students only
-        invoices = Invoice.objects.filter(
-            is_active=True,
-            student__status='active'
-        ).exclude(status='cancelled')
-        
-        # Filter payments to active students only
+        total_invoiced = kpi_payload["totals"]["billed"]
+        total_collected = kpi_payload["totals"]["collected"]
+        total_outstanding = kpi_payload["totals"]["outstanding"]
+
+        collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
+
         payments = Payment.objects.filter(
             is_active=True,
             status='completed',
             student__status='active'
         )
-
-        # If term is provided, filter to that term (typically current term)
-        if term:
-            invoices = invoices.filter(term=term)
-
-        total_invoiced = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
-        
-        # Use invoice.amount_paid to get accurate total collected
-        # This includes both item allocations AND balance_bf payments
-        # This ensures all payments are captured, including those that go to balance_bf
-        total_collected = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
-        total_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
-
-        collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
+        if organization:
+            payments = payments.filter(
+                Q(organization=organization) |
+                Q(organization__isnull=True, student__organization=organization)
+            )
 
         recent_payments = payments.select_related('student').order_by('-payment_date')[:10]
-        pending_transactions = BankTransaction.objects.filter(processing_status='pending').order_by(
-            '-callback_received_at')[:5]
+        pending_transactions = BankTransaction.objects.filter(processing_status='pending')
+        if organization:
+            pending_transactions = pending_transactions.filter(
+                Q(payment__organization=organization) |
+                Q(payment__organization__isnull=True, payment__student__organization=organization) |
+                Q(reconciliations__student__organization=organization)
+            )
+        pending_transactions = pending_transactions.order_by('-callback_received_at').distinct()[:5]
 
         return {
             'total_invoiced': total_invoiced,
             'total_collected': total_collected,
             'total_outstanding': total_outstanding,
             'collection_rate': collection_rate,
+            'kpi_payload': kpi_payload,
             'recent_payments': recent_payments,
             'pending_transactions': pending_transactions
         }
@@ -896,4 +895,3 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
     )
     
     return stats
-

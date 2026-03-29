@@ -130,12 +130,15 @@ class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
 
         # Get current term
         current_term = Term.objects.filter(is_current=True).first()
+        organization = getattr(self.request, 'organization', None)
 
         # Dashboard stats
-        context['stats'] = FinanceReportService.get_dashboard_stats(current_term)
+        context['stats'] = FinanceReportService.get_dashboard_stats(
+            current_term,
+            organization=organization
+        )
 
         # Recent payments - filtered by organization
-        organization = getattr(self.request, 'organization', None)
         recent_payments_qs = Payment.objects.filter(
             is_active=True,
             status=PaymentStatus.COMPLETED
