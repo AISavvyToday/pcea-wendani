@@ -254,14 +254,7 @@ class BankTransaction(BaseModel):
 
     @property
     def effective_matched_at(self):
-        if self.matched_at:
-            return self.matched_at
-        reconciliation = self.reconciliations.filter(is_active=True).order_by("-matched_at").first()
-        if reconciliation:
-            return reconciliation.matched_at
-        if self.payment_id and self.payment.reconciled_at:
-            return self.payment.reconciled_at
-        return None
+        return self.matched_at
 
     @property
     def effective_received_at(self):

@@ -90,7 +90,7 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Matched At:</strong></td>
-                                    <td>{% localtime off %}{{ transaction.effective_matched_at|date:"d M Y H:i"|default:"N/A" }}{% endlocaltime %}</td>
+                                    <td>{% localtime off %}{{ transaction.matched_at|date:"d M Y H:i"|default:"N/A" }}{% endlocaltime %}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Matched By:</strong></td>
