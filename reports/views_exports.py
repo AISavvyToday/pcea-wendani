@@ -29,6 +29,7 @@ from core.models import InvoiceStatus
 from core.mixins import OrganizationFilterMixin
 from students.models import Student
 from .report_utils import (
+    build_invoice_summary_report_data,
     calculate_invoice_billed_collected_outstanding,
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
@@ -108,6 +109,17 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
 
+        report_data = build_invoice_summary_report_data(
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            organization=getattr(request, 'organization', None),
+            show_zero=show_zero,
+        )
+        rows = report_data['rows']
+        totals = report_data['totals']
+        adjustment_totals = report_data['current_term_adjustments']
         # Select invoices for the academic year & term
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
         
@@ -180,11 +192,11 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
 
         # Totals row
         ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
-        ws.cell(row=row_num, column=2, value=float(total_billed))
+        ws.cell(row=row_num, column=2, value=float(totals['billed']))
         format_money_cell(ws.cell(row=row_num, column=2))
-        ws.cell(row=row_num, column=3, value=float(total_collected))
+        ws.cell(row=row_num, column=3, value=float(totals['collected']))
         format_money_cell(ws.cell(row=row_num, column=3))
-        ws.cell(row=row_num, column=4, value=float(total_outstanding))
+        ws.cell(row=row_num, column=4, value=float(totals['outstanding']))
         format_money_cell(ws.cell(row=row_num, column=4))
         ws.cell(row=row_num, column=5, value=float(adjustment_totals['balance_bf']))
         format_money_cell(ws.cell(row=row_num, column=5))
@@ -225,6 +237,17 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
         if not academic_year:
             return HttpResponseBadRequest("No academic year found. Please create one first.")
 
+        report_data = build_invoice_summary_report_data(
+            academic_year=academic_year,
+            term=term,
+            start_date=start_date,
+            end_date=end_date,
+            organization=getattr(request, 'organization', None),
+            show_zero=show_zero,
+        )
+        rows = report_data['rows']
+        totals = report_data['totals']
+        adjustment_totals = report_data['current_term_adjustments']
         # Reuse logic from InvoiceSummaryReportExcelView to get data
         invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
         
@@ -256,12 +279,12 @@ class InvoiceSummaryReportPDFView(LoginRequiredMixin, View):
         context = {
             'report_rows': rows,
             'totals': {
-                'billed': total_billed,
-                'collected': total_collected,
-                'outstanding': total_outstanding,
-                'balance_bf': adjustment_totals['balance_bf'],
-                'prepayment': adjustment_totals['prepayment'],
-                'prepayment_display': adjustment_totals['prepayment_display'],
+                'billed': totals['billed'],
+                'collected': totals['collected'],
+                'outstanding': totals['outstanding'],
+                'balance_bf': totals['balance_bf'],
+                'prepayment': totals['prepayment'],
+                'prepayment_display': totals['prepayment_display'],
             },
             'current_term_adjustments': adjustment_totals,
             'academic_year': academic_year,

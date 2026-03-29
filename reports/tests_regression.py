@@ -4,6 +4,7 @@ from io import BytesIO
 
 import openpyxl
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 
 from accounts.models import User
@@ -11,8 +12,10 @@ from academics.models import AcademicYear, Class, Term
 from core.models import FeeCategory, Gender, GradeLevel, Organization, TermChoices, UserRole
 from finance.models import Invoice, InvoiceItem
 from students.models import Student
+from reports.report_utils import build_invoice_summary_report_data
 
 
+@override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
 class InvoiceReportRegressionTests(TestCase):
     def setUp(self):
         self.organization = Organization.objects.create(name="Test School", code="TEST")
@@ -159,4 +162,19 @@ class InvoiceReportRegressionTests(TestCase):
         self.assertEqual(sheet.cell(row=10, column=5).value, 150.0)
         self.assertEqual(sheet.cell(row=10, column=6).value, 75.0)
         self.assertEqual(sheet.cell(row=11, column=6).value, 75.0)
+
+    def test_invoice_summary_uses_shared_aggregation_utility(self):
+        report_data = build_invoice_summary_report_data(
+            academic_year=self.academic_year,
+            term=self.term.term,
+            organization=self.organization,
+            show_zero=True,
+        )
+
+        self.assertEqual(report_data['invoice_count'], 1)
+        self.assertEqual(report_data['totals']['billed'], Decimal("2000.00"))
+        self.assertEqual(report_data['totals']['collected'], Decimal("0.00"))
+        self.assertEqual(report_data['totals']['outstanding'], Decimal("2000.00"))
+        self.assertEqual(report_data['totals']['balance_bf'], Decimal("150.00"))
+        self.assertEqual(report_data['totals']['prepayment_display'], Decimal("75.00"))
         self.assertIn("Educational Activities", category_labels)

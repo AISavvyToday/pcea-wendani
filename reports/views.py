@@ -26,6 +26,7 @@ from transport.models import TransportFee
 from students.models import Student
 from core.models import InvoiceStatus
 from .report_utils import (
+    build_invoice_summary_report_data,
     calculate_invoice_billed_collected_outstanding,
     get_invoice_adjustment_totals,
     get_invoice_detail_category_choices,
@@ -317,6 +318,12 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             end_date = form.cleaned_data.get('end_date')
             show_zero = form.cleaned_data.get('show_zero_rows', False)
 
+            report_data = build_invoice_summary_report_data(
+                academic_year=academic_year,
+                term=term,
+                start_date=start_date,
+                end_date=end_date,
+                organization=getattr(request, 'organization', None),
             # Select invoices for the academic year & term
             invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
             
@@ -344,21 +351,11 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             total_collected = calc_data['totals']['total_collected']
             total_outstanding = calc_data['totals']['total_outstanding']
 
-            adjustment_totals = get_invoice_adjustment_totals(invoices)
-            invoice_count = invoices.count()
-
             context.update({
-                'report_rows': rows,
-                'totals': {
-                    'billed': total_billed,
-                    'collected': total_collected,
-                    'outstanding': total_outstanding,
-                    'balance_bf': adjustment_totals['balance_bf'],
-                    'prepayment': adjustment_totals['prepayment'],
-                    'prepayment_display': adjustment_totals['prepayment_display'],
-                },
-                'current_term_adjustments': adjustment_totals,
-                'invoice_count': invoice_count,
+                'report_rows': report_data['rows'],
+                'totals': report_data['totals'],
+                'current_term_adjustments': report_data['current_term_adjustments'],
+                'invoice_count': report_data['invoice_count'],
                 'academic_year': academic_year,
                 'term': term,
                 'start_date': start_date,
