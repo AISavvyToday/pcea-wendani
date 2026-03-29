@@ -16,7 +16,7 @@ REPORT_CATEGORY_LABELS = {
     FeeCategory.ACTIVITY: "Activity",
     FeeCategory.TRANSPORT: "Transport",
     FeeCategory.ADMISSION: "Admission",
-    FeeCategory.OTHER: "Other",
+    FeeCategory.OTHER: "Educational Activities",
     FeeCategory.BALANCE_BF: "Balance B/F",
     FeeCategory.PREPAYMENT_CREDIT: "Prepayments",
     # Legacy alias still found in some historical data
@@ -184,8 +184,9 @@ def build_invoice_detail_category_choices(selected_categories=None, include_all_
 
         unique_descriptions.sort(key=str.lower)
 
+    other_label = get_report_category_label(FeeCategory.OTHER)
     for description in unique_descriptions:
-        categories_list.append((f"{FeeCategory.OTHER}:{description}", f"Other: {description}"))
+        categories_list.append((f"{FeeCategory.OTHER}:{description}", f"{other_label}: {description}"))
 
     categories_list.append((FeeCategory.OTHER, get_report_category_label(FeeCategory.OTHER)))
     return categories_list
@@ -205,9 +206,10 @@ def get_invoice_detail_category_display(category, description=""):
 
 def get_selected_category_labels(selected_categories):
     labels = []
+    other_label = get_report_category_label(FeeCategory.OTHER)
     for category in selected_categories or []:
         if str(category).startswith(f"{FeeCategory.OTHER}:"):
-            labels.append(f"Other: {str(category).split(':', 1)[1]}")
+            labels.append(f"{other_label}: {str(category).split(':', 1)[1]}")
             continue
         labels.append(get_report_category_label(category))
     return labels
