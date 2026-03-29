@@ -142,6 +142,7 @@ class InvoiceReportRegressionTests(TestCase):
         self.assertContains(response, "KES 150.00")
         self.assertContains(response, "Examination")
         self.assertContains(response, "Admission")
+        self.assertContains(response, "Educational Activities")
 
         export_response = self.client.get(
             reverse("reports:invoice_summary_report_export_excel"),
@@ -151,9 +152,11 @@ class InvoiceReportRegressionTests(TestCase):
 
         workbook = openpyxl.load_workbook(BytesIO(export_response.content))
         sheet = workbook.active
+        category_labels = [sheet.cell(row=row, column=1).value for row in range(5, 15)]
 
         self.assertEqual(sheet.cell(row=5, column=6).value, "Prepayments (KES)")
         self.assertEqual(sheet.cell(row=10, column=1).value, "Current Term Adjustments")
         self.assertEqual(sheet.cell(row=10, column=5).value, 150.0)
         self.assertEqual(sheet.cell(row=10, column=6).value, 75.0)
         self.assertEqual(sheet.cell(row=11, column=6).value, 75.0)
+        self.assertIn("Educational Activities", category_labels)

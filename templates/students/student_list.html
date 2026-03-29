@@ -5,6 +5,13 @@
 
 {% block content %}
 <div class="content-wrapper">
+  {% if term_resolution_warning %}
+  <div class="alert alert-warning" role="alert">
+    <i class="mdi mdi-alert-outline me-1"></i>
+    Current term could not be resolved for this organization. Student counts may be impacted until the term setup is completed.
+  </div>
+  {% endif %}
+
   <div class="page-header d-flex align-items-center justify-content-between mb-3">
     <div>
       <h3 class="page-title mb-0">
