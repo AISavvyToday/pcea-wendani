@@ -16,6 +16,7 @@ from datetime import date as date_cls
 from django.db import transaction as db_transaction
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from core.models import InvoiceStatus, PaymentStatus
 from finance.models import Invoice, InvoiceItem
@@ -199,6 +200,53 @@ class InvoiceService:
 
         InvoiceService._recalculate_invoice_fields(invoice)
         return allocated
+    @staticmethod
+    @db_transaction.atomic
+    def soft_delete_payment(payment: Payment, deleted_by=None):
+        if not payment or not payment.is_active:
+            return
+
+        allocations = list(payment.allocations.filter(is_active=True))
+        invoice_ids = [a.invoice_item.invoice_id for a in allocations]
+        allocated_total = sum((a.amount for a in allocations), Decimal("0.00"))
+
+        for alloc in allocations:
+            alloc.is_active = False
+            alloc.save(update_fields=["is_active", "updated_at"])
+
+        payment.is_active = False
+        payment.deleted_at = timezone.now()
+        payment.deleted_by = deleted_by
+        payment.save(update_fields=["is_active", "deleted_at", "deleted_by", "updated_at"])
+
+        for invoice in Invoice.objects.select_for_update().filter(id__in=invoice_ids):
+            InvoiceService._recalculate_invoice_fields(invoice)
+
+        student = payment.student
+        unapplied_credit = max(Decimal("0.00"), payment.amount - allocated_total)
+        if unapplied_credit > 0:
+            student.credit_balance = max(
+                Decimal("0.00"),
+                (student.credit_balance or Decimal("0.00")) - unapplied_credit
+            )
+            student.save(update_fields=["credit_balance", "updated_at"])
+
+        student.recompute_outstanding_balance()
+
+    @staticmethod
+    @db_transaction.atomic
+    def soft_delete_invoice(invoice: Invoice, deleted_by=None):
+        if not invoice or not invoice.is_active:
+            return
+        if invoice.amount_paid > 0:
+            raise ValueError("Cannot soft-delete invoice with payments. Reverse/delete payments first.")
+
+        invoice.is_active = False
+        invoice.deleted_at = timezone.now()
+        invoice.deleted_by = deleted_by
+        invoice.save(update_fields=["is_active", "deleted_at", "deleted_by", "updated_at"])
+        invoice.student.recompute_outstanding_balance()
+
     @staticmethod
     @db_transaction.atomic
     def delete_payment(payment: Payment):

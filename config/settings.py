@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "portal",
     "other_income",
     "payroll",
+    "trash",
     
     # SMS Credits package (local package)
     "swift_sms_credits",
