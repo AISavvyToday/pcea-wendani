@@ -250,17 +250,24 @@ class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
     template_name = 'students/bulk_stream_transfer.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
-    def get_form(self):
-        data = self.request.POST if self.request.method == 'POST' else self.request.GET
-        return BulkStreamTransferForm(data or None, organization=getattr(self.request, 'organization', None))
+    def get_form(self, data=None, require_move_fields=False):
+        return BulkStreamTransferForm(
+            data=data or None,
+            organization=getattr(self.request, 'organization', None),
+            require_move_fields=require_move_fields,
+        )
+
+    def get(self, request, *args, **kwargs):
+        form = self.get_form(data=request.GET, require_move_fields=False)
+        return self.render_to_response(self.get_context_data(form=form))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = kwargs.get('form') or self.get_form()
+        context['form'] = kwargs.get('form') or self.get_form(data=self.request.GET, require_move_fields=False)
         return context
 
     def post(self, request, *args, **kwargs):
-        form = BulkStreamTransferForm(request.POST, organization=getattr(request, 'organization', None))
+        form = self.get_form(data=request.POST, require_move_fields=True)
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(form=form))
 
