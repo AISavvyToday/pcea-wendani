@@ -56,7 +56,7 @@ class OtherIncomeReportBaseMixin(LoginRequiredMixin, RoleRequiredMixin):
 
 
 class OtherIncomeReportView(OtherIncomeReportBaseMixin, TemplateView):
-    template_name = 'other_income/report.html'
+    template_name = 'other_income/report_staging.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

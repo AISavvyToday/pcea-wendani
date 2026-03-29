@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ club.name }} Members</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #222; }
+    h1 { margin-bottom: 4px; }
+    .meta { margin-bottom: 16px; color: #666; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f3f3f3; }
+  </style>
+</head>
+<body>
+  <h1>{{ club.name }} Members</h1>
+  <div class="meta">Total Members: {{ memberships|length }}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Admission Number</th>
+        <th>Student Name</th>
+        <th>Class</th>
+        <th>Joined On</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for membership in memberships %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ membership.student.admission_number|default:'—' }}</td>
+        <td>{{ membership.student.full_name }}</td>
+        <td>{{ membership.student.current_class|default:'Not assigned' }}</td>
+        <td>{{ membership.joined_on|date:'d M Y' }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5">No members found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

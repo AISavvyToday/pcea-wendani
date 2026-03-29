@@ -220,6 +220,7 @@ class InvoiceService:
 
         # 1. Capture allocations BEFORE deletion
         allocations = list(payment.allocations.all())
+        bank_transactions = list(payment.bank_transactions.all())
 
         invoice_ids = list(
             {a.invoice_item.invoice_id for a in allocations}
@@ -233,6 +234,21 @@ class InvoiceService:
 
         # 3. Delete payment
         Payment.objects.filter(pk=payment.pk).delete()
+
+        for bank_tx in bank_transactions:
+            bank_tx.payment = None
+            bank_tx.matched_at = None
+            bank_tx.matched_by = None
+            bank_tx.processing_status = "received"
+            bank_tx.processing_notes = ""
+            bank_tx.save(update_fields=[
+                "payment",
+                "matched_at",
+                "matched_by",
+                "processing_status",
+                "processing_notes",
+                "updated_at",
+            ])
 
         # 4. Check if this was a no-invoice payment (applied directly to outstanding_balance)
         no_invoice_marker = "Applied to outstanding balance (no invoices)"

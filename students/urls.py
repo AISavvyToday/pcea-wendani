@@ -25,6 +25,8 @@ urlpatterns = [
     path('clubs/<uuid:pk>/edit/', views_enhancements.ClubUpdateView.as_view(), name='club_update'),
     path('clubs/<uuid:pk>/members/add/', views_enhancements.ClubMembershipUpdateView.as_view(), name='club_members_add'),
     path('clubs/<uuid:pk>/members/<uuid:membership_pk>/remove/', views_enhancements.ClubMembershipRemoveView.as_view(), name='club_member_remove'),
+    path('clubs/<uuid:pk>/members/export/excel/', views_enhancements.ClubMembersExcelExportView.as_view(), name='club_members_export_excel'),
+    path('clubs/<uuid:pk>/members/export/pdf/', views_enhancements.ClubMembersPDFExportView.as_view(), name='club_members_export_pdf'),
 
     # Export URLs
     path('export/xlsx/', views_exports.StudentListExcelView.as_view(), name='export_excel'),

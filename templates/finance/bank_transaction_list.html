@@ -68,6 +68,7 @@
             <th>Date</th>
             <th>Reference</th>
             <th class="text-nowrap">Amount</th>
+            <th>Source</th>
             <th>Payer</th>
             <th>Payee</th>
             <th class="text-nowrap">Received At</th>
@@ -102,6 +103,10 @@
 
             <td class="text-nowrap">
               <span class="fw-semibold">KES {{ transaction.amount|default:0|floatformat:2 }}</span>
+            </td>
+
+            <td>
+              {% if transaction.gateway %}{{ transaction.get_gateway_display|default:transaction.gateway|title }}{% else %}<span class="text-muted">Unknown</span>{% endif %}
             </td>
 
             <td>
@@ -191,7 +196,7 @@
           {% endwith %}
           {% empty %}
           <tr>
-            <td colspan="8" class="text-center py-4">
+            <td colspan="9" class="text-center py-4">
               <i class="mdi mdi-bank-remove mdi-36px text-muted"></i>
               <p class="mt-2 mb-1">No bank transactions found.</p>
             </td>

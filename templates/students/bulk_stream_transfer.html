@@ -6,7 +6,7 @@
   <div class="page-header d-flex justify-content-between align-items-center mb-3">
     <div>
       <h3 class="page-title mb-0">Bulk Move Students Between Streams</h3>
-      <small class="text-muted">Filter students by class or stream, then move them to a new destination class.</small>
+      <small class="text-muted">Filter students by class or stream, search by name/admission/class, then move them to a new destination class.</small>
     </div>
     <a href="{% url 'students:list' %}" class="btn btn-outline-secondary btn-sm">Back to students</a>
   </div>
@@ -16,15 +16,19 @@
       <form method="post">
         {% csrf_token %}
         <div class="row g-3 mb-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Source Class</label>
             {{ form.source_class }}
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Source Stream</label>
             {{ form.source_stream }}
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
+            <label class="form-label">Search Students</label>
+            {{ form.student_search }}
+          </div>
+          <div class="col-md-3">
             <label class="form-label">Destination Class <span class="text-danger">*</span></label>
             {{ form.target_class }}
             {% if form.target_class.errors %}<div class="text-danger small mt-1">{{ form.target_class.errors }}</div>{% endif %}
@@ -32,7 +36,7 @@
         </div>
 
         <div class="alert alert-info mb-3">
-          Pick the source filters, review the loaded students below, then choose the destination class and submit.
+          Pick the source filters, search if needed, review the students below, then choose the destination class and submit.
         </div>
 
         <div class="mb-3">
@@ -40,7 +44,7 @@
           <div class="border rounded p-3" style="max-height: 420px; overflow-y: auto;">
             {{ form.students }}
           </div>
-          <small class="text-muted">Use the source filters above to narrow the list before moving students.</small>
+          <small class="text-muted">Students are arranged in ascending grade order.</small>
           {% if form.students.errors %}<div class="text-danger small mt-1">{{ form.students.errors }}</div>{% endif %}
         </div>
 

@@ -9,6 +9,8 @@
       <small class="text-muted">{{ club.code|default:'No code' }}{% if club.patron_name %} • Patron: {{ club.patron_name }}{% endif %}</small>
     </div>
     <div class="d-flex gap-2">
+      <a href="{% url 'students:club_members_export_excel' club.pk %}" class="btn btn-outline-success btn-sm">Export Excel</a>
+      <a href="{% url 'students:club_members_export_pdf' club.pk %}" class="btn btn-outline-danger btn-sm">Export PDF</a>
       {% if is_admin %}<a href="{% url 'students:club_update' club.pk %}" class="btn btn-outline-primary btn-sm">Edit Club</a>{% endif %}
       <a href="{% url 'students:club_list' %}" class="btn btn-outline-secondary btn-sm">Back to clubs</a>
     </div>
@@ -28,8 +30,16 @@
       <div class="card mt-3">
         <div class="card-body">
           <h5 class="mb-3">Add Students</h5>
+          <form method="get" class="row g-2 mb-3">
+            <div class="col-12">{{ membership_form.student_search.label_tag }}{{ membership_form.student_search }}</div>
+            <div class="col-12 d-flex gap-2">
+              <button type="submit" class="btn btn-outline-primary btn-sm">Search</button>
+              <a href="{% url 'students:club_detail' club.pk %}" class="btn btn-light btn-sm">Clear</a>
+            </div>
+          </form>
           <form method="post" action="{% url 'students:club_members_add' club.pk %}">
             {% csrf_token %}
+            <input type="hidden" name="student_search" value="{{ membership_form.student_search.value|default:'' }}">
             <div class="border rounded p-3" style="max-height: 360px; overflow-y: auto;">
               {{ membership_form.students }}
             </div>

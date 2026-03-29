@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 
 from academics.models import AcademicYear, Class
 from core.models import StreamChoices
@@ -10,6 +10,12 @@ from .models import Club, ClubMembership, Student
 
 GRADE_LABELS = dict(Class._meta.get_field('grade_level').choices)
 STREAM_LABELS = dict(StreamChoices.choices)
+GRADE_ORDER = [choice[0] for choice in Class._meta.get_field('grade_level').choices]
+GRADE_ORDERING = Case(
+    *[When(grade_level=value, then=Value(index)) for index, value in enumerate(GRADE_ORDER)],
+    default=Value(len(GRADE_ORDER)),
+    output_field=IntegerField(),
+)
 
 
 class LabeledClassChoiceField(forms.ModelChoiceField):
@@ -18,6 +24,16 @@ class LabeledClassChoiceField(forms.ModelChoiceField):
         stream_label = STREAM_LABELS.get(obj.stream, obj.stream)
         year = getattr(getattr(obj, 'academic_year', None), 'year', '')
         return f"{grade_label} • {stream_label} • {obj.name}{f' ({year})' if year else ''}"
+
+
+def order_students_by_grade(queryset):
+    return queryset.annotate(
+        grade_order=Case(
+            *[When(current_class__grade_level=value, then=Value(index)) for index, value in enumerate(GRADE_ORDER)],
+            default=Value(len(GRADE_ORDER)),
+            output_field=IntegerField(),
+        )
+    ).order_by('grade_order', 'current_class__name', 'admission_number', 'first_name', 'last_name')
 
 
 class StudentEnrollmentForm(StudentForm):
@@ -64,7 +80,7 @@ class StudentEnrollmentForm(StudentForm):
             if current_year_queryset.exists():
                 queryset = current_year_queryset
 
-        queryset = queryset.order_by('grade_level', 'stream', 'name')
+        queryset = queryset.annotate(grade_order=GRADE_ORDERING).order_by('grade_order', 'stream', 'name')
         self.fields['current_class'].queryset = queryset
 
         grade_choices = [('', 'Select grade')] + [
@@ -132,7 +148,7 @@ class StudentEnrollmentForm(StudentForm):
                 if year_filtered.exists():
                     class_queryset = year_filtered
 
-            current_class = class_queryset.order_by('name').first()
+            current_class = class_queryset.annotate(grade_order=GRADE_ORDERING).order_by('grade_order', 'name').first()
             if current_class is None:
                 self.add_error('current_class', 'No active class exists for the selected grade and stream.')
             else:
@@ -156,6 +172,11 @@ class BulkStreamTransferForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={'class': 'form-control'}),
         label='Source Stream',
+    )
+    student_search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Search by name, admission number, or class'}),
+        label='Search Students',
     )
     target_class = LabeledClassChoiceField(
         queryset=Class.objects.none(),
@@ -185,7 +206,7 @@ class BulkStreamTransferForm(forms.Form):
             current_year_queryset = class_queryset.filter(academic_year=current_year)
             if current_year_queryset.exists():
                 class_queryset = current_year_queryset
-        class_queryset = class_queryset.order_by('grade_level', 'stream', 'name')
+        class_queryset = class_queryset.annotate(grade_order=GRADE_ORDERING).order_by('grade_order', 'stream', 'name')
 
         self.fields['source_class'].queryset = class_queryset
         self.fields['target_class'].queryset = class_queryset
@@ -194,26 +215,35 @@ class BulkStreamTransferForm(forms.Form):
         if self.organization is not None:
             student_queryset = student_queryset.filter(organization=self.organization)
 
-        source_class = None
         if self.is_bound:
             source_class_id = self.data.get('source_class')
             source_stream = self.data.get('source_stream')
             target_class_id = self.data.get('target_class')
+            student_search = (self.data.get('student_search') or '').strip()
         else:
             source_class_id = self.initial.get('source_class')
             source_stream = self.initial.get('source_stream')
             target_class_id = self.initial.get('target_class')
+            student_search = (self.initial.get('student_search') or '').strip()
 
         if source_class_id:
             try:
                 source_class = class_queryset.get(pk=source_class_id)
                 student_queryset = student_queryset.filter(current_class=source_class)
             except Class.DoesNotExist:
-                source_class = None
+                pass
         if source_stream:
             student_queryset = student_queryset.filter(current_class__stream=source_stream)
+        if student_search:
+            student_queryset = student_queryset.filter(
+                Q(first_name__icontains=student_search)
+                | Q(middle_name__icontains=student_search)
+                | Q(last_name__icontains=student_search)
+                | Q(admission_number__icontains=student_search)
+                | Q(current_class__name__icontains=student_search)
+            )
 
-        self.fields['students'].queryset = student_queryset.order_by('admission_number', 'first_name', 'last_name')
+        self.fields['students'].queryset = order_students_by_grade(student_queryset)
         self.fields['students'].label_from_instance = lambda student: (
             f"{student.admission_number or 'N/A'} - {student.full_name}"
             f" ({getattr(student.current_class, 'name', 'No Class')})"
@@ -253,6 +283,11 @@ class ClubForm(forms.ModelForm):
 
 
 class ClubMembershipForm(forms.Form):
+    student_search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Search by name, admission number, or class'}),
+        label='Search Students',
+    )
     students = forms.ModelMultipleChoiceField(
         queryset=Student.objects.none(),
         required=True,
@@ -264,6 +299,12 @@ class ClubMembershipForm(forms.Form):
         organization = kwargs.pop('organization', None)
         club = kwargs.pop('club', None)
         super().__init__(*args, **kwargs)
+
+        if self.is_bound:
+            search_term = (self.data.get('student_search') or '').strip()
+        else:
+            search_term = (self.initial.get('student_search') or '').strip()
+
         queryset = Student.objects.filter(is_active=True, status='active').select_related('current_class')
         if organization is not None:
             queryset = queryset.filter(organization=organization)
@@ -272,7 +313,15 @@ class ClubMembershipForm(forms.Form):
                 club_memberships__club=club,
                 club_memberships__is_active=True,
             )
-        queryset = queryset.order_by('current_class__grade_level', 'admission_number', 'first_name', 'last_name')
+        if search_term:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search_term)
+                | Q(middle_name__icontains=search_term)
+                | Q(last_name__icontains=search_term)
+                | Q(admission_number__icontains=search_term)
+                | Q(current_class__name__icontains=search_term)
+            )
+        queryset = order_students_by_grade(queryset)
         self.fields['students'].queryset = queryset
         self.fields['students'].label_from_instance = lambda student: (
             f"{student.admission_number or 'N/A'} - {student.full_name}"

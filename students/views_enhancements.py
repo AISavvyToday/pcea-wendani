@@ -1,16 +1,22 @@
+from io import BytesIO
+
+import openpyxl
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
+from openpyxl.styles import Alignment, Font
+from weasyprint import HTML
 
 from academics.models import Class
 from core.mixins import OrganizationFilterMixin, RoleRequiredMixin
 from core.models import UserRole
-from .forms_enhancements import BulkStreamTransferForm, ClubForm, ClubMembershipForm
+from .forms_enhancements import BulkStreamTransferForm, ClubForm, ClubMembershipForm, order_students_by_grade
 from .models import Club, ClubMembership, Student
 
 
@@ -107,10 +113,18 @@ class ClubDetailView(LoginRequiredMixin, RoleRequiredMixin, DetailView):
             return queryset.none()
         return queryset.filter(organization=organization)
 
+    def get_memberships(self):
+        memberships = self.object.memberships.filter(is_active=True).select_related('student', 'student__current_class')
+        membership_ids = list(memberships.values_list('pk', flat=True))
+        ordered_students = order_students_by_grade(Student.objects.filter(club_memberships__pk__in=membership_ids)).values_list('pk', flat=True)
+        student_order = {student_id: index for index, student_id in enumerate(ordered_students)}
+        return sorted(memberships, key=lambda membership: student_order.get(membership.student_id, 999999))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['memberships'] = self.object.memberships.filter(is_active=True).select_related('student', 'student__current_class')
-        context['membership_form'] = ClubMembershipForm(
+        context['memberships'] = self.get_memberships()
+        context['membership_form'] = kwargs.get('membership_form') or ClubMembershipForm(
+            self.request.GET or None,
             organization=getattr(self.request, 'organization', None),
             club=self.object,
         )
@@ -126,7 +140,10 @@ class ClubMembershipUpdateView(LoginRequiredMixin, RoleRequiredMixin, View):
         form = ClubMembershipForm(request.POST, organization=organization, club=club)
         if not form.is_valid():
             messages.error(request, 'Select at least one student to assign to the club.')
-            return redirect('students:club_detail', pk=club.pk)
+            detail_view = ClubDetailView()
+            detail_view.request = request
+            detail_view.object = club
+            return detail_view.render_to_response(detail_view.get_context_data(membership_form=form))
 
         created_count = 0
         reactivated_count = 0
@@ -166,12 +183,76 @@ class ClubMembershipRemoveView(LoginRequiredMixin, RoleRequiredMixin, View):
         return redirect('students:club_detail', pk=club.pk)
 
 
+class ClubMembersExcelExportView(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT, UserRole.TEACHER]
+
+    def get(self, request, pk):
+        organization = getattr(request, 'organization', None)
+        club = get_object_or_404(Club, pk=pk, organization=organization, is_active=True)
+        memberships = ClubDetailView()
+        memberships.request = request
+        memberships.object = club
+        membership_rows = memberships.get_memberships()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Club Members'
+        ws.append(['Club', 'Admission Number', 'Student Name', 'Class', 'Joined On'])
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        for membership in membership_rows:
+            ws.append([
+                club.name,
+                membership.student.admission_number or '',
+                membership.student.full_name,
+                str(membership.student.current_class or ''),
+                membership.joined_on.strftime('%Y-%m-%d') if membership.joined_on else '',
+            ])
+        for column_cells in ws.columns:
+            width = max(len(str(cell.value or '')) for cell in column_cells) + 2
+            ws.column_dimensions[column_cells[0].column_letter].width = min(width, 30)
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="club-members-{club.name}.xlsx"'
+        return response
+
+
+class ClubMembersPDFExportView(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT, UserRole.TEACHER]
+
+    def get(self, request, pk):
+        organization = getattr(request, 'organization', None)
+        club = get_object_or_404(Club, pk=pk, organization=organization, is_active=True)
+        memberships_view = ClubDetailView()
+        memberships_view.request = request
+        memberships_view.object = club
+        membership_rows = memberships_view.get_memberships()
+
+        html_string = render_to_string('students/pdf/club_members_list.html', {
+            'club': club,
+            'memberships': membership_rows,
+            'request': request,
+        })
+        pdf_bytes = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="club-members-{club.name}.pdf"'
+        return response
+
+
 class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = 'students/bulk_stream_transfer.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN]
 
     def get_form(self):
-        return BulkStreamTransferForm(self.request.GET or None, organization=getattr(self.request, 'organization', None))
+        data = self.request.POST if self.request.method == 'POST' else self.request.GET
+        return BulkStreamTransferForm(data or None, organization=getattr(self.request, 'organization', None))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
