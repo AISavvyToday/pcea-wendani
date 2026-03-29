@@ -25,6 +25,7 @@ from students.models import Student
 from academics.models import Term
 from core.models import PaymentStatus, PaymentSource
 from .services_kpi import build_term_kpis
+from other_income.models import OtherIncomeInvoice
 
 
 class InvoiceService:
@@ -545,6 +546,101 @@ class FinanceReportService:
 
         collection_rate = (total_collected / total_invoiced * 100) if total_invoiced > 0 else 0
 
+    def _build_dashboard_kpis(term=None, organization=None):
+        """
+        Build reconciled dashboard KPIs from invoice items and other income invoices.
+
+        Buckets:
+        - fees (tuition + meals + activity + examination)
+        - transport
+        - admission
+        - educational_activities (legacy invoice-item category='other')
+        - other_income (from other_income.OtherIncomeInvoice)
+        """
+        zero = Decimal('0.00')
+        buckets = {
+            'fees': {'billed': zero, 'collected': zero, 'outstanding': zero},
+            'transport': {'billed': zero, 'collected': zero, 'outstanding': zero},
+            'admission': {'billed': zero, 'collected': zero, 'outstanding': zero},
+            'educational_activities': {'billed': zero, 'collected': zero, 'outstanding': zero},
+            'other_income': {'billed': zero, 'collected': zero, 'outstanding': zero},
+        }
+
+        item_bucket_map = {
+            'tuition': 'fees',
+            'meals': 'fees',
+            'activity': 'fees',
+            'examination': 'fees',
+            'transport': 'transport',
+            'admission': 'admission',
+            'other': 'educational_activities',
+        }
+
+        invoice_items = InvoiceItem.objects.filter(
+            is_active=True,
+            invoice__is_active=True,
+            invoice__student__status='active',
+        ).exclude(
+            invoice__status='cancelled'
+        ).exclude(
+            category__in=['balance_bf', 'prepayment']
+        )
+        if term:
+            invoice_items = invoice_items.filter(invoice__term=term)
+        if organization:
+            invoice_items = invoice_items.filter(invoice__organization=organization)
+
+        item_totals = invoice_items.values('category').annotate(
+            billed=Sum('net_amount'),
+            collected=Sum('allocations__amount'),
+        )
+        for row in item_totals:
+            bucket_key = item_bucket_map.get(row['category'])
+            if not bucket_key:
+                continue
+            billed = row['billed'] or zero
+            collected = row['collected'] or zero
+            outstanding = billed - collected
+            buckets[bucket_key]['billed'] += billed
+            buckets[bucket_key]['collected'] += collected
+            buckets[bucket_key]['outstanding'] += outstanding
+
+        other_income_invoices = OtherIncomeInvoice.objects.filter(
+            is_active=True
+        ).exclude(status='cancelled')
+        if term:
+            other_income_invoices = other_income_invoices.filter(
+                issue_date__gte=term.start_date,
+                issue_date__lte=term.end_date,
+            )
+        if organization:
+            other_income_invoices = other_income_invoices.filter(organization=organization)
+
+        other_income_totals = other_income_invoices.aggregate(
+            billed=Sum('total_amount'),
+            collected=Sum('amount_paid'),
+            outstanding=Sum('balance'),
+        )
+        buckets['other_income']['billed'] = other_income_totals['billed'] or zero
+        buckets['other_income']['collected'] = other_income_totals['collected'] or zero
+        buckets['other_income']['outstanding'] = other_income_totals['outstanding'] or zero
+
+        total_billed = sum((entry['billed'] for entry in buckets.values()), zero)
+        total_collected = sum((entry['collected'] for entry in buckets.values()), zero)
+        total_outstanding = sum((entry['outstanding'] for entry in buckets.values()), zero)
+
+        return {
+            'buckets': buckets,
+            'total_billed': total_billed,
+            'total_collected': total_collected,
+            'total_outstanding': total_outstanding,
+        }
+
+    @staticmethod
+    def get_dashboard_stats(term=None, organization=None):
+        """Get finance dashboard statistics for active students only."""
+
+        # Filter payments to active students only
         payments = Payment.objects.filter(
             is_active=True,
             status='completed',
@@ -555,6 +651,13 @@ class FinanceReportService:
                 Q(organization=organization) |
                 Q(organization__isnull=True, student__organization=organization)
             )
+
+        kpis = FinanceReportService._build_dashboard_kpis(term=term, organization=organization)
+        total_billed = kpis['total_billed']
+        total_collected = kpis['total_collected']
+        total_outstanding = kpis['total_outstanding']
+
+        collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
 
         recent_payments = payments.select_related('student').order_by('-payment_date')[:10]
         pending_transactions = BankTransaction.objects.filter(processing_status='pending')
@@ -567,11 +670,14 @@ class FinanceReportService:
         pending_transactions = pending_transactions.order_by('-callback_received_at').distinct()[:5]
 
         return {
-            'total_invoiced': total_invoiced,
+            'total_billed': total_billed,
+            # Backward-compatible key used in template JS and cards.
+            'total_invoiced': total_billed,
             'total_collected': total_collected,
             'total_outstanding': total_outstanding,
             'collection_rate': collection_rate,
             'kpi_payload': kpi_payload,
+            'kpi_buckets': kpis['buckets'],
             'recent_payments': recent_payments,
             'pending_transactions': pending_transactions
         }

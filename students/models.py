@@ -218,6 +218,14 @@ class Student(BaseModel):
     default=Decimal("0.00"),
     help_text="Sum of balances of all unpaid, active invoices"
     )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="students_deleted",
+    )
 
 
     class Meta:

@@ -1,13 +1,16 @@
 from datetime import date
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import User
+from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
+from students.metrics import get_current_term, get_new_students_q
 from students.models import Parent, Student, StudentParent
 
 
+@override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
 class ParentManagementViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -151,3 +154,142 @@ class ParentManagementViewTests(TestCase):
         self.assertEqual(edit_response.status_code, 404)
         self.assertEqual(delete_response.status_code, 404)
         self.assertEqual(api_response.status_code, 404)
+
+
+@override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
+class StudentMetricsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org_one = Organization.objects.create(name='Metrics Org One', code='MORG1')
+        cls.org_two = Organization.objects.create(name='Metrics Org Two', code='MORG2')
+
+        cls.admin = User.objects.create_user(
+            email='metrics-admin@org1.test',
+            password='password123',
+            first_name='Metrics',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=cls.org_one,
+        )
+
+    def _create_student(self, *, organization, admission_date, status='active', suffix='1'):
+        return Student.objects.create(
+            organization=organization,
+            admission_date=admission_date,
+            first_name=f'Student{suffix}',
+            middle_name='Test',
+            last_name='User',
+            gender='F',
+            date_of_birth=date(2018, 5, 10),
+            status=status,
+            admission_number=f'ADM-{organization.code}-{suffix}-{admission_date.isoformat()}',
+        )
+
+    def test_get_current_term_prefers_org_current_term(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2040,
+            start_date=date(2040, 1, 1),
+            end_date=date(2040, 12, 31),
+            is_current=True,
+        )
+        term = Term.objects.create(
+            organization=self.org_one,
+            academic_year=ay,
+            term='term_2',
+            start_date=date(2040, 5, 1),
+            end_date=date(2040, 8, 31),
+            is_current=True,
+        )
+
+        resolved = get_current_term(organization=self.org_one)
+
+        self.assertEqual(resolved, term)
+
+    def test_get_new_students_q_uses_academic_year_when_current_term_missing(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2041,
+            start_date=date(2041, 1, 1),
+            end_date=date(2041, 12, 31),
+            is_current=True,
+        )
+
+        in_year = self._create_student(
+            organization=self.org_one,
+            admission_date=date(2041, 6, 5),
+            suffix='in-year',
+        )
+        out_of_year = self._create_student(
+            organization=self.org_one,
+            admission_date=date(2042, 1, 5),
+            suffix='out-year',
+        )
+
+        matching_ids = set(
+            Student.objects.filter(
+                get_new_students_q(term=None, organization=self.org_one)
+            ).values_list('id', flat=True)
+        )
+
+        self.assertIn(in_year.id, matching_ids)
+        self.assertNotIn(out_of_year.id, matching_ids)
+        self.assertEqual(get_current_term(organization=self.org_one), None)
+        self.assertIsNotNone(ay)
+
+    def test_get_new_students_q_includes_term_boundaries(self):
+        ay = AcademicYear.objects.create(
+            organization=self.org_two,
+            year=2042,
+            start_date=date(2042, 1, 1),
+            end_date=date(2042, 12, 31),
+            is_current=False,
+        )
+        term = Term.objects.create(
+            organization=self.org_two,
+            academic_year=ay,
+            term='term_1',
+            start_date=date(2042, 1, 10),
+            end_date=date(2042, 4, 10),
+            is_current=True,
+        )
+
+        at_start = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 1, 10),
+            suffix='start',
+        )
+        at_end = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 4, 10),
+            suffix='end',
+        )
+        before_term = self._create_student(
+            organization=self.org_two,
+            admission_date=date(2042, 1, 9),
+            suffix='before',
+        )
+
+        matching_ids = set(
+            Student.objects.filter(get_new_students_q(term=term)).values_list('id', flat=True)
+        )
+
+        self.assertIn(at_start.id, matching_ids)
+        self.assertIn(at_end.id, matching_ids)
+        self.assertNotIn(before_term.id, matching_ids)
+
+    def test_student_list_shows_warning_when_current_term_unresolved(self):
+        self.client.force_login(self.admin)
+        AcademicYear.objects.create(
+            organization=self.org_one,
+            year=2043,
+            start_date=date(2043, 1, 1),
+            end_date=date(2043, 12, 31),
+            is_current=False,
+        )
+
+        response = self.client.get(reverse('students:list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current term could not be resolved for this organization')
+        self.assertTrue(response.context['term_resolution_warning'])
