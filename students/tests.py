@@ -1,6 +1,10 @@
 from datetime import date
 
 from django.test import TestCase
+from django.test import RequestFactory
+from django.urls import reverse
+
+from academics.models import AcademicYear, Term
 from django.test.utils import override_settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -10,8 +14,11 @@ from accounts.models import User
 from core.models import GradeLevel, Organization, StreamChoices, UserRole
 from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
+from core.models import TermChoices
+from students.metrics import get_student_status_counters
 from students.metrics import get_current_term, get_new_students_q
 from students.models import Parent, Student, StudentParent
+from students.views import StudentListView
 
 
 @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
@@ -160,6 +167,14 @@ class ParentManagementViewTests(TestCase):
         self.assertEqual(api_response.status_code, 404)
 
 
+class StudentNewMetricsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = Organization.objects.create(name='Metrics Org', code='MORG')
+        cls.user = User.objects.create_user(
+            email='metrics-admin@example.com',
+            password='password123',
+            first_name='Metrics',
 @override_settings(
     STORAGES={
         'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
@@ -178,6 +193,80 @@ class BulkStreamTransferViewTests(TestCase):
             role=UserRole.SCHOOL_ADMIN,
             organization=cls.organization,
         )
+        cls.academic_year = AcademicYear.objects.create(
+            organization=cls.organization,
+            year=2026,
+            start_date=date(2026, 1, 5),
+            end_date=date(2026, 11, 27),
+            is_current=True,
+        )
+        cls.current_term = Term.objects.create(
+            organization=cls.organization,
+            academic_year=cls.academic_year,
+            term=TermChoices.TERM_1,
+            start_date=date(2026, 1, 5),
+            end_date=date(2026, 4, 10),
+            is_current=True,
+        )
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _create_student(self, *, admission_number, admission_date):
+        return Student.objects.create(
+            organization=self.organization,
+            admission_number=admission_number,
+            admission_date=admission_date,
+            first_name='Test',
+            middle_name='',
+            last_name=admission_number,
+            gender='M',
+            date_of_birth=date(2016, 1, 1),
+            status='active',
+        )
+
+    def test_new_students_counted_when_admitted_within_current_term(self):
+        self._create_student(admission_number='N001', admission_date=date(2026, 2, 1))
+        self._create_student(admission_number='N002', admission_date=date(2026, 3, 1))
+
+        request = self.factory.get(reverse('students:list'), {'status': 'new'})
+        request.user = self.user
+        request.organization = self.organization
+        response = StudentListView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context_data['status_counts']['new'], 2)
+
+    def test_students_admitted_outside_current_term_are_excluded_from_new(self):
+        self._create_student(admission_number='N010', admission_date=date(2025, 12, 31))
+        self._create_student(admission_number='N011', admission_date=date(2026, 4, 11))
+        self._create_student(admission_number='N012', admission_date=date(2026, 2, 10))
+
+        request = self.factory.get(reverse('students:list'), {'status': 'new'})
+        request.user = self.user
+        request.organization = self.organization
+        response = StudentListView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context_data['status_counts']['new'], 1)
+
+    def test_no_current_term_shows_warning_and_new_count_is_deterministic_zero(self):
+        self.current_term.is_current = False
+        self.current_term.save(update_fields=['is_current'])
+        self._create_student(admission_number='N020', admission_date=date(2026, 2, 1))
+
+        request = self.factory.get(reverse('students:list'), {'status': 'new'})
+        request.user = self.user
+        request.organization = self.organization
+        response = StudentListView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context_data['status_counts']['new'], 0)
+        self.assertIsNotNone(response.context_data['new_students_term_warning'])
+
+        base_queryset = Student.objects.filter(organization=self.organization)
+        counters = get_student_status_counters(base_queryset, term=None)
+        self.assertEqual(counters['new'], 0)
         cls.current_year = AcademicYear.objects.create(
             organization=cls.organization,
             year=2026,

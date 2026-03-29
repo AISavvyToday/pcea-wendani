@@ -115,6 +115,11 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         context['total_students'] = base_queryset.count()
         context['status_counts'] = status_counts
         context['active_students'] = status_counts['active']
+        context['new_students_term_warning'] = (
+            "New student metric is currently unavailable because no active term is configured "
+            "for your organization."
+            if term is None else None
+        )
 
         # Get current status from request (default to 'active' if not specified)
         context['current_status'] = self.request.GET.get('status', '') or 'active'
@@ -1060,14 +1065,14 @@ class StudentTemplateDownloadView(LoginRequiredMixin, OrganizationFilterMixin, R
         ws.title = "Students"
         
         # Header row
-        headers = ['Year', '#', 'Name', 'Class', 'Contacts', 'Total Balance']
+        headers = ['Year', '#', 'Admission Date', 'Name', 'Class', 'Contacts', 'Total Balance']
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal='center')
         
         # Add example row
-        example_data = ['2025', '2245', 'John Doe Mwangi', 'Grade 1', '+254712345678', '0.00']
+        example_data = ['2025', '2245', '2025-01-06', 'John Doe Mwangi', 'Grade 1', '+254712345678', '0.00']
         for col, value in enumerate(example_data, start=1):
             ws.cell(row=2, column=col, value=value)
         

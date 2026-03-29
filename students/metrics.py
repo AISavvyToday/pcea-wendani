@@ -16,7 +16,22 @@ DEFAULT_NEW_STUDENT_STATUSES = ('active', 'inactive')
 
 def get_current_term(organization=None):
     queryset = Term.objects.filter(is_current=True).select_related('academic_year')
+
+    def _ordered(queryset_to_order):
+        return queryset_to_order.order_by(
+            '-academic_year__year',
+            '-start_date',
+            '-end_date',
+            'term',
+            '-id',
+        )
+
     if organization is not None:
+        org_term = _ordered(queryset.filter(organization=organization)).first()
+        if org_term:
+            return org_term
+
+    return _ordered(queryset.filter(organization__isnull=True)).first()
         # 1) Prefer organization-level current term.
         term = queryset.filter(organization=organization).first()
         if term:
