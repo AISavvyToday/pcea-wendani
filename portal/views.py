@@ -273,17 +273,28 @@ def _finance_kpis(term=None, organization=None):
         }
 
         if include_term_breakdowns:
-            billed_breakdown = _group_invoice_item_amounts(invoice_qs)
+            kpi_payload = build_term_kpis(term=term, organization=organization) if term else {"buckets": {}}
+            buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
             balance_bf_cleared = collected_breakdown["balance_bf"]
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _term_overpayments(term=term, organization=organization)
 
+            billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
+            billed_transport = buckets.get("transport", {}).get("billed", Decimal("0"))
+            billed_admission = buckets.get("admission", {}).get("billed", Decimal("0"))
+            billed_educational_activities = buckets.get("educational_activities", {}).get("billed", Decimal("0"))
+            billed_other_income = buckets.get("other_income", {}).get("billed", Decimal("0"))
+
             stats.update({
+                "billed": billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income,
+                "outstanding": (billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income) - collected,
                 "billed_breakdown": {
-                    "fees": billed_breakdown["fees"],
-                    "other_items": billed_breakdown["other_items"],
-                    "transport": billed_breakdown["transport"],
+                    "fees": billed_fees,
+                    "transport": billed_transport,
+                    "admission_fee": billed_admission,
+                    "educational_activities": billed_educational_activities,
+                    "other_income": billed_other_income,
                 },
                 "balance_bf_breakdown": {
                     "total": balances_bf_total,
@@ -296,8 +307,9 @@ def _finance_kpis(term=None, organization=None):
                     "unconsumed": max(Decimal("0"), prepayments_total - prepayments_consumed),
                 },
                 "collected_breakdown": {
-                    "fees": collected_breakdown["fees"],
-                    "other_items": collected_breakdown["other_items"],
+                    "fees": buckets.get("fees", {}).get("collected", Decimal("0")),
+                    "educational_activities": buckets.get("educational_activities", {}).get("collected", Decimal("0")),
+                    "other_income": buckets.get("other_income", {}).get("collected", Decimal("0")),
                     "overpayments": overpayments,
                 },
             })
@@ -594,8 +606,10 @@ def dashboard_admin(request):
                 "url": invoices_term_url,
                 "helper_lines": [
                     f"Fees: {_fmt_kes(billed_breakdown.get('fees'))}",
-                    f"Other items: {_fmt_kes(billed_breakdown.get('other_items'))}",
                     f"Transport: {_fmt_kes(billed_breakdown.get('transport'))}",
+                    f"Admission Fee: {_fmt_kes(billed_breakdown.get('admission_fee'))}",
+                    f"Educational Activities: {_fmt_kes(billed_breakdown.get('educational_activities'))}",
+                    f"Other Income: {_fmt_kes(billed_breakdown.get('other_income'))}",
                 ],
             },
             {
@@ -615,7 +629,8 @@ def dashboard_admin(request):
                 "helper_lines": [
                     f"Collection rate: {rate:.1f}%",
                     f"Fees: {_fmt_kes(collected_breakdown.get('fees'))}",
-                    f"Other items: {_fmt_kes(collected_breakdown.get('other_items'))}",
+                    f"Educational Activities: {_fmt_kes(collected_breakdown.get('educational_activities'))}",
+                    f"Other Income: {_fmt_kes(collected_breakdown.get('other_income'))}",
                     f"Overpayments: {_fmt_kes(collected_breakdown.get('overpayments'))}",
                 ],
             },
