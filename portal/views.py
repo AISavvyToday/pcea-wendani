@@ -35,6 +35,7 @@ from academics.models import Term
 from core.models import InvoiceStatus, PaymentStatus, UserRole
 from finance.models import Invoice, InvoiceItem
 from payments.models import BankTransaction, Payment, PaymentAllocation
+from finance.services_kpi import build_term_kpis
 from payments.services.resolution import ResolutionService
 from students.metrics import get_student_base_queryset, get_student_status_counters
 
