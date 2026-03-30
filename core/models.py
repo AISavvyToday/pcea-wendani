@@ -194,7 +194,7 @@ class FeeCategory(models.TextChoices):
     ACTIVITY = 'activity', 'Activity/Extra-curricular'
     DEVELOPMENT = 'development', 'Development Levy'
     ADMISSION = 'admission', 'Admission Fee'
-    OTHER = 'other', 'Other'
+    OTHER = 'other', 'Educational Activities'
     # Special synthetic categories for accounting
     BALANCE_BF = 'balance_bf', 'Balance Brought Forward'
     PREPAYMENT_CREDIT = 'prepayment', 'Prepayment / Credit'

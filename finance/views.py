@@ -137,7 +137,6 @@ class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
             current_term,
             organization=organization
         )
-        context['stats'] = FinanceReportService.get_dashboard_stats(current_term, organization=organization)
 
         # Recent payments - filtered by organization
         recent_payments_qs = Payment.objects.filter(
