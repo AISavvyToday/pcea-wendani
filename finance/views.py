@@ -1185,9 +1185,7 @@ class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         student = invoice.student
         try:
             InvoiceService.delete_invoice(invoice, deleted_by=request.user)
-            PaymentsInvoiceService.soft_delete_invoice(invoice, deleted_by=request.user)
-            messages.success(request, f"Invoice {invoice.invoice_number} moved to trash.")            
-            
+            messages.success(request, f"Invoice {invoice.invoice_number} moved to trash.")
 
         except Exception as e:
             messages.error(request, f"Failed to delete invoice: {str(e)}")
@@ -1453,12 +1451,10 @@ class PaymentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         student = payment.student
         
         try:
-            # Use the InvoiceService to safely delete the payment
+            # Safely delete the payment, reverse allocations, and restore derived balances
             from payments.services.invoice import InvoiceService
             InvoiceService.delete_payment(payment, deleted_by=request.user)
-            # Soft-delete payment and reverse allocations
-            PaymentsInvoiceService.soft_delete_payment(payment, deleted_by=request.user)
-            
+
             logger.info(f"Payment {payment.payment_reference} deleted successfully for student {student.admission_number}")
             messages.success(request, f'Payment {payment.payment_reference} moved to trash. All balances have been restored.')
             

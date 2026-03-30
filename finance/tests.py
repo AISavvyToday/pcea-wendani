@@ -9,8 +9,9 @@ from accounts.models import User
 from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
 from finance.models import Invoice, InvoiceItem
-from payments.models import BankTransaction, Payment
+from payments.models import BankTransaction, Payment, PaymentAllocation
 from students.models import Parent, Student, StudentParent
+from portal.views import _finance_kpis
 
 
 class BankTransactionReconciliationViewTests(TestCase):
@@ -288,3 +289,125 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertContains(list_response, expected_matched_list)
         self.assertContains(detail_response, expected_received_detail)
         self.assertContains(detail_response, expected_matched_detail)
+
+
+class DeleteRefreshesDashboardKpisTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name='Dashboard Delete Org', code='dashboard-delete-org')
+        self.user = User.objects.create_user(
+            email='admin@delete.test',
+            password='testpass123',
+            first_name='Delete',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=self.organization,
+            is_staff=True,
+        )
+        self.client.force_login(self.user)
+
+        self.academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term='term_1',
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 30),
+            is_current=True,
+        )
+        self.student = Student.objects.create(
+            organization=self.organization,
+            admission_number='DEL001',
+            admission_date=date(2026, 1, 5),
+            first_name='Delete',
+            last_name='Case',
+            gender='M',
+            date_of_birth=date(2016, 5, 20),
+            status='active',
+        )
+
+    def _create_invoice(self, number='INV-DEL-001', amount=Decimal('1000.00')):
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number=number,
+            student=self.student,
+            term=self.term,
+            subtotal=amount,
+            total_amount=amount,
+            balance=amount,
+            issue_date=self.term.start_date,
+            due_date=self.term.end_date,
+            generated_by=self.user,
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Tuition',
+            category='tuition',
+            amount=amount,
+            net_amount=amount,
+        )
+        invoice.refresh_from_db()
+        return invoice
+
+    def _create_payment(self, invoice, amount=Decimal('400.00')):
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=self.student,
+            invoice=invoice,
+            amount=amount,
+            payment_method='cash',
+            payment_source='manual',
+            status='completed',
+            payment_reference='PAY-DEL-001',
+            receipt_number='RCP-DEL-001',
+            received_by=self.user,
+            payment_date=timezone.now(),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=payment,
+            invoice_item=invoice.items.first(),
+            amount=amount,
+            is_active=True,
+        )
+        invoice.amount_paid = amount
+        invoice.balance = invoice.total_amount - amount
+        invoice.status = 'partially_paid'
+        invoice.save(update_fields=['amount_paid', 'balance', 'status', 'updated_at'])
+        return payment
+
+    def test_deleting_invoice_reduces_dashboard_billed(self):
+        invoice = self._create_invoice(amount=Decimal('1000.00'))
+
+        before = _finance_kpis(term=self.term, organization=self.organization)
+        self.assertEqual(before['term_stats']['billed'], Decimal('1000.00'))
+
+        response = self.client.post(reverse('finance:invoice_delete', args=[invoice.pk]))
+        self.assertEqual(response.status_code, 302)
+
+        after = _finance_kpis(term=self.term, organization=self.organization)
+        self.assertEqual(after['term_stats']['billed'], Decimal('0'))
+
+    def test_deleting_payment_reduces_dashboard_collected_without_error(self):
+        invoice = self._create_invoice(amount=Decimal('1000.00'))
+        payment = self._create_payment(invoice, amount=Decimal('400.00'))
+
+        before = _finance_kpis(term=self.term, organization=self.organization)
+        self.assertEqual(before['term_stats']['collected'], Decimal('400.00'))
+
+        response = self.client.post(
+            reverse('finance:payment_delete', args=[payment.pk]),
+            HTTP_REFERER=reverse('finance:payment_detail', args=[payment.pk]),
+        )
+        self.assertEqual(response.status_code, 302)
+
+        after = _finance_kpis(term=self.term, organization=self.organization)
+        self.assertEqual(after['term_stats']['collected'], Decimal('0'))
+
+        payment.refresh_from_db()
+        self.assertFalse(payment.is_active)
