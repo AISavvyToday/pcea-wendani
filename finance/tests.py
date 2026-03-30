@@ -411,3 +411,124 @@ class DeleteRefreshesDashboardKpisTests(TestCase):
 
         payment.refresh_from_db()
         self.assertFalse(payment.is_active)
+
+
+class StudentDetailDeleteConsistencyTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name='Student Detail Org', code='student-detail-org')
+        self.user = User.objects.create_user(
+            email='detail@school.test',
+            password='testpass123',
+            first_name='Detail',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=self.organization,
+            is_staff=True,
+        )
+        self.client.force_login(self.user)
+        self.academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term='term_1',
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 30),
+            is_current=True,
+        )
+        self.student = Student.objects.create(
+            organization=self.organization,
+            admission_number='DET001',
+            admission_date=date(2026, 1, 5),
+            first_name='Student',
+            last_name='Detail',
+            gender='F',
+            date_of_birth=date(2016, 5, 20),
+            status='active',
+        )
+
+    def _create_invoice(self, number='INV-DET-001', amount=Decimal('1000.00')):
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number=number,
+            student=self.student,
+            term=self.term,
+            subtotal=amount,
+            total_amount=amount,
+            balance=amount,
+            issue_date=self.term.start_date,
+            due_date=self.term.end_date,
+            generated_by=self.user,
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Tuition',
+            category='tuition',
+            amount=amount,
+            net_amount=amount,
+        )
+        return invoice
+
+    def _create_payment(self, invoice, amount=Decimal('400.00')):
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=self.student,
+            invoice=invoice,
+            amount=amount,
+            payment_method='cash',
+            payment_source='manual',
+            status='completed',
+            payment_reference='PAY-DET-001',
+            receipt_number='RCP-DET-001',
+            received_by=self.user,
+            payment_date=timezone.now(),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=payment,
+            invoice_item=invoice.items.first(),
+            amount=amount,
+            is_active=True,
+        )
+        invoice.amount_paid = amount
+        invoice.balance = invoice.total_amount - amount
+        invoice.status = 'partially_paid'
+        invoice.save(update_fields=['amount_paid', 'balance', 'status', 'updated_at'])
+        self.student.recompute_outstanding_balance()
+        return payment
+
+    def test_student_detail_hides_deleted_invoice_after_delete(self):
+        invoice = self._create_invoice(amount=Decimal('1000.00'))
+        response_before = self.client.get(reverse('students:detail', args=[self.student.pk]))
+        self.assertContains(response_before, invoice.invoice_number)
+
+        self.client.post(reverse('finance:invoice_delete', args=[invoice.pk]))
+
+        response_after = self.client.get(reverse('students:detail', args=[self.student.pk]))
+        self.assertEqual(list(response_after.context['invoices']), [])
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.outstanding_balance, Decimal('0.00'))
+
+    def test_student_detail_hides_deleted_payment_and_total_paid_updates(self):
+        invoice = self._create_invoice(amount=Decimal('1000.00'))
+        payment = self._create_payment(invoice, amount=Decimal('400.00'))
+
+        response_before = self.client.get(reverse('students:detail', args=[self.student.pk]))
+        self.assertContains(response_before, payment.payment_reference)
+        self.assertContains(response_before, 'KES 400.00')
+
+        self.client.post(
+            reverse('finance:payment_delete', args=[payment.pk]),
+            HTTP_REFERER=reverse('students:detail', args=[self.student.pk]),
+        )
+
+        response_after = self.client.get(reverse('students:detail', args=[self.student.pk]))
+        self.assertEqual(list(response_after.context['payments']), [])
+        self.assertEqual(response_after.context['total_paid'], Decimal('0.00'))
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.outstanding_balance, Decimal('1000.00'))

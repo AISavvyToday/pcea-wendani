@@ -565,14 +565,15 @@ class StudentDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
                 - (inv.prepayment or Decimal("0.00"))
             )
         
-        payments = student.payments.order_by('-payment_date')[:25]
+        payments = student.payments.filter(is_active=True).order_by('-payment_date')[:25]
 
         context['invoices'] = invoices
         context['payments'] = payments
 
         # Total paid (completed payments only)
         total_paid = student.payments.filter(
-            status='completed'
+            status='completed',
+            is_active=True,
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
         context['credit_balance'] = abs(student.credit_balance)
