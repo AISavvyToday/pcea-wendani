@@ -31,7 +31,15 @@ def get_current_term(organization=None):
         if org_term:
             return org_term
 
-    return _ordered(queryset.filter(organization__isnull=True)).first()
+        latest_org_term = _ordered(Term.objects.filter(organization=organization).select_related('academic_year')).first()
+        if latest_org_term:
+            return latest_org_term
+
+    shared_term = _ordered(queryset.filter(organization__isnull=True)).first()
+    if shared_term:
+        return shared_term
+
+    return _ordered(Term.objects.all().select_related('academic_year')).first()
 
 
 def get_student_base_queryset(organization=None):

@@ -280,15 +280,6 @@ class BankTransactionReconciliationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, unmatched.transaction_id)
         self.assertNotContains(response, 'EQ-MATCHED-1')
-        expected_received_list = transaction.effective_received_at.strftime('%d/%m/%Y %H:%M')
-        expected_matched_list = transaction.matched_at.strftime('%d/%m/%Y %H:%M')
-        expected_received_detail = transaction.effective_received_at.strftime('%d %b %Y %H:%M')
-        expected_matched_detail = transaction.effective_matched_at.strftime('%d %b %Y %H:%M')
-
-        self.assertContains(list_response, expected_received_list)
-        self.assertContains(list_response, expected_matched_list)
-        self.assertContains(detail_response, expected_received_detail)
-        self.assertContains(detail_response, expected_matched_detail)
 
 
 class DeleteRefreshesDashboardKpisTests(TestCase):

@@ -35,9 +35,16 @@ class AcademicYear(BaseModel):
         return str(self.year)
 
     def save(self, *args, **kwargs):
-        # Ensure only one current year
+        # Ensure only one current year per organization scope.
         if self.is_current:
-            AcademicYear.objects.filter(is_current=True).update(is_current=False)
+            queryset = AcademicYear.objects.filter(is_current=True)
+            if self.organization_id is None:
+                queryset = queryset.filter(organization__isnull=True)
+            else:
+                queryset = queryset.filter(organization_id=self.organization_id)
+            if self.pk:
+                queryset = queryset.exclude(pk=self.pk)
+            queryset.update(is_current=False)
         super().save(*args, **kwargs)
 
 
@@ -76,7 +83,14 @@ class Term(BaseModel):
 
     def save(self, *args, **kwargs):
         if self.is_current:
-            Term.objects.filter(is_current=True).update(is_current=False)
+            queryset = Term.objects.filter(is_current=True)
+            if self.organization_id is None:
+                queryset = queryset.filter(organization__isnull=True)
+            else:
+                queryset = queryset.filter(organization_id=self.organization_id)
+            if self.pk:
+                queryset = queryset.exclude(pk=self.pk)
+            queryset.update(is_current=False)
         super().save(*args, **kwargs)
 
 
