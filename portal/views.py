@@ -192,14 +192,16 @@ def _group_allocation_amounts(invoice_qs):
 
 
 def _term_overpayments(term=None, organization=None):
-    if not term:
-        return Decimal("0")
-
-    payments = _completed_payments_base_qs(organization=organization).filter(
-        payment_date__date__gte=term.start_date,
-        payment_date__date__lte=term.end_date,
+    """
+    Overpayments for the current term dashboard card:
+    active students who have cleared their balances and now carry credit forward.
+    This is represented by accumulated student.credit_balance where outstanding_balance = 0.
+    """
+    students = _get_active_students_qs(organization=organization).filter(
+        credit_balance__gt=0,
+        outstanding_balance=0,
     )
-    return _sum_decimal(payments, "unallocated_amount")
+    return _sum_decimal(students, "credit_balance")
 
 
 def _collected_for_invoices(invoice_qs):
