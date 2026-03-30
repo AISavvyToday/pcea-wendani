@@ -192,6 +192,14 @@
 <!--          </div>-->
 <!--        </li>-->
 
+        <!-- Trash -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'trash:dashboard' %}">
+            <span class="menu-title">Trash</span>
+            <i class="mdi mdi-delete menu-icon"></i>
+          </a>
+        </li>
+
         <!-- Settings (Admin Only) -->
         <li class="nav-item">
           <a class="nav-link" href="{% url 'portal:settings_overview' %}">
