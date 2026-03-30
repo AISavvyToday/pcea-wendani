@@ -15,7 +15,7 @@ from core.mixins import OrganizationFilterMixin, RoleRequiredMixin
 from core.models import UserRole
 from students.models import Parent, Student
 
-from .forms import SMSWorkflowForm
+from .forms import PaymentReceiptTemplateForm, SMSWorkflowForm
 from .models import Announcement, EmailNotification, NotificationTemplate, SMSNotification
 from .services.sms_service import SMSService
 from .services.sms_template_service import SMSTemplateService
@@ -613,6 +613,47 @@ class InvoiceSMSView(BaseWorkflowSMSView):
     send_method_name = 'send_invoice_notifications'
     success_url_name = 'communications:invoice_sms'
     success_message_label = 'Invoice SMS'
+
+
+class PaymentReceiptSMSView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
+    template_name = 'communications/payment_receipt_sms.html'
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+    page_title = 'Payment Receipt SMS'
+    page_description = 'Edit the SMS template used automatically whenever a payment receipt is sent.'
+
+    def get_template_record(self):
+        return _get_or_create_sms_template(
+            organization=self.request.organization,
+            name=PAYMENT_RECEIPT_TEMPLATE_NAME,
+            default_text=DEFAULT_PAYMENT_RECEIPT_TEMPLATE,
+            description='Default SMS template used for payment receipt notifications.',
+        )
+
+    def get_form(self):
+        template_record = self.get_template_record()
+        return PaymentReceiptTemplateForm(initial={'template_text': template_record.template_text})
+
+    def post(self, request, *args, **kwargs):
+        template_record = self.get_template_record()
+        form = PaymentReceiptTemplateForm(request.POST)
+        if form.is_valid():
+            template_record.template_text = form.cleaned_data['template_text']
+            template_record.variables = SMS_TEMPLATE_VARIABLES
+            template_record.description = 'Default SMS template used for payment receipt notifications.'
+            template_record.save(update_fields=['template_text', 'variables', 'description', 'updated_at'])
+            messages.success(request, 'Payment receipt SMS template updated.')
+            return redirect('communications:payment_receipt_sms')
+
+        return self.render_to_response(self.get_context_data(form=form, template_record=template_record))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = self.page_title
+        context['page_description'] = self.page_description
+        context['form'] = kwargs.get('form') or self.get_form()
+        context['template_record'] = kwargs.get('template_record') or self.get_template_record()
+        context['placeholder_docs'] = SMSTemplateService.get_available_placeholders()
+        return context
 
 
 def _get_sms_service():

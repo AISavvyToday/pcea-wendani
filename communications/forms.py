@@ -5,6 +5,15 @@ from core.models import GradeLevel
 from students.models import Student
 
 
+class PaymentReceiptTemplateForm(forms.Form):
+    template_text = forms.CharField(
+        required=True,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 10}),
+        help_text='Used automatically when payment receipts are sent. Supports placeholders like {student.name}, {payment.amount_plain}, and {receipt.link}.',
+        label='Payment receipt SMS template',
+    )
+
+
 class SMSWorkflowForm(forms.Form):
     """Reusable form for balance reminder and invoice SMS workflows."""
 

@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from academics.models import AcademicYear, Class, Term
-from communications.models import SMSNotification
+from communications.models import NotificationTemplate, SMSNotification
 from communications.services.sms_template_service import SMSTemplateService
 from communications.services.sms_workflow_service import SMSWorkflowService
 from core.models import Organization, PaymentMethod, PaymentSource, PaymentStatus
@@ -275,11 +275,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import RequestFactory, TestCase, override_settings
 
 from communications.models import SMSNotification
 from communications.services.sms_api_client import SMSAPIClient
-from communications.views import SMSSettingsView
+from communications.views import PaymentReceiptSMSView, SMSSettingsView
 from core.models import Organization
 
 
@@ -606,3 +607,45 @@ class ExactSMSContentTests(SMSWorkflowBaseTestCase):
             "For queries, contact the office,"
         )
         self.assertEqual(message, expected)
+
+
+class PaymentReceiptSMSViewTests(SMSWorkflowBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.factory = RequestFactory()
+        self.user.role = 'super_admin'
+
+    def test_get_context_exposes_payment_receipt_template(self):
+        request = self.factory.get('/communications/payment-receipt-sms/')
+        request.organization = self.organization
+        request.user = self.user
+
+        view = PaymentReceiptSMSView()
+        view.request = request
+        context = view.get_context_data()
+
+        self.assertEqual(context['template_record'].name, 'Payment Receipt SMS')
+        self.assertIn('payment.amount_plain', context['form'].initial['template_text'])
+        self.assertTrue(any(item['key'] == '{receipt.link}' for item in context['placeholder_docs']))
+
+    def test_post_updates_payment_receipt_template(self):
+        request = self.factory.post(
+            '/communications/payment-receipt-sms/',
+            {'template_text': 'Paid {payment.amount_plain} for {student.name}. Receipt: {receipt.link}'},
+        )
+        request.organization = self.organization
+        request.user = self.user
+        setattr(request, 'session', self.client.session)
+        messages_storage = FallbackStorage(request)
+        setattr(request, '_messages', messages_storage)
+
+        response = PaymentReceiptSMSView.as_view()(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('communications:payment_receipt_sms'))
+        template_record = NotificationTemplate.objects.get(
+            organization=self.organization,
+            name='Payment Receipt SMS',
+            template_type='sms',
+        )
+        self.assertEqual(template_record.template_text, 'Paid {payment.amount_plain} for {student.name}. Receipt: {receipt.link}')

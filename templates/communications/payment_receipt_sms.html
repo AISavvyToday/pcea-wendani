@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f6f7fb; color: #222; margin: 0; }
+    .container { max-width: 980px; margin: 24px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    h1 { margin-top: 0; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .col { flex: 1 1 380px; min-width: 320px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    textarea { width: 100%; min-height: 260px; padding: 10px; border: 1px solid #cdd3df; border-radius: 6px; box-sizing: border-box; }
+    .field { margin-bottom: 16px; }
+    .help, .muted { color: #6b7280; font-size: 13px; }
+    .messages { margin-bottom: 18px; }
+    .message { padding: 12px 14px; border-radius: 6px; margin-bottom: 8px; }
+    .success { background: #e8f7eb; color: #17643a; }
+    .warning { background: #fff6df; color: #8a6500; }
+    .error { background: #fdecec; color: #9b1c1c; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { border: none; padding: 12px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-light { background: #eef2ff; color: #312e81; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    .errors ul { margin: 6px 0 0 18px; color: #9b1c1c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>{{ page_title }}</h1>
+    <p class="muted">{{ page_description }}</p>
+
+    <div class="actions" style="margin-bottom: 18px;">
+      <a class="btn btn-light" href="{% url 'communications:balance_reminder_sms' %}">Reminder SMS</a>
+      <a class="btn btn-light" href="{% url 'communications:invoice_sms' %}">Invoice SMS</a>
+      <a class="btn btn-light" href="{% url 'communications:sms_notification_list' %}">SMS History</a>
+    </div>
+
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="message {{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="row">
+      <div class="col">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="field">
+            <label for="{{ form.template_text.id_for_label }}">{{ form.template_text.label }}</label>
+            {{ form.template_text }}
+            {% if form.template_text.errors %}<div class="errors">{{ form.template_text.errors }}</div>{% endif %}
+            <div class="help">{{ form.template_text.help_text }}</div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Save template</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <strong>Template source:</strong> {{ template_record.name }}<br>
+          <span class="muted">This is the template used automatically by payment receipt sends.</span>
+        </div>
+
+        <div class="card">
+          <strong>Available placeholders</strong>
+          <ul>
+            {% for item in placeholder_docs %}
+              <li><code>{{ item.key }}</code> — {{ item.description }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
