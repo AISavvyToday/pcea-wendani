@@ -21,6 +21,7 @@ from .forms import (
 from .models import ReportRequest
 from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
+from other_income.models import OtherIncomeInvoice
 from academics.models import AcademicYear, Term
 from transport.models import TransportFee
 from students.models import Student
@@ -38,7 +39,7 @@ from .report_utils import (
 )
 
 
-FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'assessment', 'activity', 'transport']
+FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'examination', 'activity', 'transport', 'admission', 'other_income']
 
 
 def get_fees_collection_category_choices(organization=None):
@@ -106,12 +107,19 @@ def get_fees_collection_filter_labels(form, selected_categories):
 def build_fees_collection_category_filter(selected_categories, prefix='invoice_item__'):
     category_filters = Q()
     for cat_choice in selected_categories:
-        if cat_choice.startswith('other:'):
+        if cat_choice == 'examination':
+            category_filters |= (
+                Q(**{f'{prefix}category': 'examination'}) |
+                Q(**{f'{prefix}category': 'assessment'})
+            )
+        elif cat_choice.startswith('other:'):
             desc = cat_choice.replace('other:', '', 1)
             category_filters |= Q(**{
                 f'{prefix}category': 'other',
                 f'{prefix}description__iexact': desc,
             })
+        elif cat_choice == 'other_income':
+            continue
         else:
             category_filters |= Q(**{f'{prefix}category': cat_choice})
     return category_filters
@@ -166,6 +174,9 @@ def build_fees_collection_rows(request, cleaned_data, form=None):
         end_date=end_date,
     )
 
+    include_other_income = (not selected_categories) or ('other_income' in selected_categories)
+    invoice_selected_categories = [c for c in selected_categories if c != 'other_income']
+
     payments_qs = get_fees_collection_base_queryset(request)
 
     if start_datetime:
@@ -181,14 +192,14 @@ def build_fees_collection_rows(request, cleaned_data, form=None):
         )
 
     matched_amount_map = {}
-    if selected_categories:
+    if invoice_selected_categories:
         allocations_qs = PaymentAllocation.objects.filter(
             payment__in=payments_qs,
             is_active=True,
             payment__is_active=True,
             payment__status='completed',
             invoice_item__is_active=True,
-        ).filter(build_fees_collection_category_filter(selected_categories))
+        ).filter(build_fees_collection_category_filter(invoice_selected_categories))
 
         matched_amount_map = {
             row['payment_id']: row['matched_amount'] or Decimal('0.00')
@@ -248,6 +259,32 @@ def build_fees_collection_rows(request, cleaned_data, form=None):
             'bank': bank_display,
         })
         total_collected += amount
+
+    if include_other_income:
+        other_income_qs = OtherIncomeInvoice.objects.filter(is_active=True).exclude(status='cancelled')
+        organization = getattr(request, 'organization', None)
+        if organization:
+            other_income_qs = other_income_qs.filter(organization=organization)
+        if start_date:
+            other_income_qs = other_income_qs.filter(issue_date__gte=start_date)
+        if end_date:
+            other_income_qs = other_income_qs.filter(issue_date__lte=end_date)
+
+        for invoice in other_income_qs.order_by('issue_date', 'invoice_number'):
+            amount = invoice.amount_paid or Decimal('0.00')
+            if amount <= 0:
+                continue
+            rows.append({
+                'date': invoice.issue_date,
+                'reference': invoice.invoice_number,
+                'student': invoice.client_name or 'Other Income',
+                'admission': '',
+                'class': 'Other Income',
+                'amount': amount,
+                'method': 'Other Income',
+                'bank': invoice.client_contact or '',
+            })
+            total_collected += amount
 
     grouped = None
     if group_by == 'class':
