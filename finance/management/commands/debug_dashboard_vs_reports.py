@@ -23,7 +23,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Organization: {org.name}')
         self.stdout.write(f'Term: {term}')
 
-        dashboard = _finance_kpis(term=term, organization=org)['current_term']
+        dashboard = _finance_kpis(term=term, organization=org)
         self.stdout.write('\n=== DASHBOARD CURRENT TERM ===')
         self.stdout.write(f"dashboard.billed={dashboard['billed']}")
         self.stdout.write(f"dashboard.collected={dashboard['collected']}")
