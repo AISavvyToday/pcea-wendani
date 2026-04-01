@@ -749,7 +749,7 @@ class Command(BaseCommand):
             f"{len(stats['credit_invariant_violations'])}"
         )
         self.stdout.write(
-            "  (credit > 0 requires: outstanding = 0 AND no unpaid invoices)"
+            "  (credit > 0 requires canonical match to valid credit source and outstanding = 0)"
         )
         for m in stats["credit_invariant_violations"][:10]:
             details = []
