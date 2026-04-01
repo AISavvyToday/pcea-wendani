@@ -7,6 +7,7 @@ from core.models import Organization, PaymentStatus
 from students.models import Student
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
+from payments.services.invoice import InvoiceService
 
 
 class Command(BaseCommand):
@@ -165,32 +166,38 @@ class Command(BaseCommand):
         # - If credit_balance > 0, then:
         #   1. ALL invoices must be fully paid (balance <= 0)
         #   2. outstanding_balance must be 0
-        # - This ensures credit only exists when there's nothing left to pay
+        #   3. credit_balance must equal the student's REAL unallocated payment residue
+        #      (not a stale manually-preserved number)
         credit_balance = student.credit_balance or Decimal("0.00")
         outstanding_balance = student.outstanding_balance or Decimal("0.00")
-        
+        expected_credit = max(Decimal("0.00"), InvoiceService.get_student_unapplied_credit(student))
+
         if credit_balance > 0:
             # Check 1: No unpaid invoices
             unpaid_exists = invoices_qs.filter(balance__gt=0).exists()
             # Check 2: Outstanding balance must be 0
             has_outstanding = outstanding_balance > 0
-            
-            if unpaid_exists or has_outstanding:
+            # Check 3: credit must match actual unallocated residue
+            credit_mismatch = credit_balance.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) != expected_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            if unpaid_exists or has_outstanding or credit_mismatch:
                 # Get sum of unpaid invoice balances for reporting
                 unpaid_total = invoices_qs.filter(balance__gt=0).aggregate(
                     total=Sum("balance")
                 )["total"] or Decimal("0.00")
-                
+
                 stats["credit_invariant_violations"].append(
                     {
                         "student_id": student.id,
                         "admission": student.admission_number,
                         "name": student.full_name,
                         "credit_balance": credit_balance,
+                        "expected_credit": expected_credit,
                         "outstanding_balance": outstanding_balance,
                         "unpaid_invoice_total": unpaid_total,
                         "has_unpaid_invoices": unpaid_exists,
                         "has_outstanding": has_outstanding,
+                        "credit_mismatch": credit_mismatch,
                     }
                 )
 

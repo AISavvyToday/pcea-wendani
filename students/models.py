@@ -313,10 +313,9 @@ class Student(BaseModel):
             prepayment_original = self.prepayment_original or Decimal('0.00')
             overpayment = max(Decimal('0.00'), total_paid - balance_bf_original)
             expected_credit = prepayment_original + overpayment
-            
-            # Ensure credit_balance is at least expected_credit
-            current_credit = self.credit_balance or Decimal('0.00')
-            self.credit_balance = max(current_credit, expected_credit, Decimal('0.00'))
+
+            # Canonical recompute: do NOT preserve inflated historic values.
+            self.credit_balance = max(expected_credit, Decimal('0.00'))
 
         self.save(update_fields=['outstanding_balance', 'credit_balance'])
 
@@ -374,9 +373,9 @@ class Student(BaseModel):
                 prepayment_original = self.prepayment_original or Decimal('0.00')
                 overpayment = max(Decimal('0.00'), total_paid - balance_bf_original)
                 expected_credit = prepayment_original + overpayment
-                
-                current_credit = self.credit_balance or Decimal('0.00')
-                self.credit_balance = max(current_credit, expected_credit, Decimal('0.00'))
+
+                # Canonical recompute: do NOT preserve inflated historic values.
+                self.credit_balance = max(expected_credit, Decimal('0.00'))
         else:
             # New student - ensure fields have proper defaults
             self.outstanding_balance = self.outstanding_balance or Decimal('0.00')

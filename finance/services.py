@@ -472,16 +472,30 @@ class InvoiceService:
                     })
             else:
                 pmt = item['obj']
-                running_balance -= pmt.amount
                 pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
-                transactions.append({
-                    'date': pmt_date,
-                    'description': f"Payment - {pmt.get_payment_source_display()}",
-                    'reference': pmt.receipt_number or pmt.payment_reference or '-',
-                    'debit': None,
-                    'credit': pmt.amount,
-                    'running_balance': running_balance
-                })
+                allocated_amount = pmt.allocations.filter(is_active=True).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+                unapplied_amount = pmt.unallocated_amount if pmt.unallocated_amount is not None else max(Decimal('0.00'), (pmt.amount or Decimal('0.00')) - allocated_amount)
+
+                if allocated_amount > 0:
+                    running_balance -= allocated_amount
+                    transactions.append({
+                        'date': pmt_date,
+                        'description': f"Payment - {pmt.get_payment_source_display()}",
+                        'reference': pmt.receipt_number or pmt.payment_reference or '-',
+                        'debit': None,
+                        'credit': allocated_amount,
+                        'running_balance': running_balance
+                    })
+
+                if unapplied_amount > 0:
+                    transactions.append({
+                        'date': pmt_date,
+                        'description': 'Unapplied payment moved to credit balance',
+                        'reference': pmt.receipt_number or pmt.payment_reference or '-',
+                        'debit': None,
+                        'credit': unapplied_amount,
+                        'running_balance': running_balance
+                    })
 
         balance_due = (total_invoiced + total_balance_bf) - (total_prepayment + total_paid)
 
