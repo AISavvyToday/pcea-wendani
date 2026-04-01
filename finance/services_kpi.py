@@ -104,7 +104,7 @@ def build_term_kpis(term, organization=None):
 
     school_fee_buckets = {}
     all_categories = set(billed_by_category.keys()) | set(collected_by_category.keys())
-    fees_excluded_categories = {"transport", "admission", "other"}
+    fees_excluded_categories = {"transport", "admission", "other", "balance_bf", "prepayment"}
 
     for bucket_key, config in _BUCKET_CONFIG.items():
         if bucket_key == "fees":
