@@ -31,8 +31,6 @@ REPORT_CATEGORY_SEQUENCE = [
     FeeCategory.TRANSPORT,
     FeeCategory.ADMISSION,
     FeeCategory.OTHER,
-    FeeCategory.BALANCE_BF,
-    FeeCategory.PREPAYMENT_CREDIT,
 ]
 
 DETAIL_FILTER_CATEGORY_SEQUENCE = [
