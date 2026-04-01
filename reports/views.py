@@ -34,6 +34,7 @@ from .report_utils import (
     get_report_category_label,
     build_invoice_detailed_report_data,
     build_outstanding_balances_report_data,
+    build_prepayments_report_data,
 )
 
 
@@ -584,6 +585,88 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         context.update({
             'rows': rows,
             'totals': totals,
+            'selected_term_id': selected_term_id,
+            'filters': report_data['filters'],
+        })
+
+        return render(request, self.template_name, context)
+
+
+class PrepaymentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    template_name = 'reports/prepayments_report.html'
+
+    def get(self, request):
+        form = OutstandingBalancesFilterForm(request.GET or None)
+
+        class_choices = [('', 'All Classes')]
+        try:
+            from academics.models import Class
+            raw_classes = Class.objects.values_list('name', flat=True).distinct()
+            classes = sorted([c for c in raw_classes if c])
+            class_choices += [(c, c) for c in classes]
+            form.fields['student_class'].choices = class_choices
+        except Exception:
+            pass
+
+        context = {
+            'form': form,
+            'rows': None,
+            'totals': None,
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
+            'BANK_DETAILS': getattr(settings, 'SCHOOL_BANK_DETAILS', {
+                'equity': {'name': 'EQUITY BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '1130280029105'},
+                'coop': {'name': 'CO-OPERATIVE BANK', 'account_name': 'P.C.E.A Wendani Academy', 'account_no': '01129158350600'},
+                'paybills': [
+                    {'label': 'PAYBILL (247247)', 'acc_format': '280029#<admission_number>'},
+                    {'label': 'PAYBILL (400222)', 'acc_format': '393939#<admission_number>'},
+                ]
+            }),
+            'now': timezone.now(),
+        }
+
+        if not form.is_valid():
+            return render(request, self.template_name, context)
+
+        start_date = form.cleaned_data.get('start_date')
+        end_date = form.cleaned_data.get('end_date')
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
+        student_class = form.cleaned_data.get('student_class')
+        balance_filter = form.cleaned_data.get('balance_filter') or ''
+        balance_op = form.cleaned_data.get('balance_operator') or 'any'
+        balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
+        include_zero = form.cleaned_data.get('show_zero_balances')
+
+        report_data = build_prepayments_report_data(
+            organization=getattr(request, 'organization', None),
+            start_date=start_date,
+            end_date=end_date,
+            academic_year=academic_year,
+            term=term,
+            student_class=student_class,
+            balance_filter=balance_filter,
+            balance_op=balance_op,
+            balance_amt=balance_amt,
+            include_zero=include_zero,
+        )
+
+        selected_term_id = None
+        if academic_year and term:
+            org = getattr(request, 'organization', None)
+            qs = Term.objects.filter(academic_year=academic_year, term=term)
+            if org:
+                qs = qs.filter(organization=org)
+            t = qs.first()
+            if t:
+                selected_term_id = str(t.pk)
+
+        context.update({
+            'rows': report_data['rows'],
+            'totals': report_data['totals'],
             'selected_term_id': selected_term_id,
             'filters': report_data['filters'],
         })

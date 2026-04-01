@@ -841,3 +841,131 @@ def build_outstanding_balances_report_data(
             'balance_filter_label': balance_filter_label,
         },
     }
+
+
+def build_prepayments_report_data(
+    organization=None,
+    start_date=None,
+    end_date=None,
+    academic_year=None,
+    term=None,
+    student_class=None,
+    balance_filter='',
+    balance_op='any',
+    balance_amt=Decimal('0.00'),
+    include_zero=False,
+):
+    students = Student.objects.filter(status='active', credit_balance__gt=0).select_related('current_class')
+
+    if organization:
+        students = students.filter(organization=organization)
+
+    if student_class:
+        students = students.filter(current_class__name=student_class)
+
+    invoices = Invoice.objects.filter(
+        is_active=True,
+        student__in=students,
+    ).exclude(status=InvoiceStatus.CANCELLED).select_related('term__academic_year')
+
+    if academic_year:
+        invoices = invoices.filter(term__academic_year=academic_year)
+        students = students.filter(invoices__term__academic_year=academic_year).distinct()
+        if term:
+            invoices = invoices.filter(term__term=term)
+            students = students.filter(invoices__term__term=term).distinct()
+
+    as_of_date = end_date or start_date
+    if as_of_date:
+        invoices = invoices.filter(Q(issue_date__isnull=True) | Q(issue_date__lte=as_of_date))
+
+    parent_contact_map = build_parent_contact_map(
+        student_ids=list(students.values_list('pk', flat=True)),
+        organization=organization,
+    )
+
+    balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+    balance_filter_label = balance_filter_spec[2] if balance_filter_spec else ''
+
+    rows = []
+    for student in students.order_by('admission_number'):
+        student_invoices = invoices.filter(student=student)
+        first_invoice = student_invoices.order_by('issue_date', 'created_at').first()
+        total_prepayment_original = student.prepayment_original or Decimal('0.00')
+        total_credit_balance = student.credit_balance or Decimal('0.00')
+
+        compare_amount = total_credit_balance
+
+        if balance_filter_spec:
+            if balance_filter_spec[0] == 'range':
+                _, min_amt, max_amt, _ = balance_filter_spec
+                if not (compare_amount >= min_amt and compare_amount < max_amt):
+                    continue
+            else:
+                op, amt, _ = balance_filter_spec
+                if op == '=' and not compare_amount == amt:
+                    continue
+                if op == '>' and not compare_amount > amt:
+                    continue
+                if op == '<' and not compare_amount < amt:
+                    continue
+                if op == '>=' and not compare_amount >= amt:
+                    continue
+                if op == '<=' and not compare_amount <= amt:
+                    continue
+        elif balance_op and balance_op != 'any':
+            if balance_op == '=' and not compare_amount == balance_amt:
+                continue
+            if balance_op == '>' and not compare_amount > balance_amt:
+                continue
+            if balance_op == '<' and not compare_amount < balance_amt:
+                continue
+            if balance_op == '>=' and not compare_amount >= balance_amt:
+                continue
+            if balance_op == '<=' and not compare_amount <= balance_amt:
+                continue
+
+        if not include_zero and compare_amount == Decimal('0.00'):
+            continue
+
+        rows.append({
+            'student__pk': student.pk,
+            'student__admission_number': student.admission_number,
+            'student__first_name': student.first_name,
+            'student__middle_name': student.middle_name,
+            'student__last_name': student.last_name,
+            'student__current_class__name': getattr(student.current_class, 'name', ''),
+            'term__academic_year__year': getattr(getattr(first_invoice, 'term', None), 'academic_year', None).year if first_invoice and getattr(first_invoice.term, 'academic_year', None) else None,
+            'parent_contact': parent_contact_map.get(student.pk, '—'),
+            'total_prepayment_original': total_prepayment_original,
+            'total_credit_balance': total_credit_balance,
+        })
+
+    rows.sort(
+        key=lambda row: (
+            -(row.get('total_credit_balance') or Decimal('0.00')),
+            (row.get('student__first_name') or '').lower(),
+            (row.get('student__last_name') or '').lower(),
+        )
+    )
+
+    totals = {
+        'total_prepayment_original': sum((row['total_prepayment_original'] or Decimal('0.00')) for row in rows),
+        'total_credit_balance': sum((row['total_credit_balance'] or Decimal('0.00')) for row in rows),
+    }
+
+    return {
+        'rows': rows,
+        'totals': totals,
+        'filters': {
+            'start_date': start_date,
+            'end_date': end_date,
+            'as_of_date': as_of_date,
+            'academic_year': academic_year,
+            'term': term,
+            'student_class': student_class,
+            'balance_op': balance_op,
+            'balance_amt': balance_amt,
+            'balance_filter_label': balance_filter_label,
+        },
+    }

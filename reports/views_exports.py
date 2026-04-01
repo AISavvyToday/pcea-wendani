@@ -37,6 +37,7 @@ from .report_utils import (
     get_selected_category_labels,
     build_invoice_detailed_report_data,
     build_outstanding_balances_report_data,
+    build_prepayments_report_data,
 )
 from .views import (
     build_fees_collection_rows,
@@ -754,7 +755,6 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         form = OutstandingBalancesFilterForm(request.GET)
         form.is_valid()  # Populate cleaned_data - all fields are optional
 
-        # Use getattr with empty dict fallback for safety
         cleaned = getattr(form, 'cleaned_data', {})
         start_date = cleaned.get('start_date')
         end_date = cleaned.get('end_date')
@@ -806,6 +806,107 @@ class OutstandingBalancesPDFView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
         filename = f"outstanding-balances-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+class PrepaymentsExcelView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    def get(self, request):
+        from .forms import OutstandingBalancesFilterForm
+        form = OutstandingBalancesFilterForm(request.GET)
+        form.is_valid()
+        cleaned = getattr(form, 'cleaned_data', {})
+
+        report_data = build_prepayments_report_data(
+            organization=getattr(request, 'organization', None),
+            start_date=cleaned.get('start_date'),
+            end_date=cleaned.get('end_date'),
+            academic_year=cleaned.get('academic_year'),
+            term=cleaned.get('term'),
+            student_class=request.GET.get('student_class', '').strip() or cleaned.get('student_class') or '',
+            balance_filter=cleaned.get('balance_filter') or '',
+            balance_op=cleaned.get('balance_operator') or 'any',
+            balance_amt=cleaned.get('balance_amount') or Decimal('0.00'),
+            include_zero=cleaned.get('show_zero_balances'),
+        )
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Prepayments'
+        add_common_header(ws, 'Prepayments Report')
+
+        headers = ['Year', 'Admission No', 'Name', 'Class', 'Parent Contact', 'Prepayment B/F', 'Current Credit']
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=5, column=c, value=h).font = Font(bold=True)
+
+        row_num = 6
+        for r in report_data['rows']:
+            ws.cell(row=row_num, column=1, value=r.get('term__academic_year__year'))
+            ws.cell(row=row_num, column=2, value=r.get('student__admission_number'))
+            first = r.get('student__first_name', '')
+            middle = r.get('student__middle_name', '')
+            last = r.get('student__last_name', '')
+            full_name = ' '.join(f'{first} {middle} {last}'.split())
+            ws.cell(row=row_num, column=3, value=full_name)
+            ws.cell(row=row_num, column=4, value=r.get('student__current_class__name') or '—')
+            ws.cell(row=row_num, column=5, value=r.get('parent_contact') or '—')
+            c1 = ws.cell(row=row_num, column=6, value=float(r.get('total_prepayment_original') or 0))
+            c2 = ws.cell(row=row_num, column=7, value=float(r.get('total_credit_balance') or 0))
+            format_money_cell(c1)
+            format_money_cell(c2)
+            row_num += 1
+
+        ws.cell(row=row_num, column=1, value='TOTALS').font = Font(bold=True)
+        c1 = ws.cell(row=row_num, column=6, value=float(report_data['totals']['total_prepayment_original']))
+        c2 = ws.cell(row=row_num, column=7, value=float(report_data['totals']['total_credit_balance']))
+        format_money_cell(c1)
+        format_money_cell(c2)
+
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 18
+
+        bytes_data = workbook_to_bytes(wb)
+        filename = f"prepayments-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        return xlsx_response(bytes_data, filename)
+
+
+class PrepaymentsPDFView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    def get(self, request):
+        from .forms import OutstandingBalancesFilterForm
+        form = OutstandingBalancesFilterForm(request.GET)
+        form.is_valid()
+        cleaned = getattr(form, 'cleaned_data', {})
+
+        report_data = build_prepayments_report_data(
+            organization=getattr(request, 'organization', None),
+            start_date=cleaned.get('start_date'),
+            end_date=cleaned.get('end_date'),
+            academic_year=cleaned.get('academic_year'),
+            term=cleaned.get('term'),
+            student_class=request.GET.get('student_class', '').strip() or cleaned.get('student_class') or '',
+            balance_filter=cleaned.get('balance_filter') or '',
+            balance_op=cleaned.get('balance_operator') or 'any',
+            balance_amt=cleaned.get('balance_amount') or Decimal('0.00'),
+            include_zero=cleaned.get('show_zero_balances'),
+        )
+
+        context = {
+            'rows': report_data['rows'],
+            'totals': report_data['totals'],
+            'filters': report_data['filters'],
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
+            'generated_on': datetime.now(),
+        }
+
+        html_string = render_to_string('reports/pdf/prepayments_report_pdf.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        pdf_bytes = html.write_pdf()
+        filename = f"prepayments-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

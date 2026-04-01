@@ -23,6 +23,9 @@ urlpatterns = [
     path('outstanding-balances/', views.OutstandingBalancesReportView.as_view(), name='outstanding_report'),
     path('outstanding-balances/export/xlsx/', views_exports.OutstandingBalancesExcelView.as_view(), name='outstanding_report_export_excel'),
     path('outstanding-balances/export/pdf/', views_exports.OutstandingBalancesPDFView.as_view(), name='outstanding_report_export_pdf'),
+    path('prepayments/', views.PrepaymentsReportView.as_view(), name='prepayments_report'),
+    path('prepayments/export/xlsx/', views_exports.PrepaymentsExcelView.as_view(), name='prepayments_report_export_excel'),
+    path('prepayments/export/pdf/', views_exports.PrepaymentsPDFView.as_view(), name='prepayments_report_export_pdf'),
 
     path('transport-report/', views.TransportReportView.as_view(), name='transport_report'),
     path('transport-report/export/xlsx/', views_exports.TransportReportExcelView.as_view(), name='transport_report_export_excel'),
