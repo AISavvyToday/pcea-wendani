@@ -25,11 +25,11 @@ class Command(BaseCommand):
 
         dashboard = _finance_kpis(term=term, organization=org)
         self.stdout.write('\n=== DASHBOARD CURRENT TERM ===')
-        self.stdout.write(f"dashboard.billed={dashboard['billed']}")
-        self.stdout.write(f"dashboard.collected={dashboard['collected']}")
-        self.stdout.write(f"dashboard.outstanding={dashboard['outstanding']}")
-        self.stdout.write(f"dashboard.balance_bf={dashboard['balances_bf']}")
-        self.stdout.write(f"dashboard.prepayments={dashboard['prepayments']}")
+        self.stdout.write(f"dashboard.billed={dashboard.get('billed')}")
+        self.stdout.write(f"dashboard.collected={dashboard.get('collected')}")
+        self.stdout.write(f"dashboard.outstanding={dashboard.get('outstanding')}")
+        self.stdout.write(f"dashboard.balance_bf={dashboard.get('balances_bf')}")
+        self.stdout.write(f"dashboard.prepayments={dashboard.get('prepayments')}")
         self.stdout.write(f"dashboard.billed_breakdown={dashboard.get('billed_breakdown')}")
         self.stdout.write(f"dashboard.collected_breakdown={dashboard.get('collected_breakdown')}")
 

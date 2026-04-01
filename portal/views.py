@@ -301,7 +301,7 @@ def _finance_kpis(term=None, organization=None):
             )
             total_collected_dashboard = (
                 collected_fees + collected_transport + collected_admission +
-                collected_educational_activities + collected_other_income
+                collected_educational_activities + collected_other_income + overpayments
             )
 
             stats.update({
