@@ -262,8 +262,8 @@ def _finance_kpis(term=None, organization=None):
     prepayments_total = _sum_decimal(active_students, 'prepayment_original')
 
     def agg(invoice_qs, *, include_term_breakdowns=False):
-        collected = _collected_for_invoices(invoice_qs)
         billed = _sum_decimal(invoice_qs, 'total_amount')
+        collected = _collected_for_invoices(invoice_qs)
         outstanding = billed - collected
 
         stats = {
@@ -276,12 +276,13 @@ def _finance_kpis(term=None, organization=None):
         }
 
         if include_term_breakdowns:
-            kpi_payload = build_term_kpis(term=term, organization=organization) if term else {"buckets": {}}
+            kpi_payload = build_term_kpis(term=term, organization=organization) if term else {"buckets": {}, "totals": {}}
             buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
             balance_bf_cleared = collected_breakdown["balance_bf"]
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
-            overpayments = _term_overpayments(term=term, organization=organization)
+            overpayments = _sum_decimal(active_students, 'credit_balance')
+            student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
 
             billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
             billed_transport = buckets.get("transport", {}).get("billed", Decimal("0"))
@@ -289,9 +290,24 @@ def _finance_kpis(term=None, organization=None):
             billed_educational_activities = buckets.get("educational_activities", {}).get("billed", Decimal("0"))
             billed_other_income = buckets.get("other_income", {}).get("billed", Decimal("0"))
 
+            collected_fees = buckets.get("fees", {}).get("collected", Decimal("0"))
+            collected_transport = buckets.get("transport", {}).get("collected", Decimal("0"))
+            collected_admission = buckets.get("admission", {}).get("collected", Decimal("0"))
+            collected_educational_activities = buckets.get("educational_activities", {}).get("collected", Decimal("0"))
+            collected_other_income = buckets.get("other_income", {}).get("collected", Decimal("0"))
+
+            total_billed_dashboard = (
+                billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income
+            )
+            total_collected_dashboard = (
+                collected_fees + collected_transport + collected_admission +
+                collected_educational_activities + collected_other_income
+            )
+
             stats.update({
-                "billed": billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income,
-                "outstanding": (billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income) - collected,
+                "billed": total_billed_dashboard,
+                "collected": total_collected_dashboard,
+                "outstanding": student_outstanding_total,
                 "billed_breakdown": {
                     "fees": billed_fees,
                     "transport": billed_transport,
@@ -310,9 +326,11 @@ def _finance_kpis(term=None, organization=None):
                     "unconsumed": max(Decimal("0"), prepayments_total - prepayments_consumed),
                 },
                 "collected_breakdown": {
-                    "fees": buckets.get("fees", {}).get("collected", Decimal("0")),
-                    "educational_activities": buckets.get("educational_activities", {}).get("collected", Decimal("0")),
-                    "other_income": buckets.get("other_income", {}).get("collected", Decimal("0")),
+                    "fees": collected_fees,
+                    "transport": collected_transport,
+                    "admission_fee": collected_admission,
+                    "educational_activities": collected_educational_activities,
+                    "other_income": collected_other_income,
                     "overpayments": overpayments,
                 },
             })
