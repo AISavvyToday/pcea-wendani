@@ -1805,10 +1805,14 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 else raw_credit_after_payment
             )
 
-            # If the receipt position is negative, display that negative outstanding and mirror
-            # the absolute amount as credit/prepayment for readability on the receipt.
+            # For receipts, do NOT display negative outstanding balances.
+            # Any overpayment should appear as credit/prepayment while outstanding shows 0.
             if outstanding_balance_after < 0:
-                credit_balance_after_payment = abs(outstanding_balance_after)
+                credit_balance_after_payment = max(
+                    credit_balance_after_payment,
+                    abs(outstanding_balance_after)
+                )
+                outstanding_balance_after = Decimal('0.00')
         else:
             # For students without invoices: credit = current credit_balance
             # (payments reduce outstanding_balance first, then add to credit)
