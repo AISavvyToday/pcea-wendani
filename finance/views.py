@@ -1741,22 +1741,30 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 balance_bf_display = Decimal('0.00')
                 prepayment_display = Decimal('0.00')
 
-            # CRITICAL FIX: Calculate invoice balance at time of THIS payment
-            # Use actual allocations, not payment amounts
-            # Invoice balance BEFORE this payment = total_amount + balance_bf - prepayment - allocations_before
+            # Canonical receipt math for students with invoices.
+            # Use total paid before this receipt to derive the balance immediately before payment.
             invoice_balance_before_this_payment = (
-                total_invoice_amount + total_balance_bf - total_prepayment - allocations_before
+                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
             )
-            
+
             # Student balance at payment = invoice balance before this payment
             student_balance_at_payment = invoice_balance_before_this_payment
 
         # Outstanding AFTER this payment
-        # Use actual allocation from this payment, not the full payment amount
-        # (some of the payment might have gone to credit_balance if invoice was already fully paid)
         if current_invoices.exists():
-            # For students with invoices, use allocation amount (not full payment amount)
-            outstanding_balance_after = student_balance_at_payment - allocations_from_this_payment
+            # Canonical outstanding after payment comes from invoice math using total payments up to this receipt.
+            total_paid_up_to_invoice = Payment.objects.filter(
+                student=student,
+                is_active=True,
+                status=PaymentStatus.COMPLETED
+            ).filter(
+                Q(payment_date__lt=payment.payment_date) |
+                Q(payment_date=payment.payment_date, created_at__lte=payment.created_at)
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+            outstanding_balance_after = (
+                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_up_to_invoice
+            )
         else:
             # For students without invoices, use full payment amount
             outstanding_balance_after = student_balance_at_payment - payment.amount
@@ -1796,6 +1804,11 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 if outstanding_balance_after > 0
                 else raw_credit_after_payment
             )
+
+            # If the receipt position is negative, display that negative outstanding and mirror
+            # the absolute amount as credit/prepayment for readability on the receipt.
+            if outstanding_balance_after < 0:
+                credit_balance_after_payment = abs(outstanding_balance_after)
         else:
             # For students without invoices: credit = current credit_balance
             # (payments reduce outstanding_balance first, then add to credit)
