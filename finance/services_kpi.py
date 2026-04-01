@@ -103,9 +103,17 @@ def build_term_kpis(term, organization=None):
     }
 
     school_fee_buckets = {}
+    all_categories = set(billed_by_category.keys()) | set(collected_by_category.keys())
+    fees_excluded_categories = {"transport", "admission", "other"}
+
     for bucket_key, config in _BUCKET_CONFIG.items():
-        billed = sum((billed_by_category.get(category, ZERO) for category in config["categories"]), ZERO)
-        collected = sum((collected_by_category.get(category, ZERO) for category in config["categories"]), ZERO)
+        if bucket_key == "fees":
+            categories = sorted(category for category in all_categories if category not in fees_excluded_categories)
+        else:
+            categories = list(config["categories"])
+
+        billed = sum((billed_by_category.get(category, ZERO) for category in categories), ZERO)
+        collected = sum((collected_by_category.get(category, ZERO) for category in categories), ZERO)
         school_fee_buckets[bucket_key] = {
             "label": config["label"],
             "billed": billed,
@@ -119,7 +127,7 @@ def build_term_kpis(term, organization=None):
                         "outstanding": billed_by_category.get(category, ZERO)
                         - collected_by_category.get(category, ZERO),
                     }
-                    for category in config["categories"]
+                    for category in categories
                 }
             },
         }
