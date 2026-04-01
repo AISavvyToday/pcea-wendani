@@ -288,11 +288,13 @@ class Student(BaseModel):
         active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
 
         if active_invoices.exists():
-            # Student HAS invoices - outstanding_balance is sum of invoice balances
-            invoice_total = active_invoices.aggregate(
-                total=Sum('balance')
-            )['total'] or Decimal('0.00')
-            self.outstanding_balance = invoice_total
+            # Student HAS invoices - outstanding_balance is sum of positive invoice balances only
+            # Negative invoice balances are invalid; overpayments should live in credit_balance instead.
+            invoice_total = sum(
+                max((inv.balance or Decimal('0.00')), Decimal('0.00'))
+                for inv in active_invoices.only('balance')
+            )
+            self.outstanding_balance = max(invoice_total, Decimal('0.00'))
             # Ensure credit_balance never goes negative
             self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
         else:
@@ -343,10 +345,14 @@ class Student(BaseModel):
         if not is_new:
             active_invoices = self.invoices.filter(is_active=True).exclude(status=InvoiceStatus.CANCELLED)
             if active_invoices.exists():
-                # Sum balances of all active, non-cancelled invoices
-                invoice_total = active_invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+                # Sum POSITIVE balances of all active, non-cancelled invoices only.
+                # Negative invoice balances are invalid and must not drive student outstanding below zero.
+                invoice_total = sum(
+                    max((inv.balance or Decimal('0.00')), Decimal('0.00'))
+                    for inv in active_invoices.only('balance')
+                )
 
-                self.outstanding_balance = invoice_total
+                self.outstanding_balance = max(invoice_total, Decimal('0.00'))
                 # Ensure credit_balance is non-negative
                 self.credit_balance = max(self.credit_balance or Decimal('0.00'), Decimal('0.00'))
             else:

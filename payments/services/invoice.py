@@ -73,20 +73,28 @@ class InvoiceService:
         """
         Recalculate invoice strictly from allocations.
         balance_bf and prepayment are NEVER mutated by payments.
+
+        IMPORTANT INVARIANTS:
+        - invoice.amount_paid should reflect ONLY the amount applied to this invoice
+        - invoice.balance must NEVER go negative
+        - any payment amount beyond invoice due belongs in student.credit_balance,
+          not as a negative invoice balance
         """
         allocations_total = InvoiceService._sum_allocations_for_invoice(invoice)
 
-        invoice.amount_paid = allocations_total
-        invoice.balance = (
+        total_due = (
             (invoice.total_amount or Decimal("0.00"))
             + (invoice.balance_bf or Decimal("0.00"))
             - (invoice.prepayment or Decimal("0.00"))
-            - (invoice.amount_paid or Decimal("0.00"))
         )
+        total_due = max(total_due, Decimal("0.00"))
+
+        invoice.amount_paid = min(allocations_total, total_due)
+        invoice.balance = max(total_due - invoice.amount_paid, Decimal("0.00"))
 
         today = date_cls.today()
 
-        if invoice.balance <= 0:
+        if invoice.balance == 0:
             invoice.status = InvoiceStatus.PAID
         elif invoice.amount_paid > 0:
             invoice.status = InvoiceStatus.PARTIALLY_PAID
