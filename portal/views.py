@@ -170,7 +170,7 @@ def _group_invoice_item_amounts(invoice_qs, amount_field="net_amount"):
     items = InvoiceItem.objects.filter(invoice__in=invoice_qs, is_active=True)
     return {
         "fees": _sum_decimal(
-            items.exclude(category__in=["other", "transport", "balance_bf", "prepayment"]),
+            items.exclude(category__in=["other", "transport", "admission", "balance_bf", "prepayment"]),
             amount_field,
         ),
         "other_items": _sum_decimal(items.filter(category="other"), amount_field),
