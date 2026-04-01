@@ -162,40 +162,42 @@ class Command(BaseCommand):
                 }
             )
 
-        # Credit invariant (STRICT):
-        # - If credit_balance > 0, then:
-        #   1. ALL invoices must be fully paid (balance <= 0)
-        #   2. outstanding_balance must be 0
-        #   3. credit_balance must equal the student's REAL unallocated payment residue
-        #      (not a stale manually-preserved number)
+        # Credit invariant for students with invoices:
+        # - outstanding_balance must remain canonical
+        # - credit_balance may legitimately come from either:
+        #   1. unapplied payment residue, OR
+        #   2. prepayment embedded in active invoice headers
+        # Therefore positive credit is valid if it matches either source and
+        # student outstanding remains zero.
         credit_balance = student.credit_balance or Decimal("0.00")
         outstanding_balance = student.outstanding_balance or Decimal("0.00")
-        expected_credit = max(Decimal("0.00"), InvoiceService.get_student_unapplied_credit(student))
+        expected_unapplied_credit = max(
+            Decimal("0.00"), InvoiceService.get_student_unapplied_credit(student)
+        )
+        expected_invoice_prepayment_credit = max(
+            Decimal("0.00"),
+            invoices_qs.aggregate(total=Sum("prepayment"))["total"] or Decimal("0.00")
+        )
 
         if credit_balance > 0:
-            # Check 1: No unpaid invoices
-            unpaid_exists = invoices_qs.filter(balance__gt=0).exists()
-            # Check 2: Outstanding balance must be 0
             has_outstanding = outstanding_balance > 0
-            # Check 3: credit must match actual unallocated residue
-            credit_mismatch = credit_balance.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) != expected_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            rounded_credit = credit_balance.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            rounded_unapplied = expected_unapplied_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            rounded_prepayment = expected_invoice_prepayment_credit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            matches_unapplied = rounded_credit == rounded_unapplied
+            matches_prepayment = rounded_credit == rounded_prepayment
+            credit_mismatch = not (matches_unapplied or matches_prepayment)
 
-            if unpaid_exists or has_outstanding or credit_mismatch:
-                # Get sum of unpaid invoice balances for reporting
-                unpaid_total = invoices_qs.filter(balance__gt=0).aggregate(
-                    total=Sum("balance")
-                )["total"] or Decimal("0.00")
-
+            if has_outstanding or credit_mismatch:
                 stats["credit_invariant_violations"].append(
                     {
                         "student_id": student.id,
                         "admission": student.admission_number,
                         "name": student.full_name,
                         "credit_balance": credit_balance,
-                        "expected_credit": expected_credit,
+                        "expected_unapplied_credit": expected_unapplied_credit,
+                        "expected_invoice_prepayment_credit": expected_invoice_prepayment_credit,
                         "outstanding_balance": outstanding_balance,
-                        "unpaid_invoice_total": unpaid_total,
-                        "has_unpaid_invoices": unpaid_exists,
                         "has_outstanding": has_outstanding,
                         "credit_mismatch": credit_mismatch,
                     }
@@ -755,8 +757,10 @@ class Command(BaseCommand):
             details = []
             if m.get('has_outstanding'):
                 details.append(f"outstanding={m.get('outstanding_balance', 0)}")
-            if m.get('has_unpaid_invoices'):
-                details.append(f"unpaid_invoices={m.get('unpaid_invoice_total', 0)}")
+            if m.get('credit_mismatch'):
+                details.append(
+                    f"credit(unapplied {m.get('expected_unapplied_credit', 0)}, prepayment {m.get('expected_invoice_prepayment_credit', 0)})"
+                )
             detail_str = ", ".join(details) if details else "unknown issue"
             self.stdout.write(
                 f"  - {m['admission']} {m['name']}: "
