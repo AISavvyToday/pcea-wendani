@@ -1805,13 +1805,16 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 else raw_credit_after_payment
             )
 
-            # For receipts, do NOT display negative outstanding balances.
-            # Any overpayment should appear as credit/prepayment while outstanding shows 0.
+            # Receipt rule: show either outstanding OR credit/prepayment, never both.
+            # If payment results in overpayment, display zero outstanding and positive credit.
             if outstanding_balance_after < 0:
                 credit_balance_after_payment = max(
                     credit_balance_after_payment,
                     abs(outstanding_balance_after)
                 )
+                outstanding_balance_after = Decimal('0.00')
+
+            if credit_balance_after_payment > 0:
                 outstanding_balance_after = Decimal('0.00')
         else:
             # For students without invoices: credit = current credit_balance
