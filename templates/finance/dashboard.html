@@ -335,7 +335,7 @@
                             <tbody>
                                 {% for txn in pending_list %}
                                 <tr>
-                                    <td>{{ txn.bank_timestamp|default:txn.callback_received_at|date:"d M Y H:i" }}</td>
+                                    <td>{{ txn.effective_received_at|date:"d M Y H:i" }}</td>
                                     <td>
                                         <div><strong>{{ txn.transaction_reference|default:txn.transaction_id|default:"-" }}</strong></div>
                                         <small class="text-muted">{{ txn.transaction_id }}</small>

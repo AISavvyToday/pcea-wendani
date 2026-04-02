@@ -82,10 +82,10 @@
           {% with hints=transaction.get_matching_hints %}
           <tr>
             <td class="text-nowrap">
-              {% if transaction.bank_timestamp %}
-                {% localtime off %}{{ transaction.bank_timestamp|date:"d/m/Y H:i" }}{% endlocaltime %}
+              {% if transaction.effective_received_at %}
+                {% localtime off %}{{ transaction.effective_received_at|date:"d/m/Y H:i" }}{% endlocaltime %}
               {% else %}
-                {{ transaction.effective_received_at|date:"d/m/Y" }}
+                -
               {% endif %}
             </td>
 
