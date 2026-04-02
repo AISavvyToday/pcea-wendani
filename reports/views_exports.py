@@ -121,33 +121,9 @@ class InvoiceSummaryReportExcelView(LoginRequiredMixin, View):
         rows = report_data['rows']
         totals = report_data['totals']
         adjustment_totals = report_data['current_term_adjustments']
-        # Select invoices for the academic year & term
-        invoices = Invoice.objects.filter(term__academic_year=academic_year, term__term=term)
-        
-        # Apply date filter (by invoice issue_date)
-        if start_date:
-            invoices = invoices.filter(issue_date__gte=start_date)
-        if end_date:
-            invoices = invoices.filter(issue_date__lte=end_date)
-        
-        # Apply organization filter
-        organization = getattr(request, 'organization', None)
-        if organization:
-            invoices = invoices.filter(organization=organization)
-        
-        # Only include active students
-        invoices = invoices.filter(student__status='active')
-
-        calc_data = calculate_invoice_billed_collected_outstanding(
-            invoices_qs=invoices,
-            mode='summary',
-            show_zero=show_zero,
-        )
-        rows = calc_data['rows']
-        total_billed = calc_data['totals']['total_billed']
-        total_collected = calc_data['totals']['total_collected']
-        total_outstanding = calc_data['totals']['total_outstanding']
-        adjustment_totals = get_invoice_adjustment_totals(invoices)
+        total_billed = totals['billed']
+        total_collected = totals['collected']
+        total_outstanding = totals['outstanding']
 
         # Build workbook
         wb = openpyxl.Workbook()

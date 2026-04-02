@@ -239,7 +239,10 @@ class Class(BaseModel):
         ordering = ['grade_level', 'stream']
 
     def __str__(self):
-        return f"{self.name} ({self.academic_year.year})"
+        year_str = str(self.academic_year.year)
+        if self.name and year_str in self.name:
+            return self.name
+        return f"{self.name} {year_str}".strip()
 
     @property
     def student_count(self):

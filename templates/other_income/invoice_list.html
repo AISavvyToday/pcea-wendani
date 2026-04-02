@@ -62,6 +62,7 @@
                                 <tr>
                                     <th>Invoice #</th>
                                     <th>Client</th>
+                                    <th>Description</th>
                                     <th class="text-end">Total</th>
                                     <th class="text-end">Paid</th>
                                     <th class="text-end">Balance</th>
@@ -76,6 +77,7 @@
                                         <a href="{% url 'other_income:invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a>
                                     </td>
                         <td>{{ inv.client_name }}</td>
+                                    <td>{{ inv.description|default:'—'|truncatechars:60 }}</td>
                                     <td class="text-end">KES {{ inv.total_amount|intcomma }}</td>
                                     <td class="text-end">KES {{ inv.amount_paid|intcomma }}</td>
                                     <td class="text-end {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
@@ -96,7 +98,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No invoices found</td>
+                                    <td colspan="8" class="text-center text-muted py-4">No invoices found</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
