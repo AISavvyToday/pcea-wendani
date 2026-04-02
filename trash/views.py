@@ -4,6 +4,7 @@ from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView, View
+from django.template.defaultfilters import truncatechars
 
 from core.mixins import OrganizationFilterMixin, RoleRequiredMixin
 from core.models import UserRole
@@ -62,6 +63,39 @@ class TrashDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 "entity_types": ["all", "invoice", "payment", "student", "other_income_invoice"],
             }
         )
+        return context
+
+
+class TrashDetailView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
+    template_name = "trash/detail.html"
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entity_type = self.kwargs['entity_type']
+        pk = self.kwargs['pk']
+        model = ENTITY_MODELS.get(entity_type)
+        if not model:
+            raise Http404
+
+        obj = get_object_or_404(model.objects, pk=pk, is_active=False)
+        fields = []
+        for field in obj._meta.fields:
+            name = field.name
+            try:
+                value = getattr(obj, name)
+            except Exception:
+                value = '—'
+            if isinstance(value, dict):
+                value = truncatechars(str(value), 500)
+            fields.append({'name': name, 'value': value})
+
+        context.update({
+            'entity_type': entity_type,
+            'record': obj,
+            'record_label': str(obj),
+            'fields': fields,
+        })
         return context
 
 

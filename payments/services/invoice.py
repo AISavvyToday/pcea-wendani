@@ -34,6 +34,7 @@ class InvoiceService:
     # It is given highest priority so historical debt is paid first.
     PRIORITY_ORDER = [
         "balance_bf",   # synthetic category for Balance B/F invoice item
+        "admission",
         "tuition",
         "meals",
         "examination",

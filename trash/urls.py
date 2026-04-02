@@ -6,6 +6,7 @@ app_name = "trash"
 
 urlpatterns = [
     path("", views.TrashDashboardView.as_view(), name="dashboard"),
+    path("detail/<str:entity_type>/<uuid:pk>/", views.TrashDetailView.as_view(), name="detail"),
     path("restore/<str:entity_type>/<uuid:pk>/", views.TrashRestoreView.as_view(), name="restore"),
     path("purge/<str:entity_type>/<uuid:pk>/", views.TrashPurgeView.as_view(), name="purge"),
 ]

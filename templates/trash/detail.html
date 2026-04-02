@@ -1,0 +1,27 @@
+{% extends 'base/base.html' %}
+{% block content %}
+<div class="content-wrapper">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h3 class="page-title">Trash Detail</h3>
+    <a href="{% url 'trash:dashboard' %}" class="btn btn-outline-secondary">Back</a>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h5>{{ entity_type|title }} — {{ record_label }}</h5>
+      <div class="table-responsive mt-3">
+        <table class="table table-striped">
+          <thead><tr><th>Field</th><th>Value</th></tr></thead>
+          <tbody>
+            {% for field in fields %}
+            <tr>
+              <td>{{ field.name }}</td>
+              <td>{{ field.value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

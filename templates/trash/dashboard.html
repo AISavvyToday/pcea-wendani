@@ -35,6 +35,7 @@
               <td>{{ record.deleted_at|date:"Y-m-d H:i" }}</td>
               <td>{% if record.deleted_by %}{{ record.deleted_by.get_full_name|default:record.deleted_by.email }}{% else %}-{% endif %}</td>
               <td>
+                <a href="{% url 'trash:detail' record.type record.pk %}" class="btn btn-sm btn-outline-primary">Details</a>
                 <form method="post" action="{% url 'trash:restore' record.type record.pk %}" style="display:inline;">{% csrf_token %}
                   <button class="btn btn-sm btn-success" type="submit">Restore</button>
                 </form>
