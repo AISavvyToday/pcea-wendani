@@ -91,9 +91,14 @@
                                         {% endfor %}
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-success add-allocation-btn">
-                                    <i class="mdi mdi-plus"></i> Add Allocation
-                                </button>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-success add-allocation-btn">
+                                        <i class="mdi mdi-plus"></i> Add Allocation
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary add-full-match-btn">
+                                        <i class="mdi mdi-lightning-bolt"></i> Match Full Amount
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         {% empty %}
@@ -217,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
         totalForms.value = tbody.querySelectorAll('tr').length;
     }
 
-    function addRow(studentCard) {
+    function addRow(studentCard, presetAmount = '') {
         const index = tbody.querySelectorAll('tr').length;
         const studentId = studentCard.dataset.studentId;
         const studentName = studentCard.dataset.studentName;
@@ -237,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </select>
             </td>
             <td>
-                <input type="number" name="allocations-${index}-amount" id="id_allocations-${index}-amount" class="form-control form-control-sm" step="0.01" min="0.01" required>
+                <input type="number" name="allocations-${index}-amount" id="id_allocations-${index}-amount" class="form-control form-control-sm" step="0.01" min="0.01" required value="${presetAmount}">
             </td>
             <td class="text-end"><button type="button" class="btn btn-outline-danger btn-sm remove-allocation"><i class="mdi mdi-close"></i></button></td>
         `;
@@ -250,6 +255,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.add-allocation-btn').forEach((button) => {
         button.addEventListener('click', function() {
             addRow(this.closest('.search-result'));
+        });
+    });
+
+    document.querySelectorAll('.add-full-match-btn').forEach((button) => {
+        button.addEventListener('click', function() {
+            const remaining = parseFloat(remainingTotal.textContent || '0');
+            const amount = remaining > 0 ? remaining.toFixed(2) : '';
+            addRow(this.closest('.search-result'), amount);
         });
     });
 
