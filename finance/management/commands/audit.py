@@ -416,9 +416,12 @@ class Command(BaseCommand):
         )
 
         for inv in invoices:
-            # Sum of all allocations for this invoice
+            # Sum of active allocations tied to active/completed payments for this invoice
             allocations_total = PaymentAllocation.objects.filter(
-                invoice_item__invoice=inv
+                invoice_item__invoice=inv,
+                is_active=True,
+                payment__is_active=True,
+                payment__status=PaymentStatus.COMPLETED,
             ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
             invoice_amount_paid = inv.amount_paid or Decimal("0.00")
