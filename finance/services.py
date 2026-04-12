@@ -612,18 +612,29 @@ class FinanceReportService:
         discount_total = invoices.aggregate(total=Sum('discount_amount'))['total'] or Decimal('0.00')
 
         invoice_items = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
+        billed_items = invoice_items.exclude(category__in=['balance_bf', 'prepayment'])
+        billed_by_category = {
+            'fees': billed_items.filter(category__in=['tuition', 'meals', 'activity', 'examination', 'assessment']).aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+            'transport': billed_items.filter(category='transport').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+            'admission': billed_items.filter(category='admission').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+            'educational_activities': billed_items.filter(category='other').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+        }
+        term_fee_billed = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        billed_delta = term_fee_billed - sum(billed_by_category.values(), Decimal('0.00'))
+        billed_by_category['fees'] += billed_delta
+
         kpi_buckets = {
             'fees': {
-                'billed': invoice_items.filter(category__in=['tuition', 'meals', 'activity', 'examination', 'assessment']).aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+                'billed': billed_by_category['fees'],
             },
             'transport': {
-                'billed': invoice_items.filter(category='transport').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+                'billed': billed_by_category['transport'],
             },
             'admission': {
-                'billed': invoice_items.filter(category='admission').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+                'billed': billed_by_category['admission'],
             },
             'educational_activities': {
-                'billed': invoice_items.filter(category='other').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+                'billed': billed_by_category['educational_activities'],
             },
         }
 
@@ -659,6 +670,8 @@ class FinanceReportService:
             bucket['outstanding'] = (bucket.get('billed') or Decimal('0.00')) - (bucket.get('collected') or Decimal('0.00'))
 
         total_billed = sum((bucket.get('billed') or Decimal('0.00') for bucket in kpi_buckets.values()), Decimal('0.00'))
+        balance_bf_cleared = allocations.filter(invoice_item__category='balance_bf').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        balance_bf_uncleared = balance_bf_total - balance_bf_cleared
         collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
 
         pending_transactions = BankTransaction.objects.filter(processing_status='pending')
@@ -687,8 +700,8 @@ class FinanceReportService:
                     'balance_bf': balance_bf_total,
                     'prepayments': prepayments_total,
                     'discount': discount_total,
-                    'balance_bf_cleared': allocations.filter(invoice_item__category='balance_bf').aggregate(total=Sum('amount'))['total'] or Decimal('0.00'),
-                    'balance_bf_uncleared': balance_bf_total - (allocations.filter(invoice_item__category='balance_bf').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')),
+                    'balance_bf_cleared': balance_bf_cleared,
+                    'balance_bf_uncleared': balance_bf_uncleared,
                     'total_expected': (total_billed + balance_bf_total - prepayments_total - discount_total),
                 },
             },
