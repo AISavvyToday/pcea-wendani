@@ -724,28 +724,10 @@ def build_outstanding_balances_report_data(
             total_billed=Sum('total_amount'),
             total_balance_bf=Sum('balance_bf'),
             total_prepayment=Sum('prepayment'),
+            total_paid=Sum('amount_paid'),
+            total_balance=Sum('balance'),
         )
     )
-
-    payment_allocations = PaymentAllocation.objects.filter(
-        invoice_item__invoice__in=invoices,
-        is_active=True,
-        payment__is_active=True,
-        payment__status=PaymentStatus.COMPLETED,
-    )
-    if as_of_date:
-        payment_allocations = payment_allocations.filter(payment__payment_date__date__lte=as_of_date)
-
-    paid_map = {
-        (
-            row['invoice_item__invoice__student__pk'],
-            row['invoice_item__invoice__term__academic_year__year'],
-        ): row['total_paid'] or Decimal('0.00')
-        for row in payment_allocations.values(
-            'invoice_item__invoice__student__pk',
-            'invoice_item__invoice__term__academic_year__year',
-        ).annotate(total_paid=Sum('amount'))
-    }
 
     parent_contact_map = build_parent_contact_map(
         student_ids=[row['student__pk'] for row in grouped_qs],
@@ -757,12 +739,11 @@ def build_outstanding_balances_report_data(
 
     rows = []
     for row in grouped_qs:
-        key = (row['student__pk'], row['term__academic_year__year'])
         total_billed = row.get('total_billed') or Decimal('0.00')
         total_balance_bf = row.get('total_balance_bf') or Decimal('0.00')
         total_prepayment = row.get('total_prepayment') or Decimal('0.00')
-        total_paid = paid_map.get(key, Decimal('0.00'))
-        total_balance = (total_balance_bf + total_billed) - total_prepayment - total_paid
+        total_paid = row.get('total_paid') or Decimal('0.00')
+        total_balance = row.get('total_balance') or Decimal('0.00')
 
         row_data = {
             **row,

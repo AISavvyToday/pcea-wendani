@@ -279,12 +279,13 @@ def _finance_kpis(term=None, organization=None):
             kpi_payload = build_term_kpis(term=term, organization=organization) if term else {"buckets": {}, "totals": {}}
             buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
-            balance_bf_cleared = collected_breakdown["balance_bf"]
+            student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
+            canonical_term_balance_bf = _sum_decimal(invoice_qs, 'balance_bf')
+            balance_bf_cleared = max(Decimal("0"), balances_bf_total - canonical_term_balance_bf)
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _sum_decimal(active_students, 'credit_balance')
-            student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
 
-            billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
+            billed_fees = buckets.get("fees", {}).get("billed", Decimal("0")) - balances_bf_total - prepayments_total
             billed_transport = buckets.get("transport", {}).get("billed", Decimal("0"))
             billed_admission = buckets.get("admission", {}).get("billed", Decimal("0"))
             billed_educational_activities = buckets.get("educational_activities", {}).get("billed", Decimal("0"))
@@ -296,9 +297,7 @@ def _finance_kpis(term=None, organization=None):
             collected_educational_activities = buckets.get("educational_activities", {}).get("collected", Decimal("0"))
             collected_other_income = buckets.get("other_income", {}).get("collected", Decimal("0"))
 
-            total_billed_dashboard = (
-                billed_fees + billed_transport + billed_admission + billed_educational_activities + billed_other_income
-            )
+            total_billed_dashboard = billed_fees + billed_transport + billed_admission + billed_educational_activities
             total_collected_dashboard = (
                 collected_fees + collected_transport + collected_admission +
                 collected_educational_activities + collected_other_income + overpayments
