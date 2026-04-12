@@ -24,6 +24,7 @@ from payments.models import Payment, PaymentAllocation, BankTransaction
 from students.models import Student
 from academics.models import Term
 from core.models import PaymentStatus, PaymentSource
+from other_income.models import OtherIncomeInvoice
 
 
 class InvoiceService:
@@ -603,7 +604,6 @@ class FinanceReportService:
         if organization:
             invoices = invoices.filter(organization=organization)
 
-        total_billed = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         total_collected = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
         total_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
 
@@ -614,7 +614,7 @@ class FinanceReportService:
         invoice_items = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
         kpi_buckets = {
             'fees': {
-                'billed': invoice_items.exclude(category__in=['other', 'transport', 'admission', 'balance_bf', 'prepayment']).aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
+                'billed': invoice_items.filter(category__in=['tuition', 'meals', 'activity', 'examination', 'assessment']).aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
             },
             'transport': {
                 'billed': invoice_items.filter(category='transport').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
@@ -625,9 +625,20 @@ class FinanceReportService:
             'educational_activities': {
                 'billed': invoice_items.filter(category='other').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
             },
-            'other_income': {
-                'billed': Decimal('43550.00') if organization and getattr(organization, 'name', '') == 'PCEA Wendani Academy' else Decimal('0.00'),
-            },
+        }
+
+        other_income = OtherIncomeInvoice.objects.filter(is_active=True).exclude(status='cancelled')
+        if organization:
+            other_income = other_income.filter(Q(organization=organization) | Q(organization__isnull=True))
+        if term and getattr(term, 'start_date', None) and getattr(term, 'end_date', None):
+            other_income = other_income.filter(issue_date__gte=term.start_date, issue_date__lte=term.end_date)
+
+        other_income_billed = other_income.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        other_income_collected = other_income.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
+        kpi_buckets['other_income'] = {
+            'billed': other_income_billed,
+            'collected': other_income_collected,
+            'outstanding': other_income_billed - other_income_collected,
         }
 
         allocations = PaymentAllocation.objects.filter(
@@ -637,14 +648,17 @@ class FinanceReportService:
             payment__status='completed',
             invoice_item__is_active=True,
         )
-        kpi_buckets['fees']['collected'] = allocations.exclude(invoice_item__category__in=['other', 'transport', 'admission', 'balance_bf', 'prepayment']).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        kpi_buckets['fees']['collected'] = allocations.filter(invoice_item__category__in=['tuition', 'meals', 'activity', 'examination', 'assessment']).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         kpi_buckets['transport']['collected'] = allocations.filter(invoice_item__category='transport').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         kpi_buckets['admission']['collected'] = allocations.filter(invoice_item__category='admission').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         kpi_buckets['educational_activities']['collected'] = allocations.filter(invoice_item__category='other').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
-        for bucket in kpi_buckets.values():
+        for bucket_name, bucket in kpi_buckets.items():
+            if bucket_name == 'other_income':
+                continue
             bucket['outstanding'] = (bucket.get('billed') or Decimal('0.00')) - (bucket.get('collected') or Decimal('0.00'))
 
+        total_billed = sum((bucket.get('billed') or Decimal('0.00') for bucket in kpi_buckets.values()), Decimal('0.00'))
         collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
 
         pending_transactions = BankTransaction.objects.filter(processing_status='pending')
@@ -673,8 +687,8 @@ class FinanceReportService:
                     'balance_bf': balance_bf_total,
                     'prepayments': prepayments_total,
                     'discount': discount_total,
-                    'balance_bf_cleared': Decimal('502100.00') if organization and getattr(organization, 'name', '') == 'PCEA Wendani Academy' else Decimal('0.00'),
-                    'balance_bf_uncleared': Decimal('95475.00') if organization and getattr(organization, 'name', '') == 'PCEA Wendani Academy' else balance_bf_total,
+                    'balance_bf_cleared': allocations.filter(invoice_item__category='balance_bf').aggregate(total=Sum('amount'))['total'] or Decimal('0.00'),
+                    'balance_bf_uncleared': balance_bf_total - (allocations.filter(invoice_item__category='balance_bf').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')),
                     'total_expected': (total_billed + balance_bf_total - prepayments_total - discount_total),
                 },
             },
