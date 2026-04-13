@@ -81,8 +81,10 @@ def order_report_categories(categories):
     return ordered + extras
 
 
-def build_invoice_summary_rows(billed_map, collected_map, show_zero=False):
+def build_invoice_summary_rows(billed_map, collected_map, outstanding_map=None, show_zero=False):
     categories = set(billed_map.keys()) | set(collected_map.keys())
+    if outstanding_map:
+        categories |= set(outstanding_map.keys())
     rows = []
     total_billed = Decimal("0.00")
     total_collected = Decimal("0.00")
@@ -91,7 +93,7 @@ def build_invoice_summary_rows(billed_map, collected_map, show_zero=False):
     for category in order_report_categories(categories):
         billed = billed_map.get(category, Decimal("0.00"))
         collected = collected_map.get(category, Decimal("0.00"))
-        outstanding = billed - collected
+        outstanding = (outstanding_map or {}).get(category, billed - collected)
         if (
             not show_zero
             and billed == Decimal("0.00")
@@ -251,6 +253,7 @@ def calculate_invoice_billed_collected_outstanding(
     rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
         billed_map=billed_map if mode == 'summary' else {},
         collected_map=collected_map if mode == 'summary' else {},
+        outstanding_map=outstanding_map if mode == 'summary' else {},
         show_zero=show_zero,
     ) if mode == 'summary' else ([], sum(billed_map.values(), Decimal('0.00')), sum(collected_map.values(), Decimal('0.00')), sum(outstanding_map.values(), Decimal('0.00')))
 
