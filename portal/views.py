@@ -342,7 +342,7 @@ def _finance_kpis(term=None, organization=None):
             collected_educational_activities = buckets.get("educational_activities", {}).get("collected", Decimal("0"))
             collected_other_income = buckets.get("other_income", {}).get("collected", Decimal("0"))
 
-            total_billed_dashboard = billed_fees + billed_transport + billed_admission + billed_educational_activities
+            total_billed_dashboard = billed + billed_other_income
             total_collected_dashboard = (
                 collected_fees + collected_transport + collected_admission +
                 collected_educational_activities + collected_other_income + overpayments

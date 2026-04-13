@@ -120,55 +120,12 @@ def _search_students_for_bank_reconciliation(query, organization=None):
 # =============================================================================
 
 class FinanceDashboardView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, TemplateView):
-    """Finance dashboard with key metrics and quick actions."""
+    """Deprecated finance dashboard entry point. Redirects to the admin dashboard."""
 
-    template_name = 'finance/dashboard.html'
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        # Get current term
-        current_term = Term.objects.filter(is_current=True).first()
-        organization = getattr(self.request, 'organization', None)
-
-        # Dashboard stats
-        context['stats'] = FinanceReportService.get_dashboard_stats(
-            current_term,
-            organization=organization
-        )
-
-        # Recent payments - filtered by organization
-        recent_payments_qs = Payment.objects.filter(
-            is_active=True,
-            status=PaymentStatus.COMPLETED
-        )
-        if organization:
-            recent_payments_qs = recent_payments_qs.filter(
-                Q(organization=organization) | 
-                Q(organization__isnull=True, student__organization=organization)
-            )
-        context['recent_payments'] = recent_payments_qs.select_related('student').order_by('-payment_date')[:10]
-
-        # Unmatched bank transactions (recent) - filtered by organization
-        unmatched_qs = BankTransaction.objects.filter(
-            is_active=True,
-            payment__isnull=True
-        )
-        unmatched_qs = _filter_bank_transactions_by_organization(unmatched_qs, organization=organization)
-        context['unmatched_transactions'] = unmatched_qs.order_by('-callback_received_at')[:5]
-
-        # Top outstanding balances (active students only)
-        context['top_balances'] = Invoice.objects.filter(
-            is_active=True,
-            student__status='active',
-            balance__gt=0
-        ).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).select_related('student', 'term').order_by('-balance')[:10]
-
-        context['current_term'] = current_term
-        return context
+    def get(self, request, *args, **kwargs):
+        return redirect('portal:dashboard_admin')
 
 
 # =============================================================================
