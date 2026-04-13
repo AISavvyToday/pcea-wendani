@@ -602,7 +602,10 @@ class FinanceReportService:
         if term:
             invoices = invoices.filter(term=term)
         if organization:
-            invoices = invoices.filter(organization=organization)
+            invoices = invoices.filter(
+                Q(organization=organization) |
+                Q(organization__isnull=True, student__organization=organization)
+            )
 
         total_collected = invoices.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
         total_outstanding = invoices.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
