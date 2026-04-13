@@ -271,6 +271,41 @@ def _finance_kpis(term=None, organization=None):
             'net_amount',
         )
 
+    def _balance_bf_gap_totals(invoice_qs):
+        bf_items = list(
+            InvoiceItem.objects.filter(
+                invoice__in=invoice_qs,
+                is_active=True,
+                category='balance_bf',
+            )
+        )
+        if not bf_items:
+            return Decimal('0.00'), Decimal('0.00')
+
+        allocation_totals = {
+            row['invoice_item_id']: row['total']
+            for row in (
+                PaymentAllocation.objects.filter(
+                    invoice_item__in=bf_items,
+                    is_active=True,
+                    payment__is_active=True,
+                    payment__status=PaymentStatus.COMPLETED,
+                )
+                .values('invoice_item_id')
+                .annotate(total=Coalesce(Sum('amount'), Decimal('0.00')))
+            )
+        }
+
+        cleared = Decimal('0.00')
+        uncleared = Decimal('0.00')
+        for item in bf_items:
+            allocated = Decimal(str(allocation_totals.get(item.id, Decimal('0.00')) or Decimal('0.00')))
+            gap = max(Decimal('0.00'), (item.net_amount or Decimal('0.00')) - allocated)
+            cleared += min(item.net_amount or Decimal('0.00'), allocated)
+            uncleared += gap
+
+        return cleared, uncleared
+
     def agg(invoice_qs, *, include_term_breakdowns=False):
         billed = _sum_decimal(invoice_qs, 'total_amount')
         collected = _collected_for_invoices(invoice_qs)
@@ -291,7 +326,7 @@ def _finance_kpis(term=None, organization=None):
             collected_breakdown = _group_allocation_amounts(invoice_qs)
             student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
             balance_bf_total_items = _balance_bf_item_total(invoice_qs)
-            balance_bf_cleared = collected_breakdown.get("balance_bf", Decimal("0"))
+            balance_bf_cleared, balance_bf_uncleared = _balance_bf_gap_totals(invoice_qs)
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _sum_decimal(active_students, 'credit_balance')
 
@@ -328,7 +363,7 @@ def _finance_kpis(term=None, organization=None):
                 "balance_bf_breakdown": {
                     "total": balance_bf_total_items,
                     "cleared": balance_bf_cleared,
-                    "uncleared": max(Decimal("0"), balance_bf_total_items - balance_bf_cleared),
+                    "uncleared": balance_bf_uncleared,
                 },
                 "prepayments_breakdown": {
                     "total": prepayments_total,
