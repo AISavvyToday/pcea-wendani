@@ -33,8 +33,8 @@ class InvoiceService:
     # payments can clear arrears using the same allocation engine.
     # It is given highest priority so historical debt is paid first.
     PRIORITY_ORDER = [
-        "balance_bf",   # synthetic category for Balance B/F invoice item
         "admission",
+        "balance_bf",   # synthetic category for Balance B/F invoice item
         "tuition",
         "meals",
         "examination",
