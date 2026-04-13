@@ -668,7 +668,7 @@ class FinanceReportService:
                 continue
             bucket['outstanding'] = (bucket.get('billed') or Decimal('0.00')) - (bucket.get('collected') or Decimal('0.00'))
 
-        total_billed = sum((bucket.get('billed') or Decimal('0.00') for bucket in kpi_buckets.values()), Decimal('0.00'))
+        total_billed = term_fee_billed + other_income_billed
         balance_bf_cleared = allocations.filter(invoice_item__in=balance_bf_items).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         balance_bf_uncleared = max(Decimal('0.00'), balance_bf_total - balance_bf_cleared)
         collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
