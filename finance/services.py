@@ -621,8 +621,6 @@ class FinanceReportService:
             'educational_activities': billed_items.filter(category='other').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
         }
         term_fee_billed = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
-        billed_delta = term_fee_billed - sum(billed_by_category.values(), Decimal('0.00'))
-        billed_by_category['fees'] += billed_delta
 
         kpi_buckets = {
             'fees': {
