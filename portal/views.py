@@ -333,7 +333,7 @@ def _finance_kpis(term=None, organization=None):
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _sum_decimal(active_students, 'credit_balance')
 
-            billed_fees = buckets.get("fees", {}).get("billed", Decimal("0")) - balances_bf_total - prepayments_total
+            billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
             billed_transport = buckets.get("transport", {}).get("billed", Decimal("0"))
             billed_admission = buckets.get("admission", {}).get("billed", Decimal("0"))
             billed_educational_activities = buckets.get("educational_activities", {}).get("billed", Decimal("0"))

@@ -257,7 +257,10 @@ def build_invoice_summary_report_data(
     if end_date:
         invoices = invoices.filter(issue_date__lte=end_date)
     if organization:
-        invoices = invoices.filter(organization=organization)
+        invoices = invoices.filter(
+            Q(organization=organization)
+            | Q(organization__isnull=True, student__organization=organization)
+        )
 
     items_qs = InvoiceItem.objects.filter(invoice__in=invoices, is_active=True)
     billed_qs = items_qs.values('category').annotate(total_billed=Sum('net_amount'))
@@ -424,7 +427,10 @@ def _filter_invoice_detailed_base_queryset(
     )
 
     if organization:
-        invoices_qs = invoices_qs.filter(organization=organization)
+        invoices_qs = invoices_qs.filter(
+            Q(organization=organization)
+            | Q(organization__isnull=True, student__organization=organization)
+        )
 
     invoices_qs = invoices_qs.filter(student__status='active')
 
@@ -695,7 +701,10 @@ def build_outstanding_balances_report_data(
     )
 
     if organization:
-        invoices = invoices.filter(organization=organization)
+        invoices = invoices.filter(
+            Q(organization=organization)
+            | Q(organization__isnull=True, student__organization=organization)
+        )
 
     invoices = invoices.filter(student__status='active')
 
