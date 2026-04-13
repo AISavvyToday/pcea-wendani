@@ -91,6 +91,9 @@ def build_invoice_summary_rows(billed_map, collected_map, outstanding_map=None, 
     total_outstanding = Decimal("0.00")
 
     for category in order_report_categories(categories):
+        if category == FeeCategory.BALANCE_BF:
+            continue
+
         billed = billed_map.get(category, Decimal("0.00"))
         collected = collected_map.get(category, Decimal("0.00"))
         outstanding = (outstanding_map or {}).get(category, billed - collected)
