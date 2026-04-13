@@ -5,8 +5,8 @@ from django.db import transaction
 from django.db.models import Sum
 
 from core.models import PaymentStatus
-from finance.models import Invoice, InvoiceItem
-from payments.models import Payment, PaymentAllocation
+from finance.models import InvoiceItem
+from payments.models import PaymentAllocation
 from payments.services.invoice import InvoiceService
 from students.models import Student
 
@@ -25,11 +25,11 @@ class Command(BaseCommand):
         students = Student.objects.filter(
             status='active',
             organization__name=org_name,
-        ).select_related('organization').order_by('admission_number')
+        ).order_by('admission_number')
 
         created_items = 0
         created_allocations = 0
-        touched_invoices = set()
+        touched_invoice_ids = set()
 
         for student in students:
             invoices = list(
@@ -40,16 +40,6 @@ class Command(BaseCommand):
             if not invoices:
                 continue
 
-            payments = list(
-                Payment.objects.filter(
-                    student=student,
-                    is_active=True,
-                    status=PaymentStatus.COMPLETED,
-                ).order_by('payment_date', 'created_at', 'payment_reference')
-            )
-            if not payments:
-                continue
-
             for invoice in invoices:
                 if (invoice.balance_bf or Decimal('0.00')) <= 0:
                     continue
@@ -58,53 +48,96 @@ class Command(BaseCommand):
                 if not bf_item:
                     if dry_run:
                         created_items += 1
-                    else:
-                        bf_item = InvoiceItem.objects.create(
-                            invoice=invoice,
-                            fee_item=None,
-                            category='balance_bf',
-                            description='Balance B/F from previous term',
-                            amount=invoice.balance_bf,
-                            discount_applied=Decimal('0.00'),
-                            net_amount=invoice.balance_bf,
-                        )
-                        created_items += 1
-                        touched_invoices.add(str(invoice.pk))
+                        continue
+                    bf_item = InvoiceItem.objects.create(
+                        invoice=invoice,
+                        fee_item=None,
+                        category='balance_bf',
+                        description='Balance B/F from previous term',
+                        amount=invoice.balance_bf,
+                        discount_applied=Decimal('0.00'),
+                        net_amount=invoice.balance_bf,
+                    )
+                    created_items += 1
+                    touched_invoice_ids.add(invoice.id)
 
-                if not bf_item:
-                    continue
-
-                admission_item = invoice.items.filter(is_active=True, category='admission').order_by('id').first()
-
-                admission_due = Decimal('0.00')
-                if admission_item:
-                    admission_alloc = admission_item.allocations.filter(
-                        is_active=True,
-                        payment__is_active=True,
-                        payment__status=PaymentStatus.COMPLETED,
-                    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-                    admission_due = max(Decimal('0.00'), (admission_item.net_amount or Decimal('0.00')) - admission_alloc)
-
-                bf_alloc = bf_item.allocations.filter(
+                bf_allocated = bf_item.allocations.filter(
                     is_active=True,
                     payment__is_active=True,
                     payment__status=PaymentStatus.COMPLETED,
                 ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-                bf_due = max(Decimal('0.00'), (bf_item.net_amount or Decimal('0.00')) - bf_alloc)
+                bf_due = max(Decimal('0.00'), (bf_item.net_amount or Decimal('0.00')) - bf_allocated)
                 if bf_due <= 0:
                     continue
 
-                for payment in payments:
+                admission_item = invoice.items.filter(is_active=True, category='admission').order_by('id').first()
+                admission_due = Decimal('0.00')
+                if admission_item:
+                    admission_allocated = admission_item.allocations.filter(
+                        is_active=True,
+                        payment__is_active=True,
+                        payment__status=PaymentStatus.COMPLETED,
+                    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+                    admission_due = max(Decimal('0.00'), (admission_item.net_amount or Decimal('0.00')) - admission_allocated)
+
+                payment_alloc_qs = PaymentAllocation.objects.filter(
+                    is_active=True,
+                    payment__student=student,
+                    payment__is_active=True,
+                    payment__status=PaymentStatus.COMPLETED,
+                    invoice_item__invoice=invoice,
+                ).select_related('payment', 'invoice_item')
+
+                by_payment = {}
+                for alloc in payment_alloc_qs:
+                    slot = by_payment.setdefault(alloc.payment_id, {
+                        'payment': alloc.payment,
+                        'admission': Decimal('0.00'),
+                        'bf': Decimal('0.00'),
+                        'other': Decimal('0.00'),
+                    })
+                    if alloc.invoice_item.category == 'admission':
+                        slot['admission'] += alloc.amount or Decimal('0.00')
+                    elif alloc.invoice_item.category == 'balance_bf':
+                        slot['bf'] += alloc.amount or Decimal('0.00')
+                    else:
+                        slot['other'] += alloc.amount or Decimal('0.00')
+
+                payment_ids_in_order = sorted(
+                    by_payment.keys(),
+                    key=lambda pid: (
+                        by_payment[pid]['payment'].payment_date,
+                        by_payment[pid]['payment'].created_at,
+                        by_payment[pid]['payment'].payment_reference or '',
+                        pid,
+                    )
+                )
+
+                for payment_id in payment_ids_in_order:
                     if bf_due <= 0:
                         break
 
-                    payment_alloc_total = payment.allocations.filter(is_active=True).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-                    payment_unallocated = max(Decimal('0.00'), (payment.amount or Decimal('0.00')) - payment_alloc_total)
-                    if payment_unallocated <= 0:
+                    slot = by_payment[payment_id]
+                    payment = slot['payment']
+                    payment_amount = payment.amount or Decimal('0.00')
+                    existing_non_bf = slot['admission'] + slot['other']
+                    existing_bf = slot['bf']
+
+                    remaining_payment_capacity = max(
+                        Decimal('0.00'),
+                        payment_amount - existing_non_bf - existing_bf,
+                    )
+                    if remaining_payment_capacity <= 0:
                         continue
 
-                    reserve_for_admission = admission_due
-                    available_for_bf = max(Decimal('0.00'), payment_unallocated - reserve_for_admission)
+                    admission_shortfall_after_this_payment = max(
+                        Decimal('0.00'),
+                        admission_due - slot['admission'],
+                    )
+                    available_for_bf = max(
+                        Decimal('0.00'),
+                        remaining_payment_capacity - admission_shortfall_after_this_payment,
+                    )
                     if available_for_bf <= 0:
                         continue
 
@@ -115,7 +148,6 @@ class Command(BaseCommand):
                     if dry_run:
                         created_allocations += 1
                         bf_due -= amount_to_allocate
-                        admission_due = max(Decimal('0.00'), admission_due - payment_unallocated)
                         continue
 
                     with transaction.atomic():
@@ -124,17 +156,16 @@ class Command(BaseCommand):
                             invoice_item=bf_item,
                             amount=amount_to_allocate,
                         )
-                        created_allocations += 1
-                        bf_due -= amount_to_allocate
-                        touched_invoices.add(str(invoice.pk))
+                    created_allocations += 1
+                    bf_due -= amount_to_allocate
+                    touched_invoice_ids.add(invoice.id)
 
-            # recalc touched student invoices after processing the student
             if not dry_run:
                 for invoice in invoices:
-                    if str(invoice.pk) in touched_invoices:
+                    if invoice.id in touched_invoice_ids:
                         InvoiceService._recalculate_invoice_fields(invoice)
                 student.recompute_outstanding_balance()
 
         self.stdout.write(f'created_items={created_items}')
         self.stdout.write(f'created_allocations={created_allocations}')
-        self.stdout.write(f'touched_invoices={len(touched_invoices)}')
+        self.stdout.write(f'touched_invoices={len(touched_invoice_ids)}')
