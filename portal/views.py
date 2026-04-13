@@ -123,7 +123,10 @@ def _invoice_base_qs(organization=None):
         .select_related("student", "term", "term__academic_year")
     )
     if organization:
-        qs = qs.filter(organization=organization)
+        qs = qs.filter(
+            Q(organization=organization) |
+            Q(organization__isnull=True, student__organization=organization)
+        )
     return qs
 
 
