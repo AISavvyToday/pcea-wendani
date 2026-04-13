@@ -280,8 +280,7 @@ def _finance_kpis(term=None, organization=None):
             buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
             student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
-            canonical_term_balance_bf = _sum_decimal(invoice_qs, 'balance_bf')
-            balance_bf_cleared = max(Decimal("0"), balances_bf_total - canonical_term_balance_bf)
+            balance_bf_cleared = collected_breakdown.get("balance_bf", Decimal("0"))
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _sum_decimal(active_students, 'credit_balance')
 
