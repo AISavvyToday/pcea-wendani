@@ -261,6 +261,16 @@ def _finance_kpis(term=None, organization=None):
     balances_bf_total = _sum_decimal(active_students, 'balance_bf_original')
     prepayments_total = _sum_decimal(active_students, 'prepayment_original')
 
+    def _balance_bf_item_total(invoice_qs):
+        return _sum_decimal(
+            InvoiceItem.objects.filter(
+                invoice__in=invoice_qs,
+                is_active=True,
+                category='balance_bf',
+            ),
+            'net_amount',
+        )
+
     def agg(invoice_qs, *, include_term_breakdowns=False):
         billed = _sum_decimal(invoice_qs, 'total_amount')
         collected = _collected_for_invoices(invoice_qs)
@@ -280,6 +290,7 @@ def _finance_kpis(term=None, organization=None):
             buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
             student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
+            balance_bf_total_items = _balance_bf_item_total(invoice_qs)
             balance_bf_cleared = collected_breakdown.get("balance_bf", Decimal("0"))
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             overpayments = _sum_decimal(active_students, 'credit_balance')
@@ -313,10 +324,11 @@ def _finance_kpis(term=None, organization=None):
                     "educational_activities": billed_educational_activities,
                     "other_income": billed_other_income,
                 },
+                "balances_bf": balance_bf_total_items,
                 "balance_bf_breakdown": {
-                    "total": balances_bf_total,
+                    "total": balance_bf_total_items,
                     "cleared": balance_bf_cleared,
-                    "uncleared": max(Decimal("0"), balances_bf_total - balance_bf_cleared),
+                    "uncleared": max(Decimal("0"), balance_bf_total_items - balance_bf_cleared),
                 },
                 "prepayments_breakdown": {
                     "total": prepayments_total,
