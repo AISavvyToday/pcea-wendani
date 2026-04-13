@@ -6,6 +6,9 @@ from django.utils import timezone
 from core.models import FeeCategory, InvoiceStatus, PaymentSource, PaymentStatus
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
+
+
+ZERO = Decimal("0.00")
 from students.models import Student, StudentParent
 
 
@@ -113,6 +116,45 @@ def build_invoice_summary_rows(billed_map, collected_map, show_zero=False):
     return rows, total_billed, total_collected, total_outstanding
 
 
+def _balance_bf_gap_maps(invoice_items_qs, mode='summary'):
+    bf_items = invoice_items_qs.filter(category=FeeCategory.BALANCE_BF)
+    if not bf_items.exists():
+        return {}, {}
+
+    allocation_totals = {
+        row['invoice_item_id']: (row['total'] or ZERO)
+        for row in PaymentAllocation.objects.filter(
+            invoice_item__in=bf_items,
+            is_active=True,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+        ).values('invoice_item_id').annotate(total=Sum('amount'))
+    }
+
+    collected_map = {}
+    outstanding_map = {}
+
+    for item in bf_items.select_related('invoice__student'):
+        allocated = allocation_totals.get(item.id, ZERO)
+        billed = item.net_amount or ZERO
+        cleared = min(billed, allocated)
+        uncleared = max(ZERO, billed - allocated)
+
+        if mode == 'summary':
+            key = FeeCategory.BALANCE_BF
+        else:
+            key = (
+                item.invoice.student_id,
+                normalize_invoice_detail_category_value(item.category),
+                item.description or '',
+            )
+
+        collected_map[key] = collected_map.get(key, ZERO) + cleared
+        outstanding_map[key] = outstanding_map.get(key, ZERO) + uncleared
+
+    return collected_map, outstanding_map
+
+
 def calculate_invoice_billed_collected_outstanding(
     *,
     invoices_qs,
@@ -199,6 +241,12 @@ def calculate_invoice_billed_collected_outstanding(
     all_keys = set(billed_map.keys()) | set(collected_map.keys())
     for key in all_keys:
         outstanding_map[key] = billed_map.get(key, Decimal('0.00')) - collected_map.get(key, Decimal('0.00'))
+
+    bf_collected_map, bf_outstanding_map = _balance_bf_gap_maps(invoice_items_qs, mode=mode)
+    for key, value in bf_collected_map.items():
+        collected_map[key] = value
+    for key, value in bf_outstanding_map.items():
+        outstanding_map[key] = value
 
     rows, total_billed, total_collected, total_outstanding = build_invoice_summary_rows(
         billed_map=billed_map if mode == 'summary' else {},
