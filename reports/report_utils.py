@@ -277,13 +277,16 @@ def get_invoice_adjustment_totals(invoices):
     totals = invoices.aggregate(
         total_balance_bf=Sum("balance_bf"),
         total_prepayment=Sum("prepayment"),
+        total_discount=Sum("discount_amount"),
     )
     balance_bf = totals.get("total_balance_bf") or Decimal("0.00")
     prepayment = totals.get("total_prepayment") or Decimal("0.00")
+    discount = totals.get("total_discount") or Decimal("0.00")
     return {
         "balance_bf": balance_bf,
         "prepayment": prepayment,
         "prepayment_display": display_prepayment_amount(prepayment),
+        "discount": discount,
     }
 
 
@@ -349,9 +352,11 @@ def build_invoice_summary_report_data(
             'balance_bf': adjustment_totals['balance_bf'],
             'prepayment': adjustment_totals['prepayment'],
             'prepayment_display': adjustment_totals['prepayment_display'],
+            'discount': adjustment_totals['discount'],
+            'expected_total': total_billed + adjustment_totals['balance_bf'] - adjustment_totals['prepayment_display'] - adjustment_totals['discount'],
         },
         'current_term_adjustments': adjustment_totals,
-        'invoice_count': invoices.count(),
+        'invoice_count': invoices.values('student_id').distinct().count(),
     }
 
 

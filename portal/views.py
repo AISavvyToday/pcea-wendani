@@ -331,6 +331,7 @@ def _finance_kpis(term=None, organization=None):
             balance_bf_total_items = _balance_bf_item_total(invoice_qs)
             balance_bf_cleared, balance_bf_uncleared = _balance_bf_gap_totals(invoice_qs)
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
+            discounts_total = _sum_decimal(invoice_qs, 'discount_amount')
             overpayments = _sum_decimal(active_students, 'credit_balance')
 
             billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
@@ -373,6 +374,7 @@ def _finance_kpis(term=None, organization=None):
                     "consumed": prepayments_consumed,
                     "unconsumed": max(Decimal("0"), prepayments_total - prepayments_consumed),
                 },
+                "discounts": discounts_total,
                 "collected_breakdown": {
                     "fees": collected_fees,
                     "transport": collected_transport,
@@ -600,6 +602,7 @@ def dashboard_admin(request):
     collected = Decimal(str(term_stats["collected"] or 0))
     prepayments = Decimal(str(term_stats["prepayments"] or 0))
     balances_bf = Decimal(str(term_stats["balances_bf"] or 0))
+    discounts = Decimal(str(term_stats.get("discounts") or 0))
     billed_breakdown = term_stats.get("billed_breakdown", {})
     balance_bf_breakdown = term_stats.get("balance_bf_breakdown", {})
     prepayments_breakdown = term_stats.get("prepayments_breakdown", {})
@@ -617,7 +620,7 @@ def dashboard_admin(request):
     # - When a student pays 20k to clear balance_bf, Collected increases by 20k
     # - Balance B/F stat remains unchanged (frozen value)
     
-    total_expected = (balances_bf + billed) - prepayments
+    total_expected = (balances_bf + billed) - prepayments - discounts
     # Use the KPI service's outstanding value so the dashboard matches the
     # finance/reporting surfaces that are already based on the reconciled KPI set.
     outstanding = Decimal(str(term_stats["outstanding"] or 0))
@@ -687,7 +690,10 @@ def dashboard_admin(request):
                 "icon": "mdi-calculator",
                 "bg": "bg-gradient-primary",
                 "url": invoices_term_url,
-                "helper": "Bal B/F + Billed - Prepayments",
+                "helper_lines": [
+                    f"Formula: {_fmt_kes(billed)} + {_fmt_kes(balances_bf)} - {_fmt_kes(prepayments)} - {_fmt_kes(discounts)}",
+                    "Billed + Bal B/F - Deposit/Prepayments - Discount",
+                ],
             },
             {
                 "title": "Collected",
