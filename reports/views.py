@@ -573,6 +573,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         balance_op = form.cleaned_data.get('balance_operator') or 'any'
         balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
         include_zero = form.cleaned_data.get('show_zero_balances')
+        overpayment_filter = form.cleaned_data.get('overpayment_filter') or ''
 
         report_data = build_outstanding_balances_report_data(
             organization=getattr(request, 'organization', None),
@@ -585,6 +586,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
             balance_op=balance_op,
             balance_amt=balance_amt,
             include_zero=include_zero,
+            overpayment_filter=overpayment_filter,
         )
         rows = report_data['rows']
         totals = report_data['totals']
@@ -613,7 +615,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
                     'end_date': str(end_date) if end_date else None,
                     'class': student_class,
                     'balance_op': balance_op,
-                    'balance_amt': str(balance_amt)
+                    'balance_amt': str(balance_amt),
+                    'overpayment_filter': overpayment_filter,
                 }
             )
         except Exception:

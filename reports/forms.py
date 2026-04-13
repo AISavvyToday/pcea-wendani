@@ -157,6 +157,12 @@ BALANCE_FILTER_PRESET_CHOICES = [
     ('gte_100000', 'Over 100,000'),
 ]
 
+OVERPAYMENT_FILTER_CHOICES = [
+    ('', 'All students'),
+    ('with_overpayments', 'With overpayments'),
+    ('without_overpayments', 'Without overpayments'),
+]
+
 class OutstandingBalancesFilterForm(forms.Form):
     # Allow date range OR academic_year+term selection
     start_date = forms.DateField(
@@ -210,6 +216,13 @@ class OutstandingBalancesFilterForm(forms.Form):
         max_digits=12,
         widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
         label='Amount'
+    )
+
+    overpayment_filter = forms.ChoiceField(
+        required=False,
+        choices=OVERPAYMENT_FILTER_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Overpayments'
     )
 
     show_zero_balances = forms.BooleanField(

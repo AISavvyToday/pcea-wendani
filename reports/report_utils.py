@@ -752,6 +752,7 @@ def build_outstanding_balances_report_data(
     balance_op='any',
     balance_amt=Decimal('0.00'),
     include_zero=False,
+    overpayment_filter='',
 ):
     invoices = (
         Invoice.objects.filter(is_active=True)
@@ -813,6 +814,8 @@ def build_outstanding_balances_report_data(
         total_paid = row.get('total_paid') or Decimal('0.00')
         total_balance = row.get('total_balance') or Decimal('0.00')
 
+        has_overpayment = total_prepayment > Decimal('0.00')
+
         row_data = {
             **row,
             'parent_contact': parent_contact_map.get(row['student__pk'], '—'),
@@ -821,6 +824,7 @@ def build_outstanding_balances_report_data(
             'total_balance_bf': total_balance_bf,
             'total_prepayment': total_prepayment,
             'total_balance': total_balance,
+            'has_overpayment': has_overpayment,
         }
 
         if balance_filter_spec:
@@ -851,6 +855,11 @@ def build_outstanding_balances_report_data(
                 continue
             if balance_op == '<=' and not total_balance <= balance_amt:
                 continue
+
+        if overpayment_filter == 'with_overpayments' and not has_overpayment:
+            continue
+        if overpayment_filter == 'without_overpayments' and has_overpayment:
+            continue
 
         if not include_zero and total_balance == Decimal('0.00'):
             continue
@@ -886,6 +895,7 @@ def build_outstanding_balances_report_data(
             'balance_op': balance_op,
             'balance_amt': balance_amt,
             'balance_filter_label': balance_filter_label,
+            'overpayment_filter': overpayment_filter,
         },
     }
 

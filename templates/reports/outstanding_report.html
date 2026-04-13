@@ -58,6 +58,10 @@
           <label class="form-label">Balance</label>
           {{ form.balance_filter }}
         </div>
+        <div class="col-md-3">
+          <label class="form-label">Overpayments</label>
+          {{ form.overpayment_filter }}
+        </div>
         <div class="col-12 d-flex gap-2 mt-2">
           <button class="btn btn-primary" type="submit">Run</button>
           <a href="{% url 'reports:outstanding_report' %}" class="btn btn-outline-secondary">Reset</a>
@@ -81,6 +85,7 @@
         {% if filters.term %} • Term: {{ filters.term }} {% endif %}
         {% if filters.student_class %} • Grade: {{ filters.student_class }} {% endif %}
         {% if filters.balance_filter_label %} • Balance: {{ filters.balance_filter_label }} {% endif %}
+        {% if filters.overpayment_filter == 'with_overpayments' %} • Overpayments: With overpayments {% elif filters.overpayment_filter == 'without_overpayments' %} • Overpayments: Without overpayments {% endif %}
       </small>
     </div>
 
