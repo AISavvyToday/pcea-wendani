@@ -623,6 +623,7 @@ class FinanceReportService:
             'admission': billed_items.filter(category='admission').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
             'educational_activities': billed_items.filter(category='other').aggregate(total=Sum('net_amount'))['total'] or Decimal('0.00'),
         }
+        invoice_breakdown_total = sum(billed_by_category.values(), Decimal('0.00'))
         term_fee_billed = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
 
         kpi_buckets = {
@@ -672,6 +673,10 @@ class FinanceReportService:
             bucket['outstanding'] = (bucket.get('billed') or Decimal('0.00')) - (bucket.get('collected') or Decimal('0.00'))
 
         total_billed = term_fee_billed + other_income_billed
+
+        if invoice_breakdown_total != term_fee_billed:
+            billed_by_category['fees'] += (term_fee_billed - invoice_breakdown_total)
+            kpi_buckets['fees']['billed'] = billed_by_category['fees']
         balance_bf_cleared = allocations.filter(invoice_item__in=balance_bf_items).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         balance_bf_uncleared = max(Decimal('0.00'), balance_bf_total - balance_bf_cleared)
         collection_rate = (total_collected / total_billed * 100) if total_billed > 0 else 0
