@@ -310,7 +310,7 @@ def _finance_kpis(term=None, organization=None):
         return cleared, uncleared
 
     def agg(invoice_qs, *, include_term_breakdowns=False):
-        billed = _sum_decimal(invoice_qs, 'total_amount')
+        billed = _sum_decimal(invoice_qs, 'subtotal')
         collected = _collected_for_invoices(invoice_qs)
         outstanding = billed - collected
 
