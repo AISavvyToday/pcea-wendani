@@ -1227,14 +1227,12 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         context['payment_count'] = payments.count()
 
         try:
-            from reports.forms import FeesCollectionFilterForm
-            from reports.views import build_fees_collection_rows, populate_fees_collection_filter_form
+            from portal.views import _finance_kpis, _get_current_term
 
-            report_form = FeesCollectionFilterForm(self.request.GET)
-            populate_fees_collection_filter_form(report_form, organization=getattr(self.request, 'organization', None))
-            report_form.is_valid()
-            collection_report = build_fees_collection_rows(self.request, getattr(report_form, 'cleaned_data', {}), form=report_form)
-            context['reconciled_total_amount'] = collection_report['summary']['total_collected']
+            organization = getattr(self.request, 'organization', None)
+            term = _get_current_term(organization=organization)
+            term_stats = _finance_kpis(term=term, organization=organization)['term_stats']
+            context['reconciled_total_amount'] = term_stats.get('collected') or 0
         except Exception:
             context['reconciled_total_amount'] = context['total_amount']
 

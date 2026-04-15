@@ -44,7 +44,6 @@ from .views import (
     populate_fees_collection_filter_form,
 )
 from finance.views import get_payment_list_base_queryset
-from reports.forms import FeesCollectionFilterForm
 
 
 # ---------- Helpers ----------
@@ -619,10 +618,11 @@ class PaymentsListExcelView(LoginRequiredMixin, View):
 
     def get(self, request):
         payments = get_payment_list_base_queryset(request)
-        report_form = FeesCollectionFilterForm(request.GET)
-        populate_fees_collection_filter_form(report_form, organization=getattr(request, 'organization', None))
-        report_form.is_valid()
-        collection_report = build_fees_collection_rows(request, getattr(report_form, 'cleaned_data', {}), form=report_form)
+
+        from portal.views import _finance_kpis, _get_current_term
+        organization = getattr(request, 'organization', None)
+        term = _get_current_term(organization=organization)
+        term_stats = _finance_kpis(term=term, organization=organization)['term_stats']
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -657,7 +657,7 @@ class PaymentsListExcelView(LoginRequiredMixin, View):
             row_num += 1
 
         ws.cell(row=row_num, column=4, value='TOTAL PAYMENTS').font = Font(bold=True)
-        total_cell = ws.cell(row=row_num, column=5, value=float(collection_report['summary']['total_collected']))
+        total_cell = ws.cell(row=row_num, column=5, value=float(term_stats.get('collected') or 0))
         format_money_cell(total_cell)
         total_cell.font = Font(bold=True)
         ws.cell(row=row_num, column=8, value=f'{completed_count} completed').font = Font(bold=True)
@@ -675,10 +675,11 @@ class PaymentsListPDFView(LoginRequiredMixin, View):
 
     def get(self, request):
         payments = get_payment_list_base_queryset(request)
-        report_form = FeesCollectionFilterForm(request.GET)
-        populate_fees_collection_filter_form(report_form, organization=getattr(request, 'organization', None))
-        report_form.is_valid()
-        collection_report = build_fees_collection_rows(request, getattr(report_form, 'cleaned_data', {}), form=report_form)
+
+        from portal.views import _finance_kpis, _get_current_term
+        organization = getattr(request, 'organization', None)
+        term = _get_current_term(organization=organization)
+        term_stats = _finance_kpis(term=term, organization=organization)['term_stats']
 
         rows = []
         completed_count = 0
@@ -707,7 +708,7 @@ class PaymentsListPDFView(LoginRequiredMixin, View):
         context = {
             'rows': rows,
             'summary': {
-                'total_completed': collection_report['summary']['total_collected'],
+                'total_completed': term_stats.get('collected') or Decimal('0.00'),
                 'completed_count': completed_count,
                 'count': len(rows),
             },
