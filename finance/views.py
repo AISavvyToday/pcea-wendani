@@ -1154,6 +1154,52 @@ class InvoiceDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 # Payments
 # =============================================================================
 
+def get_payment_list_base_queryset(request):
+    """Shared filtered payments queryset for payment list and exports."""
+    queryset = Payment.objects.all()
+
+    organization = getattr(request, 'organization', None)
+    if organization:
+        queryset = queryset.filter(
+            Q(organization=organization) |
+            Q(organization__isnull=True, student__organization=organization)
+        )
+    else:
+        queryset = queryset.filter(organization__isnull=True)
+
+    queryset = queryset.filter(
+        is_active=True
+    ).select_related('student', 'invoice', 'student__organization')
+
+    query = request.GET.get('query', '')
+    if query:
+        queryset = queryset.filter(
+            Q(payment_reference__icontains=query) |
+            Q(receipt_number__icontains=query) |
+            Q(transaction_reference__icontains=query) |
+            Q(student__admission_number__icontains=query) |
+            Q(student__first_name__icontains=query) |
+            Q(student__last_name__icontains=query)
+        )
+
+    method = request.GET.get('method')
+    if method:
+        queryset = queryset.filter(payment_method=method)
+
+    status = request.GET.get('status')
+    if status:
+        queryset = queryset.filter(status=status)
+
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date:
+        queryset = queryset.filter(payment_date__date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(payment_date__date__lte=end_date)
+
+    return queryset.order_by('-payment_date')
+
+
 class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredMixin, ListView):
     """List all payments."""
 
@@ -1164,54 +1210,7 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_queryset(self):
-        # Get base queryset (without organization filter from mixin)
-        # We'll handle organization filtering manually to support backward compatibility
-        queryset = Payment.objects.all()
-        
-        # Filter by organization: show payments where:
-        # 1. payment.organization matches current organization, OR
-        # 2. payment.organization is null AND student.organization matches current organization (backward compatibility)
-        organization = getattr(self.request, 'organization', None)
-        if organization:
-            queryset = queryset.filter(
-                Q(organization=organization) | 
-                Q(organization__isnull=True, student__organization=organization)
-            )
-        else:
-            # If no organization, show only payments without organization (backward compatibility)
-            queryset = queryset.filter(organization__isnull=True)
-        
-        queryset = queryset.filter(
-            is_active=True
-        ).select_related('student', 'invoice', 'student__organization')
-
-        query = self.request.GET.get('query', '')
-        if query:
-            queryset = queryset.filter(
-                Q(payment_reference__icontains=query) |
-                Q(receipt_number__icontains=query) |
-                Q(transaction_reference__icontains=query) |
-                Q(student__admission_number__icontains=query) |
-                Q(student__first_name__icontains=query) |
-                Q(student__last_name__icontains=query)
-            )
-
-        method = self.request.GET.get('method')
-        if method:
-            queryset = queryset.filter(payment_method=method)
-
-        status = self.request.GET.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-
-        start_date = self.request.GET.get('start_date')
-        end_date = self.request.GET.get('end_date')
-        if start_date:
-            queryset = queryset.filter(payment_date__date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(payment_date__date__lte=end_date)
-
-        return queryset.order_by('-payment_date')
+        return get_payment_list_base_queryset(self.request)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1226,6 +1225,18 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         payments = self.get_queryset().filter(status=PaymentStatus.COMPLETED)
         context['total_amount'] = payments.aggregate(total=Sum('amount'))['total'] or 0
         context['payment_count'] = payments.count()
+
+        try:
+            from reports.forms import FeesCollectionFilterForm
+            from reports.views import build_fees_collection_rows, populate_fees_collection_filter_form
+
+            report_form = FeesCollectionFilterForm(self.request.GET)
+            populate_fees_collection_filter_form(report_form, organization=getattr(self.request, 'organization', None))
+            report_form.is_valid()
+            collection_report = build_fees_collection_rows(self.request, getattr(report_form, 'cleaned_data', {}), form=report_form)
+            context['reconciled_total_amount'] = collection_report['summary']['total_collected']
+        except Exception:
+            context['reconciled_total_amount'] = context['total_amount']
 
         return context
 

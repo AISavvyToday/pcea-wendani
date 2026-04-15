@@ -19,6 +19,8 @@ urlpatterns = [
     path('fees-collection/', views.FeesCollectionReportView.as_view(), name='fees_collection_report'),
     path('fees-collection/export/xlsx/', views_exports.FeesCollectionExcelView.as_view(), name='fees_collection_export_excel'),
     path('fees-collection/export/pdf/', views_exports.FeesCollectionPDFView.as_view(), name='fees_collection_export_pdf'),
+    path('payments/export/xlsx/', views_exports.PaymentsListExcelView.as_view(), name='payments_export_excel'),
+    path('payments/export/pdf/', views_exports.PaymentsListPDFView.as_view(), name='payments_export_pdf'),
 
     path('outstanding-balances/', views.OutstandingBalancesReportView.as_view(), name='outstanding_report'),
     path('outstanding-balances/export/xlsx/', views_exports.OutstandingBalancesExcelView.as_view(), name='outstanding_report_export_excel'),

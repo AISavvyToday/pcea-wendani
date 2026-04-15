@@ -43,6 +43,8 @@ from .views import (
     build_fees_collection_rows,
     populate_fees_collection_filter_form,
 )
+from finance.views import get_payment_list_base_queryset
+from reports.forms import FeesCollectionFilterForm
 
 
 # ---------- Helpers ----------
@@ -607,6 +609,127 @@ class FeesCollectionPDFView(LoginRequiredMixin, View):
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
         pdf_bytes = html.write_pdf()
         filename = f"fees-collections-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+class PaymentsListExcelView(LoginRequiredMixin, View):
+    """Exports filtered payments list to Excel."""
+
+    def get(self, request):
+        payments = get_payment_list_base_queryset(request)
+        report_form = FeesCollectionFilterForm(request.GET)
+        populate_fees_collection_filter_form(report_form, organization=getattr(request, 'organization', None))
+        report_form.is_valid()
+        collection_report = build_fees_collection_rows(request, getattr(report_form, 'cleaned_data', {}), form=report_form)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Payments"
+        add_common_header(ws, "Payments Report")
+
+        headers = ['Payment Date', 'Receipt #', 'Student', 'Admission #', 'Amount (KES)', 'Source', 'Reference', 'Status']
+        for c, h in enumerate(headers, start=1):
+            ws.cell(row=5, column=c, value=h).font = Font(bold=True)
+
+        row_num = 6
+        completed_count = 0
+        for payment in payments:
+            student_name = ''
+            admission = ''
+            if getattr(payment, 'student', None):
+                student_name = getattr(payment.student, 'full_name', None) or str(payment.student)
+                admission = getattr(payment.student, 'admission_number', '') or ''
+
+            ws.cell(row=row_num, column=1, value=payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else '')
+            ws.cell(row=row_num, column=2, value=payment.receipt_number or '')
+            ws.cell(row=row_num, column=3, value=student_name)
+            ws.cell(row=row_num, column=4, value=admission)
+            amount_cell = ws.cell(row=row_num, column=5, value=float(payment.amount or 0))
+            format_money_cell(amount_cell)
+            ws.cell(row=row_num, column=6, value=payment.get_payment_source_display() if hasattr(payment, 'get_payment_source_display') else (payment.payment_source or ''))
+            ws.cell(row=row_num, column=7, value=payment.transaction_reference or '')
+            ws.cell(row=row_num, column=8, value=payment.get_status_display() if hasattr(payment, 'get_status_display') else payment.status)
+
+            if payment.status == 'completed':
+                completed_count += 1
+            row_num += 1
+
+        ws.cell(row=row_num, column=4, value='TOTAL PAYMENTS').font = Font(bold=True)
+        total_cell = ws.cell(row=row_num, column=5, value=float(collection_report['summary']['total_collected']))
+        format_money_cell(total_cell)
+        total_cell.font = Font(bold=True)
+        ws.cell(row=row_num, column=8, value=f'{completed_count} completed').font = Font(bold=True)
+
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 20
+
+        bytes_data = workbook_to_bytes(wb)
+        filename = f"payments-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+        return xlsx_response(bytes_data, filename)
+
+
+class PaymentsListPDFView(LoginRequiredMixin, View):
+    """Exports filtered payments list to PDF."""
+
+    def get(self, request):
+        payments = get_payment_list_base_queryset(request)
+        report_form = FeesCollectionFilterForm(request.GET)
+        populate_fees_collection_filter_form(report_form, organization=getattr(request, 'organization', None))
+        report_form.is_valid()
+        collection_report = build_fees_collection_rows(request, getattr(report_form, 'cleaned_data', {}), form=report_form)
+
+        rows = []
+        completed_count = 0
+
+        for payment in payments:
+            student_name = ''
+            admission = ''
+            if getattr(payment, 'student', None):
+                student_name = getattr(payment.student, 'full_name', None) or str(payment.student)
+                admission = getattr(payment.student, 'admission_number', '') or ''
+
+            rows.append({
+                'date': payment.payment_date,
+                'receipt_number': payment.receipt_number or '',
+                'student': student_name,
+                'admission': admission,
+                'amount': payment.amount or Decimal('0.00'),
+                'source': payment.get_payment_source_display() if hasattr(payment, 'get_payment_source_display') else (payment.payment_source or ''),
+                'reference': payment.transaction_reference or '',
+                'status': payment.get_status_display() if hasattr(payment, 'get_status_display') else payment.status,
+            })
+
+            if payment.status == 'completed':
+                completed_count += 1
+
+        context = {
+            'rows': rows,
+            'summary': {
+                'total_completed': collection_report['summary']['total_collected'],
+                'completed_count': completed_count,
+                'count': len(rows),
+            },
+            'filters': {
+                'query': request.GET.get('query', ''),
+                'method': request.GET.get('method', ''),
+                'status': request.GET.get('status', ''),
+                'start_date': request.GET.get('start_date', ''),
+                'end_date': request.GET.get('end_date', ''),
+            },
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': request.build_absolute_uri(settings.STATIC_URL + 'assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
+            'generated_on': datetime.now(),
+        }
+
+        html_string = render_to_string('reports/pdf/payments_list_pdf.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        pdf_bytes = html.write_pdf()
+        filename = f"payments-{datetime.now().strftime('%Y%m%d-%H%M')}.pdf"
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

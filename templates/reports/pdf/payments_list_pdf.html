@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ SCHOOL_NAME }} - Payments Report</title>
+<style>
+@page { size: A4; margin: 12mm; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #222; }
+h1,h2,h3,p { margin: 0; }
+.header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 10px; }
+.school-name { font-size: 16pt; font-weight: bold; }
+.report-title { font-size: 12pt; font-weight: bold; margin-top: 4px; }
+.meta, .summary { margin: 10px 0; font-size: 9pt; }
+.summary-box { display: inline-block; min-width: 180px; border: 1px solid #ddd; padding: 8px; margin-right: 8px; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+th { background: #f3f3f3; text-align: left; }
+.text-right { text-align: right; }
+.small { color: #666; font-size: 8pt; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="school-name">{{ SCHOOL_NAME }}</div>
+    <div>{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+    <div class="report-title">Payments Report</div>
+  </div>
+
+  <div class="meta">
+    {% if filters.query %}<div><strong>Search:</strong> {{ filters.query }}</div>{% endif %}
+    {% if filters.method %}<div><strong>Method:</strong> {{ filters.method }}</div>{% endif %}
+    {% if filters.status %}<div><strong>Status:</strong> {{ filters.status }}</div>{% endif %}
+    {% if filters.start_date or filters.end_date %}<div><strong>Date range:</strong> {{ filters.start_date|default:'-' }} to {{ filters.end_date|default:'-' }}</div>{% endif %}
+    <div><strong>Generated on:</strong> {{ generated_on|date:"d M Y H:i" }}</div>
+  </div>
+
+  <div class="summary">
+    <div class="summary-box">
+      <div class="small">Completed payments</div>
+      <div><strong>{{ summary.completed_count }}</strong></div>
+    </div>
+    <div class="summary-box">
+      <div class="small">Total completed amount</div>
+      <div><strong>KES {{ summary.total_completed }}</strong></div>
+    </div>
+    <div class="summary-box">
+      <div class="small">Rows</div>
+      <div><strong>{{ summary.count }}</strong></div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Receipt #</th>
+        <th>Student</th>
+        <th>Admission #</th>
+        <th class="text-right">Amount</th>
+        <th>Source</th>
+        <th>Reference</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.date|date:"d M Y H:i" }}</td>
+        <td>{{ row.receipt_number|default:"-" }}</td>
+        <td>{{ row.student|default:"-" }}</td>
+        <td>{{ row.admission|default:"-" }}</td>
+        <td class="text-right">KES {{ row.amount }}</td>
+        <td>{{ row.source|default:"-" }}</td>
+        <td>{{ row.reference|default:"-" }}</td>
+        <td>{{ row.status|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8">No payments found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="4">TOTAL COMPLETED</th>
+        <th class="text-right">KES {{ summary.total_completed }}</th>
+        <th colspan="3">{{ summary.completed_count }} completed</th>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>
