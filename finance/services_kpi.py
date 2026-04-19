@@ -87,9 +87,7 @@ def build_term_kpis(term, organization=None):
             payment__is_active=True,
             payment__status="completed",
             invoice_item__is_active=True,
-            invoice_item__invoice__is_active=True,
             invoice_item__invoice__student__is_active=True,
-            invoice_item__invoice__student__status="active",
         )
         .exclude(invoice_item__invoice__status="cancelled")
         .filter(_organization_allocation_filter(organization))

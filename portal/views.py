@@ -4,12 +4,11 @@ Portal views for dashboards, sections, and authentication.
 
 Finance dashboards now show REAL metrics from DB (invoices, payments, bank txns).
 
-Definitions (as requested):
-- billed (current term)     = SUM(Invoice.total_amount) for invoices in current term
-- collected (current term)  = SUM(PaymentAllocation.amount) for allocations to current term invoices
-                              + SUM(Payment.amount) for completed payments linked to current term invoices
-                                that have NO allocations
-- outstanding (current term)= billed - collected
+Definitions:
+- billed (current term)     = invoice item net totals, plus other income billed
+- collected (current term)  = completed allocation totals for reportable current-term buckets,
+                              plus other income collected
+- outstanding (current term)= reconciled student outstanding balance
 
 Unmatched bank transactions:
 - count of BankTransaction records NOT matched to a student admission number
@@ -346,10 +345,10 @@ def _finance_kpis(term=None, organization=None):
             collected_educational_activities = buckets.get("educational_activities", {}).get("collected", Decimal("0"))
             collected_other_income = buckets.get("other_income", {}).get("collected", Decimal("0"))
 
-            total_billed_dashboard = billed + billed_other_income
+            total_billed_dashboard = kpi_payload.get("totals", {}).get("billed", Decimal("0"))
             total_collected_dashboard = (
                 collected_fees + collected_transport + collected_admission +
-                collected_educational_activities + collected_other_income + overpayments
+                collected_educational_activities + collected_other_income
             )
 
             stats.update({
@@ -373,16 +372,15 @@ def _finance_kpis(term=None, organization=None):
                     "total": prepayments_total,
                     "consumed": prepayments_consumed,
                     "unconsumed": max(Decimal("0"), prepayments_total - prepayments_consumed),
+                    "current_credit": overpayments,
                 },
                 "discounts": discounts_total,
                 "collected_breakdown": {
                     "fees": collected_fees,
                     "transport": collected_transport,
                     "admission_fee": collected_admission,
-                    "balance_bf": balance_bf_cleared,
                     "educational_activities": collected_educational_activities,
                     "other_income": collected_other_income,
-                    "overpayments": overpayments,
                 },
             })
 
@@ -609,17 +607,9 @@ def dashboard_admin(request):
     prepayments_breakdown = term_stats.get("prepayments_breakdown", {})
     collected_breakdown = term_stats.get("collected_breakdown", {})
     
-    # IMPORTANT: Balance B/F stat behavior
-    # - balances_bf is the sum of frozen balance_bf_original values from current term invoices
-    # - These values are set at invoice creation and NEVER change during the term
-    # - When payments are made, they increment 'collected' but do NOT change 'balances_bf' (which uses balance_bf_original)
-    # - Balance B/F stat only changes when a new term starts and new invoices are generated
-    # - Note: balance_bf field decreases as payments are made (for student accounts), but balance_bf_original stays frozen (for dashboard)
-    
-    # IMPORTANT: Collected stat behavior
-    # - collected includes ALL payments: both to invoice items AND to balance_bf
-    # - When a student pays 20k to clear balance_bf, Collected increases by 20k
-    # - Balance B/F stat remains unchanged (frozen value)
+    # Balance B/F is the frozen current-term invoice opening balance. The
+    # Collected card follows the fees collection report buckets, so B/F cleared
+    # and credit balances are shown separately instead of being mixed into it.
     
     total_expected = (balances_bf + billed) - prepayments - discounts
     # Use the KPI service's outstanding value so the dashboard matches the
@@ -669,6 +659,7 @@ def dashboard_admin(request):
                 "helper_lines": [
                     f"Consumed: {_fmt_kes(prepayments_breakdown.get('consumed'))}",
                     f"Unconsumed: {_fmt_kes(prepayments_breakdown.get('unconsumed'))}",
+                    f"Current Credit/Overpayments: {_fmt_kes(prepayments_breakdown.get('current_credit'))}",
                 ],
             },
             {
@@ -708,9 +699,7 @@ def dashboard_admin(request):
                     f"Educational Activities: {_fmt_kes(collected_breakdown.get('educational_activities'))}",
                     f"Admission Fee: {_fmt_kes(collected_breakdown.get('admission_fee'))}",
                     f"Transport: {_fmt_kes(collected_breakdown.get('transport'))}",
-                    f"Bal B/F: {_fmt_kes(collected_breakdown.get('balance_bf'))}",
                     f"Other Income: {_fmt_kes(collected_breakdown.get('other_income'))}",
-                    f"Overpayments: {_fmt_kes(collected_breakdown.get('overpayments'))}",
                 ],
             },
             {
