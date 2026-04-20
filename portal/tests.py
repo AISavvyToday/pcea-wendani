@@ -150,7 +150,17 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
             is_current=True,
         )
 
-    def _student(self, admission_number, *, organization=None, status='active', credit_balance=Decimal('0.00')):
+    def _student(
+        self,
+        admission_number,
+        *,
+        organization=None,
+        status='active',
+        credit_balance=Decimal('0.00'),
+        balance_bf_original=Decimal('0.00'),
+        prepayment_original=Decimal('0.00'),
+        outstanding_balance=Decimal('0.00'),
+    ):
         organization = organization or self.organization
         student = Student.objects.create(
             organization=organization,
@@ -162,7 +172,9 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
             date_of_birth=date(2016, 5, 1),
             status=status,
             credit_balance=credit_balance,
-            outstanding_balance=Decimal('0.00'),
+            balance_bf_original=balance_bf_original,
+            prepayment_original=prepayment_original,
+            outstanding_balance=outstanding_balance,
         )
         if credit_balance:
             Student.objects.filter(pk=student.pk).update(credit_balance=credit_balance)
@@ -279,3 +291,23 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
         self.assertEqual(stats['collected'], Decimal('300.00'))
         self.assertEqual(stats['prepayments_breakdown']['current_credit'], Decimal('500.00'))
         self.assertNotIn('overpayments', stats['collected_breakdown'])
+
+    def test_balances_bf_and_prepayments_show_before_new_term_invoices_exist(self):
+        self._student(
+            'KPI004',
+            balance_bf_original=Decimal('750.00'),
+            prepayment_original=Decimal('125.00'),
+            outstanding_balance=Decimal('750.00'),
+        )
+
+        stats = _finance_kpis(term=self.term, organization=self.organization)['term_stats']
+
+        self.assertEqual(stats['invoice_count'], 0)
+        self.assertEqual(stats['balances_bf'], Decimal('750.00'))
+        self.assertEqual(stats['balance_bf_breakdown']['total'], Decimal('750.00'))
+        self.assertEqual(stats['balance_bf_breakdown']['cleared'], Decimal('0.00'))
+        self.assertEqual(stats['balance_bf_breakdown']['uncleared'], Decimal('750.00'))
+        self.assertEqual(stats['prepayments'], Decimal('125.00'))
+        self.assertEqual(stats['prepayments_breakdown']['total'], Decimal('125.00'))
+        self.assertEqual(stats['prepayments_breakdown']['consumed'], Decimal('0'))
+        self.assertEqual(stats['prepayments_breakdown']['unconsumed'], Decimal('125.00'))
