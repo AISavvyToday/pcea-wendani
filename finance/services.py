@@ -977,6 +977,7 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
             
             if prev_invoice:
                 # Use invoice balance as new term-start position
+                current_credit = student.credit_balance or Decimal('0.00')
                 if prev_invoice.balance > 0:
                     # Student owes money - carry forward as balance_bf_original
                     student.balance_bf_original = prev_invoice.balance
@@ -984,6 +985,13 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     student.credit_balance = Decimal('0.00')  # No credit if student owes
                     student.outstanding_balance = prev_invoice.balance  # Set outstanding to match
                     stats['with_outstanding'] += 1
+                elif current_credit > 0:
+                    # Student cleared the invoice and has credit to carry forward.
+                    student.balance_bf_original = Decimal('0.00')
+                    student.prepayment_original = current_credit
+                    student.credit_balance = current_credit
+                    student.outstanding_balance = Decimal('0.00')
+                    stats['with_overpayment'] += 1
                 elif prev_invoice.balance < 0:
                     # Student overpaid - carry forward as prepayment/credit
                     student.balance_bf_original = Decimal('0.00')

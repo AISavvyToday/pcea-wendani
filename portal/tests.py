@@ -9,7 +9,7 @@ from accounts.models import User
 from academics.models import AcademicYear, Term
 from core.models import Gender, Organization, PaymentStatus, TermChoices, UserRole
 from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
-from finance.services import InvoiceService
+from finance.services import InvoiceService, transition_frozen_balances
 from payments.models import Payment, PaymentAllocation
 from portal.views import _finance_kpis
 from students.models import Student
@@ -398,3 +398,33 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
             ).exists()
         )
         self.assertFalse(Invoice.objects.filter(student=other_student, term=self.term).exists())
+
+    def test_term_transition_carries_zero_balance_student_credit_as_prepayment(self):
+        student = self._student('KPI007', credit_balance=Decimal('500.00'))
+        invoice, _ = self._invoice(
+            student,
+            'INV-KPI-007',
+            subtotal=Decimal('100.00'),
+            item_amount=Decimal('100.00'),
+        )
+        invoice.amount_paid = Decimal('100.00')
+        invoice.balance = Decimal('0.00')
+        invoice.save(update_fields=['amount_paid', 'balance', 'updated_at'])
+        Student.objects.filter(pk=student.pk).update(credit_balance=Decimal('500.00'))
+
+        term2 = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term=TermChoices.TERM_2,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 8, 31),
+            is_current=False,
+        )
+
+        stats = transition_frozen_balances(self.term, term2)
+
+        student.refresh_from_db()
+        self.assertEqual(stats['with_overpayment'], 1)
+        self.assertEqual(student.balance_bf_original, Decimal('0.00'))
+        self.assertEqual(student.prepayment_original, Decimal('500.00'))
+        self.assertEqual(student.credit_balance, Decimal('500.00'))

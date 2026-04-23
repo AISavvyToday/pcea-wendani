@@ -35,7 +35,12 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
         f"{'(DRY RUN)' if dry_run else ''}"
     )
 
+    organization = getattr(new_term, "organization", None) or getattr(previous_term, "organization", None)
     students = Student.objects.filter(is_active=True, status='active')
+    if organization:
+        students = students.filter(organization=organization)
+    else:
+        students = students.filter(organization__isnull=True)
     stats['total_students'] = students.count()
 
     for student in students:
@@ -57,6 +62,7 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
             # ===============================
             if prev_invoice:
                 final_balance = prev_invoice.balance or Decimal('0.00')
+                current_credit = student.credit_balance or Decimal('0.00')
 
                 if final_balance > 0:
                     # Student owes money
@@ -64,6 +70,13 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                     student.prepayment_original = Decimal('0.00')
                     student.credit_balance = Decimal('0.00')
                     stats['with_outstanding'] += 1
+
+                elif current_credit > 0:
+                    # Student cleared the invoice and has credit to carry forward.
+                    student.balance_bf_original = Decimal('0.00')
+                    student.prepayment_original = current_credit
+                    student.credit_balance = current_credit
+                    stats['with_overpayment'] += 1
 
                 elif final_balance < 0:
                     # Student overpaid
