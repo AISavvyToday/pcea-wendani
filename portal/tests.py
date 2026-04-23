@@ -1,14 +1,15 @@
 from datetime import date
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
 from academics.models import AcademicYear, Term
 from core.models import Gender, Organization, PaymentStatus, TermChoices, UserRole
-from finance.models import Invoice, InvoiceItem
+from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
+from finance.services import InvoiceService
 from payments.models import Payment, PaymentAllocation
 from portal.views import _finance_kpis
 from students.models import Student
@@ -121,7 +122,7 @@ class DashboardStudentCounterSyncTests(TestCase):
 
 class DashboardFinanceKpiAlignmentTests(TestCase):
     def setUp(self):
-        self.organization = Organization.objects.create(name='PCEA Wendani Academy', code='PCEA_WENDANI')
+        self.organization = Organization.objects.create(name='KPI Academy', code='KPI_ORG')
         self.other_organization = Organization.objects.create(name='Other Academy', code='OTHER')
 
         self.user = User.objects.create_user(
@@ -276,7 +277,7 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
         self.assertEqual(stats['collected'], Decimal('400.00'))
         self.assertEqual(stats['collected_breakdown']['fees'], Decimal('400.00'))
 
-    def test_collected_does_not_add_current_credit_overpayments(self):
+    def test_collected_includes_current_credit_overpayments(self):
         student = self._student('KPI003', credit_balance=Decimal('500.00'))
         invoice, item = self._invoice(
             student,
@@ -288,9 +289,65 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
 
         stats = _finance_kpis(term=self.term, organization=self.organization)['term_stats']
 
-        self.assertEqual(stats['collected'], Decimal('300.00'))
+        self.assertEqual(stats['collected'], Decimal('800.00'))
         self.assertEqual(stats['prepayments_breakdown']['current_credit'], Decimal('500.00'))
-        self.assertNotIn('overpayments', stats['collected_breakdown'])
+        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('500.00'))
+
+    @override_settings(
+        DASHBOARD_COLLECTION_ADJUSTMENTS={
+            'KPI_ORG': {
+                (2026, 'term_1'): Decimal('63333.00'),
+            },
+        },
+    )
+    def test_collected_adjustment_tops_up_admission_then_fees(self):
+        student = self._student('KPI005', credit_balance=Decimal('500.00'))
+        invoice, fees_item = self._invoice(
+            student,
+            'INV-KPI-005',
+            subtotal=Decimal('242500.00'),
+            item_amount=Decimal('1000.00'),
+        )
+        admission_item = InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Admission',
+            category='admission',
+            amount=Decimal('241500.00'),
+            net_amount=Decimal('241500.00'),
+        )
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=student,
+            invoice=invoice,
+            amount=Decimal('219900.00'),
+            payment_method='bank_deposit',
+            payment_source='coop_bank',
+            status=PaymentStatus.COMPLETED,
+            payment_reference='PAY-KPI-005',
+            receipt_number='RCP-KPI-005',
+            received_by=self.user,
+            payment_date=timezone.now(),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=payment,
+            invoice_item=fees_item,
+            amount=Decimal('1000.00'),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=payment,
+            invoice_item=admission_item,
+            amount=Decimal('218900.00'),
+            is_active=True,
+        )
+
+        stats = _finance_kpis(term=self.term, organization=self.organization)['term_stats']
+
+        self.assertEqual(stats['collected_breakdown']['admission_fee'], Decimal('241500.00'))
+        self.assertEqual(stats['collected_breakdown']['fees'], Decimal('41733.00'))
+        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('500.00'))
+        self.assertEqual(stats['collected'], Decimal('283733.00'))
 
     def test_balances_bf_and_prepayments_show_before_new_term_invoices_exist(self):
         self._student(
@@ -311,3 +368,33 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
         self.assertEqual(stats['prepayments_breakdown']['total'], Decimal('125.00'))
         self.assertEqual(stats['prepayments_breakdown']['consumed'], Decimal('0'))
         self.assertEqual(stats['prepayments_breakdown']['unconsumed'], Decimal('125.00'))
+
+    def test_bulk_invoice_generation_is_scoped_to_term_organization(self):
+        own_student = self._student('KPI006')
+        other_student = self._student('KPI998', organization=self.other_organization)
+        fee_structure = FeeStructure.objects.create(
+            organization=self.organization,
+            name='Scoped Fees',
+            academic_year=self.academic_year,
+            term=self.term.term,
+            grade_levels=[],
+        )
+        FeeItem.objects.create(
+            fee_structure=fee_structure,
+            category='tuition',
+            description='Tuition',
+            amount=Decimal('100.00'),
+        )
+
+        created_count, errors = InvoiceService.bulk_generate_invoices(self.term)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(created_count, 1)
+        self.assertTrue(
+            Invoice.objects.filter(
+                student=own_student,
+                term=self.term,
+                organization=self.organization,
+            ).exists()
+        )
+        self.assertFalse(Invoice.objects.filter(student=other_student, term=self.term).exists())

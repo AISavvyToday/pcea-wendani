@@ -44,6 +44,14 @@ class InvoiceService:
         - Frozen fields are NEVER modified here
         """
 
+        term_organization = getattr(term, "organization", None)
+        student_organization = getattr(student, "organization", None)
+        if term_organization and student_organization and term_organization != student_organization:
+            raise ValueError(
+                f"Student {student.admission_number} does not belong to {term_organization.name}"
+            )
+        invoice_organization = term_organization or student_organization
+
         # --------------------------------------------------
         # Prevent duplicate invoice
         # --------------------------------------------------
@@ -68,6 +76,12 @@ class InvoiceService:
             term=term.term,
             is_active=True
         )
+        if invoice_organization:
+            fee_structures = fee_structures.filter(
+                Q(organization=invoice_organization) | Q(organization__isnull=True)
+            )
+        else:
+            fee_structures = fee_structures.filter(organization__isnull=True)
 
         fee_structure = None
         for fs in fee_structures:
@@ -84,6 +98,7 @@ class InvoiceService:
         # Create invoice shell
         # --------------------------------------------------
         invoice = Invoice.objects.create(
+            organization=invoice_organization,
             student=student,
             term=term,
             fee_structure=fee_structure,
@@ -242,6 +257,7 @@ class InvoiceService:
 
         if credit_to_apply > 0:
             internal_payment = Payment.objects.create(
+                organization=invoice.organization,
                 student=student,
                 invoice=invoice,
                 amount=credit_to_apply,
@@ -285,6 +301,11 @@ class InvoiceService:
         """Generate invoices for multiple students."""
 
         students = Student.objects.filter(is_active=True, status='active')
+        term_organization = getattr(term, "organization", None)
+        if term_organization:
+            students = students.filter(organization=term_organization)
+        else:
+            students = students.filter(organization__isnull=True)
 
         if grade_levels:
             students = students.filter(current_class__grade_level__in=grade_levels)
@@ -932,7 +953,12 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
     if dry_run:
         logger.info("DRY RUN MODE - No changes will be saved")
     
-    active_students = Student.objects.filter(status='active')
+    transition_organization = getattr(new_term, "organization", None) or getattr(previous_term, "organization", None)
+    active_students = Student.objects.filter(is_active=True, status='active')
+    if transition_organization:
+        active_students = active_students.filter(organization=transition_organization)
+    else:
+        active_students = active_students.filter(organization__isnull=True)
     stats['total_students'] = active_students.count()
     
     for student in active_students:

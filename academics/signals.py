@@ -35,6 +35,7 @@ def handle_term_change(sender, instance, created, **kwargs):
     # Find the previous term
     # First try same academic year
     previous_term = Term.objects.filter(
+        organization=instance.organization,
         academic_year=instance.academic_year,
         start_date__lt=instance.start_date
     ).order_by('-start_date').first()
@@ -42,6 +43,7 @@ def handle_term_change(sender, instance, created, **kwargs):
     # If no previous term in same year, try previous year's last term
     if not previous_term:
         previous_term = Term.objects.filter(
+            organization=instance.organization,
             start_date__lt=instance.start_date
         ).exclude(pk=instance.pk).order_by('-start_date').first()
     
