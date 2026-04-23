@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Q, Sum, Prefetch
+from django.db.models import Q, Sum, Prefetch, Max
 from django.utils import timezone
 
 from core.models import FeeCategory, InvoiceStatus, PaymentSource, PaymentStatus
@@ -1023,6 +1023,191 @@ def build_prepayments_report_data(
             'student_class': student_class,
             'balance_op': balance_op,
             'balance_amt': balance_amt,
+            'balance_filter_label': balance_filter_label,
+        },
+    }
+
+
+def build_overpayments_report_data(
+    organization=None,
+    start_date=None,
+    end_date=None,
+    academic_year=None,
+    term=None,
+    student_class=None,
+    student_search='',
+    balance_filter='',
+):
+    students = (
+        Student.objects.filter(
+            is_active=True,
+            status='active',
+            credit_balance__gt=0,
+        )
+        .select_related('current_class')
+        .order_by('admission_number')
+    )
+
+    if organization:
+        students = students.filter(organization=organization)
+
+    if student_class:
+        students = students.filter(current_class__name=student_class)
+
+    if student_search:
+        search = student_search.strip()
+        students = students.filter(
+            Q(admission_number__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(middle_name__icontains=search)
+            | Q(last_name__icontains=search)
+        )
+
+    payments = Payment.objects.filter(
+        is_active=True,
+        status=PaymentStatus.COMPLETED,
+        student__in=students,
+    )
+    if organization:
+        payments = payments.filter(
+            Q(organization=organization)
+            | Q(organization__isnull=True, student__organization=organization)
+        )
+    if start_date:
+        payments = payments.filter(payment_date__date__gte=start_date)
+    if end_date:
+        payments = payments.filter(payment_date__date__lte=end_date)
+    if start_date or end_date:
+        students = students.filter(pk__in=payments.values_list('student_id', flat=True).distinct())
+
+    payment_summary = {
+        row['student_id']: row
+        for row in payments.values('student_id').annotate(
+            total_payments=Sum('amount'),
+            last_payment_date=Max('payment_date'),
+        )
+    }
+
+    invoices = (
+        Invoice.objects.filter(
+            is_active=True,
+            student__in=students,
+        )
+        .exclude(status=InvoiceStatus.CANCELLED)
+        .select_related('term__academic_year')
+    )
+    if organization:
+        invoices = invoices.filter(
+            Q(organization=organization)
+            | Q(organization__isnull=True, student__organization=organization)
+        )
+    if academic_year:
+        invoices = invoices.filter(term__academic_year=academic_year)
+    if term:
+        invoices = invoices.filter(term__term=term)
+
+    invoice_summary = {
+        row['student_id']: row
+        for row in invoices.values('student_id').annotate(
+            total_billed=Sum('total_amount'),
+            total_paid=Sum('amount_paid'),
+            total_balance=Sum('balance'),
+            total_balance_bf=Sum('balance_bf'),
+            total_prepayment=Sum('prepayment'),
+        )
+    }
+
+    latest_invoice_year = {}
+    for invoice in invoices.order_by('student_id', '-issue_date', '-created_at'):
+        if invoice.student_id in latest_invoice_year:
+            continue
+        invoice_year = getattr(getattr(invoice.term, 'academic_year', None), 'year', None)
+        latest_invoice_year[invoice.student_id] = invoice_year
+
+    parent_contact_map = build_parent_contact_map(
+        student_ids=list(students.values_list('pk', flat=True)),
+        organization=organization,
+    )
+
+    balance_filter_spec = BALANCE_PRESETS.get(balance_filter) if balance_filter else None
+    balance_filter_label = balance_filter_spec[2] if balance_filter_spec else ''
+
+    rows = []
+    for student in students:
+        overpayment_amount = student.credit_balance or Decimal('0.00')
+        if overpayment_amount <= Decimal('0.00'):
+            continue
+
+        if balance_filter_spec:
+            if balance_filter_spec[0] == 'range':
+                _, min_amt, max_amt, _ = balance_filter_spec
+                if not (overpayment_amount >= min_amt and overpayment_amount < max_amt):
+                    continue
+            else:
+                op, amt, _ = balance_filter_spec
+                if op == '=' and not overpayment_amount == amt:
+                    continue
+                if op == '>' and not overpayment_amount > amt:
+                    continue
+                if op == '<' and not overpayment_amount < amt:
+                    continue
+                if op == '>=' and not overpayment_amount >= amt:
+                    continue
+                if op == '<=' and not overpayment_amount <= amt:
+                    continue
+
+        inv = invoice_summary.get(student.pk, {})
+        pay = payment_summary.get(student.pk, {})
+        rows.append({
+            'student__pk': student.pk,
+            'student__admission_number': student.admission_number,
+            'student__first_name': student.first_name,
+            'student__middle_name': student.middle_name,
+            'student__last_name': student.last_name,
+            'student__current_class__name': getattr(student.current_class, 'name', ''),
+            'term__academic_year__year': getattr(academic_year, 'year', None) or latest_invoice_year.get(student.pk),
+            'parent_contact': parent_contact_map.get(student.pk, '-'),
+            'overpayment_amount': overpayment_amount,
+            'prepayment_original': student.prepayment_original or Decimal('0.00'),
+            'outstanding_balance': student.outstanding_balance or Decimal('0.00'),
+            'term_billed': inv.get('total_billed') or Decimal('0.00'),
+            'term_paid': inv.get('total_paid') or Decimal('0.00'),
+            'term_balance': inv.get('total_balance') or Decimal('0.00'),
+            'term_balance_bf': inv.get('total_balance_bf') or Decimal('0.00'),
+            'term_prepayment': inv.get('total_prepayment') or Decimal('0.00'),
+            'payments_total': pay.get('total_payments') or Decimal('0.00'),
+            'last_payment_date': pay.get('last_payment_date'),
+        })
+
+    rows.sort(
+        key=lambda row: (
+            -(row.get('overpayment_amount') or Decimal('0.00')),
+            (row.get('student__first_name') or '').lower(),
+            (row.get('student__last_name') or '').lower(),
+        )
+    )
+
+    totals = {
+        'student_count': len(rows),
+        'total_overpayments': sum((row['overpayment_amount'] or Decimal('0.00')) for row in rows),
+        'total_prepayment_original': sum((row['prepayment_original'] or Decimal('0.00')) for row in rows),
+        'total_outstanding_balance': sum((row['outstanding_balance'] or Decimal('0.00')) for row in rows),
+        'total_term_billed': sum((row['term_billed'] or Decimal('0.00')) for row in rows),
+        'total_term_paid': sum((row['term_paid'] or Decimal('0.00')) for row in rows),
+        'total_term_balance': sum((row['term_balance'] or Decimal('0.00')) for row in rows),
+        'total_payments': sum((row['payments_total'] or Decimal('0.00')) for row in rows),
+    }
+
+    return {
+        'rows': rows,
+        'totals': totals,
+        'filters': {
+            'start_date': start_date,
+            'end_date': end_date,
+            'academic_year': academic_year,
+            'term': term,
+            'student_class': student_class,
+            'student_search': student_search,
             'balance_filter_label': balance_filter_label,
         },
     }

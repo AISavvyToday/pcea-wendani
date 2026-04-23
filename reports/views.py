@@ -13,7 +13,7 @@ from decimal import Decimal
 from django.db.models import ExpressionWrapper, DecimalField
 from .forms import (
     InvoiceSummaryReportFilterForm, InvoiceDetailedReportFilterForm, FeesCollectionFilterForm,
-    OutstandingBalancesFilterForm, TransportReportFilterForm,
+    OutstandingBalancesFilterForm, OverpaymentsReportFilterForm, TransportReportFilterForm,
     OtherItemsReportFilterForm,
     TransferredStudentsFilterForm, GraduatedStudentsFilterForm,
     AdmittedStudentsFilterForm
@@ -36,6 +36,7 @@ from .report_utils import (
     build_invoice_detailed_report_data,
     build_outstanding_balances_report_data,
     build_prepayments_report_data,
+    build_overpayments_report_data,
 )
 
 
@@ -709,6 +710,91 @@ class PrepaymentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             'totals': report_data['totals'],
             'selected_term_id': selected_term_id,
             'filters': report_data['filters'],
+        })
+
+        return render(request, self.template_name, context)
+
+
+class OverpaymentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
+    template_name = 'reports/overpayments_report.html'
+
+    def get(self, request):
+        form = OverpaymentsReportFilterForm(request.GET or None)
+        organization = getattr(request, 'organization', None)
+
+        class_choices = [('', 'All Classes')]
+        try:
+            from academics.models import Class
+            class_qs = Class.objects.all()
+            if organization:
+                class_qs = class_qs.filter(organization=organization)
+            raw_classes = class_qs.values_list('name', flat=True).distinct()
+            classes = sorted([c for c in raw_classes if c])
+            class_choices += [(c, c) for c in classes]
+            form.fields['student_class'].choices = class_choices
+        except Exception:
+            pass
+
+        context = {
+            'form': form,
+            'rows': None,
+            'totals': None,
+            'SCHOOL_NAME': getattr(settings, 'SCHOOL_NAME', 'PCEA Wendani Academy'),
+            'SCHOOL_LOGO_URL': getattr(settings, 'SCHOOL_LOGO_URL', '/static/assets/images/logo.jpeg'),
+            'SPONSOR_LOGO_URL': getattr(settings, 'SPONSOR_LOGO_URL', '/static/assets/images/logo2.jpeg'),
+            'SCHOOL_ADDRESS': 'Box 57517-00200 Nairobi',
+            'SCHOOL_CONTACT': '0796675605',
+            'now': timezone.now(),
+        }
+
+        if not form.is_valid():
+            return render(request, self.template_name, context)
+
+        report_data = build_overpayments_report_data(
+            organization=organization,
+            start_date=form.cleaned_data.get('start_date'),
+            end_date=form.cleaned_data.get('end_date'),
+            academic_year=form.cleaned_data.get('academic_year'),
+            term=form.cleaned_data.get('term'),
+            student_class=form.cleaned_data.get('student_class'),
+            student_search=form.cleaned_data.get('student_search') or '',
+            balance_filter=form.cleaned_data.get('balance_filter') or '',
+        )
+
+        selected_term_id = None
+        academic_year = form.cleaned_data.get('academic_year')
+        term = form.cleaned_data.get('term')
+        if academic_year and term:
+            qs = Term.objects.filter(academic_year=academic_year, term=term)
+            if organization:
+                qs = qs.filter(organization=organization)
+            selected_term = qs.first()
+            if selected_term:
+                selected_term_id = str(selected_term.pk)
+
+        try:
+            ReportRequest.objects.create(
+                organization=organization,
+                report_type='overpayments',
+                created_by=request.user,
+                academic_year=academic_year,
+                term=term,
+                params={
+                    'start_date': str(form.cleaned_data.get('start_date')) if form.cleaned_data.get('start_date') else None,
+                    'end_date': str(form.cleaned_data.get('end_date')) if form.cleaned_data.get('end_date') else None,
+                    'class': form.cleaned_data.get('student_class'),
+                    'student_search': form.cleaned_data.get('student_search'),
+                    'balance_filter': form.cleaned_data.get('balance_filter'),
+                },
+            )
+        except Exception:
+            pass
+
+        context.update({
+            'rows': report_data['rows'],
+            'totals': report_data['totals'],
+            'filters': report_data['filters'],
+            'selected_term_id': selected_term_id,
         })
 
         return render(request, self.template_name, context)

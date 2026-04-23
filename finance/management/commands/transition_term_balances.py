@@ -9,9 +9,13 @@ Usage:
     python manage.py transition_term_balances --dry-run
     python manage.py transition_term_balances --from-term 5 --to-term 6
 """
+from uuid import UUID
+
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 
 from academics.models import Term
+from core.models import Organization
 from finance.services import transition_frozen_balances
 
 
@@ -34,11 +38,36 @@ class Command(BaseCommand):
             type=str,
             help='ID of the current term (auto-detected if not specified)',
         )
+        parser.add_argument(
+            '--organization',
+            type=str,
+            help='Organization id, code, or name to use when auto-detecting terms',
+        )
 
     def handle(self, *args, **options):
         dry_run = options.get('dry_run', False)
         from_term_id = options.get('from_term')
         to_term_id = options.get('to_term')
+        organization_lookup = (options.get('organization') or '').strip()
+        organization = None
+
+        if organization_lookup:
+            organization = Organization.objects.filter(
+                Q(code__iexact=organization_lookup)
+                | Q(name__iexact=organization_lookup)
+            ).first()
+            if not organization:
+                try:
+                    organization_id = UUID(organization_lookup)
+                except ValueError:
+                    organization_id = None
+                if organization_id:
+                    organization = Organization.objects.filter(pk=organization_id).first()
+            if not organization:
+                self.stdout.write(self.style.ERROR(
+                    f'Organization "{organization_lookup}" not found'
+                ))
+                return
         
         self.stdout.write('=' * 80)
         self.stdout.write('TERM BALANCE TRANSITION')
@@ -55,10 +84,19 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f'Term with ID {to_term_id} not found'))
                 return
         else:
-            current_term = Term.objects.filter(is_current=True).first()
+            current_terms = Term.objects.filter(is_current=True)
+            if organization:
+                current_terms = current_terms.filter(organization=organization)
+            current_term = current_terms.order_by('-start_date').first()
             if not current_term:
                 self.stdout.write(self.style.ERROR('No current term found. Please specify --to-term'))
                 return
+
+        if organization and current_term.organization_id != organization.id:
+            self.stdout.write(self.style.ERROR(
+                f'To term "{current_term}" does not belong to {organization.name}'
+            ))
+            return
         
         self.stdout.write(f'Current term: {current_term}')
         
@@ -69,17 +107,32 @@ class Command(BaseCommand):
             except Term.DoesNotExist:
                 self.stdout.write(self.style.ERROR(f'Term with ID {from_term_id} not found'))
                 return
+            if current_term.organization_id != previous_term.organization_id:
+                self.stdout.write(self.style.ERROR(
+                    'From term and to term belong to different organizations'
+                ))
+                return
         else:
             # Auto-detect previous term
-            previous_term = Term.objects.filter(
+            previous_terms = Term.objects.filter(
                 academic_year=current_term.academic_year,
                 start_date__lt=current_term.start_date
-            ).order_by('-start_date').first()
+            )
+            if current_term.organization_id:
+                previous_terms = previous_terms.filter(organization=current_term.organization)
+            else:
+                previous_terms = previous_terms.filter(organization__isnull=True)
+            previous_term = previous_terms.order_by('-start_date').first()
             
             if not previous_term:
-                previous_term = Term.objects.filter(
+                previous_terms = Term.objects.filter(
                     start_date__lt=current_term.start_date
-                ).exclude(pk=current_term.pk).order_by('-start_date').first()
+                ).exclude(pk=current_term.pk)
+                if current_term.organization_id:
+                    previous_terms = previous_terms.filter(organization=current_term.organization)
+                else:
+                    previous_terms = previous_terms.filter(organization__isnull=True)
+                previous_term = previous_terms.order_by('-start_date').first()
             
             if not previous_term:
                 self.stdout.write(self.style.ERROR(

@@ -8,6 +8,7 @@ REPORT_TYPE_CHOICES = [
     ('invoice_summary', 'Invoice Summary'),
     ('collection_analysis', 'Fees Collection Analysis'),
     ('outstanding', 'Outstanding Balances'),
+    ('overpayments', 'Overpayments Report'),
     ('transport', 'Transport Report'),
     ('transferred_students', 'Transferred Students Report'),
     ('graduated_students', 'Graduated Students Report'),

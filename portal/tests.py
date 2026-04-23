@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from academics.models import AcademicYear, Term
-from core.models import Gender, Organization, PaymentStatus, TermChoices, UserRole
+from core.models import Gender, Organization, PaymentSource, PaymentStatus, TermChoices, UserRole
 from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
 from finance.services import InvoiceService, transition_frozen_balances
 from payments.models import Payment, PaymentAllocation
@@ -428,3 +428,40 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
         self.assertEqual(student.balance_bf_original, Decimal('0.00'))
         self.assertEqual(student.prepayment_original, Decimal('500.00'))
         self.assertEqual(student.credit_balance, Decimal('500.00'))
+
+    def test_invoice_generation_applies_opening_prepayment_only_once(self):
+        student = self._student(
+            'KPI008',
+            credit_balance=Decimal('500.00'),
+            prepayment_original=Decimal('500.00'),
+        )
+        fee_structure = FeeStructure.objects.create(
+            organization=self.organization,
+            name='Term Fees',
+            academic_year=self.academic_year,
+            term=self.term.term,
+            grade_levels=[],
+        )
+        FeeItem.objects.create(
+            fee_structure=fee_structure,
+            category='tuition',
+            description='Tuition',
+            amount=Decimal('1000.00'),
+        )
+
+        invoice, created = InvoiceService.generate_invoice(student, self.term, generated_by=self.user)
+
+        student.refresh_from_db()
+        invoice.refresh_from_db()
+        self.assertTrue(created)
+        self.assertEqual(invoice.prepayment, Decimal('500.00'))
+        self.assertEqual(invoice.amount_paid, Decimal('0.00'))
+        self.assertEqual(invoice.balance, Decimal('500.00'))
+        self.assertEqual(student.credit_balance, Decimal('0.00'))
+        self.assertFalse(
+            Payment.objects.filter(
+                student=student,
+                invoice=invoice,
+                payment_source=PaymentSource.CREDIT,
+            ).exists()
+        )

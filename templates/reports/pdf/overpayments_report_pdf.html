@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ SCHOOL_NAME }} - Overpayments Report</title>
+<style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; color: #222; }
+.table { width:100%; border-collapse: collapse; }
+.table th, .table td { border:1px solid #444; padding:5px; }
+.table th { background:#f2f2f2; }
+.text-right { text-align:right; }
+.text-center { text-align:center; }
+.header { text-align:center; margin-bottom: 12px; }
+.small { font-size:8pt; color:#666; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h3 style="margin:0;">{{ SCHOOL_NAME }}</h3>
+    <div class="small">{{ SCHOOL_ADDRESS }} {{ SCHOOL_CONTACT }}</div>
+    <h4 style="margin:8px 0 4px;">Overpayments Report</h4>
+    <div class="small">
+      {% if filters.start_date %} From {{ filters.start_date }} {% endif %}
+      {% if filters.end_date %} To {{ filters.end_date }} {% endif %}
+      {% if filters.academic_year %} Year: {{ filters.academic_year }} {% endif %}
+      {% if filters.term %} Term: {{ filters.term }} {% endif %}
+      {% if filters.student_class %} Grade: {{ filters.student_class }} {% endif %}
+      {% if filters.student_search %} Student: {{ filters.student_search }} {% endif %}
+    </div>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Admission No</th>
+        <th>Student Name</th>
+        <th>Grade</th>
+        <th>Parent Contact</th>
+        <th class="text-right">Current Overpayment</th>
+        <th class="text-right">Prepayment B/F</th>
+        <th class="text-right">Outstanding Balance</th>
+        <th class="text-right">Payments</th>
+        <th>Last Payment</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.term__academic_year__year|default:'-' }}</td>
+        <td>{{ r.student__admission_number }}</td>
+        <td>{% if r.student__middle_name %}{{ r.student__first_name }} {{ r.student__middle_name }} {{ r.student__last_name }}{% else %}{{ r.student__first_name }} {{ r.student__last_name }}{% endif %}</td>
+        <td>{{ r.student__current_class__name|default:'-' }}</td>
+        <td>{{ r.parent_contact|default:'-' }}</td>
+        <td class="text-right">KES {{ r.overpayment_amount|floatformat:2 }}</td>
+        <td class="text-right">KES {{ r.prepayment_original|floatformat:2 }}</td>
+        <td class="text-right">KES {{ r.outstanding_balance|floatformat:2 }}</td>
+        <td class="text-right">KES {{ r.payments_total|floatformat:2 }}</td>
+        <td>{% if r.last_payment_date %}{{ r.last_payment_date|date:"d M Y" }}{% else %}-{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="10" class="text-center">No overpayments found for the selected filters.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="5">TOTAL</th>
+        <th class="text-right">KES {{ totals.total_overpayments|floatformat:2 }}</th>
+        <th class="text-right">KES {{ totals.total_prepayment_original|floatformat:2 }}</th>
+        <th class="text-right">KES {{ totals.total_outstanding_balance|floatformat:2 }}</th>
+        <th class="text-right">KES {{ totals.total_payments|floatformat:2 }}</th>
+        <th></th>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>

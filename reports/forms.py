@@ -232,6 +232,52 @@ class OutstandingBalancesFilterForm(forms.Form):
     )
 
 
+class OverpaymentsReportFilterForm(forms.Form):
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='From'
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='To'
+    )
+    academic_year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        empty_label='All Years',
+        label='Academic Year'
+    )
+    term = forms.ChoiceField(
+        choices=[('', 'All Terms')] + list(TermChoices.choices),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Term'
+    )
+    student_class = forms.ChoiceField(
+        required=False,
+        choices=[('', 'All Classes')],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Grade'
+    )
+    student_search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Name or admission no'
+        }),
+        label='Student Search'
+    )
+    balance_filter = forms.ChoiceField(
+        required=False,
+        choices=BALANCE_FILTER_PRESET_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Overpayment'
+    )
+
+
 
 class TransportReportFilterForm(forms.Form):
     academic_year = forms.ModelChoiceField(

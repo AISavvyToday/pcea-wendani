@@ -755,6 +755,7 @@ class InvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
     def form_valid(self, form):
         term = form.cleaned_data['term']
         grade_levels = form.cleaned_data.get('grade_levels', [])
+        organization = getattr(term, 'organization', None) or getattr(self.request, 'organization', None)
 
         logger.info(f"Invoice generation started for term: {term}, grade levels: {grade_levels}")
 
@@ -762,6 +763,10 @@ class InvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
             # DEBUG: Check if students exist
             from students.models import Student
             students = Student.objects.filter(is_active=True, status='active')
+            if organization:
+                students = students.filter(organization=organization)
+            else:
+                students = students.filter(organization__isnull=True)
 
             # FIXED: Use current_class__grade_level
             if grade_levels:
@@ -780,6 +785,12 @@ class InvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
                 term=term.term,
                 is_active=True
             )
+            if organization:
+                fee_structures = fee_structures.filter(
+                    Q(organization=organization) | Q(organization__isnull=True)
+                )
+            else:
+                fee_structures = fee_structures.filter(organization__isnull=True)
             logger.info(f"Found {fee_structures.count()} fee structures for {term.academic_year.year} {term.term}")
 
             for fs in fee_structures:

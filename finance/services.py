@@ -192,10 +192,15 @@ class InvoiceService:
         # --------------------------------------------------
         opening_balance = student.balance_bf_original or Decimal("0.00")
         opening_prepayment = student.prepayment_original or Decimal("0.00")
+        opening_exposure = max(
+            Decimal("0.00"),
+            (invoice.total_amount or Decimal("0.00")) + opening_balance,
+        )
+        opening_credit_applied = min(opening_prepayment, opening_exposure)
 
         # These header fields remain as immutable snapshots for the term
         invoice.balance_bf = opening_balance
-        invoice.prepayment = opening_prepayment  # stored as POSITIVE credit
+        invoice.prepayment = opening_credit_applied  # stored as POSITIVE credit
         invoice.balance_bf_original = opening_balance
 
         # --------------------------------------------------
@@ -222,16 +227,16 @@ class InvoiceService:
             )
 
         prepay_item = None
-        if opening_prepayment > 0:
+        if opening_credit_applied > 0:
             prepay_item = InvoiceItem.objects.create(
                 invoice=invoice,
                 fee_item=None,
                 category="prepayment",
                 description="Prepayment / Credit from previous term",
                 # Negative amount so net_amount < 0 (credit)
-                amount=-opening_prepayment,
+                amount=-opening_credit_applied,
                 discount_applied=Decimal("0.00"),
-                net_amount=-opening_prepayment,
+                net_amount=-opening_credit_applied,
             )
 
         # --------------------------------------------------
@@ -244,7 +249,12 @@ class InvoiceService:
         # --------------------------------------------------
         from payments.services.invoice import InvoiceService as PaymentsInvoiceService
 
-        available_credit = student.credit_balance or Decimal("0.00")
+        starting_credit = student.credit_balance or Decimal("0.00")
+        credit_used_by_opening_prepayment = min(starting_credit, opening_credit_applied)
+        available_credit = max(
+            Decimal("0.00"),
+            starting_credit - credit_used_by_opening_prepayment,
+        )
 
         # Exposure here is the full invoice balance (term fees + B/F - prepayments)
         # as currently calculated by the Invoice model.
@@ -281,10 +291,9 @@ class InvoiceService:
                 amount_to_apply=credit_to_apply,
             )
 
-        # Decrement student's live credit BALANCE ONLY by what was actually applied
-        if internal_allocated > 0:
-            new_credit = (student.credit_balance or Decimal("0.00")) - internal_allocated
-            student.credit_balance = max(Decimal("0.00"), new_credit)
+        # Decrement live credit by the portion represented on this invoice once.
+        new_credit = starting_credit - credit_used_by_opening_prepayment - internal_allocated
+        student.credit_balance = max(Decimal("0.00"), new_credit)
         # Persist student changes (even if no internal allocation, updated_at is still useful)
         student.save(update_fields=["credit_balance", "updated_at"])
 
