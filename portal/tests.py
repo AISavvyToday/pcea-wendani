@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from django.test import TestCase, override_settings
@@ -75,6 +75,7 @@ class DashboardStudentCounterSyncTests(TestCase):
             gender=Gender.FEMALE,
             date_of_birth=date(2014, 6, 1),
             status='graduated',
+            status_date=timezone.make_aware(datetime(2025, 11, 20, 8, 0)),
         )
         Student.objects.create(
             organization=self.organization,
@@ -85,6 +86,7 @@ class DashboardStudentCounterSyncTests(TestCase):
             gender=Gender.MALE,
             date_of_birth=date(2014, 8, 1),
             status='transferred',
+            status_date=timezone.make_aware(datetime(2026, 2, 12, 8, 0)),
         )
         Student.objects.create(
             organization=self.other_organization,
@@ -97,25 +99,22 @@ class DashboardStudentCounterSyncTests(TestCase):
             status='active',
         )
 
-    def test_dashboard_student_card_matches_student_list_counters(self):
+    def test_dashboard_student_card_uses_current_term_status_events(self):
         self.client.force_login(self.user)
 
         dashboard_response = self.client.get(reverse('portal:dashboard_admin'))
-        students_response = self.client.get(reverse('students:list'))
 
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertEqual(students_response.status_code, 200)
 
         student_card = next(
             card for card in dashboard_response.context['stat_cards']
             if card['title'] == 'Total Students(Active only)'
         )
-        status_counts = students_response.context['status_counts']
 
-        self.assertEqual(int(student_card['value'].replace(',', '')), status_counts['active'])
-        self.assertIn(f"New-{status_counts['new']}", student_card['helper_lines'])
+        self.assertEqual(int(student_card['value'].replace(',', '')), 2)
+        self.assertIn("New-1", student_card['helper_lines'])
         self.assertIn(
-            f"Graduated-{status_counts['graduated']}, Transferred-{status_counts['transferred']}",
+            "Graduated-0, Transferred-1",
             student_card['helper_lines'],
         )
 
@@ -277,7 +276,7 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
         self.assertEqual(stats['collected'], Decimal('400.00'))
         self.assertEqual(stats['collected_breakdown']['fees'], Decimal('400.00'))
 
-    def test_collected_includes_current_credit_overpayments(self):
+    def test_collected_excludes_current_credit_overpayments(self):
         student = self._student('KPI003', credit_balance=Decimal('500.00'))
         invoice, item = self._invoice(
             student,
@@ -289,9 +288,9 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
 
         stats = _finance_kpis(term=self.term, organization=self.organization)['term_stats']
 
-        self.assertEqual(stats['collected'], Decimal('800.00'))
+        self.assertEqual(stats['collected'], Decimal('300.00'))
         self.assertEqual(stats['prepayments_breakdown']['current_credit'], Decimal('500.00'))
-        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('500.00'))
+        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('0.00'))
 
     @override_settings(
         DASHBOARD_COLLECTION_ADJUSTMENTS={
@@ -346,8 +345,8 @@ class DashboardFinanceKpiAlignmentTests(TestCase):
 
         self.assertEqual(stats['collected_breakdown']['admission_fee'], Decimal('241500.00'))
         self.assertEqual(stats['collected_breakdown']['fees'], Decimal('41733.00'))
-        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('500.00'))
-        self.assertEqual(stats['collected'], Decimal('283733.00'))
+        self.assertEqual(stats['collected_breakdown']['overpayments'], Decimal('0.00'))
+        self.assertEqual(stats['collected'], Decimal('283233.00'))
 
     def test_balances_bf_and_prepayments_show_before_new_term_invoices_exist(self):
         self._student(

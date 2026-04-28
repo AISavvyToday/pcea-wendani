@@ -123,6 +123,16 @@ def _get_staff_count(organization=None):
         return qs.count()
 
 
+def _count_term_status_events(queryset, *, status, term=None):
+    if not term:
+        return 0
+    return queryset.filter(
+        status=status,
+        status_date__date__gte=term.start_date,
+        status_date__date__lte=term.end_date,
+    ).count()
+
+
 def _invoice_base_qs(organization=None):
     qs = (
         Invoice.objects.filter(
@@ -372,7 +382,7 @@ def _finance_kpis(term=None, organization=None):
             total_billed_dashboard = kpi_payload.get("totals", {}).get("billed", Decimal("0"))
             total_collected_dashboard = (
                 display_collected_fees + collected_transport + display_collected_admission +
-                collected_educational_activities + collected_other_income + overpayments
+                collected_educational_activities + collected_other_income
             )
 
             stats.update({
@@ -405,7 +415,7 @@ def _finance_kpis(term=None, organization=None):
                     "admission_fee": display_collected_admission,
                     "educational_activities": collected_educational_activities,
                     "other_income": collected_other_income,
-                    "overpayments": overpayments,
+                    "overpayments": Decimal("0.00"),
                 },
             })
 
@@ -605,8 +615,8 @@ def dashboard_admin(request):
     student_counts = get_student_status_counters(student_base_qs, term=term)
     total_students = student_counts['active']
     new_students = student_counts['new']
-    graduated_students = student_counts['graduated']
-    transferred_students = student_counts['transferred']
+    graduated_students = _count_term_status_events(student_base_qs, status='graduated', term=term)
+    transferred_students = _count_term_status_events(student_base_qs, status='transferred', term=term)
 
     staff_count = _get_staff_count(organization=organization)
 
@@ -725,7 +735,6 @@ def dashboard_admin(request):
                     f"Admission Fee: {_fmt_kes(collected_breakdown.get('admission_fee'))}",
                     f"Transport: {_fmt_kes(collected_breakdown.get('transport'))}",
                     f"Other Income: {_fmt_kes(collected_breakdown.get('other_income'))}",
-                    f"Overpayments: {_fmt_kes(collected_breakdown.get('overpayments'))}",
                 ],
             },
             {

@@ -17,17 +17,23 @@
         for on-screen totals plus Excel and PDF downloads.
     </div>
 
-    <!-- Search -->
+    <!-- Filters -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row gx-3 gy-2">
-                <div class="col-md-10">
-                    <input type="text" name="q" class="form-control" placeholder="Search by client name, payer name, or payment reference..." 
-                           value="{{ search_query|default:'' }}">
-                    <input type="hidden" name="tab" value="{{ active_tab|default:'invoices' }}">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                <input type="hidden" name="tab" value="{{ active_tab|default:'invoices' }}">
+                <div class="col-md-3">{{ filter_form.search.label_tag }}{{ filter_form.search }}</div>
+                <div class="col-md-3">{{ filter_form.academic_year.label_tag }}{{ filter_form.academic_year }}</div>
+                <div class="col-md-3">{{ filter_form.term.label_tag }}{{ filter_form.term }}</div>
+                <div class="col-md-3">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
+                <div class="col-md-3">{{ filter_form.payment_method.label_tag }}{{ filter_form.payment_method }}</div>
+                <div class="col-md-3">{{ filter_form.issue_date_from.label_tag }}{{ filter_form.issue_date_from }}</div>
+                <div class="col-md-3">{{ filter_form.issue_date_to.label_tag }}{{ filter_form.issue_date_to }}</div>
+                <div class="col-md-3">{{ filter_form.payment_date_from.label_tag }}{{ filter_form.payment_date_from }}</div>
+                <div class="col-md-3">{{ filter_form.payment_date_to.label_tag }}{{ filter_form.payment_date_to }}</div>
+                <div class="col-md-12 d-flex justify-content-end gap-2 mt-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="{% url 'other_income:invoice_list' %}?tab={{ active_tab|default:'invoices' }}" class="btn btn-light">Clear</a>
                 </div>
             </form>
         </div>
@@ -40,13 +46,13 @@
             <ul class="nav nav-tabs mb-4" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link {% if active_tab == 'invoices' %}active{% endif %}" 
-                       href="?tab=invoices{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">
+                       href="?tab=invoices{% if filters_querystring %}&{{ filters_querystring }}{% endif %}">
                         <i class="mdi mdi-file-document"></i> Invoices
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if active_tab == 'payments' %}active{% endif %}" 
-                       href="?tab=payments{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">
+                       href="?tab=payments{% if filters_querystring %}&{{ filters_querystring }}{% endif %}">
                         <i class="mdi mdi-cash-multiple"></i> Payments
                     </a>
                 </li>

@@ -18,9 +18,12 @@ from .forms import (
     OtherIncomeReportStagingFilterForm,
 )
 from .reporting import (
-    OtherIncomeReportFilters,
+    apply_other_income_payment_filters,
+    apply_other_income_report_filters,
+    build_other_income_report_filters,
     build_other_income_report_dataset,
     build_other_income_report_inventory,
+    other_income_payment_queryset,
 )
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
@@ -40,38 +43,32 @@ class OtherIncomeListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Get active tab from query param
         active_tab = self.request.GET.get('tab', 'invoices')
         context['active_tab'] = active_tab
-        
-        # Search query
-        q = self.request.GET.get('q', '')
-        context['search_query'] = q
-        
-        # Get invoices - apply organization filter (with backward compat for null org)
         organization = getattr(self.request, 'organization', None)
-        invoices = _other_income_invoice_queryset(organization)
-        if q:
-            invoices = invoices.filter(client_name__icontains=q)
+        form = OtherIncomeReportStagingFilterForm(self.request.GET or None, organization=organization)
+        form.is_valid()
+        filters = build_other_income_report_filters(getattr(form, 'cleaned_data', {}))
+
+        context['filter_form'] = form
+        context['search_query'] = filters.search
+
+        invoices = apply_other_income_report_filters(
+            _other_income_invoice_queryset(organization),
+            filters,
+        )
         context['invoices'] = invoices.order_by('-issue_date')[:50]
-        
-        # Get payments - apply organization filter (with backward compat)
-        payments = OtherIncomePayment.objects.filter(is_active=True).select_related('invoice')
-        if organization:
-            payments = payments.filter(
-                Q(invoice__organization=organization) | Q(invoice__organization__isnull=True)
-            )
-        if q:
-            payments = payments.filter(
-                invoice__client_name__icontains=q
-            ) | payments.filter(
-                payer_name__icontains=q
-            ) | payments.filter(
-                payment_reference__icontains=q
-            )
+
+        payments = apply_other_income_payment_filters(
+            other_income_payment_queryset(organization),
+            filters,
+        )
         context['payments'] = payments.order_by('-payment_date')[:50]
-        
+
+        preserved_query = self.request.GET.copy()
+        preserved_query.pop('tab', None)
+        context['filters_querystring'] = preserved_query.urlencode()
+
         return context
 
 
@@ -303,22 +300,10 @@ class OtherIncomeReportStagingView(LoginRequiredMixin, OrganizationFilterMixin, 
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        form = OtherIncomeReportStagingFilterForm(self.request.GET or None)
-        form.is_valid()
-        cleaned = getattr(form, 'cleaned_data', {})
-
-        filters = OtherIncomeReportFilters(
-            search=cleaned.get('search', ''),
-            status=cleaned.get('status', ''),
-            issue_date_from=cleaned.get('issue_date_from'),
-            issue_date_to=cleaned.get('issue_date_to'),
-            due_date_from=cleaned.get('due_date_from'),
-            due_date_to=cleaned.get('due_date_to'),
-            payment_date_from=cleaned.get('payment_date_from'),
-            payment_date_to=cleaned.get('payment_date_to'),
-            payment_method=cleaned.get('payment_method', ''),
-        )
         organization = getattr(self.request, 'organization', None)
+        form = OtherIncomeReportStagingFilterForm(self.request.GET or None, organization=organization)
+        form.is_valid()
+        filters = build_other_income_report_filters(getattr(form, 'cleaned_data', {}))
 
         context.update({
             'form': form,

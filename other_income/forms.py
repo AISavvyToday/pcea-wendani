@@ -2,7 +2,9 @@
 from django import forms
 from django.forms import inlineformset_factory
 from decimal import Decimal
+from django.db.models import Q
 
+from academics.models import AcademicYear, Term
 from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
 
 
@@ -74,6 +76,20 @@ class OtherIncomeReportStagingFilterForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Invoice #, client, or reference'}),
         label='Search'
     )
+    academic_year = forms.ModelChoiceField(
+        required=False,
+        queryset=AcademicYear.objects.none(),
+        empty_label='All academic years',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Academic Year'
+    )
+    term = forms.ModelChoiceField(
+        required=False,
+        queryset=Term.objects.none(),
+        empty_label='All terms',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Term'
+    )
     status = forms.ChoiceField(
         required=False,
         choices=[('', 'All statuses')] + list(OtherIncomeInvoice.STATUS_CHOICES),
@@ -118,10 +134,35 @@ class OtherIncomeReportStagingFilterForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        organization = kwargs.pop('organization', None)
         super().__init__(*args, **kwargs)
+
+        academic_years = AcademicYear.objects.all()
+        terms = Term.objects.select_related('academic_year')
+        payments = OtherIncomePayment.objects.filter(is_active=True)
+
+        if organization:
+            academic_years = academic_years.filter(Q(organization=organization) | Q(organization__isnull=True))
+            terms = terms.filter(Q(organization=organization) | Q(organization__isnull=True))
+            payments = payments.filter(
+                Q(invoice__organization=organization) | Q(invoice__organization__isnull=True)
+            )
+
+        self.fields['academic_year'].queryset = academic_years.order_by('-year')
+
+        selected_year = (
+            self.data.get(self.add_prefix('academic_year'))
+            or self.initial.get('academic_year')
+        )
+        if hasattr(selected_year, 'pk'):
+            selected_year = selected_year.pk
+        if selected_year:
+            terms = terms.filter(academic_year_id=selected_year)
+        self.fields['term'].queryset = terms.order_by('-academic_year__year', '-start_date', 'term')
+
         payment_methods = [
             method for method in
-            OtherIncomePayment.objects.filter(is_active=True)
+            payments
             .exclude(payment_method='')
             .values_list('payment_method', flat=True)
             .distinct()
@@ -130,3 +171,11 @@ class OtherIncomeReportStagingFilterForm(forms.Form):
         self.fields['payment_method'].choices = [('', 'All payment methods')] + [
             (method, method.replace('_', ' ').title()) for method in payment_methods
         ]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        term = cleaned_data.get('term')
+        academic_year = cleaned_data.get('academic_year')
+        if term and academic_year is None:
+            cleaned_data['academic_year'] = term.academic_year
+        return cleaned_data

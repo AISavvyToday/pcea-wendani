@@ -13,7 +13,7 @@ from core.mixins import RoleRequiredMixin
 from core.models import UserRole
 from .forms import OtherIncomeReportStagingFilterForm
 from .reporting import (
-    OtherIncomeReportFilters,
+    build_other_income_report_filters,
     build_other_income_flat_rows,
     build_other_income_summary,
 )
@@ -23,23 +23,15 @@ class OtherIncomeReportBaseMixin(LoginRequiredMixin, RoleRequiredMixin):
     allowed_roles = [UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN, UserRole.ACCOUNTANT]
 
     def get_report_form(self):
-        return OtherIncomeReportStagingFilterForm(self.request.GET or None)
+        return OtherIncomeReportStagingFilterForm(
+            self.request.GET or None,
+            organization=getattr(self.request, 'organization', None),
+        )
 
     def get_filters(self):
         form = self.get_report_form()
         form.is_valid()
-        cleaned = getattr(form, 'cleaned_data', {})
-        return form, OtherIncomeReportFilters(
-            search=cleaned.get('search', ''),
-            status=cleaned.get('status', ''),
-            issue_date_from=cleaned.get('issue_date_from'),
-            issue_date_to=cleaned.get('issue_date_to'),
-            due_date_from=cleaned.get('due_date_from'),
-            due_date_to=cleaned.get('due_date_to'),
-            payment_date_from=cleaned.get('payment_date_from'),
-            payment_date_to=cleaned.get('payment_date_to'),
-            payment_method=cleaned.get('payment_method', ''),
-        )
+        return form, build_other_income_report_filters(getattr(form, 'cleaned_data', {}))
 
     def build_context(self):
         form, filters = self.get_filters()

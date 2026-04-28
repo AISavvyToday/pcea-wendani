@@ -19,16 +19,18 @@
     <div class="card-body">
       <form method="get" class="row g-2 align-items-end">
         <div class="col-md-3">{{ form.search.label_tag }}{{ form.search }}</div>
+        <div class="col-md-3">{{ form.academic_year.label_tag }}{{ form.academic_year }}</div>
+        <div class="col-md-3">{{ form.term.label_tag }}{{ form.term }}</div>
         <div class="col-md-3">{{ form.status.label_tag }}{{ form.status }}</div>
         <div class="col-md-3">{{ form.payment_method.label_tag }}{{ form.payment_method }}</div>
-        <div class="col-md-3 text-md-end">
-          <button class="btn btn-primary">Filter</button>
-          <a href="{% url 'other_income:report' %}" class="btn btn-light">Clear</a>
-        </div>
         <div class="col-md-3">{{ form.issue_date_from.label_tag }}{{ form.issue_date_from }}</div>
         <div class="col-md-3">{{ form.issue_date_to.label_tag }}{{ form.issue_date_to }}</div>
         <div class="col-md-3">{{ form.payment_date_from.label_tag }}{{ form.payment_date_from }}</div>
         <div class="col-md-3">{{ form.payment_date_to.label_tag }}{{ form.payment_date_to }}</div>
+        <div class="col-md-3 text-md-end">
+          <button class="btn btn-primary">Filter</button>
+          <a href="{% url 'other_income:report' %}" class="btn btn-light">Clear</a>
+        </div>
       </form>
     </div>
   </div>

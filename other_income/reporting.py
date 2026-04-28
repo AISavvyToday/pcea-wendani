@@ -1,9 +1,11 @@
 from decimal import Decimal
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 
 from django.db.models import Count, Prefetch, Q
 
+from academics.models import AcademicYear, Term
 from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
 
 
@@ -11,6 +13,8 @@ from .models import OtherIncomeInvoice, OtherIncomeItem, OtherIncomePayment
 class OtherIncomeReportFilters:
     search: str = ''
     status: str = ''
+    academic_year: Optional[AcademicYear] = None
+    term: Optional[Term] = None
     issue_date_from: Optional[object] = None
     issue_date_to: Optional[object] = None
     due_date_from: Optional[object] = None
@@ -18,6 +22,39 @@ class OtherIncomeReportFilters:
     payment_date_from: Optional[object] = None
     payment_date_to: Optional[object] = None
     payment_method: str = ''
+
+
+def build_other_income_report_filters(cleaned_data):
+    cleaned_data = cleaned_data or {}
+    return OtherIncomeReportFilters(
+        search=cleaned_data.get('search', ''),
+        status=cleaned_data.get('status', ''),
+        academic_year=cleaned_data.get('academic_year'),
+        term=cleaned_data.get('term'),
+        issue_date_from=cleaned_data.get('issue_date_from'),
+        issue_date_to=cleaned_data.get('issue_date_to'),
+        due_date_from=cleaned_data.get('due_date_from'),
+        due_date_to=cleaned_data.get('due_date_to'),
+        payment_date_from=cleaned_data.get('payment_date_from'),
+        payment_date_to=cleaned_data.get('payment_date_to'),
+        payment_method=cleaned_data.get('payment_method', ''),
+    )
+
+
+def resolve_other_income_period(filters: OtherIncomeReportFilters):
+    if filters.term:
+        return filters.term.start_date, filters.term.end_date
+    if filters.academic_year:
+        return filters.academic_year.start_date, filters.academic_year.end_date
+    return None, None
+
+
+def _apply_date_window(queryset, lookup_root, start_date=None, end_date=None):
+    if start_date:
+        queryset = queryset.filter(**{f'{lookup_root}__gte': start_date})
+    if end_date:
+        queryset = queryset.filter(**{f'{lookup_root}__lte': end_date})
+    return queryset
 
 
 def other_income_report_queryset(organization=None):
@@ -50,6 +87,8 @@ def other_income_report_queryset(organization=None):
 
 def apply_other_income_report_filters(queryset, filters: OtherIncomeReportFilters):
     """Apply only currently-supported, confirmed data filters."""
+    period_start, period_end = resolve_other_income_period(filters)
+
     if filters.search:
         queryset = queryset.filter(
             Q(invoice_number__icontains=filters.search) |
@@ -64,6 +103,7 @@ def apply_other_income_report_filters(queryset, filters: OtherIncomeReportFilter
 
     if filters.status:
         queryset = queryset.filter(status=filters.status)
+    queryset = _apply_date_window(queryset, 'issue_date', period_start, period_end)
     if filters.issue_date_from:
         queryset = queryset.filter(issue_date__gte=filters.issue_date_from)
     if filters.issue_date_to:
@@ -78,6 +118,49 @@ def apply_other_income_report_filters(queryset, filters: OtherIncomeReportFilter
         queryset = queryset.filter(payments__payment_date__date__lte=filters.payment_date_to)
     if filters.payment_method:
         queryset = queryset.filter(payments__payment_method=filters.payment_method)
+
+    return queryset.distinct()
+
+
+def other_income_payment_queryset(organization=None):
+    queryset = OtherIncomePayment.objects.filter(is_active=True).select_related('invoice', 'invoice__organization')
+    if organization:
+        queryset = queryset.filter(Q(invoice__organization=organization) | Q(invoice__organization__isnull=True))
+    return queryset.order_by('-payment_date', '-created_at')
+
+
+def apply_other_income_payment_filters(queryset, filters: OtherIncomeReportFilters):
+    period_start, period_end = resolve_other_income_period(filters)
+
+    if filters.search:
+        queryset = queryset.filter(
+            Q(invoice__invoice_number__icontains=filters.search) |
+            Q(invoice__client_name__icontains=filters.search) |
+            Q(invoice__client_contact__icontains=filters.search) |
+            Q(invoice__description__icontains=filters.search) |
+            Q(payment_reference__icontains=filters.search) |
+            Q(receipt_number__icontains=filters.search) |
+            Q(transaction_reference__icontains=filters.search) |
+            Q(payer_name__icontains=filters.search)
+        )
+
+    if filters.status:
+        queryset = queryset.filter(invoice__status=filters.status)
+    queryset = _apply_date_window(queryset, 'payment_date__date', period_start, period_end)
+    if filters.issue_date_from:
+        queryset = queryset.filter(invoice__issue_date__gte=filters.issue_date_from)
+    if filters.issue_date_to:
+        queryset = queryset.filter(invoice__issue_date__lte=filters.issue_date_to)
+    if filters.due_date_from:
+        queryset = queryset.filter(invoice__due_date__gte=filters.due_date_from)
+    if filters.due_date_to:
+        queryset = queryset.filter(invoice__due_date__lte=filters.due_date_to)
+    if filters.payment_date_from:
+        queryset = queryset.filter(payment_date__date__gte=filters.payment_date_from)
+    if filters.payment_date_to:
+        queryset = queryset.filter(payment_date__date__lte=filters.payment_date_to)
+    if filters.payment_method:
+        queryset = queryset.filter(payment_method=filters.payment_method)
 
     return queryset.distinct()
 

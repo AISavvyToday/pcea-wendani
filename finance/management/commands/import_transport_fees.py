@@ -1,255 +1,413 @@
-# finance/management/commands/import_transport_fees.py
 import os
+from decimal import Decimal, InvalidOperation
+
 import pandas as pd
-from django.core.management.base import BaseCommand
-from django.db import transaction, models
-from decimal import Decimal
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.db.models import Q
+
+from academics.models import AcademicYear, Term
+from core.models import FeeCategory, InvoiceStatus, Organization, TermChoices
+from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
 from students.models import Student
-from finance.models import Invoice, InvoiceItem, FeeStructure, FeeItem
-from academics.models import Term, AcademicYear
-from core.models import FeeCategory
+from transport.models import TransportRoute
+
 
 class Command(BaseCommand):
-    help = 'Import transport fees from Excel to student invoices for Term 1 2026'
+    help = "Import transport fees from Excel into invoices for one organization and term."
+
+    REQUIRED_COLUMNS = (
+        'Admission #',
+        'Route/Destination',
+        'Transport Amount',
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--file',
             type=str,
             default='transport-report.xlsx',
-            help='Path to transport report Excel file'
+            help='Path to transport report Excel file.',
+        )
+        parser.add_argument(
+            '--organization-code',
+            type=str,
+            required=True,
+            help='Organization code to scope the import to, for example WENDANI.',
+        )
+        parser.add_argument(
+            '--academic-year',
+            type=int,
+            help='Academic year, for example 2026. Defaults to the current organization term year.',
+        )
+        parser.add_argument(
+            '--term',
+            type=str,
+            choices=[choice[0] for choice in TermChoices.choices],
+            help='Term code, for example term_2. Defaults to the current organization term.',
         )
         parser.add_argument(
             '--dry-run',
             action='store_true',
-            help='Show what would be done without making changes'
+            help='Show what would be done without making changes.',
         )
-
-    def get_admission_number_variations(self, raw_adm):
-        """Return all possible admission number variations to try"""
-        if not raw_adm or pd.isna(raw_adm):
-            return []
-        
-        raw_adm = str(raw_adm).strip()
-        variations = []
-        
-        # Add the raw version first
-        variations.append(raw_adm)
-        
-        # If it has slashes, also try without them
-        if '/' in raw_adm:
-            without_slashes = raw_adm.replace('/', '')
-            if without_slashes not in variations:
-                variations.append(without_slashes)
-        
-        # If it doesn't have slashes and starts with PWA, try with slashes
-        if '/' not in raw_adm and raw_adm.startswith('PWA'):
-            # Extract numeric part
-            num_part = raw_adm[3:]  # Remove 'PWA'
-            if num_part.isdigit():
-                with_slashes = f'PWA/{num_part}/'
-                if with_slashes not in variations:
-                    variations.append(with_slashes)
-        
-        return variations
 
     def handle(self, *args, **options):
         file_path = options['file']
+        organization_code = (options['organization_code'] or '').strip()
+        academic_year_value = options.get('academic_year')
+        term_value = options.get('term')
         dry_run = options['dry_run']
-        
+
         if not os.path.exists(file_path):
-            self.stdout.write(self.style.ERROR(f"File not found: {file_path}"))
-            return
+            raise CommandError(f"File not found: {file_path}")
 
-        # Load the Excel file
-        try:
-            df = pd.read_excel(file_path, skiprows=4)  # Skip header rows
-            # Clean column names (remove extra spaces)
-            df.columns = df.columns.str.strip()
-            self.stdout.write(f"Loaded {len(df)} records from Excel")
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error reading Excel: {e}"))
-            return
+        organization = self._resolve_organization(organization_code)
+        term = self._resolve_term(
+            organization=organization,
+            academic_year_value=academic_year_value,
+            term_value=term_value,
+        )
+        dataframe = self._load_dataframe(file_path)
 
-        # Get Term 1 2026
-        try:
-            # First get academic year
-            academic_year = AcademicYear.objects.get(year=2026)
-            
-            # Try to find term
-            term = Term.objects.filter(
-                academic_year=academic_year,
-                term='term_1'
-            ).first()
-            
-            if not term:
-                self.stdout.write(self.style.ERROR("Term 1 2026 not found"))
-                return
-            
-            self.stdout.write(f"Using term: {term}")
-            
-        except AcademicYear.DoesNotExist:
-            self.stdout.write(self.style.ERROR("Academic year 2026 not found"))
-            return
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error getting term: {e}"))
-            return
-
+        self.stdout.write(
+            f"Using organization: {organization.name} ({organization.code})"
+        )
+        self.stdout.write(
+            f"Using term: {term} [{term.start_date} to {term.end_date}]"
+        )
         if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN - No changes will be made"))
-            self.stdout.write("=" * 80)
+            self.stdout.write(self.style.WARNING("DRY RUN - No changes will be made."))
 
-        success_count = 0
-        error_count = 0
-        skipped_no_invoice = 0
-        skipped_already_exists = 0
-        skipped_not_active = 0
+        summary = {
+            'rows_seen': 0,
+            'rows_with_amount': 0,
+            'processed': 0,
+            'added': 0,
+            'skipped_zero_amount': 0,
+            'skipped_blank_admission': 0,
+            'skipped_existing_transport': 0,
+            'skipped_inactive_student': 0,
+            'missing_students': 0,
+            'missing_invoices': 0,
+            'missing_routes': 0,
+            'matched_routes': 0,
+            'errors': 0,
+            'transport_total': Decimal('0.00'),
+        }
+        preview_lines = []
 
-        for index, row in df.iterrows():
+        for row_number, row in enumerate(dataframe.to_dict('records'), start=5):
             try:
-                # Get raw admission number
-                raw_adm = row.get('Admission #')
-                if pd.isna(raw_adm):
-                    self.stdout.write(f"Row {index}: No admission number")
-                    error_count += 1
-                    continue
-                
-                transport_amount = Decimal(str(row.get('Transport Amount', 0)))
-                route = str(row.get('Route/Destination', '')).strip()
-                
-                # Skip if transport amount is 0
-                if transport_amount <= 0:
-                    self.stdout.write(f"Row {index}: Skipped (zero transport amount)")
-                    continue
-                
-                # Try multiple admission number variations
-                variations = self.get_admission_number_variations(raw_adm)
-                student = None
-                found_admission = None
-                
-                for adm_variation in variations:
-                    try:
-                        student = Student.objects.get(admission_number=adm_variation)
-                        found_admission = adm_variation
-                        break
-                    except Student.DoesNotExist:
-                        continue
-                
-                if not student:
-                    self.stdout.write(f"{raw_adm}: Student not found (tried: {variations})")
-                    error_count += 1
-                    continue
-                
-                # Check if student is active
-                if student.status != 'active':
-                    self.stdout.write(f"{found_admission}: Student is not active (status: {student.status}) - skipping")
-                    skipped_not_active += 1
-                    continue
-                
-                # Find existing invoice for Term 1 2026
-                try:
-                    invoice = Invoice.objects.get(student=student, term=term)
-                except Invoice.DoesNotExist:
-                    self.stdout.write(f"{found_admission}: No invoice found for Term 1 2026 - skipping")
-                    skipped_no_invoice += 1
-                    continue
-                except Invoice.MultipleObjectsReturned:
-                    # Take the first one
-                    invoice = Invoice.objects.filter(student=student, term=term).first()
-                    self.stdout.write(f"{found_admission}: Multiple invoices found, using {invoice.invoice_number}")
-                
-                # Check if transport already exists in invoice items
-                existing_transport = invoice.items.filter(category=FeeCategory.TRANSPORT).exists()
-                if existing_transport:
-                    self.stdout.write(f"{found_admission}: Transport already exists in invoice")
-                    skipped_already_exists += 1
-                    continue
-                
-                # DRY RUN: Show what would happen
-                if dry_run:
-                    old_balance = invoice.balance
-                    old_total = invoice.total_amount
-                    new_total = old_total + transport_amount
-                    new_balance = old_balance + transport_amount
-                    
-                    self.stdout.write(f"{found_admission}: Would add transport fee of {transport_amount}")
-                    self.stdout.write(f"  Route: {route}")
-                    self.stdout.write(f"  Invoice: {invoice.invoice_number}")
-                    self.stdout.write(f"  Current total: {old_total} → New total: {new_total}")
-                    self.stdout.write(f"  Current balance: {old_balance} → New balance: {new_balance}")
-                    self.stdout.write("-" * 40)
-                    success_count += 1
-                    continue
-                
-                # ACTUAL EXECUTION
-                with transaction.atomic():
-                    # Get or create fee structure for transport (for reference only)
-                    fee_structure, _ = FeeStructure.objects.get_or_create(
-                        name=f"Transport Fee - Term 1 2026",
-                        academic_year=academic_year,
-                        term='term_1',
-                        defaults={
-                            'description': 'Transport fees imported from Excel',
-                        }
-                    )
-                    
-                    # Get or create fee item
-                    fee_item, _ = FeeItem.objects.get_or_create(
-                        fee_structure=fee_structure,
-                        category=FeeCategory.TRANSPORT,
-                        description=f'Transport Fee - {route[:50]}' if route else 'Transport Fee',
-                        defaults={
-                            'amount': transport_amount,
-                            'is_optional': True,
-                            'applies_to_all': False,
-                        }
-                    )
-                    
-                    # Create invoice item
-                    invoice_item = InvoiceItem.objects.create(
-                        invoice=invoice,
-                        fee_item=fee_item,
-                        description=f'Transport Fee - {route}' if route else 'Transport Fee',
-                        category=FeeCategory.TRANSPORT,
-                        amount=transport_amount,
-                        discount_applied=Decimal('0.00'),
-                        net_amount=transport_amount,
-                    )
-                    
-                    # Update invoice amounts
-                    invoice.subtotal += transport_amount
-                    invoice.total_amount += transport_amount
-                    
-                    # Save invoice (which will recalculate balance and update student)
-                    invoice.save()
-                    
-                    # Also update student's transport flag and route if applicable
-                    if not student.uses_school_transport:
-                        student.uses_school_transport = True
-                        student.save(update_fields=['uses_school_transport'])
-                    
-                    success_count += 1
-                    self.stdout.write(self.style.SUCCESS(f"{found_admission}: Added transport fee of {transport_amount}"))
-                    
-            except Exception as e:
-                error_count += 1
-                self.stdout.write(self.style.ERROR(f"Error processing row {index} ({raw_adm}): {str(e)}"))
-                if not dry_run:
-                    import traceback
-                    traceback.print_exc()
+                summary['rows_seen'] += 1
+                raw_admission = row.get('Admission #')
+                route_name = self._clean_text(row.get('Route/Destination'))
+                transport_amount = self._to_decimal(row.get('Transport Amount'))
+                admission_variations = self._admission_variations(raw_admission)
 
-        # Summary
-        self.stdout.write("\n" + "=" * 80)
-        self.stdout.write("IMPORT SUMMARY:")
-        self.stdout.write(f"  Successfully processed: {success_count}")
-        self.stdout.write(f"  Skipped (no invoice): {skipped_no_invoice}")
-        self.stdout.write(f"  Skipped (already exists): {skipped_already_exists}")
-        self.stdout.write(f"  Skipped (not active): {skipped_not_active}")
-        self.stdout.write(f"  Errors: {error_count}")
-        self.stdout.write(f"  Total in Excel: {len(df)}")
-        
+                if not admission_variations:
+                    summary['skipped_blank_admission'] += 1
+                    continue
+
+                if transport_amount <= Decimal('0.00'):
+                    summary['skipped_zero_amount'] += 1
+                    continue
+
+                summary['rows_with_amount'] += 1
+                student, matched_admission = self._find_student(
+                    admission_variations=admission_variations,
+                    organization=organization,
+                )
+                if not student:
+                    summary['missing_students'] += 1
+                    preview_lines.append(
+                        f"Row {row_number}: student not found for admission {raw_admission!r}"
+                    )
+                    continue
+
+                if student.status != 'active':
+                    summary['skipped_inactive_student'] += 1
+                    preview_lines.append(
+                        f"Row {row_number}: skipped {matched_admission} because student status is {student.status}"
+                    )
+                    continue
+
+                invoice = self._find_invoice(student=student, term=term, organization=organization)
+                if not invoice:
+                    summary['missing_invoices'] += 1
+                    preview_lines.append(
+                        f"Row {row_number}: no invoice found for {matched_admission} in {term}"
+                    )
+                    continue
+
+                existing_transport = invoice.items.filter(
+                    is_active=True,
+                    category=FeeCategory.TRANSPORT,
+                )
+                if existing_transport.exists():
+                    summary['skipped_existing_transport'] += 1
+                    preview_lines.append(
+                        f"Row {row_number}: invoice {invoice.invoice_number} already has transport"
+                    )
+                    continue
+
+                route = self._resolve_transport_route(organization=organization, route_name=route_name)
+                if route:
+                    summary['matched_routes'] += 1
+                else:
+                    summary['missing_routes'] += 1
+
+                summary['processed'] += 1
+                summary['transport_total'] += transport_amount
+                old_total = invoice.total_amount or Decimal('0.00')
+                new_total = old_total + transport_amount
+
+                if len(preview_lines) < 20:
+                    preview_lines.append(
+                        f"Row {row_number}: {matched_admission} -> {invoice.invoice_number} "
+                        f"transport {transport_amount} route={route_name or '-'} total {old_total} -> {new_total}"
+                    )
+
+                if dry_run:
+                    continue
+
+                self._apply_transport_to_invoice(
+                    invoice=invoice,
+                    student=student,
+                    organization=organization,
+                    term=term,
+                    route=route,
+                    route_name=route_name,
+                    transport_amount=transport_amount,
+                )
+                summary['added'] += 1
+            except Exception as exc:
+                summary['errors'] += 1
+                preview_lines.append(f"Row {row_number}: error {exc}")
+
+        self.stdout.write('')
+        self.stdout.write('=' * 80)
+        self.stdout.write('TRANSPORT IMPORT SUMMARY')
+        self.stdout.write(f"Organization: {organization.name} ({organization.code})")
+        self.stdout.write(f"Term: {term}")
+        self.stdout.write(f"Rows in workbook: {summary['rows_seen']}")
+        self.stdout.write(f"Rows with transport amount: {summary['rows_with_amount']}")
+        self.stdout.write(f"Rows ready to import: {summary['processed']}")
+        self.stdout.write(f"Rows imported: {summary['added']}")
+        self.stdout.write(f"Total transport to add: KES {summary['transport_total']:,.2f}")
+        self.stdout.write(f"Matched transport routes: {summary['matched_routes']}")
+        self.stdout.write(f"Unmatched route names: {summary['missing_routes']}")
+        self.stdout.write(f"Skipped blank/totals rows: {summary['skipped_blank_admission']}")
+        self.stdout.write(f"Skipped zero amount: {summary['skipped_zero_amount']}")
+        self.stdout.write(f"Skipped existing transport: {summary['skipped_existing_transport']}")
+        self.stdout.write(f"Skipped inactive students: {summary['skipped_inactive_student']}")
+        self.stdout.write(f"Missing students: {summary['missing_students']}")
+        self.stdout.write(f"Missing invoices: {summary['missing_invoices']}")
+        self.stdout.write(f"Errors: {summary['errors']}")
+
+        if preview_lines:
+            self.stdout.write('')
+            self.stdout.write('Preview:')
+            for line in preview_lines:
+                self.stdout.write(f"  - {line}")
+
         if dry_run:
-            self.stdout.write(self.style.WARNING("\nThis was a DRY RUN. No changes were made to the database."))
-            self.stdout.write("Run without --dry-run to actually import the fees.")
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING('Dry run complete. No invoice was changed.'))
         else:
-            self.stdout.write(self.style.SUCCESS("\nTransport fees import completed!"))
+            self.stdout.write('')
+            self.stdout.write(self.style.SUCCESS('Transport import complete.'))
+
+    def _resolve_organization(self, organization_code):
+        queryset = Organization.objects.filter(code__iexact=organization_code)
+        organization = queryset.first()
+        if organization:
+            return organization
+        raise CommandError(f"Organization not found for code: {organization_code}")
+
+    def _resolve_term(self, *, organization, academic_year_value=None, term_value=None):
+        queryset = Term.objects.select_related('academic_year').filter(
+            Q(organization=organization) | Q(organization__isnull=True)
+        )
+        if academic_year_value is not None:
+            queryset = queryset.filter(academic_year__year=academic_year_value)
+        if term_value:
+            queryset = queryset.filter(term=term_value)
+        else:
+            queryset = queryset.filter(is_current=True)
+
+        queryset = queryset.order_by(
+            '-organization_id',
+            '-academic_year__year',
+            '-start_date',
+            'term',
+        )
+        term = queryset.first()
+        if term:
+            return term
+
+        label = f"{academic_year_value or 'current'} {term_value or 'current term'}"
+        raise CommandError(f"Term not found for organization {organization.code} and selection {label}.")
+
+    def _load_dataframe(self, file_path):
+        try:
+            dataframe = pd.read_excel(file_path, header=3)
+        except Exception as exc:
+            raise CommandError(f"Error reading Excel file: {exc}") from exc
+
+        dataframe.columns = [self._clean_text(column) for column in dataframe.columns]
+        missing_columns = [column for column in self.REQUIRED_COLUMNS if column not in dataframe.columns]
+        if missing_columns:
+            raise CommandError(
+                f"Workbook is missing required columns: {', '.join(missing_columns)}"
+            )
+
+        return dataframe.dropna(how='all')
+
+    def _clean_text(self, value):
+        if value is None:
+            return ''
+        if pd.isna(value):
+            return ''
+        text = str(value).strip()
+        if text.endswith('.0') and text[:-2].isdigit():
+            return text[:-2]
+        return text
+
+    def _to_decimal(self, value):
+        if value is None or pd.isna(value):
+            return Decimal('0.00')
+        text = self._clean_text(value).replace(',', '')
+        if not text:
+            return Decimal('0.00')
+        try:
+            return Decimal(text)
+        except (InvalidOperation, TypeError):
+            return Decimal('0.00')
+
+    def _admission_variations(self, raw_admission):
+        cleaned = self._clean_text(raw_admission)
+        if not cleaned:
+            return []
+
+        variations = [cleaned]
+        if '/' in cleaned:
+            compact = cleaned.replace('/', '')
+            if compact not in variations:
+                variations.append(compact)
+        elif cleaned.startswith('PWA'):
+            suffix = cleaned[3:]
+            if suffix.isdigit():
+                slash_variant = f'PWA/{suffix}/'
+                if slash_variant not in variations:
+                    variations.append(slash_variant)
+        return variations
+
+    def _find_student(self, *, admission_variations, organization):
+        base_queryset = Student.objects.filter(organization=organization)
+        if hasattr(Student, 'is_active'):
+            base_queryset = base_queryset.filter(is_active=True)
+
+        for admission in admission_variations:
+            student = base_queryset.filter(admission_number=admission).first()
+            if student:
+                return student, admission
+
+        return None, None
+
+    def _find_invoice(self, *, student, term, organization):
+        queryset = Invoice.objects.filter(
+            student=student,
+            term=term,
+            is_active=True,
+        ).exclude(status=InvoiceStatus.CANCELLED)
+        queryset = queryset.filter(
+            Q(organization=organization) |
+            Q(organization__isnull=True, student__organization=organization)
+        )
+        return queryset.order_by('-created_at').first()
+
+    def _resolve_transport_route(self, *, organization, route_name):
+        if not route_name:
+            return None
+        queryset = TransportRoute.objects.filter(
+            Q(organization=organization) | Q(organization__isnull=True),
+            name__iexact=route_name,
+            is_active=True,
+        ).order_by('-organization_id', 'name')
+        return queryset.first()
+
+    def _get_transport_fee_item(self, *, organization, term, route_name, transport_amount):
+        fee_structure, _ = FeeStructure.objects.get_or_create(
+            organization=organization,
+            name=f"Transport Import {term.academic_year.year} {term.get_term_display()}",
+            academic_year=term.academic_year,
+            term=term.term,
+            defaults={
+                'description': 'Transport items imported into already-generated invoices.',
+                'grade_levels': [],
+            },
+        )
+        description = f"Transport Fee - {route_name}" if route_name else 'Transport Fee'
+        fee_item = FeeItem.objects.filter(
+            fee_structure=fee_structure,
+            category=FeeCategory.TRANSPORT,
+            description=description,
+            amount=transport_amount,
+        ).first()
+        if fee_item:
+            return fee_item
+        return FeeItem.objects.create(
+            fee_structure=fee_structure,
+            category=FeeCategory.TRANSPORT,
+            description=description,
+            amount=transport_amount,
+            is_optional=True,
+            applies_to_all=False,
+        )
+
+    def _apply_transport_to_invoice(
+        self,
+        *,
+        invoice,
+        student,
+        organization,
+        term,
+        route,
+        route_name,
+        transport_amount,
+    ):
+        description = f"Transport Fee - {route_name}" if route_name else 'Transport Fee'
+        fee_item = self._get_transport_fee_item(
+            organization=organization,
+            term=term,
+            route_name=route_name,
+            transport_amount=transport_amount,
+        )
+
+        with transaction.atomic():
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                fee_item=fee_item,
+                description=description,
+                category=FeeCategory.TRANSPORT,
+                amount=transport_amount,
+                discount_applied=Decimal('0.00'),
+                net_amount=transport_amount,
+                transport_route=route,
+                transport_trip_type='full',
+            )
+
+            invoice.subtotal = (invoice.subtotal or Decimal('0.00')) + transport_amount
+            invoice.total_amount = (invoice.total_amount or Decimal('0.00')) + transport_amount
+            invoice.save(update_fields=['subtotal', 'total_amount', 'balance', 'status', 'updated_at'])
+
+            student_updates = []
+            if not student.uses_school_transport:
+                student.uses_school_transport = True
+                student_updates.append('uses_school_transport')
+            if route and student.transport_route_id != route.id:
+                student.transport_route = route
+                student_updates.append('transport_route')
+            if student_updates:
+                student.save(update_fields=[*student_updates, 'updated_at'])
