@@ -9,3 +9,11 @@ def split(value, delimiter=','):
     if not value:
         return []
     return [item.strip() for item in value.split(delimiter)]
+
+
+@register.filter
+def split_lines(value):
+    """Split text into non-empty, stripped lines."""
+    if not value:
+        return []
+    return [line.strip() for line in str(value).splitlines() if line.strip()]
