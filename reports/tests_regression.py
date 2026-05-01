@@ -177,4 +177,5 @@ class InvoiceReportRegressionTests(TestCase):
         self.assertEqual(report_data['totals']['outstanding'], Decimal("2000.00"))
         self.assertEqual(report_data['totals']['balance_bf'], Decimal("150.00"))
         self.assertEqual(report_data['totals']['prepayment_display'], Decimal("75.00"))
+        category_labels = [row['category_display'] for row in report_data['rows']]
         self.assertIn("Educational Activities", category_labels)

@@ -384,6 +384,84 @@ class Student(BaseModel):
         super().save(*args, **kwargs)
 
 
+class StudentTermState(BaseModel):
+    """Term-specific student state used by dashboards, reports, and invoicing."""
+
+    TRIP_CHOICES = [
+        ('full', 'Full Trip'),
+        ('half', 'Half Trip'),
+    ]
+
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='student_term_states',
+        null=True,
+        blank=True,
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='term_states',
+    )
+    term = models.ForeignKey(
+        'academics.Term',
+        on_delete=models.CASCADE,
+        related_name='student_states',
+    )
+    class_obj = models.ForeignKey(
+        'academics.Class',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='student_term_states',
+    )
+    status = models.CharField(max_length=20, choices=Student.STATUS_CHOICES, default='active')
+    status_date = models.DateTimeField(null=True, blank=True)
+    uses_school_transport = models.BooleanField(default=False)
+    transport_route = models.ForeignKey(
+        'transport.TransportRoute',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='student_term_states',
+    )
+    transport_trip_type = models.CharField(
+        max_length=10,
+        choices=TRIP_CHOICES,
+        default='full',
+        blank=True,
+    )
+
+    class Meta:
+        db_table = 'student_term_states'
+        ordering = ['term', 'student__admission_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'student', 'term'],
+                name='unique_student_state_per_org_term',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['term', 'status']),
+            models.Index(fields=['organization', 'term', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.student.admission_number} - {self.term} - {self.status}"
+
+    @classmethod
+    def defaults_from_student(cls, student):
+        return {
+            'organization': student.organization,
+            'class_obj': student.current_class,
+            'status': student.status,
+            'status_date': student.status_date,
+            'uses_school_transport': student.uses_school_transport,
+            'transport_route': student.transport_route,
+            'transport_trip_type': 'full',
+        }
+
 
 class StudentParent(models.Model):
     """

@@ -309,8 +309,8 @@ class NotificationServiceTests(PaymentServiceFixtureMixin, TestCase):
 
     def test_format_sms_receipt(self):
         message = NotificationService.format_sms_receipt(self.payment)
-        self.assertIn("Receipt Number:", message)
-        self.assertIn(self.payment.receipt_number, message)
+        self.assertIn("Transaction Ref No.:", message)
+        self.assertIn(self.payment.transaction_reference, message)
         self.assertIn(self.student.admission_number, message)
         self.assertIn("PCEA Wendani Academy", message)
 

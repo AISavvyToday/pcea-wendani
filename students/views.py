@@ -24,6 +24,7 @@ from .forms_enhancements import StudentEnrollmentForm
 from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
+from academics.services.term_state import sync_student_term_state
 from core.models import UserRole, InvoiceStatus
 from finance.models import Invoice
 
@@ -237,6 +238,10 @@ class StudentCreateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
         
         # Save student first (admission_number will be auto-generated in model's save() if not provided)
         student.save()
+        sync_student_term_state(
+            student,
+            organization=getattr(self.request, 'organization', None),
+        )
 
         # Prepare parents data
         parents_data = []
@@ -487,6 +492,10 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
 
         with transaction.atomic():
             self.object = form.save()
+            sync_student_term_state(
+                self.object,
+                organization=getattr(self.request, 'organization', None),
+            )
 
             linked_parent_ids = []
 
@@ -661,6 +670,12 @@ class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
                 academic_year=academic_year,
                 term=term
             )
+            for student in Student.objects.filter(pk__in=student_ids):
+                sync_student_term_state(
+                    student,
+                    term=term,
+                    organization=getattr(self.request, 'organization', None),
+                )
 
             messages.success(
                 self.request,
@@ -717,6 +732,10 @@ class StudentDeleteView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
             'status', 'status_date', 'status_reason',
             'is_active', 'deleted_at', 'deleted_by', 'updated_at',
         ])
+        sync_student_term_state(
+            self.object,
+            organization=getattr(self.request, 'organization', None),
+        )
         self.object.recompute_outstanding_balance()
 
         messages.success(

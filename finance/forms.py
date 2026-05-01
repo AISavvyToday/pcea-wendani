@@ -492,8 +492,7 @@ class InvoiceItemForm(forms.ModelForm):
 
         # If we have an invoice, filter transport routes with fees for this term
         if self.invoice and self.invoice.term:
-            from django.db.models import Case, When, Value, F
-            from django.db.models.functions import Concat
+            organization = self.invoice.organization or getattr(self.invoice.student, 'organization', None)
 
             # Get transport fees for this term
             transport_fees = TransportFee.objects.filter(
@@ -501,6 +500,10 @@ class InvoiceItemForm(forms.ModelForm):
                 term=self.invoice.term.term,
                 is_active=True
             ).select_related('route')
+            if organization:
+                transport_fees = transport_fees.filter(organization=organization)
+            else:
+                transport_fees = transport_fees.filter(organization__isnull=True)
 
             # Create a mapping of route IDs to fee info for JavaScript
             self.fee_info = {}
@@ -513,15 +516,21 @@ class InvoiceItemForm(forms.ModelForm):
                     'half_display': f"KES {half_amount}"
                 }
 
-            # Get routes that have fees configured for this term
-            routes_with_fees = TransportRoute.objects.filter(
-                id__in=[tf.route.id for tf in transport_fees]
-            ).distinct()
+            routes_qs = TransportRoute.objects.filter(is_active=True)
+            if organization:
+                routes_qs = routes_qs.filter(Q(organization=organization) | Q(organization__isnull=True))
+            else:
+                routes_qs = routes_qs.filter(organization__isnull=True)
+
+            current_route = getattr(self.instance, 'transport_route', None)
+            if current_route:
+                routes_qs = routes_qs | TransportRoute.objects.filter(pk=current_route.pk)
+            routes_with_fees = routes_qs.distinct().order_by('name')
 
             # Create enhanced choices with fee information
             route_choices = [('', '--------')]
             for route in routes_with_fees:
-                fee = next((tf for tf in transport_fees if tf.route.id == route.id), None)
+                fee = next((tf for tf in transport_fees if tf.route_id == route.id), None)
                 if fee:
                     half_amount = fee.half_amount if fee.half_amount is not None else fee.amount / 2
                     label = f"{route.name} (Full: KES {fee.amount} | Half: KES {half_amount})"
@@ -560,12 +569,18 @@ class InvoiceItemForm(forms.ModelForm):
             elif transport_route and transport_trip_type and self.invoice:
                 # Try to get the fee for display purposes
                 try:
-                    tf = TransportFee.objects.get(
+                    organization = self.invoice.organization or getattr(self.invoice.student, 'organization', None)
+                    fee_qs = TransportFee.objects.filter(
                         route=transport_route,
                         academic_year=self.invoice.term.academic_year,
                         term=self.invoice.term.term,
                         is_active=True
                     )
+                    if organization:
+                        fee_qs = fee_qs.filter(organization=organization)
+                    else:
+                        fee_qs = fee_qs.filter(organization__isnull=True)
+                    fee_qs.get()
                     # Just validate, don't set amount here - view will handle it
                 except TransportFee.DoesNotExist:
                     if not amount or amount == Decimal('0.00'):

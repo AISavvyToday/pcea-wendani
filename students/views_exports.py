@@ -7,17 +7,17 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.views import View
 
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-
-from weasyprint import HTML
 
 from core.mixins import RoleRequiredMixin
 from core.models import UserRole
@@ -262,6 +262,15 @@ class StudentListPDFView(LoginRequiredMixin, RoleRequiredMixin, View):
             'generated_by': request.user.get_full_name() if hasattr(request.user, 'get_full_name') else str(request.user),
             'generated_on': datetime.now(),
         }
+
+        try:
+            from weasyprint import HTML
+        except Exception as exc:
+            messages.error(
+                request,
+                f"PDF export is unavailable because WeasyPrint is not installed correctly: {exc}",
+            )
+            return redirect('students:list')
 
         html_string = render_to_string('students/pdf/student_list_pdf.html', context)
         html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))

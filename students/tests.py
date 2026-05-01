@@ -175,20 +175,6 @@ class StudentNewMetricsTests(TestCase):
             email='metrics-admin@example.com',
             password='password123',
             first_name='Metrics',
-@override_settings(
-    STORAGES={
-        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
-        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
-    }
-)
-class BulkStreamTransferViewTests(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        cls.organization = Organization.objects.create(name='Transfer School', code='TRF')
-        cls.admin = User.objects.create_user(
-            email='admin@transfer.test',
-            password='password123',
-            first_name='Transfer',
             last_name='Admin',
             role=UserRole.SCHOOL_ADMIN,
             organization=cls.organization,
@@ -250,7 +236,7 @@ class BulkStreamTransferViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context_data['status_counts']['new'], 1)
 
-    def test_no_current_term_shows_warning_and_new_count_is_deterministic_zero(self):
+    def test_no_current_term_falls_back_to_latest_term_for_new_count(self):
         self.current_term.is_current = False
         self.current_term.save(update_fields=['is_current'])
         self._create_student(admission_number='N020', admission_date=date(2026, 2, 1))
@@ -261,12 +247,32 @@ class BulkStreamTransferViewTests(TestCase):
         response = StudentListView.as_view()(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context_data['status_counts']['new'], 0)
-        self.assertIsNotNone(response.context_data['new_students_term_warning'])
+        self.assertEqual(response.context_data['status_counts']['new'], 1)
+        self.assertIsNone(response.context_data['new_students_term_warning'])
 
         base_queryset = Student.objects.filter(organization=self.organization)
-        counters = get_student_status_counters(base_queryset, term=None)
-        self.assertEqual(counters['new'], 0)
+        counters = get_student_status_counters(base_queryset, term=self.current_term)
+        self.assertEqual(counters['new'], 1)
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+)
+class BulkStreamTransferViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = Organization.objects.create(name='Transfer School', code='TRF')
+        cls.admin = User.objects.create_user(
+            email='admin@transfer.test',
+            password='password123',
+            first_name='Transfer',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=cls.organization,
+        )
         cls.current_year = AcademicYear.objects.create(
             organization=cls.organization,
             year=2026,
@@ -344,11 +350,16 @@ class BulkStreamTransferViewTests(TestCase):
                 'student_search': 'Amina',
                 'target_class': str(self.target_class.pk),
                 'students': [str(self.student_in_source.pk)],
+                'action': 'move',
             },
             follow=True,
         )
 
-        self.assertRedirects(response, reverse('students:bulk_stream_transfer'))
+        expected_url = (
+            f"{reverse('students:bulk_stream_transfer')}"
+            f"?source_class={self.source_class.pk}&source_stream={self.source_class.stream}&student_search=Amina"
+        )
+        self.assertRedirects(response, expected_url)
         self.student_in_source.refresh_from_db()
         self.assertEqual(self.student_in_source.current_class, self.target_class)
         self.assertContains(response, f'Successfully moved 1 student(s) to {self.target_class.name}.')

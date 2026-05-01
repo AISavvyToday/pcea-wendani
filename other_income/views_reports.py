@@ -7,7 +7,6 @@ from django.template.loader import render_to_string
 from django.views.generic import TemplateView, View
 from openpyxl import Workbook
 from openpyxl.styles import Font
-from weasyprint import HTML
 
 from core.mixins import RoleRequiredMixin
 from core.models import UserRole
@@ -17,6 +16,18 @@ from .reporting import (
     build_other_income_flat_rows,
     build_other_income_summary,
 )
+
+
+class HTML:
+    """Lazy WeasyPrint proxy so app checks do not require native PDF libraries."""
+
+    def __init__(self, *args, **kwargs):
+        from weasyprint import HTML as WeasyHTML
+
+        self._html = WeasyHTML(*args, **kwargs)
+
+    def write_pdf(self, *args, **kwargs):
+        return self._html.write_pdf(*args, **kwargs)
 
 
 class OtherIncomeReportBaseMixin(LoginRequiredMixin, RoleRequiredMixin):

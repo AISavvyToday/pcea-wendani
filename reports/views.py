@@ -23,6 +23,7 @@ from payments.models import Payment, PaymentAllocation
 from finance.models import Invoice, InvoiceItem
 from other_income.models import OtherIncomeInvoice
 from academics.models import AcademicYear, Term
+from academics.services.term_state import activate_selected_term_from_request, get_current_term_for_org
 from transport.models import TransportFee
 from students.models import Student
 from core.models import InvoiceStatus
@@ -41,6 +42,16 @@ from .report_utils import (
 
 
 FEES_COLLECTION_STANDARD_CATEGORIES = ['tuition', 'meals', 'examination', 'activity', 'transport', 'admission', 'other_income']
+
+
+def _activate_report_term(request, academic_year=None, term=None):
+    if not academic_year or not term:
+        return None
+    return activate_selected_term_from_request(
+        request,
+        academic_year=academic_year,
+        term_value=term,
+    )
 
 
 def get_fees_collection_category_choices(organization=None):
@@ -356,6 +367,7 @@ class InvoiceReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
             start_date = form.cleaned_data.get('start_date')
             end_date = form.cleaned_data.get('end_date')
             show_zero = form.cleaned_data.get('show_zero_rows', False)
+            _activate_report_term(request, academic_year, term)
 
             report_data = build_invoice_summary_report_data(
                 academic_year=academic_year,
@@ -427,6 +439,12 @@ class InvoiceDetailedReportView(LoginRequiredMixin, OrganizationFilterMixin, Vie
 
         if not form.is_valid():
             return render(request, self.template_name, context)
+
+        _activate_report_term(
+            request,
+            form.cleaned_data.get('academic_year'),
+            form.cleaned_data.get('term'),
+        )
 
         report_data = build_invoice_detailed_report_data(
             organization=getattr(request, 'organization', None),
@@ -575,6 +593,7 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
         include_zero = form.cleaned_data.get('show_zero_balances')
         overpayment_filter = form.cleaned_data.get('overpayment_filter') or ''
+        _activate_report_term(request, academic_year, term)
 
         report_data = build_outstanding_balances_report_data(
             organization=getattr(request, 'organization', None),
@@ -681,6 +700,7 @@ class PrepaymentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
         balance_op = form.cleaned_data.get('balance_operator') or 'any'
         balance_amt = form.cleaned_data.get('balance_amount') or Decimal('0.00')
         include_zero = form.cleaned_data.get('show_zero_balances')
+        _activate_report_term(request, academic_year, term)
 
         report_data = build_prepayments_report_data(
             organization=getattr(request, 'organization', None),
@@ -749,6 +769,12 @@ class OverpaymentsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
 
         if not form.is_valid():
             return render(request, self.template_name, context)
+
+        _activate_report_term(
+            request,
+            form.cleaned_data.get('academic_year'),
+            form.cleaned_data.get('term'),
+        )
 
         report_data = build_overpayments_report_data(
             organization=organization,
@@ -853,13 +879,22 @@ class TransportReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         show_zero = form.cleaned_data.get('show_zero_rows', False)
+        _activate_report_term(request, academic_year, term)
 
         # base transport items queryset for the selected academic year & term
         items_qs = InvoiceItem.objects.filter(
             invoice__term__academic_year=academic_year,
             invoice__term__term=term,
-            category='transport'  # ensure transport items only
+            category='transport',
+            is_active=True,
+            invoice__is_active=True,
         ).select_related('invoice__student', 'transport_route')
+        organization = getattr(request, 'organization', None)
+        if organization:
+            items_qs = items_qs.filter(
+                Q(invoice__organization=organization)
+                | Q(invoice__organization__isnull=True, invoice__student__organization=organization)
+            )
 
         if route:
             items_qs = items_qs.filter(transport_route=route)
@@ -1072,6 +1107,7 @@ class OtherItemsReportView(LoginRequiredMixin, OrganizationFilterMixin, View):
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         show_all = form.cleaned_data.get('show_all', False)
+        _activate_report_term(request, academic_year, term)
 
         # Base queryset: other items only
         items_qs = InvoiceItem.objects.filter(
@@ -1272,9 +1308,18 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         student_class = form.cleaned_data.get('student_class')
+        organization = getattr(request, 'organization', None)
+        active_term = get_current_term_for_org(organization)
+        if not academic_year and active_term:
+            academic_year = active_term.academic_year
+        if not start_date and not end_date and active_term:
+            start_date = active_term.start_date
+            end_date = active_term.end_date
 
         # Base queryset: transferred students
         students_qs = Student.objects.filter(status='transferred').select_related('current_class')
+        if organization:
+            students_qs = students_qs.filter(organization=organization)
 
         # Filter by academic year (if provided, filter by status_date within that year)
         if academic_year:
@@ -1284,9 +1329,9 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
 
         # Filter by date range (status_date)
         if start_date:
-            students_qs = students_qs.filter(status_date__gte=start_date)
+            students_qs = students_qs.filter(status_date__date__gte=start_date)
         if end_date:
-            students_qs = students_qs.filter(status_date__lte=end_date)
+            students_qs = students_qs.filter(status_date__date__lte=end_date)
 
         # Filter by class
         if student_class:
@@ -1304,9 +1349,11 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
         ).select_related('student', 'term__academic_year')
         
         # Apply organization filter
-        organization = getattr(request, 'organization', None)
         if organization:
-            invoices = invoices.filter(organization=organization)
+            invoices = invoices.filter(
+                Q(organization=organization)
+                | Q(organization__isnull=True, student__organization=organization)
+            )
         
         # Aggregate per student
         annotations = {
@@ -1459,9 +1506,18 @@ class GraduatedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, V
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         student_class = form.cleaned_data.get('student_class')
+        organization = getattr(request, 'organization', None)
+        active_term = get_current_term_for_org(organization)
+        if not academic_year and active_term:
+            academic_year = active_term.academic_year
+        if not start_date and not end_date and active_term:
+            start_date = active_term.start_date
+            end_date = active_term.end_date
 
         # Base queryset: graduated students
         students_qs = Student.objects.filter(status='graduated').select_related('current_class')
+        if organization:
+            students_qs = students_qs.filter(organization=organization)
 
         # Filter by academic year
         if academic_year:
@@ -1471,9 +1527,9 @@ class GraduatedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, V
 
         # Filter by date range (status_date)
         if start_date:
-            students_qs = students_qs.filter(status_date__gte=start_date)
+            students_qs = students_qs.filter(status_date__date__gte=start_date)
         if end_date:
-            students_qs = students_qs.filter(status_date__lte=end_date)
+            students_qs = students_qs.filter(status_date__date__lte=end_date)
 
         # Filter by class
         if student_class:
@@ -1491,9 +1547,11 @@ class GraduatedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, V
         ).select_related('student', 'term__academic_year')
         
         # Apply organization filter
-        organization = getattr(request, 'organization', None)
         if organization:
-            invoices = invoices.filter(organization=organization)
+            invoices = invoices.filter(
+                Q(organization=organization)
+                | Q(organization__isnull=True, student__organization=organization)
+            )
         
         # Aggregate per student
         annotations = {
@@ -1646,17 +1704,24 @@ class AdmittedStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin, Vi
         start_date = form.cleaned_data.get('start_date')
         end_date = form.cleaned_data.get('end_date')
         student_class = form.cleaned_data.get('student_class')
+        organization = getattr(request, 'organization', None)
+        active_term = get_current_term_for_org(organization)
 
-        # Default to current year if no dates provided
-        if not start_date:
-            start_date = timezone.now().replace(month=1, day=1).date()
-        if not end_date:
-            end_date = timezone.now().date()
+        if active_term and not request.GET.get('start_date') and not request.GET.get('end_date'):
+            start_date = active_term.start_date
+            end_date = active_term.end_date
+        else:
+            if not start_date:
+                start_date = timezone.now().replace(month=1, day=1).date()
+            if not end_date:
+                end_date = timezone.now().date()
 
         # Base queryset: students with admission_date
         students_qs = Student.objects.filter(
             admission_date__isnull=False
         ).select_related('current_class')
+        if organization:
+            students_qs = students_qs.filter(organization=organization)
 
         # Filter by admission date range
         if start_date:

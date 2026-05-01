@@ -32,12 +32,14 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.decorators import role_required
 from academics.models import Term
+from academics.services.term_state import get_current_term_for_org
 from core.models import InvoiceStatus, PaymentStatus, UserRole
 from finance.models import Invoice, InvoiceItem
 from payments.models import BankTransaction, Payment, PaymentAllocation
 from finance.services_kpi import build_term_kpis
 from payments.services.resolution import ResolutionService
-from students.metrics import get_student_base_queryset, get_student_status_counters
+from students.models import StudentTermState
+from students.metrics import get_new_students_q, get_student_base_queryset, get_student_status_counters
 
 logger = logging.getLogger(__name__)
 
@@ -82,21 +84,7 @@ def _fmt_kes(amount) -> str:
 
 
 def _get_current_term(organization=None):
-    qs = Term.objects.filter(is_current=True).select_related("academic_year")
-    if organization:
-        qs = qs.filter(organization=organization)
-    term = qs.first()
-    if not term:
-        qs = Term.objects.all().select_related("academic_year")
-        if organization:
-            qs = qs.filter(organization=organization)
-        if _model_has_field(Term, "is_active"):
-            qs = qs.filter(is_active=True)
-        term = qs.order_by("-id").first()
-    # Fallback: if org-filtered returns nothing, use global is_current (shared term)
-    if not term and organization:
-        term = Term.objects.filter(is_current=True).select_related("academic_year").first()
-    return term
+    return get_current_term_for_org(organization)
 
 
 def _get_active_students_qs(organization=None):
@@ -126,6 +114,20 @@ def _get_staff_count(organization=None):
 def _count_term_status_events(queryset, *, status, term=None):
     if not term:
         return 0
+    term_states = StudentTermState.objects.filter(
+        term=term,
+        student_id__in=queryset.values('pk'),
+        status=status,
+        is_active=True,
+    ).filter(
+        Q(status_date__isnull=True)
+        | Q(
+            status_date__date__gte=term.start_date,
+            status_date__date__lte=term.end_date,
+        )
+    )
+    if term_states.exists():
+        return term_states.count()
     return queryset.filter(
         status=status,
         status_date__date__gte=term.start_date,
@@ -612,11 +614,17 @@ def dashboard_admin(request):
     year_stats = kpis["year_stats"]
 
     student_base_qs = get_student_base_queryset(organization=organization)
-    student_counts = get_student_status_counters(student_base_qs, term=term)
+    student_counts = get_student_status_counters(
+        student_base_qs,
+        term=term,
+        organization=organization,
+    )
     total_students = student_counts['active']
-    new_students = student_counts['new']
-    graduated_students = _count_term_status_events(student_base_qs, status='graduated', term=term)
-    transferred_students = _count_term_status_events(student_base_qs, status='transferred', term=term)
+    admitted_students = student_base_qs.filter(
+        get_new_students_q(term=None, organization=organization)
+    ).count()
+    graduated_students = student_counts['graduated']
+    transferred_students = student_counts['transferred']
 
     staff_count = _get_staff_count(organization=organization)
 
@@ -669,7 +677,7 @@ def dashboard_admin(request):
                 "bg": "bg-gradient-primary",
                 "url": _safe_reverse("students:list"),
                 "helper_lines": [
-                    f"New-{new_students}",
+                    f"Admitted-{admitted_students}",
                     f"Graduated-{graduated_students}, Transferred-{transferred_students}",
                 ],
             },

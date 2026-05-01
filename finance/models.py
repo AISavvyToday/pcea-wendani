@@ -293,6 +293,8 @@ class Invoice(BaseModel):
             self.status = InvoiceStatus.PARTIALLY_PAID
         elif self.due_date and self.due_date < date.today():
             self.status = InvoiceStatus.OVERDUE
+        else:
+            self.status = InvoiceStatus.OVERDUE
     def update_payment_status(self):
         """Update invoice status based on balance and payment."""
         if self.balance <= 0:
@@ -300,6 +302,8 @@ class Invoice(BaseModel):
         elif self.amount_paid > 0:
             self.status = InvoiceStatus.PARTIALLY_PAID
         elif self.due_date and self.due_date < __import__("datetime").date.today():
+            self.status = InvoiceStatus.OVERDUE
+        else:
             self.status = InvoiceStatus.OVERDUE
 
         # Save normally so balance/status stay consistent

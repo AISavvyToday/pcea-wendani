@@ -415,7 +415,7 @@ def build_invoice_detail_category_choices(selected_categories=None, include_all_
 
         unique_descriptions.sort(key=str.lower)
 
-    other_label = get_report_category_label(FeeCategory.OTHER)
+    other_label = "Other"
     for description in unique_descriptions:
         categories_list.append((f"{FeeCategory.OTHER}:{description}", f"{other_label}: {description}"))
 
@@ -437,7 +437,7 @@ def get_invoice_detail_category_display(category, description=""):
 
 def get_selected_category_labels(selected_categories):
     labels = []
-    other_label = get_report_category_label(FeeCategory.OTHER)
+    other_label = "Other"
     for category in selected_categories or []:
         if str(category).startswith(f"{FeeCategory.OTHER}:"):
             labels.append(f"{other_label}: {str(category).split(':', 1)[1]}")

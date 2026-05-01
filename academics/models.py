@@ -22,7 +22,7 @@ class AcademicYear(BaseModel):
         help_text="Organization this academic year belongs to"
     )
     
-    year = models.PositiveIntegerField(unique=True)  # e.g., 2025
+    year = models.PositiveIntegerField()  # e.g., 2025
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
@@ -30,6 +30,12 @@ class AcademicYear(BaseModel):
     class Meta:
         db_table = 'academic_years'
         ordering = ['-year']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'year'],
+                name='unique_academic_year_per_organization',
+            ),
+        ]
 
     def __str__(self):
         return str(self.year)
@@ -75,8 +81,13 @@ class Term(BaseModel):
 
     class Meta:
         db_table = 'terms'
-        unique_together = ['academic_year', 'term']
         ordering = ['academic_year', 'term']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'academic_year', 'term'],
+                name='unique_term_per_organization_year',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.academic_year.year} - {self.get_term_display()}"
@@ -92,6 +103,52 @@ class Term(BaseModel):
                 queryset = queryset.exclude(pk=self.pk)
             queryset.update(is_current=False)
         super().save(*args, **kwargs)
+
+
+class TermTransitionLog(BaseModel):
+    """Idempotency record for carrying balances from one term into another."""
+
+    organization = models.ForeignKey(
+        'core.Organization',
+        on_delete=models.PROTECT,
+        related_name='term_transition_logs',
+        null=True,
+        blank=True,
+    )
+    previous_term = models.ForeignKey(
+        Term,
+        on_delete=models.PROTECT,
+        related_name='outgoing_transition_logs',
+    )
+    new_term = models.ForeignKey(
+        Term,
+        on_delete=models.PROTECT,
+        related_name='incoming_transition_logs',
+    )
+    executed_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='term_transitions_executed',
+    )
+    dry_run = models.BooleanField(default=False)
+    stats = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'term_transition_logs'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'previous_term', 'new_term'],
+                condition=models.Q(dry_run=False),
+                name='unique_executed_term_transition_per_org',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.previous_term} -> {self.new_term}"
 
 
 class Department(BaseModel):

@@ -1,45 +1,24 @@
 from datetime import timedelta
 
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
 
 from academics.models import AcademicYear, Term
 
-from .models import Student
+from .models import Student, StudentTermState
 
 
 STATUS_VALUES = [choice[0] for choice in Student.STATUS_CHOICES]
 SPECIAL_STATUS_NEW = 'new'
 DEFAULT_NEW_STUDENT_STATUSES = ('active', 'inactive')
+TERM_EVENT_STATUSES = ('graduated', 'transferred')
 
 
 def get_current_term(organization=None):
-    queryset = Term.objects.filter(is_current=True).select_related('academic_year')
+    from academics.services.term_state import get_current_term_for_org
 
-    def _ordered(queryset_to_order):
-        return queryset_to_order.order_by(
-            '-academic_year__year',
-            '-start_date',
-            '-end_date',
-            'term',
-            '-id',
-        )
-
-    if organization is not None:
-        org_term = _ordered(queryset.filter(organization=organization)).first()
-        if org_term:
-            return org_term
-
-        latest_org_term = _ordered(Term.objects.filter(organization=organization).select_related('academic_year')).first()
-        if latest_org_term:
-            return latest_org_term
-
-    shared_term = _ordered(queryset.filter(organization__isnull=True)).first()
-    if shared_term:
-        return shared_term
-
-    return _ordered(Term.objects.all().select_related('academic_year')).first()
+    return get_current_term_for_org(organization)
 
 
 def get_student_base_queryset(organization=None):
@@ -122,6 +101,12 @@ def apply_student_filters(
                     fallback_days=new_students_fallback_days,
                 )
             )
+        elif term and StudentTermState.objects.filter(term=term, is_active=True).exists():
+            queryset = queryset.filter(
+                term_states__term=term,
+                term_states__status=status,
+                term_states__is_active=True,
+            ).distinct()
         else:
             queryset = queryset.filter(status=status)
 
@@ -146,11 +131,39 @@ def get_student_status_counters(
     organization=None,
     new_students_fallback_days=None,
 ):
-    aggregate_kwargs = {
-        status: Count('id', filter=Q(status=status))
-        for status in STATUS_VALUES
-    }
-    counts = queryset.aggregate(**aggregate_kwargs)
+    student_ids = queryset.values('pk')
+    term_states = StudentTermState.objects.filter(
+        term=term,
+        student_id__in=student_ids,
+        is_active=True,
+    ) if term else StudentTermState.objects.none()
+    if organization is not None:
+        term_states = term_states.filter(organization=organization)
+
+    if term and term_states.exists():
+        counts = {}
+        for status in STATUS_VALUES:
+            status_qs = term_states.filter(status=status)
+            if status in TERM_EVENT_STATUSES:
+                status_qs = status_qs.filter(
+                    Q(status_date__isnull=True)
+                    | Q(
+                        status_date__date__gte=term.start_date,
+                        status_date__date__lte=term.end_date,
+                    )
+                )
+            counts[status] = status_qs.count()
+    else:
+        counts = {}
+        for status in STATUS_VALUES:
+            status_qs = queryset.filter(status=status)
+            if term and status in TERM_EVENT_STATUSES:
+                status_qs = status_qs.filter(
+                    status_date__date__gte=term.start_date,
+                    status_date__date__lte=term.end_date,
+                )
+            counts[status] = status_qs.count()
+
     counts['new'] = queryset.filter(
         get_new_students_q(
             term=term,

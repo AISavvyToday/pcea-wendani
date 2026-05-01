@@ -17,9 +17,6 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment
 
-# WeasyPrint for PDF
-from weasyprint import HTML
-
 # Import models used by the reports
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
@@ -40,6 +37,18 @@ from .report_utils import (
     build_prepayments_report_data,
     build_overpayments_report_data,
 )
+
+
+class HTML:
+    """Lazy WeasyPrint proxy so app checks do not require native PDF libraries."""
+
+    def __init__(self, *args, **kwargs):
+        from weasyprint import HTML as WeasyHTML
+
+        self._html = WeasyHTML(*args, **kwargs)
+
+    def write_pdf(self, *args, **kwargs):
+        return self._html.write_pdf(*args, **kwargs)
 from .views import (
     build_fees_collection_rows,
     populate_fees_collection_filter_form,

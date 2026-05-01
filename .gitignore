@@ -6,4 +6,5 @@ staticfiles/
 media/
 .env
 .venv_check/
+backups/
 *.pdf

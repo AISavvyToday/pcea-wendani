@@ -12,6 +12,7 @@ Invoice generation policy (NO OVERWRITE):
 - If an invoice already exists for a student+term, it is skipped (service returns created count only).
 """
 from academics.models import Term
+from academics.services.term_state import activate_selected_term_from_request
 
 import logging
 
@@ -553,7 +554,8 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
         term = self.request.GET.get('term')
         if term:
-            queryset = queryset.filter(term_id=term)
+            selected_term = activate_selected_term_from_request(self.request, term_id=term)
+            queryset = queryset.filter(term=selected_term) if selected_term else queryset.none()
 
         status = self.request.GET.get('status')
         if status:
@@ -917,6 +919,9 @@ class SingleStudentInvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMix
 
             # Get terms with existing invoice status
             terms = Term.objects.filter(is_active=True).order_by('-academic_year__year', '-term')
+            organization = getattr(request, 'organization', None)
+            if organization:
+                terms = terms.filter(organization=organization)
 
             terms_data = []
             for term in terms:
@@ -945,7 +950,9 @@ class SingleStudentInvoiceGenerateView(LoginRequiredMixin, OrganizationFilterMix
             if not term_id:
                 return JsonResponse({'success': False, 'error': 'Term is required'}, status=400)
 
-            term = get_object_or_404(Term, pk=term_id)
+            term = activate_selected_term_from_request(request, term_id=term_id)
+            if not term:
+                return JsonResponse({'success': False, 'error': 'Term not found'}, status=404)
 
             # Check if invoice already exists
             existing_invoice = Invoice.objects.filter(student=student, term=term).first()
@@ -2465,10 +2472,7 @@ class CollectionsReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
         organization = getattr(self.request, 'organization', None)
         term = None
         if term_id:
-            if organization:
-                term = Term.objects.filter(pk=term_id, organization=organization).first()
-            else:
-                term = Term.objects.filter(pk=term_id).first()
+            term = activate_selected_term_from_request(self.request, term_id=term_id)
 
         if start_date or end_date or term:
             context['report_data'] = FinanceReportService.get_collections_summary(
@@ -2505,7 +2509,8 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
 
         term = self.request.GET.get('term')
         if term:
-            queryset = queryset.filter(term_id=term)
+            selected_term = activate_selected_term_from_request(self.request, term_id=term)
+            queryset = queryset.filter(term=selected_term) if selected_term else queryset.none()
 
         grade = self.request.GET.get('grade')
         if grade:
@@ -2607,10 +2612,7 @@ class StudentStatementView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
         term_id = self.request.GET.get('term')
         term = None
         if term_id:
-            if organization:
-                term = Term.objects.filter(pk=term_id, organization=organization).first()
-            else:
-                term = Term.objects.filter(pk=term_id).first()
+            term = activate_selected_term_from_request(self.request, term_id=term_id)
 
         statement = InvoiceService.get_student_statement(self.object, term)
         context.update(statement)
@@ -2724,10 +2726,7 @@ class StudentStatementPrintView(LoginRequiredMixin, OrganizationFilterMixin, Rol
         organization = getattr(self.request, 'organization', None)
         term_id = self.request.GET.get('term')
         if term_id:
-            if organization:
-                term = Term.objects.filter(pk=term_id, organization=organization).first()
-            else:
-                term = Term.objects.filter(pk=term_id).first()
+            term = activate_selected_term_from_request(self.request, term_id=term_id)
         else:
             term = None
 
@@ -2824,6 +2823,7 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
 
         export_type = request.GET.get('type', 'invoices')
         term_id = request.GET.get('term')
+        selected_term = activate_selected_term_from_request(request, term_id=term_id) if term_id else None
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{export_type}_{timezone.now().date()}.csv"'
@@ -2833,8 +2833,8 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
             writer.writerow(['Invoice #', 'Student', 'Admission #', 'Term', 'Total', 'Paid', 'Balance', 'Status'])
 
             invoices = Invoice.objects.filter(is_active=True).select_related('student', 'term')
-            if term_id:
-                invoices = invoices.filter(term_id=term_id)
+            if selected_term:
+                invoices = invoices.filter(term=selected_term)
 
             for inv in invoices:
                 writer.writerow([
@@ -2870,8 +2870,8 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
                 is_active=True, balance__gt=0
             ).exclude(status=InvoiceStatus.CANCELLED).select_related('student')
 
-            if term_id:
-                invoices = invoices.filter(term_id=term_id)
+            if selected_term:
+                invoices = invoices.filter(term=selected_term)
 
             for inv in invoices:
                 writer.writerow([
@@ -2961,11 +2961,15 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             # Add student transport info for auto-population
             student = invoice.student
             student_transport = {}
-            if student and student.uses_school_transport and student.transport_route:
+            term_state = student.term_states.filter(term=invoice.term, is_active=True).select_related('transport_route').first()
+            uses_transport = term_state.uses_school_transport if term_state else student.uses_school_transport
+            transport_route = getattr(term_state, 'transport_route', None) if term_state else student.transport_route
+            transport_trip_type = getattr(term_state, 'transport_trip_type', None) if term_state else 'full'
+            if student and uses_transport and transport_route:
                 student_transport = {
-                    'route_id': str(student.transport_route.id),
-                    'route_name': student.transport_route.name,
-                    'trip_type': 'full'  # Default to full, can be overridden
+                    'route_id': str(transport_route.id),
+                    'route_name': transport_route.name,
+                    'trip_type': transport_trip_type or 'full'
                 }
             context['student_transport_json'] = json.dumps(student_transport)
         else:
@@ -2999,90 +3003,29 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
         try:
             with db_transaction.atomic():
-                # Save invoice header (notes/due_date)
-                self.object = form.save()
+                self.object = form.save(commit=False)
+                invoice = self.object
 
                 # Process each form in formset to handle transport amounts
                 instances = formset.save(commit=False)
 
                 for inst in instances:
-                    # If this item is transport and route is selected, auto-calculate amount
-                    if inst.category == 'transport' and inst.transport_route:
-                        # If transport_route and trip_type provided, fetch transport fee
-                        if inst.transport_route and inst.transport_trip_type:
-                            try:
-                                tf = TransportFee.objects.get(
-                                    route=inst.transport_route,
-                                    academic_year=invoice.term.academic_year,
-                                    term=invoice.term.term,
-                                    is_active=True
-                                )
-                                # Calculate amount based on trip type
-                                if inst.transport_trip_type == 'half':
-                                    amount = tf.half_amount if tf.half_amount is not None else tf.amount / 2
-                                else:
-                                    amount = tf.amount
-
-                                inst.amount = amount
-
-                                # Update description if empty
-                                if not inst.description or inst.description.strip() == '':
-                                    trip_display = "Half Trip" if inst.transport_trip_type == 'half' else "Full Trip"
-                                    inst.description = f"Transport ({inst.transport_route.name} - {trip_display})"
-
-                            except TransportFee.DoesNotExist:
-                                # No configured fee: keep existing amount or set to 0
-                                if not inst.amount or inst.amount == Decimal('0.00'):
-                                    inst.amount = Decimal('0.00')
-                                    inst.description = inst.description or f"Transport ({inst.transport_route.name} - Fee not configured)"
-                        else:
-                            # If route selected but no trip type, default to full trip
-                            if inst.transport_route and not inst.transport_trip_type:
-                                inst.transport_trip_type = 'full'
-                                try:
-                                    tf = TransportFee.objects.get(
-                                        route=inst.transport_route,
-                                        academic_year=invoice.term.academic_year,
-                                        term=invoice.term.term,
-                                        is_active=True
-                                    )
-                                    inst.amount = tf.amount
-                                    if not inst.description or inst.description.strip() == '':
-                                        inst.description = f"Transport ({inst.transport_route.name} - Full Trip)"
-                                except TransportFee.DoesNotExist:
-                                    if not inst.amount or inst.amount == Decimal('0.00'):
-                                        inst.amount = Decimal('0.00')
-                    elif inst.category == 'transport' and not inst.transport_route:
-                        # Transport item without route - ensure amount is set
-                        if not inst.amount or inst.amount == Decimal('0.00'):
-                            inst.amount = Decimal('0.00')
-
-                    # Ensure net_amount is calculated properly
-                    if inst.discount_applied is None:
-                        inst.discount_applied = Decimal('0.00')
-                    if inst.amount is None:
-                        inst.amount = Decimal('0.00')
-
-                    inst.net_amount = (inst.amount or Decimal('0.00')) - (inst.discount_applied or Decimal('0.00'))
+                    inst.invoice = invoice
+                    self._prepare_invoice_item_for_save(inst, invoice)
                     inst.save()
 
-                # Handle deleted forms
                 for inst in formset.deleted_objects:
-                    inst.delete()
+                    inst.is_active = False
+                    inst.save(update_fields=['is_active', 'updated_at'])
 
-                # Update discount_amount from form if provided
                 discount_amount = form.cleaned_data.get('discount_amount', Decimal('0.00'))
                 if discount_amount is None:
                     discount_amount = Decimal('0.00')
+                if discount_amount < Decimal('0.00'):
+                    raise ValueError("Discount amount cannot be negative.")
 
                 # Recalculate invoice totals from all items (subtotal & per‑item discounts)
-                self.recalculate_invoice_totals(invoice)
-
-                # Override discount_amount with form value if provided and
-                # recompute totals. total_amount must always be net of discount.
-                if discount_amount is not None:
-                    invoice.discount_amount = discount_amount
-                    invoice.total_amount = invoice.subtotal - discount_amount
+                self.recalculate_invoice_totals(invoice, discount_amount=discount_amount)
 
                 # If new items were added to a fully paid invoice, reactivate it
                 # This allows payments to be allocated to the new items
@@ -3095,10 +3038,7 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
                 # Let Invoice.save() apply the SINGLE SOURCE OF TRUTH
                 # balance formula (see Invoice._recalculate_balance).
-                invoice.save(update_fields=['subtotal', 'discount_amount', 'total_amount', 'prepayment', 'amount_paid', 'balance_bf', 'is_active'])
-
-                # Update payment status
-                invoice.update_payment_status()
+                invoice.save()
 
             messages.success(self.request, f"Invoice {invoice.invoice_number} updated successfully.")
             return redirect('finance:invoice_detail', pk=invoice.pk)
@@ -3108,36 +3048,89 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             messages.error(self.request, f"Error updating invoice: {str(e)}")
             return self.render_to_response(self.get_context_data(form=form))
 
-    def recalculate_invoice_totals(self, invoice):
-        """Recalculate invoice totals from items."""
-        from decimal import Decimal
-
-        # Get all active items for this invoice (exclude balance_bf and prepayment synthetic items)
-        # IMPORTANT: Use category, not description - descriptions vary but category is stable
-        items = invoice.items.filter(is_active=True).exclude(
-            category__in=['balance_bf', 'prepayment']
+    def _transport_fee_for_item(self, item, invoice):
+        organization = invoice.organization or getattr(invoice.student, 'organization', None)
+        fee_qs = TransportFee.objects.filter(
+            route=item.transport_route,
+            academic_year=invoice.term.academic_year,
+            term=invoice.term.term,
+            is_active=True,
         )
+        if organization:
+            fee_qs = fee_qs.filter(organization=organization)
+        else:
+            fee_qs = fee_qs.filter(organization__isnull=True)
+        return fee_qs.first()
 
-        # Calculate totals
-        subtotal = Decimal('0.00')
-        total_discount = Decimal('0.00')
+    def _prepare_invoice_item_for_save(self, item, invoice):
+        if item.amount is None:
+            item.amount = Decimal('0.00')
+        if item.discount_applied is None:
+            item.discount_applied = Decimal('0.00')
+
+        if item.category == 'transport':
+            if item.transport_route:
+                item.transport_trip_type = item.transport_trip_type or 'full'
+                transport_fee = self._transport_fee_for_item(item, invoice)
+                if transport_fee:
+                    item.amount = transport_fee.get_amount_for_trip(item.transport_trip_type)
+                    trip_display = "Half Trip" if item.transport_trip_type == 'half' else "Full Trip"
+                    item.description = f"Transport ({item.transport_route.name} - {trip_display})"
+                elif not item.description:
+                    item.description = f"Transport ({item.transport_route.name} - Fee not configured)"
+            elif not item.amount:
+                item.amount = Decimal('0.00')
+
+        item.discount_applied = min(item.discount_applied or Decimal('0.00'), item.amount or Decimal('0.00'))
+        item.net_amount = (item.amount or Decimal('0.00')) - (item.discount_applied or Decimal('0.00'))
+
+    def recalculate_invoice_totals(self, invoice, *, discount_amount=None):
+        """Distribute header discount to active charge items and refresh totals once."""
+        from decimal import ROUND_HALF_UP
+
+        items = list(invoice.items.filter(is_active=True).exclude(
+            category__in=['balance_bf', 'prepayment']
+        ).order_by('created_at', 'id'))
+        subtotal = sum(((item.amount or Decimal('0.00')) for item in items), Decimal('0.00'))
+        discount_amount = Decimal(discount_amount or Decimal('0.00'))
+
+        eligible_items = [item for item in items if (item.amount or Decimal('0.00')) > 0]
+        eligible_total = sum(((item.amount or Decimal('0.00')) for item in eligible_items), Decimal('0.00'))
+        if discount_amount > eligible_total:
+            raise ValueError(
+                f"Discount amount {discount_amount} exceeds eligible invoice charges {eligible_total}."
+            )
+
+        remaining_discount = discount_amount
+        for index, item in enumerate(eligible_items):
+            amount = item.amount or Decimal('0.00')
+            if discount_amount == Decimal('0.00'):
+                item_discount = Decimal('0.00')
+            elif index == len(eligible_items) - 1:
+                item_discount = remaining_discount
+            else:
+                ratio = amount / eligible_total if eligible_total else Decimal('0.00')
+                item_discount = (discount_amount * ratio).quantize(
+                    Decimal('0.01'),
+                    rounding=ROUND_HALF_UP,
+                )
+                item_discount = min(item_discount, amount, remaining_discount)
+
+            remaining_discount -= item_discount
+            item.discount_applied = item_discount
+            item.net_amount = amount - item_discount
+            item.save(update_fields=['discount_applied', 'net_amount', 'updated_at'])
 
         for item in items:
-            subtotal += item.amount or Decimal('0.00')
-            total_discount += item.discount_applied or Decimal('0.00')
+            if item not in eligible_items and (item.discount_applied or Decimal('0.00')) != Decimal('0.00'):
+                item.discount_applied = Decimal('0.00')
+                item.net_amount = item.amount or Decimal('0.00')
+                item.save(update_fields=['discount_applied', 'net_amount', 'updated_at'])
 
-        # Update invoice fields
         invoice.subtotal = subtotal
-        invoice.discount_amount = total_discount
-        invoice.total_amount = subtotal - total_discount
-
-        # Delegate balance/status calculation to Invoice.save(), which uses
-        # Invoice._recalculate_balance as the single source of truth.
-        invoice.save(update_fields=[
-            'subtotal', 'discount_amount', 'total_amount',
-            'prepayment', 'amount_paid', 'balance_bf', 'updated_at'
-        ])
+        invoice.discount_amount = discount_amount
+        invoice.total_amount = subtotal - discount_amount
 
         logger.info(f"Recalculated totals for invoice {invoice.invoice_number}: "
-                    f"Subtotal={subtotal}, Discount={total_discount}, "
-                    f"Total={invoice.total_amount}, Balance={invoice.balance}")
+                    f"Subtotal={subtotal}, Discount={discount_amount}, "
+                    f"Total={invoice.total_amount}")

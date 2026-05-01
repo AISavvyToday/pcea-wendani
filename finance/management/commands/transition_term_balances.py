@@ -15,8 +15,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 
 from academics.models import Term
+from academics.services.term_state import activate_term_for_org
 from core.models import Organization
-from finance.services import transition_frozen_balances
 
 
 class Command(BaseCommand):
@@ -147,20 +147,29 @@ class Command(BaseCommand):
         self.stdout.write('Running transition...')
         self.stdout.write('')
         
-        stats = transition_frozen_balances(previous_term, current_term, dry_run=dry_run)
+        stats = activate_term_for_org(
+            organization=current_term.organization,
+            term=current_term,
+            previous_term=previous_term,
+            transition=True,
+            dry_run=dry_run,
+            notes='Manual transition_term_balances command',
+        )
         
         # Display results
         self.stdout.write('')
         self.stdout.write('=' * 80)
         self.stdout.write('SUMMARY')
         self.stdout.write('=' * 80)
-        self.stdout.write(f'Total students processed: {stats["total_students"]}')
-        self.stdout.write(f'With outstanding balance (balance_bf_original set): {stats["with_outstanding"]}')
-        self.stdout.write(f'With overpayment (prepayment_original set): {stats["with_overpayment"]}')
-        self.stdout.write(f'Fully paid (both reset to 0): {stats["fully_paid"]}')
-        self.stdout.write(f'No previous invoice (used credit_balance): {stats["no_invoice"]}')
-        self.stdout.write(f'Records {"would be " if dry_run else ""}updated: {stats["updated"]}')
-        self.stdout.write(f'Errors: {stats["errors"]}')
+        self.stdout.write(f'Total students processed: {stats.get("total_students", 0)}')
+        self.stdout.write(f'With outstanding balance (balance_bf_original set): {stats.get("with_outstanding", 0)}')
+        self.stdout.write(f'With overpayment (prepayment_original set): {stats.get("with_overpayment", 0)}')
+        self.stdout.write(f'Fully paid (both reset to 0): {stats.get("fully_paid", 0)}')
+        self.stdout.write(f'No previous invoice (used credit_balance): {stats.get("no_invoice", 0)}')
+        self.stdout.write(f'Records {"would be " if dry_run else ""}updated: {stats.get("updated", 0)}')
+        self.stdout.write(f'Errors: {stats.get("errors", 0)}')
+        if stats.get('transition_already_logged'):
+            self.stdout.write(self.style.WARNING('Transition already logged; balances were not re-run.'))
         
         if dry_run:
             self.stdout.write('')

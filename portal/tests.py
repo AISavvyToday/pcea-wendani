@@ -12,7 +12,7 @@ from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
 from finance.services import InvoiceService, transition_frozen_balances
 from payments.models import Payment, PaymentAllocation
 from portal.views import _finance_kpis
-from students.models import Student
+from students.models import Student, StudentTermState
 
 
 class DashboardStudentCounterSyncTests(TestCase):
@@ -112,11 +112,142 @@ class DashboardStudentCounterSyncTests(TestCase):
         )
 
         self.assertEqual(int(student_card['value'].replace(',', '')), 2)
-        self.assertIn("New-1", student_card['helper_lines'])
+        self.assertIn("Admitted-1", student_card['helper_lines'])
         self.assertIn(
             "Graduated-0, Transferred-1",
             student_card['helper_lines'],
         )
+
+
+class DashboardStudentTermStateTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name='PCEA Wendani Academy', code='PCEA_WENDANI')
+        self.user = User.objects.create_user(
+            email='term-state-admin@example.com',
+            password='password123',
+            first_name='Admin',
+            last_name='User',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=self.organization,
+            is_staff=True,
+        )
+        academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term = Term.objects.create(
+            organization=self.organization,
+            academic_year=academic_year,
+            term=TermChoices.TERM_2,
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 8, 31),
+            is_current=True,
+        )
+
+        active_student = Student.objects.create(
+            organization=self.organization,
+            admission_number='T2ACTIVE',
+            admission_date=date(2026, 1, 10),
+            first_name='Active',
+            last_name='Student',
+            gender=Gender.FEMALE,
+            date_of_birth=date(2016, 5, 1),
+            status='active',
+        )
+        transferred_last_term = Student.objects.create(
+            organization=self.organization,
+            admission_number='T1TRANSFER',
+            admission_date=date(2025, 6, 1),
+            first_name='Old',
+            last_name='Transfer',
+            gender=Gender.MALE,
+            date_of_birth=date(2014, 8, 1),
+            status='transferred',
+            status_date=timezone.make_aware(datetime(2026, 3, 20, 8, 0)),
+        )
+        graduated_last_term = Student.objects.create(
+            organization=self.organization,
+            admission_number='T1GRAD',
+            admission_date=date(2025, 6, 1),
+            first_name='Old',
+            last_name='Graduate',
+            gender=Gender.FEMALE,
+            date_of_birth=date(2014, 8, 1),
+            status='graduated',
+            status_date=timezone.make_aware(datetime(2026, 3, 21, 8, 0)),
+        )
+        transferred_this_term = Student.objects.create(
+            organization=self.organization,
+            admission_number='T2TRANSFER',
+            admission_date=date(2025, 6, 1),
+            first_name='Current',
+            last_name='Transfer',
+            gender=Gender.MALE,
+            date_of_birth=date(2014, 8, 1),
+            status='transferred',
+            status_date=timezone.make_aware(datetime(2026, 6, 5, 8, 0)),
+        )
+        graduated_this_term = Student.objects.create(
+            organization=self.organization,
+            admission_number='T2GRAD',
+            admission_date=date(2025, 6, 1),
+            first_name='Current',
+            last_name='Graduate',
+            gender=Gender.FEMALE,
+            date_of_birth=date(2014, 8, 1),
+            status='graduated',
+        )
+
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=active_student,
+            term=self.term,
+            status='active',
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=transferred_last_term,
+            term=self.term,
+            status='transferred',
+            status_date=transferred_last_term.status_date,
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=graduated_last_term,
+            term=self.term,
+            status='graduated',
+            status_date=graduated_last_term.status_date,
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=transferred_this_term,
+            term=self.term,
+            status='transferred',
+            status_date=transferred_this_term.status_date,
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=graduated_this_term,
+            term=self.term,
+            status='graduated',
+            status_date=None,
+        )
+
+    def test_dashboard_uses_term_states_without_counting_old_status_events(self):
+        self.client.force_login(self.user)
+
+        dashboard_response = self.client.get(reverse('portal:dashboard_admin'))
+        student_card = next(
+            card for card in dashboard_response.context['stat_cards']
+            if card['title'] == 'Total Students(Active only)'
+        )
+
+        self.assertEqual(int(student_card['value'].replace(',', '')), 1)
+        self.assertIn("Admitted-1", student_card['helper_lines'])
+        self.assertIn("Graduated-1, Transferred-1", student_card['helper_lines'])
 
 
 class DashboardFinanceKpiAlignmentTests(TestCase):

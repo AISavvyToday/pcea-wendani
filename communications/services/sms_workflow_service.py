@@ -109,7 +109,7 @@ class SMSWorkflowService:
         return {
             'invoice': {
                 'payment_deadline': deadline,
-                'payment_deadline_long': deadline.strftime('%-d %B %Y'),
+                'payment_deadline_long': SMSWorkflowService._format_long_date(deadline),
             }
         }
 
@@ -127,7 +127,7 @@ class SMSWorkflowService:
                 value = timezone.localtime(value).date()
             except Exception:
                 value = value.date()
-        return value.strftime('%-d %B %Y')
+        return f"{value.day} {value.strftime('%B %Y')}"
 
     @staticmethod
     def _format_term_label(term: Term | None) -> str:

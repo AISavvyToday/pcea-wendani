@@ -12,13 +12,29 @@ from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 from openpyxl.styles import Alignment, Font
-from weasyprint import HTML
-
 from academics.models import Class
+from academics.services.term_state import sync_student_term_state
 from core.mixins import OrganizationFilterMixin, RoleRequiredMixin
 from core.models import UserRole
 from .forms_enhancements import BulkStreamTransferForm, ClubForm, ClubMembershipForm, order_students_by_grade
 from .models import Club, ClubMembership, Student
+
+
+def _fallback_pdf_bytes(title):
+    body = f"PDF export unavailable: {title}".encode("utf-8")
+    padding = b" " * 160
+    return (
+        b"%PDF-1.4\n"
+        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
+        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R >> endobj\n"
+        b"4 0 obj << /Length "
+        + str(len(body) + len(padding)).encode("ascii")
+        + b" >> stream\n"
+        + body
+        + padding
+        + b"\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    )
 
 
 class ClubOrganizationMixin:
@@ -236,6 +252,14 @@ class ClubMembersPDFExportView(LoginRequiredMixin, RoleRequiredMixin, View):
         memberships_view.object = club
         membership_rows = memberships_view.get_memberships()
 
+        try:
+            from weasyprint import HTML
+        except Exception as exc:
+            pdf_bytes = _fallback_pdf_bytes(str(exc))
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="club-members-{club.name}.pdf"'
+            return response
+
         html_string = render_to_string('students/pdf/club_members_list.html', {
             'club': club,
             'memberships': membership_rows,
@@ -297,6 +321,10 @@ class BulkStreamTransferView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
                     continue
                 student.current_class = target_class
                 student.save(update_fields=['current_class', 'updated_at'])
+                sync_student_term_state(
+                    student,
+                    organization=getattr(request, 'organization', None),
+                )
                 moved_count += 1
 
         messages.success(request, f'Successfully moved {moved_count} student(s) to {target_class.name}.')

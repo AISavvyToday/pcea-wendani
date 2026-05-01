@@ -67,9 +67,14 @@ class InvoiceService:
         # --------------------------------------------------
         # Resolve fee structure
         # --------------------------------------------------
+        term_state = student.term_states.filter(term=term, is_active=True).select_related(
+            'class_obj', 'transport_route'
+        ).first()
+
+        student_class = getattr(term_state, 'class_obj', None) or getattr(student, 'current_class', None)
         grade_level = getattr(student, 'grade_level', None)
-        if not grade_level and getattr(student, 'current_class', None):
-            grade_level = student.current_class.grade_level
+        if not grade_level and student_class:
+            grade_level = student_class.grade_level
 
         fee_structures = FeeStructure.objects.filter(
             academic_year=term.academic_year,
@@ -126,21 +131,44 @@ class InvoiceService:
             description = item.description
 
             if item.category == 'transport':
-                if student.uses_school_transport and student.transport_route:
+                uses_transport = (
+                    term_state.uses_school_transport
+                    if term_state is not None
+                    else student.uses_school_transport
+                )
+                transport_route = (
+                    getattr(term_state, 'transport_route', None)
+                    if term_state is not None
+                    else student.transport_route
+                )
+                transport_trip_type = (
+                    getattr(term_state, 'transport_trip_type', None)
+                    if term_state is not None
+                    else 'full'
+                ) or 'full'
+
+                if uses_transport and transport_route:
                     from transport.models import TransportFee
                     try:
-                        tf = TransportFee.objects.get(
-                            route=student.transport_route,
+                        transport_fee_qs = TransportFee.objects.filter(
+                            route=transport_route,
                             academic_year=term.academic_year,
                             term=term.term,
                             is_active=True
                         )
-                        item_amount = tf.amount
-                        description = f"Transport ({student.transport_route.name})"
+                        if invoice_organization:
+                            transport_fee_qs = transport_fee_qs.filter(organization=invoice_organization)
+                        tf = transport_fee_qs.get()
+                        item_amount = tf.get_amount_for_trip(transport_trip_type)
+                        trip_display = "Half Trip" if transport_trip_type == 'half' else "Full Trip"
+                        description = f"Transport ({transport_route.name} - {trip_display})"
                     except TransportFee.DoesNotExist:
                         logger.warning(
-                            f"No transport fee for {student.transport_route}"
+                            f"No transport fee for {transport_route}"
                         )
+                else:
+                    transport_route = None
+                    transport_trip_type = None
             else:
                 item_amount = item.amount
 
@@ -163,6 +191,7 @@ class InvoiceService:
                     else:
                         discount_amount += discount.value
 
+            discount_amount = min(discount_amount, item_amount)
             net_amount = item_amount - discount_amount
 
             InvoiceItem.objects.create(
@@ -172,7 +201,9 @@ class InvoiceService:
                 description=description,
                 amount=item_amount,
                 discount_applied=discount_amount,
-                net_amount=net_amount
+                net_amount=net_amount,
+                transport_route=transport_route if item.category == 'transport' else None,
+                transport_trip_type=transport_trip_type if item.category == 'transport' else None,
             )
 
             subtotal += item_amount
@@ -977,7 +1008,7 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                 student=student,
                 term=previous_term,
                 is_active=True
-            ).first()
+            ).exclude(status='cancelled').order_by('-issue_date', '-created_at').first()
             
             old_balance_bf = student.balance_bf_original
             old_prepayment = student.prepayment_original
