@@ -557,7 +557,9 @@ def hydrate_invoice_transport_metadata(term, *, organization=None, dry_run=False
 
 
 def recalculate_term_invoices(term, *, organization=None, dry_run=False):
-    """Re-save active invoices so balance/status/student outstanding are consistent."""
+    """Rebuild active invoice headers/items so balances and statuses are consistent."""
+    from decimal import Decimal, ROUND_HALF_UP
+
     from core.models import InvoiceStatus
     from finance.models import Invoice
 
@@ -574,10 +576,84 @@ def recalculate_term_invoices(term, *, organization=None, dry_run=False):
     else:
         invoices = invoices.filter(organization__isnull=True)
 
-    stats = {"invoices": invoices.count(), "updated": 0, "status_changed": 0, "balance_changed": 0}
+    stats = {
+        "invoices": invoices.count(),
+        "updated": 0,
+        "status_changed": 0,
+        "balance_changed": 0,
+        "header_changed": 0,
+        "item_discounts_changed": 0,
+    }
     for invoice in invoices:
         old_status = invoice.status
         old_balance = invoice.balance
+        old_header = (
+            invoice.subtotal,
+            invoice.discount_amount,
+            invoice.total_amount,
+            invoice.balance_bf,
+            invoice.prepayment,
+        )
+
+        charge_items = list(invoice.items.filter(is_active=True).exclude(
+            category__in=["balance_bf", "prepayment"],
+        ).order_by("created_at", "id"))
+        balance_bf_items = list(invoice.items.filter(is_active=True, category="balance_bf"))
+        prepayment_items = list(invoice.items.filter(is_active=True, category="prepayment"))
+
+        subtotal = sum(((item.amount or Decimal("0.00")) for item in charge_items), Decimal("0.00"))
+        discount_amount = min(invoice.discount_amount or Decimal("0.00"), subtotal)
+        invoice.subtotal = subtotal
+        invoice.discount_amount = discount_amount
+        invoice.total_amount = subtotal - discount_amount
+        if balance_bf_items:
+            invoice.balance_bf = sum(
+                ((item.net_amount if item.net_amount is not None else item.amount) or Decimal("0.00"))
+                for item in balance_bf_items
+            )
+        if prepayment_items:
+            invoice.prepayment = abs(sum(
+                ((item.net_amount if item.net_amount is not None else item.amount) or Decimal("0.00"))
+                for item in prepayment_items
+            ))
+
+        eligible_items = [item for item in charge_items if (item.amount or Decimal("0.00")) > 0]
+        eligible_total = sum(((item.amount or Decimal("0.00")) for item in eligible_items), Decimal("0.00"))
+        remaining_discount = discount_amount
+        for index, item in enumerate(eligible_items):
+            amount = item.amount or Decimal("0.00")
+            if discount_amount == Decimal("0.00"):
+                item_discount = Decimal("0.00")
+            elif index == len(eligible_items) - 1:
+                item_discount = remaining_discount
+            else:
+                ratio = amount / eligible_total if eligible_total else Decimal("0.00")
+                item_discount = (discount_amount * ratio).quantize(
+                    Decimal("0.01"),
+                    rounding=ROUND_HALF_UP,
+                )
+                item_discount = min(item_discount, amount, remaining_discount)
+
+            remaining_discount -= item_discount
+            old_item_values = (item.discount_applied, item.net_amount)
+            item.discount_applied = item_discount
+            item.net_amount = amount - item_discount
+            if old_item_values != (item.discount_applied, item.net_amount):
+                stats["item_discounts_changed"] += 1
+                if not dry_run:
+                    item.save(update_fields=["discount_applied", "net_amount", "updated_at"])
+
+        for item in charge_items:
+            if item in eligible_items:
+                continue
+            old_item_values = (item.discount_applied, item.net_amount)
+            item.discount_applied = Decimal("0.00")
+            item.net_amount = item.amount or Decimal("0.00")
+            if old_item_values != (item.discount_applied, item.net_amount):
+                stats["item_discounts_changed"] += 1
+                if not dry_run:
+                    item.save(update_fields=["discount_applied", "net_amount", "updated_at"])
+
         if dry_run:
             invoice._recalculate_balance()
             invoice._recalculate_status()
@@ -585,11 +661,29 @@ def recalculate_term_invoices(term, *, organization=None, dry_run=False):
             invoice.save()
             invoice.refresh_from_db(fields=["status", "balance"])
 
+        if old_header != (
+            invoice.subtotal,
+            invoice.discount_amount,
+            invoice.total_amount,
+            invoice.balance_bf,
+            invoice.prepayment,
+        ):
+            stats["header_changed"] += 1
         if invoice.status != old_status:
             stats["status_changed"] += 1
         if invoice.balance != old_balance:
             stats["balance_changed"] += 1
-        if invoice.status != old_status or invoice.balance != old_balance:
+        if (
+            invoice.status != old_status
+            or invoice.balance != old_balance
+            or old_header != (
+                invoice.subtotal,
+                invoice.discount_amount,
+                invoice.total_amount,
+                invoice.balance_bf,
+                invoice.prepayment,
+            )
+        ):
             stats["updated"] += 1
 
     return stats

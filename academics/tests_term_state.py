@@ -5,10 +5,10 @@ from django.test import TestCase
 
 from accounts.models import User
 from academics.models import AcademicYear, Term, TermTransitionLog
-from academics.services.term_state import activate_term_for_org
+from academics.services.term_state import activate_term_for_org, recalculate_term_invoices
 from core.models import InvoiceStatus
 from core.models import Gender, Organization, TermChoices, UserRole
-from finance.models import Invoice
+from finance.models import Invoice, InvoiceItem
 from students.models import Student
 
 
@@ -135,3 +135,45 @@ class TermActivationServiceTests(TestCase):
             TermTransitionLog.objects.first().stats['skipped'],
             'new_term_already_has_finance_state',
         )
+
+    def test_recalculate_term_invoices_rebuilds_header_from_items(self):
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number='INV-TERM-003',
+            student=self.student,
+            term=self.term2,
+            subtotal=Decimal('1000.00'),
+            discount_amount=Decimal('500.00'),
+            total_amount=Decimal('500.00'),
+            amount_paid=Decimal('0.00'),
+            balance=Decimal('500.00'),
+            status=InvoiceStatus.PAID,
+            issue_date=self.term2.start_date,
+            due_date=self.term2.end_date,
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Tuition',
+            category='tuition',
+            amount=Decimal('1500.00'),
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Transport',
+            category='transport',
+            amount=Decimal('500.00'),
+        )
+
+        stats = recalculate_term_invoices(
+            self.term2,
+            organization=self.organization,
+        )
+        invoice.refresh_from_db()
+
+        self.assertEqual(invoice.subtotal, Decimal('2000.00'))
+        self.assertEqual(invoice.discount_amount, Decimal('500.00'))
+        self.assertEqual(invoice.total_amount, Decimal('1500.00'))
+        self.assertEqual(invoice.balance, Decimal('1500.00'))
+        self.assertEqual(invoice.status, InvoiceStatus.OVERDUE)
+        self.assertEqual(stats['header_changed'], 1)
+        self.assertEqual(stats['item_discounts_changed'], 2)
