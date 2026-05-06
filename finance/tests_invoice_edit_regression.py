@@ -236,7 +236,7 @@ class InvoiceEditRegressionTests(TestCase):
             )
 
         view = InvoiceEditView()
-        view.recalculate_invoice_totals(invoice, discount_amount=Decimal('1650.00'))
+        view.recalculate_invoice_totals(invoice, discount_amount=Decimal('1649.98'))
         invoice.save()
         invoice.refresh_from_db()
 

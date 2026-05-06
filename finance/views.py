@@ -3139,24 +3139,24 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         items = list(invoice.items.filter(is_active=True).exclude(
             category__in=['balance_bf', 'prepayment']
         ).order_by('created_at', 'id'))
+        whole_kes = Decimal('1')
+        cent = Decimal('0.01')
         subtotal = sum(((item.amount or Decimal('0.00')) for item in items), Decimal('0.00'))
         discount_amount = Decimal(discount_amount or Decimal('0.00'))
 
         eligible_items = [item for item in items if (item.amount or Decimal('0.00')) > 0]
         eligible_total = sum(((item.amount or Decimal('0.00')) for item in eligible_items), Decimal('0.00'))
+        amounts_are_whole_kes = all(
+            (item.amount or Decimal('0.00')) == (item.amount or Decimal('0.00')).quantize(whole_kes)
+            for item in eligible_items
+        )
+        currency_unit = whole_kes if amounts_are_whole_kes else cent
+        discount_amount = discount_amount.quantize(currency_unit, rounding=ROUND_HALF_UP)
+
         if discount_amount > eligible_total:
             raise ValueError(
                 f"Discount amount {discount_amount} exceeds eligible invoice charges {eligible_total}."
             )
-
-        whole_kes = Decimal('1')
-        cent = Decimal('0.01')
-        currency_unit = cent
-        if discount_amount == discount_amount.quantize(whole_kes) and all(
-            (item.amount or Decimal('0.00')) == (item.amount or Decimal('0.00')).quantize(whole_kes)
-            for item in eligible_items
-        ):
-            currency_unit = whole_kes
 
         remaining_discount = discount_amount
         for index, item in enumerate(eligible_items):
