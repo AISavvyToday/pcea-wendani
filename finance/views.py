@@ -3149,6 +3149,15 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
                 f"Discount amount {discount_amount} exceeds eligible invoice charges {eligible_total}."
             )
 
+        whole_kes = Decimal('1')
+        cent = Decimal('0.01')
+        currency_unit = cent
+        if discount_amount == discount_amount.quantize(whole_kes) and all(
+            (item.amount or Decimal('0.00')) == (item.amount or Decimal('0.00')).quantize(whole_kes)
+            for item in eligible_items
+        ):
+            currency_unit = whole_kes
+
         remaining_discount = discount_amount
         for index, item in enumerate(eligible_items):
             amount = item.amount or Decimal('0.00')
@@ -3159,14 +3168,14 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             else:
                 ratio = amount / eligible_total if eligible_total else Decimal('0.00')
                 item_discount = (discount_amount * ratio).quantize(
-                    Decimal('0.01'),
+                    currency_unit,
                     rounding=ROUND_HALF_UP,
                 )
                 item_discount = min(item_discount, amount, remaining_discount)
 
             remaining_discount -= item_discount
-            item.discount_applied = item_discount
-            item.net_amount = amount - item_discount
+            item.discount_applied = item_discount.quantize(cent)
+            item.net_amount = (amount - item_discount).quantize(cent)
             item.save(update_fields=['discount_applied', 'net_amount', 'updated_at'])
 
         for item in items:

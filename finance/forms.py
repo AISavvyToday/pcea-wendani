@@ -439,7 +439,7 @@ class InvoiceEditForm(forms.ModelForm):
         decimal_places=2,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01',
+            'step': '1',
             'min': '0',
             'id': 'invoice-discount-amount'
         }),

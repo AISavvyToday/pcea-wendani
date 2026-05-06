@@ -3,12 +3,15 @@ from decimal import Decimal
 
 from django.db.models import Sum
 from django.test import TestCase
+from django.utils import timezone
 
 from academics.models import AcademicYear, Term
-from core.models import Gender, Organization, TermChoices
+from core.models import Gender, Organization, PaymentMethod, PaymentSource, PaymentStatus, TermChoices
 from finance.forms import InvoiceItemForm
 from finance.models import Invoice, InvoiceItem
 from finance.views import InvoiceEditView
+from payments.models import Payment
+from payments.services.invoice import InvoiceService
 from students.models import Student, StudentTermState
 from transport.models import TransportFee, TransportRoute
 
@@ -198,3 +201,79 @@ class InvoiceEditRegressionTests(TestCase):
         self.assertEqual(invoice.total_amount, Decimal('15500.00'))
         self.assertEqual(invoice.prepayment, Decimal('10000.00'))
         self.assertEqual(invoice.balance, Decimal('5500.00'))
+
+    def test_discount_distribution_and_payment_allocations_stay_whole_kes(self):
+        student = Student.objects.create(
+            organization=self.organization,
+            admission_number='PWA/WHOLE-KES',
+            admission_date=date(2025, 1, 10),
+            first_name='Victoria',
+            last_name='Mutahi',
+            gender=Gender.FEMALE,
+            date_of_birth=date(2016, 5, 1),
+            status='active',
+        )
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number='INV-WHOLE-KES',
+            student=student,
+            term=self.term,
+            issue_date=self.term.start_date,
+            due_date=self.term.end_date,
+        )
+        for description, category, amount in [
+            ('Tuition', 'tuition', Decimal('16500.00')),
+            ('Meals', 'meals', Decimal('6500.00')),
+            ('Examination', 'examination', Decimal('1500.00')),
+            ('Activity', 'activity', Decimal('3000.00')),
+            ('Transport', 'transport', Decimal('6500.00')),
+        ]:
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                description=description,
+                category=category,
+                amount=amount,
+            )
+
+        view = InvoiceEditView()
+        view.recalculate_invoice_totals(invoice, discount_amount=Decimal('1650.00'))
+        invoice.save()
+        invoice.refresh_from_db()
+
+        self.assertEqual(invoice.subtotal, Decimal('34000.00'))
+        self.assertEqual(invoice.discount_amount, Decimal('1650.00'))
+        self.assertEqual(invoice.total_amount, Decimal('32350.00'))
+
+        expected_net_amounts = {
+            'tuition': Decimal('15699.00'),
+            'meals': Decimal('6185.00'),
+            'examination': Decimal('1427.00'),
+            'activity': Decimal('2854.00'),
+            'transport': Decimal('6185.00'),
+        }
+        for item in invoice.items.filter(is_active=True):
+            self.assertEqual(item.net_amount, expected_net_amounts[item.category])
+            self.assertEqual(item.net_amount, item.net_amount.quantize(Decimal('1')))
+            self.assertEqual(item.discount_applied, item.discount_applied.quantize(Decimal('1')))
+
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=student,
+            invoice=invoice,
+            amount=invoice.total_amount,
+            payment_method=PaymentMethod.BANK_DEPOSIT,
+            payment_source=PaymentSource.EQUITY_BANK,
+            status=PaymentStatus.COMPLETED,
+            payment_date=timezone.now(),
+        )
+        allocated = InvoiceService._allocate_amount_to_invoice_items(payment, invoice, invoice.total_amount)
+        InvoiceService._recalculate_invoice_fields(invoice)
+
+        self.assertEqual(allocated, Decimal('32350.00'))
+        allocations = {
+            allocation.invoice_item.category: allocation.amount
+            for allocation in payment.allocations.filter(is_active=True).select_related('invoice_item')
+        }
+        self.assertEqual(allocations, expected_net_amounts)
+        for amount in allocations.values():
+            self.assertEqual(amount, amount.quantize(Decimal('1')))
