@@ -3068,6 +3068,20 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         if item.discount_applied is None:
             item.discount_applied = Decimal('0.00')
 
+        if item.category == 'prepayment':
+            if item.amount > Decimal('0.00'):
+                item.amount = -item.amount
+            item.discount_applied = Decimal('0.00')
+            item.net_amount = item.amount
+            return
+
+        if item.category == 'balance_bf':
+            if item.amount < Decimal('0.00'):
+                item.amount = abs(item.amount)
+            item.discount_applied = Decimal('0.00')
+            item.net_amount = item.amount
+            return
+
         if item.category == 'transport':
             if item.transport_route:
                 item.transport_trip_type = item.transport_trip_type or 'full'
@@ -3081,12 +3095,46 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             elif not item.amount:
                 item.amount = Decimal('0.00')
 
-        item.discount_applied = min(item.discount_applied or Decimal('0.00'), item.amount or Decimal('0.00'))
-        item.net_amount = (item.amount or Decimal('0.00')) - (item.discount_applied or Decimal('0.00'))
+        amount = max(item.amount or Decimal('0.00'), Decimal('0.00'))
+        item.amount = amount
+        item.discount_applied = max(item.discount_applied or Decimal('0.00'), Decimal('0.00'))
+        item.discount_applied = min(item.discount_applied, amount)
+        item.net_amount = amount - item.discount_applied
 
     def recalculate_invoice_totals(self, invoice, *, discount_amount=None):
         """Distribute header discount to active charge items and refresh totals once."""
         from decimal import ROUND_HALF_UP
+
+        opening_items = list(invoice.items.filter(
+            is_active=True,
+            category__in=['balance_bf', 'prepayment'],
+        ).order_by('created_at', 'id'))
+        has_balance_bf_item = any(item.category == 'balance_bf' for item in opening_items)
+        has_prepayment_item = any(item.category == 'prepayment' for item in opening_items)
+        balance_bf_total = Decimal('0.00')
+        prepayment_total = Decimal('0.00')
+        for item in opening_items:
+            amount = item.amount or Decimal('0.00')
+            changed = False
+            if item.category == 'balance_bf':
+                if amount < Decimal('0.00'):
+                    amount = abs(amount)
+                    item.amount = amount
+                    changed = True
+                balance_bf_total += amount
+            elif item.category == 'prepayment':
+                if amount > Decimal('0.00'):
+                    amount = -amount
+                    item.amount = amount
+                    changed = True
+                prepayment_total += abs(amount)
+
+            if (item.discount_applied or Decimal('0.00')) != Decimal('0.00') or item.net_amount != amount:
+                item.discount_applied = Decimal('0.00')
+                item.net_amount = amount
+                changed = True
+            if changed:
+                item.save(update_fields=['amount', 'discount_applied', 'net_amount', 'updated_at'])
 
         items = list(invoice.items.filter(is_active=True).exclude(
             category__in=['balance_bf', 'prepayment']
@@ -3130,6 +3178,10 @@ class InvoiceEditView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         invoice.subtotal = subtotal
         invoice.discount_amount = discount_amount
         invoice.total_amount = subtotal - discount_amount
+        if has_balance_bf_item:
+            invoice.balance_bf = balance_bf_total
+        if has_prepayment_item:
+            invoice.prepayment = prepayment_total
 
         logger.info(f"Recalculated totals for invoice {invoice.invoice_number}: "
                     f"Subtotal={subtotal}, Discount={discount_amount}, "

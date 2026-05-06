@@ -586,6 +586,16 @@ class InvoiceItemForm(forms.ModelForm):
                     if not amount or amount == Decimal('0.00'):
                         self.add_error('transport_route',
                                        'No transport fee configured for this route in the current term.')
+        elif category == 'prepayment':
+            if amount in (None, ''):
+                self.add_error('amount', 'Prepayment amount is required.')
+            elif amount is not None and amount > Decimal('0.00'):
+                self.add_error('amount', 'Prepayment/Credit items must be zero or negative.')
+        elif category == 'balance_bf':
+            if amount in (None, ''):
+                self.add_error('amount', 'Balance brought forward amount is required.')
+            elif amount is not None and amount < Decimal('0.00'):
+                self.add_error('amount', 'Balance brought forward must be a non-negative number.')
         else:
             # For non-transport items ensure amount is present and non-negative
             if amount in (None, ''):

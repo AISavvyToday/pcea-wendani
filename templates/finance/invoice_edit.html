@@ -99,8 +99,9 @@
                           </thead>
                           <tbody id="formset-container">
                               {% for item_form in formset.forms %}
-                              <tr class="item-row {% if item_form.instance.category == 'transport' %}is-transport{% endif %}"
-                                  data-form-index="{{ forloop.counter0 }}">
+                              <tr class="item-row {% if item_form.instance.category == 'transport' %}is-transport{% endif %}{% if item_form.instance.category == 'prepayment' or item_form.instance.category == 'balance_bf' %} is-opening-row{% endif %}"
+                                  data-form-index="{{ forloop.counter0 }}"
+                                  data-original-category="{{ item_form.instance.category|default:'' }}">
                                   <td>
                                       {{ item_form.id }}
                                       <select name="{{ item_form.category.html_name }}"
@@ -153,17 +154,24 @@
                                              name="{{ item_form.amount.html_name }}"
                                              id="{{ item_form.amount.id_for_label }}"
                                              value="{{ item_form.amount.value|default:'0.00' }}"
-                                             class="form-control form-control-sm amount-input"
-                                             step="0.01" min="0">
+                                             class="form-control form-control-sm amount-input{% if item_form.instance.category == 'prepayment' or item_form.instance.category == 'balance_bf' %} readonly-amount{% endif %}"
+                                             step="0.01"
+                                             {% if item_form.instance.category == 'prepayment' %}max="0" readonly{% else %}min="0"{% if item_form.instance.category == 'balance_bf' %} readonly{% endif %}{% endif %}>
                                       <!-- Hidden discount field -->
                                       <input type="hidden"
                                              name="{{ item_form.discount_applied.html_name }}"
                                              value="{{ item_form.discount_applied.value|default:'0.00' }}">
                                   </td>
                                   <td class="text-center">
+                                      {% if item_form.instance.category == 'prepayment' or item_form.instance.category == 'balance_bf' %}
+                                      <button type="button" class="btn btn-outline-secondary btn-sm remove-btn" title="Opening balance/credit rows are protected" disabled>
+                                          <i class="mdi mdi-lock"></i>
+                                      </button>
+                                      {% else %}
                                       <button type="button" class="btn btn-outline-danger btn-sm remove-btn" title="Remove">
                                           <i class="mdi mdi-delete"></i>
                                       </button>
+                                      {% endif %}
                                   </td>
                               </tr>
                               {% empty %}
@@ -260,6 +268,7 @@
       const totalFormsName = totalFormsInput.name;
       const prefixMatch = totalFormsName.match(/^(.+?)-TOTAL_FORMS$/);
       const formsetPrefix = prefixMatch ? prefixMatch[1] : 'form';
+      const openingCategories = new Set(['balance_bf', 'prepayment']);
 
       // Get route options HTML for new rows
       const routeOptionsHtml = `<option value="">-- Select Route --</option>{% for value, label in formset.empty_form.transport_route.field.choices %}{% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}`;
@@ -312,10 +321,25 @@
           });
       }
 
+      function getRowCategory(row) {
+          const categorySelect = row.querySelector('.category-select');
+          return categorySelect ? categorySelect.value : '';
+      }
+
+      function getEffectiveCategory(row) {
+          const originalCategory = row.dataset.originalCategory || '';
+          return openingCategories.has(originalCategory) ? originalCategory : getRowCategory(row);
+      }
+
+      function isProtectedOpeningRow(row) {
+          return openingCategories.has(row.dataset.originalCategory || '');
+      }
+
       function initRow(row) {
           const categorySelect = row.querySelector('.category-select');
           const isTransport = categorySelect && categorySelect.value === 'transport';
           setTransportVisibility(row, isTransport);
+          setOpeningRowState(row);
           
           // If it's a transport row and has route/trip, initialize the amount
           if (isTransport) {
@@ -325,8 +349,12 @@
 
       function handleCategoryChange(select) {
           const row = select.closest('.item-row');
+          if (isProtectedOpeningRow(row)) {
+              select.value = row.dataset.originalCategory;
+          }
           const isTransport = select.value === 'transport';
           setTransportVisibility(row, isTransport);
+          setOpeningRowState(row);
 
           if (isTransport) {
               const routeSelect = row.querySelector('.route-select');
@@ -368,6 +396,46 @@
               // Explicitly hide/show for reliability
               if (descOnly) descOnly.style.display = 'block';
               if (transportInline) transportInline.style.display = 'none';
+          }
+      }
+
+      function setOpeningRowState(row) {
+          const category = getEffectiveCategory(row);
+          const amountInput = row.querySelector('.amount-input');
+          const removeBtn = row.querySelector('.remove-btn');
+
+          if (isProtectedOpeningRow(row)) {
+              row.classList.add('is-opening-row');
+          }
+
+          if (amountInput) {
+              amountInput.removeAttribute('min');
+              amountInput.removeAttribute('max');
+
+              if (category === 'prepayment') {
+                  amountInput.readOnly = true;
+                  amountInput.classList.add('readonly-amount');
+                  amountInput.setAttribute('max', '0');
+              } else if (category === 'balance_bf') {
+                  amountInput.readOnly = true;
+                  amountInput.classList.add('readonly-amount');
+                  amountInput.setAttribute('min', '0');
+              } else if (category === 'transport') {
+                  amountInput.readOnly = true;
+                  amountInput.classList.add('readonly-amount');
+                  amountInput.setAttribute('min', '0');
+              } else {
+                  amountInput.readOnly = false;
+                  amountInput.classList.remove('readonly-amount');
+                  amountInput.setAttribute('min', '0');
+              }
+          }
+
+          if (removeBtn && isProtectedOpeningRow(row)) {
+              removeBtn.disabled = true;
+              removeBtn.classList.remove('btn-outline-danger');
+              removeBtn.classList.add('btn-outline-secondary');
+              removeBtn.title = 'Opening balance/credit rows are protected';
           }
       }
 
@@ -481,6 +549,10 @@
       }
 
       function removeRow(row) {
+          if (isProtectedOpeningRow(row)) {
+              return;
+          }
+
           const idInput = row.querySelector('input[name$="-id"]');
 
           if (idInput && idInput.value) {
@@ -527,6 +599,9 @@
           let subtotal = 0;
 
           document.querySelectorAll('.item-row:not(.deleted-row)').forEach(row => {
+              if (openingCategories.has(getEffectiveCategory(row))) {
+                  return;
+              }
               const amountInput = row.querySelector('.amount-input');
               const amount = parseFloat(amountInput?.value) || 0;
               subtotal += amount;
@@ -576,20 +651,29 @@
               const categorySelect = row.querySelector('.category-select');
               const amountInput = row.querySelector('.amount-input');
               const routeSelect = row.querySelector('.route-select');
+              const category = getEffectiveCategory(row);
 
               // Validate transport items have a route
-              if (categorySelect?.value === 'transport' && (!routeSelect?.value)) {
+              if (category === 'transport' && (!routeSelect?.value)) {
                   row.classList.add('invalid');
                   isValid = false;
                   errors.push('Transport items must have a route selected');
               }
 
-              // Validate amount is a positive number
+              // Opening credit rows are negative by design; regular charges cannot be negative.
               const amount = parseFloat(amountInput?.value);
-              if (isNaN(amount) || amount < 0) {
+              if (category === 'prepayment' && (isNaN(amount) || amount > 0)) {
                   row.classList.add('invalid');
                   isValid = false;
-                  errors.push('Amount must be a valid positive number');
+                  errors.push('Prepayment/Credit amount must be zero or negative');
+              } else if (category === 'balance_bf' && (isNaN(amount) || amount < 0)) {
+                  row.classList.add('invalid');
+                  isValid = false;
+                  errors.push('Balance brought forward must be zero or positive');
+              } else if (!openingCategories.has(category) && (isNaN(amount) || amount < 0)) {
+                  row.classList.add('invalid');
+                  isValid = false;
+                  errors.push('Amount must be a valid non-negative number');
               }
           });
 

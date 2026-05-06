@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from academics.models import AcademicYear, Term
 from core.models import Gender, Organization, TermChoices
+from finance.forms import InvoiceItemForm
 from finance.models import Invoice, InvoiceItem
 from finance.views import InvoiceEditView
 from students.models import Student, StudentTermState
@@ -116,3 +117,84 @@ class InvoiceEditRegressionTests(TestCase):
 
         with self.assertRaises(ValueError):
             view.recalculate_invoice_totals(self.invoice, discount_amount=Decimal('10000.00'))
+
+    def test_prepayment_item_allows_negative_amount_when_discount_is_applied(self):
+        gift = Student.objects.create(
+            organization=self.organization,
+            admission_number='ADM.2408',
+            admission_date=date(2025, 1, 10),
+            first_name='Gift Alvin',
+            last_name='Mwai',
+            gender=Gender.MALE,
+            date_of_birth=date(2016, 5, 1),
+            status='active',
+        )
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number='INV-GIFT-2408',
+            student=gift,
+            term=self.term,
+            issue_date=self.term.start_date,
+            due_date=self.term.end_date,
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Tuition Fee',
+            category='tuition',
+            amount=Decimal('20000.00'),
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Examination Fee',
+            category='examination',
+            amount=Decimal('1500.00'),
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Meals',
+            category='meals',
+            amount=Decimal('6500.00'),
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Activity Fee',
+            category='activity',
+            amount=Decimal('3000.00'),
+        )
+        prepayment = InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Prepayment / Credit from previous term',
+            category='prepayment',
+            amount=Decimal('-10000.00'),
+            net_amount=Decimal('-10000.00'),
+        )
+
+        form = InvoiceItemForm(
+            data={
+                'description': prepayment.description,
+                'category': 'prepayment',
+                'amount': '-10000.00',
+                'discount_applied': '0.00',
+            },
+            instance=prepayment,
+            invoice=invoice,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+
+        view = InvoiceEditView()
+        view._prepare_invoice_item_for_save(prepayment, invoice)
+        prepayment.save()
+        view.recalculate_invoice_totals(invoice, discount_amount=Decimal('15500.00'))
+        invoice.save()
+
+        invoice.refresh_from_db()
+        prepayment.refresh_from_db()
+
+        self.assertEqual(prepayment.amount, Decimal('-10000.00'))
+        self.assertEqual(prepayment.discount_applied, Decimal('0.00'))
+        self.assertEqual(prepayment.net_amount, Decimal('-10000.00'))
+        self.assertEqual(invoice.subtotal, Decimal('31000.00'))
+        self.assertEqual(invoice.discount_amount, Decimal('15500.00'))
+        self.assertEqual(invoice.total_amount, Decimal('15500.00'))
+        self.assertEqual(invoice.prepayment, Decimal('10000.00'))
+        self.assertEqual(invoice.balance, Decimal('5500.00'))
