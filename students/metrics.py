@@ -30,6 +30,15 @@ def get_student_base_queryset(organization=None):
     return queryset
 
 
+def get_term_state_queryset(term=None, *, organization=None):
+    if not term:
+        return StudentTermState.objects.none()
+    queryset = StudentTermState.objects.filter(term=term, is_active=True)
+    if organization is not None:
+        queryset = queryset.filter(organization=organization)
+    return queryset
+
+
 def get_new_students_q(term=None, *, organization=None, fallback_days=None):
     status_values = tuple(
         getattr(settings, 'NEW_STUDENT_STATUSES', DEFAULT_NEW_STUDENT_STATUSES)
@@ -101,12 +110,23 @@ def apply_student_filters(
                     fallback_days=new_students_fallback_days,
                 )
             )
-        elif term and StudentTermState.objects.filter(term=term, is_active=True).exists():
+        elif term and get_term_state_queryset(term, organization=organization).exists():
             queryset = queryset.filter(
                 term_states__term=term,
                 term_states__status=status,
                 term_states__is_active=True,
-            ).distinct()
+            )
+            if organization is not None:
+                queryset = queryset.filter(term_states__organization=organization)
+            if status in TERM_EVENT_STATUSES:
+                queryset = queryset.filter(
+                    Q(term_states__status_date__isnull=True)
+                    | Q(
+                        term_states__status_date__date__gte=term.start_date,
+                        term_states__status_date__date__lte=term.end_date,
+                    )
+                )
+            queryset = queryset.distinct()
         else:
             queryset = queryset.filter(status=status)
 
@@ -132,13 +152,9 @@ def get_student_status_counters(
     new_students_fallback_days=None,
 ):
     student_ids = queryset.values('pk')
-    term_states = StudentTermState.objects.filter(
-        term=term,
+    term_states = get_term_state_queryset(term, organization=organization).filter(
         student_id__in=student_ids,
-        is_active=True,
-    ) if term else StudentTermState.objects.none()
-    if organization is not None:
-        term_states = term_states.filter(organization=organization)
+    )
 
     if term and term_states.exists():
         counts = {}

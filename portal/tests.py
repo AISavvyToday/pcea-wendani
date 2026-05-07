@@ -112,11 +112,10 @@ class DashboardStudentCounterSyncTests(TestCase):
         )
 
         self.assertEqual(int(student_card['value'].replace(',', '')), 2)
-        self.assertIn("Admitted-1", student_card['helper_lines'])
-        self.assertIn(
-            "Graduated-0, Transferred-1",
-            student_card['helper_lines'],
-        )
+        self.assertIn("Active-2", student_card['helper_lines'])
+        self.assertIn("New-1", student_card['helper_lines'])
+        self.assertIn("Graduated-0", student_card['helper_lines'])
+        self.assertIn("Transferred-1", student_card['helper_lines'])
 
 
 class DashboardStudentTermStateTests(TestCase):
@@ -150,7 +149,7 @@ class DashboardStudentTermStateTests(TestCase):
         active_student = Student.objects.create(
             organization=self.organization,
             admission_number='T2ACTIVE',
-            admission_date=date(2026, 1, 10),
+            admission_date=date(2026, 6, 10),
             first_name='Active',
             last_name='Student',
             gender=Gender.FEMALE,
@@ -246,8 +245,10 @@ class DashboardStudentTermStateTests(TestCase):
         )
 
         self.assertEqual(int(student_card['value'].replace(',', '')), 1)
-        self.assertIn("Admitted-1", student_card['helper_lines'])
-        self.assertIn("Graduated-1, Transferred-1", student_card['helper_lines'])
+        self.assertIn("Active-1", student_card['helper_lines'])
+        self.assertIn("New-1", student_card['helper_lines'])
+        self.assertIn("Graduated-1", student_card['helper_lines'])
+        self.assertIn("Transferred-1", student_card['helper_lines'])
 
 
 class DashboardFinanceKpiAlignmentTests(TestCase):

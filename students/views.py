@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Prefetch
 from django.http import HttpResponseRedirect, HttpResponse, JsonResponse, Http404
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -18,7 +18,7 @@ from django.views.generic import DeleteView
 from django.contrib import messages
 from core.mixins import RoleRequiredMixin, OrganizationFilterMixin
 from accounts.models import User
-from .models import Student, Parent, StudentParent
+from .models import Student, Parent, StudentParent, StudentTermState
 from .forms import ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm, StudentForm
 from .forms_enhancements import StudentEnrollmentForm
 from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
@@ -69,6 +69,16 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             term=term,
             organization=organization,
         )
+        if term:
+            term_state_qs = StudentTermState.objects.filter(
+                term=term,
+                is_active=True,
+            ).select_related('class_obj')
+            if organization is not None:
+                term_state_qs = term_state_qs.filter(organization=organization)
+            queryset = queryset.prefetch_related(
+                Prefetch('term_states', queryset=term_state_qs, to_attr='selected_term_states')
+            )
         return queryset.order_by('admission_number')
 
     def get_current_term(self):
@@ -111,6 +121,24 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             term=term,
             organization=organization,
         )
+        current_status = self.request.GET.get('status', '') or 'active'
+        status_labels = dict(Student.STATUS_CHOICES)
+        for student in context.get('students', []):
+            term_states = getattr(student, 'selected_term_states', [])
+            term_state = term_states[0] if term_states else None
+            display_status = 'new' if current_status == 'new' else (
+                term_state.status if term_state else student.status
+            )
+            student.list_status = display_status
+            student.list_status_label = 'New' if display_status == 'new' else status_labels.get(
+                display_status,
+                display_status.title(),
+            )
+            student.list_class = (
+                term_state.class_obj
+                if term_state and term_state.class_obj
+                else student.current_class
+            )
 
         context['search_form'] = StudentSearchForm(self.request.GET)
         context['total_students'] = base_queryset.count()
@@ -123,7 +151,7 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         )
 
         # Get current status from request (default to 'active' if not specified)
-        context['current_status'] = self.request.GET.get('status', '') or 'active'
+        context['current_status'] = current_status
         context['term_resolution_warning'] = term is None
 
         return context

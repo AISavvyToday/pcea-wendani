@@ -39,7 +39,7 @@ from payments.models import BankTransaction, Payment, PaymentAllocation
 from finance.services_kpi import build_term_kpis
 from payments.services.resolution import ResolutionService
 from students.models import StudentTermState
-from students.metrics import get_new_students_q, get_student_base_queryset, get_student_status_counters
+from students.metrics import get_student_base_queryset, get_student_status_counters
 
 logger = logging.getLogger(__name__)
 
@@ -620,9 +620,7 @@ def dashboard_admin(request):
         organization=organization,
     )
     total_students = student_counts['active']
-    admitted_students = student_base_qs.filter(
-        get_new_students_q(term=None, organization=organization)
-    ).count()
+    admitted_students = student_counts['new']
     graduated_students = student_counts['graduated']
     transferred_students = student_counts['transferred']
 
@@ -675,10 +673,12 @@ def dashboard_admin(request):
                 "value": f"{total_students:,}",
                 "icon": "mdi-account-group",
                 "bg": "bg-gradient-primary",
-                "url": _safe_reverse("students:list"),
+                "url": f"{_safe_reverse('students:list')}?status=active",
                 "helper_lines": [
-                    f"Admitted-{admitted_students}",
-                    f"Graduated-{graduated_students}, Transferred-{transferred_students}",
+                    f"Active-{total_students}",
+                    f"New-{admitted_students}",
+                    f"Graduated-{graduated_students}",
+                    f"Transferred-{transferred_students}",
                 ],
             },
             {

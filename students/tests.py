@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.test import TestCase
 from django.test import RequestFactory
 from django.urls import reverse
+from django.utils import timezone
 
 from academics.models import AcademicYear, Term
 from django.test.utils import override_settings
@@ -17,7 +18,7 @@ from core.models import Organization, UserRole
 from core.models import TermChoices
 from students.metrics import get_student_status_counters
 from students.metrics import get_current_term, get_new_students_q
-from students.models import Parent, Student, StudentParent
+from students.models import Parent, Student, StudentParent, StudentTermState
 from students.views import StudentListView
 
 
@@ -235,6 +236,56 @@ class StudentNewMetricsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context_data['status_counts']['new'], 1)
+
+    def test_new_tab_marks_rows_as_new_for_current_term(self):
+        self._create_student(admission_number='N030', admission_date=date(2026, 2, 1))
+
+        request = self.factory.get(reverse('students:list'), {'status': 'new'})
+        request.user = self.user
+        request.organization = self.organization
+        response = StudentListView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        students = list(response.context_data['students'])
+        self.assertEqual(len(students), 1)
+        self.assertEqual(students[0].list_status, 'new')
+        self.assertEqual(students[0].list_status_label, 'New')
+
+    def test_transferred_tab_uses_current_term_status_events(self):
+        old_transfer = self._create_student(admission_number='TOLD', admission_date=date(2025, 5, 1))
+        old_transfer.status = 'transferred'
+        old_transfer.status_date = timezone.make_aware(datetime(2025, 12, 1, 8, 0))
+        old_transfer.save()
+        current_transfer = self._create_student(admission_number='TCURRENT', admission_date=date(2025, 5, 1))
+        current_transfer.status = 'transferred'
+        current_transfer.status_date = timezone.make_aware(datetime(2026, 2, 1, 8, 0))
+        current_transfer.save()
+
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=old_transfer,
+            term=self.current_term,
+            status='transferred',
+            status_date=old_transfer.status_date,
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=current_transfer,
+            term=self.current_term,
+            status='transferred',
+            status_date=current_transfer.status_date,
+        )
+
+        request = self.factory.get(reverse('students:list'), {'status': 'transferred'})
+        request.user = self.user
+        request.organization = self.organization
+        response = StudentListView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context_data['status_counts']['transferred'], 1)
+        students = list(response.context_data['students'])
+        self.assertEqual([student.admission_number for student in students], ['TCURRENT'])
+        self.assertEqual(students[0].list_status, 'transferred')
 
     def test_no_current_term_falls_back_to_latest_term_for_new_count(self):
         self.current_term.is_current = False
