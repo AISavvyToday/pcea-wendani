@@ -285,7 +285,7 @@
             </tr>
             {% if credit_balance_after_payment > 0 and outstanding_balance_at_payment == 0 %}
             <tr>
-                <th><strong>Credit / Prepayment</strong></th>
+                <th><strong>Current Credit</strong></th>
                 <td class="text-right receipt-figure"><strong>KES {{ credit_balance_after_payment|floatformat:0|intcomma }}</strong></td>
             </tr>
             {% endif %}

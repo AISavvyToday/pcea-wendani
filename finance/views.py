@@ -1600,6 +1600,90 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             queryset = queryset.filter(organization__isnull=True)
         return queryset.select_related('student', 'student__organization')
 
+    def _payment_order_filter(self, payment, *, inclusive=False, payment_prefix=''):
+        created_lookup = f'{payment_prefix}created_at__lte' if inclusive else f'{payment_prefix}created_at__lt'
+        return (
+            Q(**{f'{payment_prefix}payment_date__lt': payment.payment_date}) |
+            Q(**{
+                f'{payment_prefix}payment_date': payment.payment_date,
+                created_lookup: payment.created_at,
+            })
+        )
+
+    def _infer_receipt_term(self, payment):
+        if payment.invoice_id and payment.invoice:
+            return payment.invoice.term
+
+        allocated_term = (
+            Term.objects.filter(
+                invoices__items__allocations__payment=payment,
+                invoices__items__allocations__is_active=True,
+            )
+            .distinct()
+            .order_by('-start_date', '-created_at')
+            .first()
+        )
+        if allocated_term:
+            return allocated_term
+
+        organization = payment.organization or payment.student.organization or getattr(self.request, 'organization', None)
+        if not organization or not payment.payment_date:
+            return None
+
+        payment_day = timezone.localtime(payment.payment_date).date() if timezone.is_aware(payment.payment_date) else payment.payment_date.date()
+        dated_term = (
+            Term.objects.filter(
+                organization=organization,
+                start_date__lte=payment_day,
+                end_date__gte=payment_day,
+            )
+            .order_by('-start_date', '-created_at')
+            .first()
+        )
+        if dated_term:
+            return dated_term
+
+        return (
+            Term.objects.filter(organization=organization, is_current=True)
+            .order_by('-start_date', '-created_at')
+            .first()
+        )
+
+    def _receipt_invoices(self, student, receipt_term):
+        invoices = Invoice.objects.filter(
+            student=student,
+            is_active=True,
+        ).exclude(status=InvoiceStatus.CANCELLED)
+        if receipt_term:
+            invoices = invoices.filter(term=receipt_term)
+        return invoices
+
+    def _receipt_term_payments(self, student, receipt_term):
+        payments = Payment.objects.filter(
+            student=student,
+            is_active=True,
+            status=PaymentStatus.COMPLETED,
+        )
+
+        organization = student.organization or getattr(self.request, 'organization', None)
+        if organization:
+            payments = payments.filter(Q(organization=organization) | Q(organization__isnull=True))
+
+        if not receipt_term:
+            return payments.distinct()
+
+        term_filter = (
+            Q(invoice__term=receipt_term) |
+            Q(allocations__invoice_item__invoice__term=receipt_term)
+        )
+        if receipt_term.start_date and receipt_term.end_date:
+            term_filter |= Q(
+                payment_date__date__gte=receipt_term.start_date,
+                payment_date__date__lte=receipt_term.end_date,
+            )
+
+        return payments.filter(term_filter).distinct()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         payment = self.object
@@ -1616,11 +1700,15 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
         )()
         print_datetime = timezone.now()
 
-        # Get all active invoices for student
-        current_invoices = Invoice.objects.filter(
-            student=student,
-            is_active=True
-        ).exclude(status=InvoiceStatus.CANCELLED)
+        receipt_term = self._infer_receipt_term(payment)
+        current_invoices = self._receipt_invoices(student, receipt_term)
+        term_payments = self._receipt_term_payments(student, receipt_term)
+        previous_term_payments = term_payments.filter(
+            self._payment_order_filter(payment)
+        ).exclude(pk=payment.pk)
+        payments_up_to_this_receipt = term_payments.filter(
+            self._payment_order_filter(payment, inclusive=True)
+        )
 
         # ---- CORE RECEIPT ACCOUNTING (CORRECT & SIMPLE) ----
 
@@ -1629,49 +1717,13 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             total=Sum('total_amount')
         )['total'] or Decimal('0.00')
 
-        # Get total paid BEFORE this payment (all payments before this payment date/time)
-        # Use created_at for more accurate ordering when payment dates are the same
-        total_paid_before = Payment.objects.filter(
-            student=student,
-            is_active=True,
-            status=PaymentStatus.COMPLETED
-        ).filter(
-            Q(payment_date__lt=payment.payment_date) |
-            Q(payment_date=payment.payment_date, created_at__lt=payment.created_at)
-        ).exclude(pk=payment.pk).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
-        # CRITICAL: Get actual allocations to invoices BEFORE this payment
-        # This is more accurate than using payment amounts
-        # Use created_at for accurate ordering when payment dates are the same
-        from payments.models import PaymentAllocation
-        allocations_before = PaymentAllocation.objects.filter(
-            payment__student=student,
-            payment__is_active=True,
-            payment__status=PaymentStatus.COMPLETED,
-            is_active=True,
-            invoice_item__invoice__in=current_invoices
-        ).exclude(payment=payment).filter(
-            Q(payment__payment_date__lt=payment.payment_date) |
-            Q(payment__payment_date=payment.payment_date, payment__created_at__lt=payment.created_at)
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
-        # Get allocations from THIS payment to invoices
-        allocations_from_this_payment = PaymentAllocation.objects.filter(
-            payment=payment,
-            is_active=True,
-            invoice_item__invoice__in=current_invoices
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
-        # Get total paid BEFORE this payment INCLUDING this payment (for running balance)
-        total_paid_up_to = Payment.objects.filter(
-            student=student,
-            is_active=True,
-            status=PaymentStatus.COMPLETED,
-            payment_date__lte=payment.payment_date
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        total_paid_before = previous_term_payments.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0.00')
 
-        # FIX 1: Determine if this is FIRST receipt (no previous payments)
-        is_first_receipt = total_paid_before == 0
+        # Opening balances belong to a term, so only the first receipt for
+        # that same term should show them.
+        is_first_receipt = not previous_term_payments.exists()
 
         # FIX 2: Handle students with no invoices OR transferred/graduated students
         # Transferred/graduated students should use student-level balances, not invoice balances
@@ -1718,33 +1770,27 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 balance_bf_display = total_balance_bf
                 # Prepayment is stored as a POSITIVE value in invoices
                 prepayment_display = abs(total_prepayment) if total_prepayment else Decimal('0.00')
-                # 🔒 HANDCODED OVERRIDE (Student Admission 2304 ONLY)
-                if student.admission_number == '2304':
-                    prepayment_display = Decimal('10000.00')
             else:
                 balance_bf_display = Decimal('0.00')
                 prepayment_display = Decimal('0.00')
 
             # Canonical receipt math for students with invoices.
             # Use total paid before this receipt to derive the balance immediately before payment.
-            invoice_balance_before_this_payment = (
-                total_invoice_amount + total_balance_bf - total_prepayment - total_paid_before
+            invoice_exposure = max(
+                Decimal('0.00'),
+                total_invoice_amount + total_balance_bf - total_prepayment
             )
+            invoice_balance_before_this_payment = invoice_exposure - total_paid_before
 
             # Student balance at payment = invoice balance before this payment
-            student_balance_at_payment = invoice_balance_before_this_payment
+            student_balance_at_payment = max(Decimal('0.00'), invoice_balance_before_this_payment)
 
         # Outstanding AFTER this payment
         if current_invoices.exists():
             # Canonical outstanding after payment comes from invoice math using total payments up to this receipt.
-            total_paid_up_to_invoice = Payment.objects.filter(
-                student=student,
-                is_active=True,
-                status=PaymentStatus.COMPLETED
-            ).filter(
-                Q(payment_date__lt=payment.payment_date) |
-                Q(payment_date=payment.payment_date, created_at__lte=payment.created_at)
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            total_paid_up_to_invoice = payments_up_to_this_receipt.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0.00')
 
             outstanding_balance_after = (
                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_up_to_invoice
@@ -1753,57 +1799,16 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             # For students without invoices, use full payment amount
             outstanding_balance_after = student_balance_at_payment - payment.amount
         
-        # Calculate credit_balance after this payment
-        # Credit balance = total payments - total allocations (excess payments)
         credit_balance_after_payment = Decimal('0.00')
         
         if current_invoices.exists():
-            # For students with invoices: compute credit conservatively.
-            # IMPORTANT: if any debt remains after this payment, receipt must show
-            # zero credit/prepayment balance. Overpayment only becomes visible credit
-            # once outstanding balance is fully cleared.
-            total_payments_up_to = Payment.objects.filter(
-                student=student,
-                is_active=True,
-                status=PaymentStatus.COMPLETED
-            ).filter(
-                Q(payment_date__lt=payment.payment_date) |
-                Q(payment_date=payment.payment_date, created_at__lte=payment.created_at)
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-
-            total_allocations_up_to = PaymentAllocation.objects.filter(
-                payment__student=student,
-                payment__is_active=True,
-                payment__status=PaymentStatus.COMPLETED,
-                is_active=True,
-                invoice_item__invoice__in=current_invoices
-            ).filter(
-                Q(payment__payment_date__lt=payment.payment_date) |
-                Q(payment__payment_date=payment.payment_date, payment__created_at__lte=payment.created_at)
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-
-            raw_credit_after_payment = max(Decimal('0.00'), total_payments_up_to - total_allocations_up_to)
-            credit_balance_after_payment = (
-                Decimal('0.00')
-                if outstanding_balance_after > 0
-                else raw_credit_after_payment
-            )
-
-            # Receipt rule: show either outstanding OR credit/prepayment, never both.
-            # If payment results in overpayment, display zero outstanding and positive credit.
             if outstanding_balance_after < 0:
-                credit_balance_after_payment = max(
-                    credit_balance_after_payment,
-                    abs(outstanding_balance_after)
-                )
-                outstanding_balance_after = Decimal('0.00')
-
-            if credit_balance_after_payment > 0:
+                credit_balance_after_payment = abs(outstanding_balance_after)
                 outstanding_balance_after = Decimal('0.00')
         else:
-            # For students without invoices: credit = current credit_balance
-            # (payments reduce outstanding_balance first, then add to credit)
-            credit_balance_after_payment = student.credit_balance or Decimal('0.00')
+            if outstanding_balance_after < 0:
+                credit_balance_after_payment = abs(outstanding_balance_after)
+                outstanding_balance_after = Decimal('0.00')
         
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {

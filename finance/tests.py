@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -523,3 +523,192 @@ class StudentDetailDeleteConsistencyTests(TestCase):
         self.assertEqual(response_after.context['total_paid'], Decimal('0.00'))
         self.student.refresh_from_db()
         self.assertEqual(self.student.outstanding_balance, Decimal('1000.00'))
+
+
+class PaymentReceiptOpeningAdjustmentTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(
+            name='PCEA Wendani Academy',
+            code='receipt-opening-org',
+        )
+        self.user = User.objects.create_user(
+            email='receipt-admin@school.test',
+            password='testpass123',
+            first_name='Receipt',
+            last_name='Admin',
+            role=UserRole.ACCOUNTANT,
+            organization=self.organization,
+        )
+        self.client.force_login(self.user)
+        self.academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term1 = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term='term_1',
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 30),
+            is_current=False,
+        )
+        self.term2 = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term='term_2',
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 8, 31),
+            is_current=True,
+        )
+        self.student = Student.objects.create(
+            organization=self.organization,
+            admission_number='2671',
+            admission_date=date(2026, 1, 5),
+            first_name='Skyler',
+            last_name='Dzidza',
+            gender='F',
+            date_of_birth=date(2016, 5, 20),
+            status='active',
+        )
+
+    def _dt(self, year, month, day, hour=9, minute=0):
+        return timezone.make_aware(datetime(year, month, day, hour, minute))
+
+    def _create_invoice(self, term, number, total, balance_bf=Decimal('0.00'), prepayment=Decimal('0.00')):
+        invoice = Invoice.objects.create(
+            organization=self.organization,
+            invoice_number=number,
+            student=self.student,
+            term=term,
+            subtotal=total,
+            total_amount=total,
+            balance=total + balance_bf - prepayment,
+            balance_bf=balance_bf,
+            prepayment=prepayment,
+            balance_bf_original=balance_bf,
+            issue_date=term.start_date,
+            due_date=term.end_date,
+            generated_by=self.user,
+        )
+        tuition_item = InvoiceItem.objects.create(
+            invoice=invoice,
+            description='Tuition',
+            category='tuition',
+            amount=total,
+            net_amount=total,
+        )
+        if balance_bf > 0:
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                description='Balance B/F from previous term',
+                category='balance_bf',
+                amount=balance_bf,
+                net_amount=balance_bf,
+            )
+        if prepayment > 0:
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                description='Prepayment / Credit from previous term',
+                category='prepayment',
+                amount=-prepayment,
+                net_amount=-prepayment,
+            )
+        return invoice, tuition_item
+
+    def _create_payment(self, reference, invoice, invoice_item, amount, paid_at):
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=self.student,
+            invoice=None,
+            amount=amount,
+            payment_method='cash',
+            payment_source='manual',
+            status='completed',
+            payment_reference=reference,
+            receipt_number=reference.replace('PAY', 'RCP'),
+            received_by=self.user,
+            payment_date=paid_at,
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=payment,
+            invoice_item=invoice_item,
+            amount=amount,
+            is_active=True,
+        )
+        return payment
+
+    def test_opening_balance_and_prepayment_show_first_for_the_receipt_term_only(self):
+        term1_invoice, term1_item = self._create_invoice(
+            self.term1,
+            'INV-OPEN-T1',
+            Decimal('12000.00'),
+        )
+        self._create_payment(
+            'PAY-OPEN-T1',
+            term1_invoice,
+            term1_item,
+            Decimal('12000.00'),
+            self._dt(2026, 3, 15),
+        )
+        term2_invoice, term2_item = self._create_invoice(
+            self.term2,
+            'INV-OPEN-T2',
+            Decimal('31000.00'),
+            balance_bf=Decimal('3000.00'),
+            prepayment=Decimal('5000.00'),
+        )
+        first_term2_payment = self._create_payment(
+            'PAY-OPEN-T2-FIRST',
+            term2_invoice,
+            term2_item,
+            Decimal('10000.00'),
+            self._dt(2026, 4, 28),
+        )
+
+        response = self.client.get(reverse('finance:payment_receipt', args=[first_term2_payment.pk]))
+
+        self.assertContains(response, 'Balance B/F (Previous Term)')
+        self.assertContains(response, 'KES 3,000')
+        self.assertContains(response, 'Prepayment (Credit)')
+        self.assertContains(response, '(KES 5,000)')
+        self.assertNotContains(response, 'Credit / Prepayment')
+        self.assertNotContains(response, 'Current Credit')
+
+        content = response.content.decode()
+        self.assertLess(content.index('Balance B/F (Previous Term)'), content.index('Student Balance'))
+        self.assertLess(content.index('Prepayment (Credit)'), content.index('Student Balance'))
+
+    def test_opening_adjustments_are_hidden_after_first_receipt_for_same_term(self):
+        term2_invoice, term2_item = self._create_invoice(
+            self.term2,
+            'INV-OPEN-T2-HIDDEN',
+            Decimal('31000.00'),
+            balance_bf=Decimal('3000.00'),
+            prepayment=Decimal('5000.00'),
+        )
+        self._create_payment(
+            'PAY-OPEN-T2-HIDDEN-1',
+            term2_invoice,
+            term2_item,
+            Decimal('10000.00'),
+            self._dt(2026, 4, 28),
+        )
+        second_term2_payment = self._create_payment(
+            'PAY-OPEN-T2-HIDDEN-2',
+            term2_invoice,
+            term2_item,
+            Decimal('5000.00'),
+            self._dt(2026, 5, 6),
+        )
+
+        response = self.client.get(reverse('finance:payment_receipt', args=[second_term2_payment.pk]))
+
+        self.assertNotContains(response, 'Balance B/F (Previous Term)')
+        self.assertNotContains(response, 'Prepayment (Credit)')
+        self.assertNotContains(response, 'Credit / Prepayment')
+        self.assertNotContains(response, 'Current Credit')
+        self.assertContains(response, 'Student Balance')
