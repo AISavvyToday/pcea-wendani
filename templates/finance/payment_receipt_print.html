@@ -275,10 +275,25 @@
                 <th><strong>Student Balance</strong></th>
                 <td class="text-right receipt-figure"><strong>KES {{ student_balance_at_payment|floatformat:0|intcomma }}</strong></td>
             </tr>
+            {% if is_split_term_receipt %}
             <tr>
-                <th><strong>Amount Paid</strong></th>
+                <th><strong>Total Payment Received</strong></th>
                 <td class="text-right receipt-figure"><strong>KES {{ payment.amount|floatformat:0|intcomma }}</strong></td>
             </tr>
+            <tr>
+                <th><strong>Applied to {{ receipt_term_label|default:"This Term" }}</strong></th>
+                <td class="text-right receipt-figure"><strong>KES {{ receipt_amount_paid|floatformat:0|intcomma }}</strong></td>
+            </tr>
+            <tr>
+                <th><strong>Applied to Other Term(s)</strong></th>
+                <td class="text-right receipt-figure"><strong>KES {{ other_term_allocations_total|floatformat:0|intcomma }}</strong></td>
+            </tr>
+            {% else %}
+            <tr>
+                <th><strong>Amount Paid</strong></th>
+                <td class="text-right receipt-figure"><strong>KES {{ receipt_amount_paid|default:payment.amount|floatformat:0|intcomma }}</strong></td>
+            </tr>
+            {% endif %}
             <tr>
                 <th><strong>Outstanding Balance</strong></th>
                 <td class="text-right receipt-figure"><strong>KES {{ outstanding_balance_at_payment|floatformat:0|intcomma }}</strong></td>

@@ -712,3 +712,60 @@ class PaymentReceiptOpeningAdjustmentTests(TestCase):
         self.assertNotContains(response, 'Credit / Prepayment')
         self.assertNotContains(response, 'Current Credit')
         self.assertContains(response, 'Student Balance')
+
+    def test_split_term_payment_receipt_uses_only_current_term_amount_for_balance_math(self):
+        term1_invoice, term1_item = self._create_invoice(
+            self.term1,
+            'INV-SPLIT-T1',
+            Decimal('1000.00'),
+        )
+        term2_invoice, term2_item = self._create_invoice(
+            self.term2,
+            'INV-SPLIT-T2',
+            Decimal('34000.00'),
+            balance_bf=Decimal('1000.00'),
+        )
+        split_payment = Payment.objects.create(
+            organization=self.organization,
+            student=self.student,
+            invoice=None,
+            amount=Decimal('11000.00'),
+            payment_method='cash',
+            payment_source='manual',
+            status='completed',
+            payment_reference='PAY-SPLIT-TERM',
+            receipt_number='RCP-SPLIT-TERM',
+            received_by=self.user,
+            payment_date=self._dt(2026, 4, 6),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=split_payment,
+            invoice_item=term1_item,
+            amount=Decimal('1000.00'),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=split_payment,
+            invoice_item=term2_invoice.items.get(category='balance_bf'),
+            amount=Decimal('1000.00'),
+            is_active=True,
+        )
+        PaymentAllocation.objects.create(
+            payment=split_payment,
+            invoice_item=term2_item,
+            amount=Decimal('9000.00'),
+            is_active=True,
+        )
+
+        response = self.client.get(reverse('finance:payment_receipt', args=[split_payment.pk]))
+
+        self.assertContains(response, 'Total Payment Received')
+        self.assertContains(response, 'KES 11,000')
+        self.assertContains(response, 'Applied to 2026 - Term 2')
+        self.assertContains(response, 'KES 10,000')
+        self.assertContains(response, 'Applied to Other Term(s)')
+        self.assertContains(response, 'KES 1,000')
+        self.assertContains(response, 'Outstanding Balance')
+        self.assertContains(response, 'KES 25,000')
+        self.assertNotContains(response, 'KES 24,000')

@@ -1684,6 +1684,45 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
 
         return payments.filter(term_filter).distinct()
 
+    def _allocation_total_for_payment(self, payment, invoices=None, *, exclude=False):
+        allocations = payment.allocations.filter(
+            is_active=True,
+            payment__is_active=True,
+            payment__status=PaymentStatus.COMPLETED,
+        )
+        if invoices is not None:
+            if exclude:
+                allocations = allocations.exclude(invoice_item__invoice__in=invoices)
+            else:
+                allocations = allocations.filter(invoice_item__invoice__in=invoices)
+
+        return allocations.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+    def _receipt_amount_for_invoices(self, payment, invoices):
+        """
+        Amount from this payment that belongs to the receipt's invoice set.
+
+        A single bank payment can clear an old-term line and a current-term
+        invoice at once. The receipt should acknowledge the full payment, but
+        term balance math must only consume the portion applied to this term.
+        Any unallocated overpayment remains with the receipt term when the
+        payment is not split across other invoice terms.
+        """
+        current_allocated = self._allocation_total_for_payment(payment, invoices)
+        other_allocated = self._allocation_total_for_payment(payment, invoices, exclude=True)
+        total_allocated = current_allocated + other_allocated
+        unallocated = max((payment.amount or Decimal('0.00')) - total_allocated, Decimal('0.00'))
+
+        if other_allocated > 0:
+            return current_allocated
+        return current_allocated + unallocated
+
+    def _receipt_amount_for_payments(self, payments, invoices):
+        total = Decimal('0.00')
+        for term_payment in payments.prefetch_related('allocations__invoice_item__invoice'):
+            total += self._receipt_amount_for_invoices(term_payment, invoices)
+        return total
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         payment = self.object
@@ -1717,9 +1756,23 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             total=Sum('total_amount')
         )['total'] or Decimal('0.00')
 
-        total_paid_before = previous_term_payments.aggregate(
-            total=Sum('amount')
-        )['total'] or Decimal('0.00')
+        if current_invoices.exists():
+            receipt_amount_paid = self._receipt_amount_for_invoices(payment, current_invoices)
+            other_term_allocations_total = self._allocation_total_for_payment(
+                payment,
+                current_invoices,
+                exclude=True,
+            )
+            total_paid_before = self._receipt_amount_for_payments(
+                previous_term_payments,
+                current_invoices,
+            )
+        else:
+            receipt_amount_paid = payment.amount or Decimal('0.00')
+            other_term_allocations_total = Decimal('0.00')
+            total_paid_before = previous_term_payments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0.00')
 
         # Opening balances belong to a term, so only the first receipt for
         # that same term should show them.
@@ -1788,9 +1841,10 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
         # Outstanding AFTER this payment
         if current_invoices.exists():
             # Canonical outstanding after payment comes from invoice math using total payments up to this receipt.
-            total_paid_up_to_invoice = payments_up_to_this_receipt.aggregate(
-                total=Sum('amount')
-            )['total'] or Decimal('0.00')
+            total_paid_up_to_invoice = self._receipt_amount_for_payments(
+                payments_up_to_this_receipt,
+                current_invoices,
+            )
 
             outstanding_balance_after = (
                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_up_to_invoice
@@ -1809,6 +1863,12 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             if outstanding_balance_after < 0:
                 credit_balance_after_payment = abs(outstanding_balance_after)
                 outstanding_balance_after = Decimal('0.00')
+
+        receipt_term_label = ''
+        if receipt_term:
+            term_name = receipt_term.get_term_display() if hasattr(receipt_term, 'get_term_display') else str(receipt_term)
+            year = getattr(getattr(receipt_term, 'academic_year', None), 'year', '')
+            receipt_term_label = f'{year} - {term_name}' if year else term_name
         
         # Bank details & branding
         bank_details = getattr(settings, 'SCHOOL_BANK_DETAILS', {
@@ -1858,6 +1918,11 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
             # Financial snapshot
             'balance_bf': balance_bf_display,  # Will be 0 for subsequent receipts
             'prepayment': prepayment_display,  # Will be 0 for subsequent receipts
+            'receipt_amount_paid': receipt_amount_paid,
+            'receipt_term': receipt_term,
+            'receipt_term_label': receipt_term_label,
+            'other_term_allocations_total': other_term_allocations_total,
+            'is_split_term_receipt': other_term_allocations_total > 0,
             'student_balance_at_payment': student_balance_at_payment,
             'outstanding_balance_at_payment': outstanding_balance_after,
             'credit_balance_after_payment': credit_balance_after_payment,  # Credit balance after this payment
