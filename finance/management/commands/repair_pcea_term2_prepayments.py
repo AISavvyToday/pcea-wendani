@@ -85,6 +85,21 @@ class Command(BaseCommand):
 
             exposure = (invoice.total_amount or Decimal("0.00")) + Decimal("0.00")
             carry_forward_credit = max(Decimal("0.00"), target_prepayment - exposure)
+            projected_invoice_balance = max(
+                Decimal("0.00"),
+                (invoice.balance_bf or Decimal("0.00"))
+                + (invoice.total_amount or Decimal("0.00"))
+                - target_prepayment
+                - (invoice.amount_paid or Decimal("0.00")),
+            )
+            other_invoice_balance = sum(
+                max(other.balance or Decimal("0.00"), Decimal("0.00"))
+                for other in student.invoices.filter(is_active=True)
+                .exclude(status="cancelled")
+                .exclude(pk=invoice.pk)
+                .only("balance")
+            )
+            projected_student_outstanding = other_invoice_balance + projected_invoice_balance
 
             before = {
                 "student_prepayment_original": student.prepayment_original,
@@ -124,7 +139,6 @@ class Command(BaseCommand):
                 )
 
                 invoice.save()
-                student.outstanding_balance = Decimal("0.00")
                 student.credit_balance = carry_forward_credit
                 student.save(update_fields=[
                     "balance_bf_original",
@@ -140,11 +154,13 @@ class Command(BaseCommand):
             after = {
                 "student_prepayment_original": target_prepayment if dry_run else student.prepayment_original,
                 "student_credit_balance": carry_forward_credit if dry_run else student.credit_balance,
-                "student_outstanding_balance": Decimal("0.00") if dry_run else student.outstanding_balance,
+                "student_outstanding_balance": (
+                    projected_student_outstanding if dry_run else student.outstanding_balance
+                ),
                 "invoice_balance_bf": Decimal("0.00") if dry_run else invoice.balance_bf,
                 "invoice_prepayment": target_prepayment if dry_run else invoice.prepayment,
                 "invoice_amount_paid": invoice.amount_paid,
-                "invoice_balance": Decimal("0.00") if dry_run else invoice.balance,
+                "invoice_balance": projected_invoice_balance if dry_run else invoice.balance,
             }
             self.stdout.write(f"  after={after}")
 
