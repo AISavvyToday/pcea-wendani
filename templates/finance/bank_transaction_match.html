@@ -21,8 +21,9 @@
                 <div class="card-body">
                     <h5 class="card-title mb-3"><i class="mdi mdi-bank text-primary"></i> Transaction Details</h5>
                     <table class="table table-sm table-borderless mb-0">
-                        <tr><td class="text-muted" style="width:140px;">Transaction ID:</td><td><strong><code>{{ transaction.transaction_id|default:transaction.pk }}</code></strong></td></tr>
-                        <tr><td class="text-muted">Reference:</td><td>{{ transaction.transaction_reference|default:"-" }}</td></tr>
+                        <tr><td class="text-muted" style="width:140px;">Transaction ID:</td><td><strong><code>{{ transaction.external_reference|default:transaction.pk }}</code></strong></td></tr>
+                        <tr><td class="text-muted">Reference:</td><td>{{ transaction.external_reference|default:"-" }}</td></tr>
+                        <tr><td class="text-muted">Student/Bill Ref:</td><td>{{ transaction.student_bill_reference|default:"-" }}</td></tr>
                         <tr><td class="text-muted">Amount:</td><td><span class="badge bg-success fs-6">KES {{ transaction.amount|floatformat:2|intcomma }}</span></td></tr>
                         <tr><td class="text-muted">Allocated:</td><td>KES {{ transaction.allocated_amount|floatformat:2|intcomma }}</td></tr>
                         <tr><td class="text-muted">Remaining:</td><td><strong>KES {{ transaction.remaining_amount|floatformat:2|intcomma }}</strong></td></tr>

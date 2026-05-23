@@ -264,7 +264,7 @@ class FeesCollectionReportRegressionTests(TestCase):
 
         rows = context['rows']
         self.assertEqual(len(rows), 2)
-        self.assertEqual([row['reference'] for row in rows], ['RCP-HTML-001', 'PAY-HTML-002'])
+        self.assertEqual([row['reference'] for row in rows], ['TXN-MANUAL-001', 'TXN-BANK-002'])
         self.assertEqual([row['amount'] for row in rows], [Decimal('300.00'), Decimal('250.00')])
         self.assertEqual(context['summary']['total_collected'], Decimal('550.00'))
         self.assertEqual(context['filters']['category_labels'], ['Educational Activities: Chess Club'])
@@ -282,16 +282,16 @@ class FeesCollectionReportRegressionTests(TestCase):
         self.assertEqual(
             [(row['reference'], row['amount']) for row in html_rows],
             [
-                ('RCP-HTML-001', Decimal('300.00')),
-                ('PAY-HTML-002', Decimal('250.00')),
+                ('TXN-MANUAL-001', Decimal('300.00')),
+                ('TXN-BANK-002', Decimal('250.00')),
                 ('TXN-ONLY-003', Decimal('150.00')),
             ],
         )
 
         pdf_html = self.get_pdf_html(params)
         self.assertIn('Receipt / Ref', pdf_html)
-        self.assertIn('RCP-HTML-001', pdf_html)
-        self.assertIn('PAY-HTML-002', pdf_html)
+        self.assertIn('TXN-MANUAL-001', pdf_html)
+        self.assertIn('TXN-BANK-002', pdf_html)
         self.assertIn('TXN-ONLY-003', pdf_html)
         self.assertIn('Educational Activities: Chess Club, Educational Activities: Scout Trip', pdf_html)
 
@@ -299,8 +299,8 @@ class FeesCollectionReportRegressionTests(TestCase):
         self.assertEqual(
             [(row['reference'], row['amount']) for row in excel_rows],
             [
-                ('RCP-HTML-001', Decimal('300')),
-                ('PAY-HTML-002', Decimal('250')),
+                ('TXN-MANUAL-001', Decimal('300')),
+                ('TXN-BANK-002', Decimal('250')),
                 ('TXN-ONLY-003', Decimal('150')),
             ],
         )

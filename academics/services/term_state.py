@@ -275,8 +275,20 @@ def activate_term_for_org(
     return stats
 
 
-def activate_selected_term_from_request(request, *, academic_year=None, term_value=None, term_id=None):
-    """Resolve and activate a selected term from a GET/form request."""
+def activate_selected_term_from_request(
+    request,
+    *,
+    academic_year=None,
+    term_value=None,
+    term_id=None,
+    transition=False,
+    notes="Activated by term-filtered view.",
+):
+    """Resolve and activate a selected term from a GET/form request.
+
+    Report/table term changes are view context changes. Financial carry-forward
+    remains explicit through the term-transition workflow.
+    """
     organization = getattr(request, "organization", None)
     term = resolve_term_for_org(
         organization=organization,
@@ -288,9 +300,9 @@ def activate_selected_term_from_request(request, *, academic_year=None, term_val
         activate_term_for_org(
             organization=organization,
             term=term,
-            transition=True,
+            transition=transition,
             user=getattr(request, "user", None),
-            notes="Activated by term-filtered view.",
+            notes=notes,
         )
     return term
 
@@ -371,7 +383,9 @@ def backfill_student_term_states(term, *, organization=None, dry_run=False):
     from students.models import Student, StudentTermState
 
     organization = organization or term.organization
-    students = Student.objects.filter(is_active=True)
+    students = Student.objects.filter(
+        Q(is_active=True) | Q(status__in=TERMINAL_STUDENT_STATUSES)
+    )
     if organization:
         students = students.filter(organization=organization)
     else:

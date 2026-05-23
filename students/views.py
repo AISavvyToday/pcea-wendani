@@ -21,7 +21,13 @@ from accounts.models import User
 from .models import Student, Parent, StudentParent, StudentTermState
 from .forms import ParentForm, StudentSearchForm, StudentPromotionForm, StudentImportForm, StudentForm
 from .forms_enhancements import StudentEnrollmentForm
-from .metrics import apply_student_filters, get_current_term, get_student_base_queryset, get_student_status_counters
+from .metrics import (
+    TERM_EVENT_STATUSES,
+    apply_student_filters,
+    get_current_term,
+    get_student_base_queryset,
+    get_student_status_counters,
+)
 from .services import StudentService
 from academics.models import Class, AcademicYear, Term
 from academics.services.term_state import sync_student_term_state
@@ -89,7 +95,11 @@ class StudentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
 
     def get_base_filtered_queryset(self):
         organization = getattr(self.request, 'organization', None)
-        queryset = get_student_base_queryset(organization=organization)
+        status = self.request.GET.get('status', 'active') or 'active'
+        queryset = get_student_base_queryset(
+            organization=organization,
+            include_inactive_terminal=status in TERM_EVENT_STATUSES,
+        )
         queryset = queryset.select_related('current_class').prefetch_related('parents')
         return apply_student_filters(
             queryset,
@@ -482,7 +492,7 @@ class StudentUpdateView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequire
             # Restore invoices if student becomes active again
             if original_status in ['graduated', 'transferred', 'suspended', 'expelled', 'withdrawn', 'inactive'] and new_status == 'active':
                 student = form.instance
-                current_term = Term.objects.filter(is_current=True).first()
+                current_term = get_current_term(organization=getattr(self.request, 'organization', None))
 
                 if current_term:
                     inactive_invoices = Invoice.objects.filter(
@@ -675,8 +685,13 @@ class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
         context = super().get_context_data(**kwargs)
         context['classes'] = Class.objects.all()
         context['selected_class'] = self.request.GET.get('class_id')
-        context['current_year'] = AcademicYear.objects.filter(is_current=True).first()
-        context['current_term'] = Term.objects.filter(is_current=True).first()
+        organization = getattr(self.request, 'organization', None)
+        current_term = get_current_term(organization=organization)
+        context['current_year'] = current_term.academic_year if current_term else AcademicYear.objects.filter(
+            organization=organization,
+            is_current=True,
+        ).first()
+        context['current_term'] = current_term
         return context
 
     def form_valid(self, form):
@@ -684,8 +699,12 @@ class StudentPromotionView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
         target_class = form.cleaned_data['target_class']
 
         # Get current academic year and term
-        academic_year = AcademicYear.objects.filter(is_current=True).first()
-        term = Term.objects.filter(is_current=True).first()
+        organization = getattr(self.request, 'organization', None)
+        term = get_current_term(organization=organization)
+        academic_year = term.academic_year if term else AcademicYear.objects.filter(
+            organization=organization,
+            is_current=True,
+        ).first()
 
         if not academic_year or not term:
             messages.error(self.request, 'No current academic year or term set.')

@@ -20,6 +20,7 @@ from openpyxl.styles import Font, Alignment
 # Import models used by the reports
 from finance.models import Invoice, InvoiceItem
 from payments.models import Payment, PaymentAllocation
+from payments.utils import get_payment_external_reference
 from academics.models import AcademicYear, Term
 from transport.models import TransportRoute
 from core.models import InvoiceStatus
@@ -659,7 +660,7 @@ class PaymentsListExcelView(LoginRequiredMixin, View):
             amount_cell = ws.cell(row=row_num, column=5, value=float(payment.amount or 0))
             format_money_cell(amount_cell)
             ws.cell(row=row_num, column=6, value=payment.get_payment_source_display() if hasattr(payment, 'get_payment_source_display') else (payment.payment_source or ''))
-            ws.cell(row=row_num, column=7, value=payment.transaction_reference or '')
+            ws.cell(row=row_num, column=7, value=get_payment_external_reference(payment))
             ws.cell(row=row_num, column=8, value=payment.get_status_display() if hasattr(payment, 'get_status_display') else payment.status)
 
             if payment.status == 'completed':
@@ -708,7 +709,7 @@ class PaymentsListPDFView(LoginRequiredMixin, View):
                 'admission': admission,
                 'amount': payment.amount or Decimal('0.00'),
                 'source': payment.get_payment_source_display() if hasattr(payment, 'get_payment_source_display') else (payment.payment_source or ''),
-                'reference': payment.transaction_reference or '',
+                'reference': get_payment_external_reference(payment),
                 'status': payment.get_status_display() if hasattr(payment, 'get_status_display') else payment.status,
             })
 

@@ -278,7 +278,7 @@
                 </div>
                 <div class="col">
                     <strong>Transaction Ref</strong>
-                    {{ payment.transaction_reference|default:"-" }}
+                    {{ payment.external_reference|default:"-" }}
                 </div>
             </div>
 
@@ -310,10 +310,16 @@
                         <th>Payment Date</th>
                         <td>{{ payment.payment_date|date:"d M Y H:i" }}</td>
                     </tr>
-                    {% if payment.transaction_reference %}
+                    {% if payment.external_reference %}
                     <tr>
                         <th>Transaction Reference</th>
-                        <td>{{ payment.transaction_reference }}</td>
+                        <td>{{ payment.external_reference }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if payment.student_bill_reference %}
+                    <tr>
+                        <th>Student/Bill Reference</th>
+                        <td>{{ payment.student_bill_reference }}</td>
                     </tr>
                     {% endif %}
                     {% if payment.payer_name %}

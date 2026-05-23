@@ -254,6 +254,24 @@ class PaymentCreationServiceTests(PaymentServiceFixtureMixin, TestCase):
         self.assertIsNotNone(self.bank_tx.matched_at)
         self.assertEqual(self.bank_tx.matched_at, payment.reconciled_at)
 
+    def test_payment_external_reference_prefers_linked_bank_transaction_id(self):
+        payment = Payment.objects.create(
+            organization=self.organization,
+            student=self.student,
+            invoice=self.invoice,
+            amount=Decimal("20000.00"),
+            payment_method=PaymentMethod.BANK_DEPOSIT,
+            payment_source=PaymentSource.EQUITY_BANK,
+            status=PaymentStatus.COMPLETED,
+            payment_date=timezone.now(),
+            transaction_reference=self.student.admission_number,
+        )
+        self.bank_tx.payment = payment
+        self.bank_tx.save(update_fields=["payment", "updated_at"])
+
+        self.assertEqual(payment.external_reference, "EQ-REF-001")
+        self.assertEqual(payment.student_bill_reference, self.student.admission_number)
+
     def test_create_payment_full_amount_marks_invoice_paid(self):
         self.bank_tx.amount = Decimal("50000.00")
         self.bank_tx.save(update_fields=["amount"])

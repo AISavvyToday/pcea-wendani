@@ -32,7 +32,7 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.decorators import role_required
 from academics.models import Term
-from academics.services.term_state import get_current_term_for_org
+from academics.services.term_state import activate_term_for_org, get_current_term_for_org
 from core.models import InvoiceStatus, PaymentStatus, UserRole
 from finance.models import Invoice, InvoiceItem
 from payments.models import BankTransaction, Payment, PaymentAllocation
@@ -300,9 +300,24 @@ def _finance_kpis(term=None, organization=None):
     term_invoices = base.filter(term=term) if term else base.none()
     year_invoices = base.filter(term__academic_year=academic_year) if academic_year else base.none()
     active_students = _get_active_students_qs(organization=organization)
+    has_term_invoices = term_invoices.exists()
+    term_student_ids = term_invoices.values("student_id") if has_term_invoices else None
+    term_students = (
+        active_students.filter(pk__in=term_student_ids).distinct()
+        if term_student_ids is not None
+        else active_students
+    )
 
-    balances_bf_total = _sum_decimal(active_students, 'balance_bf_original')
-    prepayments_total = _sum_decimal(active_students, 'prepayment_original')
+    balances_bf_total = (
+        _sum_decimal(term_invoices, "balance_bf")
+        if has_term_invoices
+        else _sum_decimal(active_students, "balance_bf_original")
+    )
+    prepayments_total = (
+        _sum_decimal(term_invoices, "prepayment")
+        if has_term_invoices
+        else _sum_decimal(active_students, "prepayment_original")
+    )
 
     def _balance_bf_gap_totals(invoice_qs):
         bf_items = list(
@@ -357,12 +372,16 @@ def _finance_kpis(term=None, organization=None):
             kpi_payload = build_term_kpis(term=term, organization=organization) if term else {"buckets": {}, "totals": {}}
             buckets = kpi_payload.get("buckets", {})
             collected_breakdown = _group_allocation_amounts(invoice_qs)
-            student_outstanding_total = _sum_decimal(active_students, 'outstanding_balance')
+            student_outstanding_total = (
+                _sum_decimal(term_invoices, 'balance')
+                if has_term_invoices
+                else _sum_decimal(active_students, 'outstanding_balance')
+            )
             balance_bf_cleared, balance_bf_uncleared = _balance_bf_gap_totals(invoice_qs)
             balance_bf_uncleared = max(Decimal("0"), balances_bf_total - balance_bf_cleared)
             prepayments_consumed = _sum_decimal(invoice_qs, 'prepayment')
             discounts_total = _sum_decimal(invoice_qs, 'discount_amount')
-            overpayments = _sum_decimal(active_students, 'credit_balance')
+            overpayments = _sum_decimal(term_students, 'credit_balance')
 
             billed_fees = buckets.get("fees", {}).get("billed", Decimal("0"))
             billed_transport = buckets.get("transport", {}).get("billed", Decimal("0"))
@@ -1031,7 +1050,7 @@ def finance_overview(request):
         messages.error(request, 'Your account is not assigned to an organization.')
         return redirect('portal:login')
     
-    term = _get_current_term()
+    term = _get_current_term(organization=organization)
     students_count = _get_active_students_qs(organization=organization).count()
 
     invoices_qs = _invoice_base_qs(organization=organization)
@@ -1158,6 +1177,32 @@ def settings_overview(request):
         "terms": terms,
         "current_term": current_term,
     })
+
+
+@login_required
+@role_required([UserRole.SUPER_ADMIN, UserRole.SCHOOL_ADMIN])
+@require_http_methods(["POST"])
+def set_active_term(request):
+    organization = getattr(request, 'organization', None)
+    if not organization:
+        messages.error(request, 'Your account is not assigned to an organization.')
+        return redirect('portal:settings_overview')
+
+    term_id = request.POST.get("term")
+    term = Term.objects.filter(pk=term_id, organization=organization, is_active=True).first()
+    if not term:
+        messages.error(request, "Invalid term selection.")
+        return redirect('portal:settings_overview')
+
+    activate_term_for_org(
+        organization=organization,
+        term=term,
+        transition=False,
+        user=request.user,
+        notes="Active viewing term changed from settings.",
+    )
+    messages.success(request, f"Active term changed to {term}.")
+    return redirect('portal:settings_overview')
 
 
 @login_required
@@ -1321,8 +1366,6 @@ def term_transition(request):
     2. Preview changes (dry run)
     3. Execute the transition
     """
-    from finance.services import transition_frozen_balances
-    
     organization = getattr(request, 'organization', None)
     if organization:
         terms = Term.objects.filter(organization=organization).select_related("academic_year").order_by("-academic_year__year", "-term")
@@ -1358,7 +1401,15 @@ def term_transition(request):
             
             # Run transition (dry_run for preview, actual for execute)
             is_dry_run = (action == "preview")
-            stats = transition_frozen_balances(previous_term, new_term, dry_run=is_dry_run)
+            stats = activate_term_for_org(
+                organization=organization,
+                previous_term=previous_term,
+                term=new_term,
+                transition=True,
+                dry_run=is_dry_run,
+                user=request.user,
+                notes="Term transition screen.",
+            )
             
             context["previous_term_selected"] = previous_term
             context["new_term_selected"] = new_term
@@ -1368,17 +1419,17 @@ def term_transition(request):
             if is_dry_run:
                 messages.info(
                     request,
-                    f"Preview complete. {stats['updated']} student(s) would be updated. "
+                    f"Preview complete. {stats.get('updated', 0)} student(s) would be updated. "
                     f"Review the summary below and click 'Execute Transition' to apply changes."
                 )
             else:
                 messages.success(
                     request,
                     f"Term transition completed successfully! "
-                    f"{stats['updated']} student(s) updated. "
-                    f"{stats['with_outstanding']} with outstanding balances, "
-                    f"{stats['with_overpayment']} with overpayments, "
-                    f"{stats['fully_paid']} fully paid."
+                    f"{stats.get('updated', 0)} student(s) updated. "
+                    f"{stats.get('with_outstanding', 0)} with outstanding balances, "
+                    f"{stats.get('with_overpayment', 0)} with overpayments, "
+                    f"{stats.get('fully_paid', 0)} fully paid."
                 )
                 
         except Term.DoesNotExist:

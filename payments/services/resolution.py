@@ -96,11 +96,11 @@ class ResolutionService:
         1. Current term invoice with balance > 0
         2. Any invoice with balance > 0 (oldest first to clear arrears)
         """
-        from academics.models import Term
+        from academics.services.term_state import get_current_term_for_org
         from core.models import InvoiceStatus
         
         # Try to get current term
-        current_term = Term.objects.filter(is_current=True).first()
+        current_term = get_current_term_for_org(getattr(student, "organization", None))
         
         if current_term:
             # First try current term invoice

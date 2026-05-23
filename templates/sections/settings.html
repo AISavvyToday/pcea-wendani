@@ -20,6 +20,30 @@
     </h5>
   </div>
   <div class="col-md-4 grid-margin stretch-card">
+    <div class="card border-primary">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <span class="page-title-icon bg-gradient-primary text-white me-2" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+            <i class="mdi mdi-calendar-check"></i>
+          </span>
+          <h4 class="card-title mb-0">Active Term</h4>
+        </div>
+        <form method="post" action="{% url 'portal:set_active_term' %}">
+          {% csrf_token %}
+          <label class="form-label small mb-1">Current system term</label>
+          <select name="term" class="form-control mb-3" required>
+            {% for term in terms %}
+              <option value="{{ term.pk }}" {% if current_term and current_term.pk == term.pk %}selected{% endif %}>{{ term }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm btn-gradient-primary">
+            <i class="mdi mdi-check me-1"></i>Set Active Term
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 grid-margin stretch-card">
     <div class="card border-warning">
       <div class="card-body">
         <div class="d-flex align-items-center mb-3">

@@ -12,7 +12,7 @@ Invoice generation policy (NO OVERWRITE):
 - If an invoice already exists for a student+term, it is skipped (service returns created count only).
 """
 from academics.models import Term
-from academics.services.term_state import activate_selected_term_from_request
+from academics.services.term_state import activate_selected_term_from_request, get_current_term_for_org
 
 import logging
 
@@ -56,6 +56,7 @@ from .services import (
 from students.models import Student
 from academics.models import Term
 from payments.models import Payment, BankTransaction
+from payments.utils import get_payment_external_reference
 from payments.services.payment import PaymentService as PaymentsPaymentService
 from core.models import InvoiceStatus, PaymentMethod, PaymentStatus
 from decimal import Decimal
@@ -114,6 +115,27 @@ def _search_students_for_bank_reconciliation(query, organization=None):
         Q(student_parents__parent__phone_primary__icontains=query) |
         Q(student_parents__parent__phone_secondary__icontains=query)
     ).distinct().order_by('admission_number', 'last_name', 'first_name')
+
+
+def _resolve_active_or_selected_term(request, *, term_id=None, activate_selected=True):
+    """Use an explicitly selected term, otherwise the organization's active term."""
+    organization = getattr(request, 'organization', None)
+    if term_id:
+        if activate_selected:
+            return activate_selected_term_from_request(request, term_id=term_id)
+        return Term.objects.filter(pk=term_id, organization=organization, is_active=True).first()
+    return get_current_term_for_org(organization)
+
+
+def _filter_payments_for_term(queryset, term):
+    """Scope payments to a term by allocations/invoice, with date fallback for unapplied payments."""
+    if not term:
+        return queryset
+
+    term_q = Q(allocations__invoice_item__invoice__term=term) | Q(invoice__term=term)
+    if term.start_date and term.end_date:
+        term_q |= Q(payment_date__date__gte=term.start_date, payment_date__date__lte=term.end_date)
+    return queryset.filter(term_q).distinct()
 
 
 # =============================================================================
@@ -552,10 +574,10 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
                 Q(student__last_name__icontains=query)
             )
 
-        term = self.request.GET.get('term')
-        if term:
-            selected_term = activate_selected_term_from_request(self.request, term_id=term)
-            queryset = queryset.filter(term=selected_term) if selected_term else queryset.none()
+        term_id = self.request.GET.get('term')
+        selected_term = _resolve_active_or_selected_term(self.request, term_id=term_id)
+        if selected_term:
+            queryset = queryset.filter(term=selected_term)
 
         status = self.request.GET.get('status')
         if status:
@@ -576,7 +598,12 @@ class InvoiceListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
             context['terms'] = Term.objects.none()
         context['statuses'] = InvoiceStatus.choices
         context['query'] = self.request.GET.get('query', '')
-        context['selected_term'] = self.request.GET.get('term', '')
+        selected_term = _resolve_active_or_selected_term(
+            self.request,
+            term_id=self.request.GET.get('term'),
+            activate_selected=False,
+        )
+        context['selected_term'] = str(selected_term.pk) if selected_term else ''
         context['selected_status'] = self.request.GET.get('status', '')
         context['selected_grade'] = self.request.GET.get('grade', '')
 
@@ -1187,7 +1214,11 @@ def get_payment_list_base_queryset(request):
 
     queryset = queryset.filter(
         is_active=True
-    ).select_related('student', 'invoice', 'student__organization')
+    ).select_related('student', 'invoice', 'student__organization').prefetch_related('bank_transactions')
+
+    term_id = request.GET.get('term')
+    selected_term = _resolve_active_or_selected_term(request, term_id=term_id)
+    queryset = _filter_payments_for_term(queryset, selected_term)
 
     query = request.GET.get('query', '')
     if query:
@@ -1195,10 +1226,12 @@ def get_payment_list_base_queryset(request):
             Q(payment_reference__icontains=query) |
             Q(receipt_number__icontains=query) |
             Q(transaction_reference__icontains=query) |
+            Q(bank_transactions__transaction_id__icontains=query) |
+            Q(bank_transactions__transaction_reference__icontains=query) |
             Q(student__admission_number__icontains=query) |
             Q(student__first_name__icontains=query) |
             Q(student__last_name__icontains=query)
-        )
+        ).distinct()
 
     method = request.GET.get('method')
     if method:
@@ -1239,6 +1272,17 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         context['selected_status'] = self.request.GET.get('status', '')
         context['start_date'] = self.request.GET.get('start_date', '')
         context['end_date'] = self.request.GET.get('end_date', '')
+        organization = getattr(self.request, 'organization', None)
+        if organization:
+            context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
+        else:
+            context['terms'] = Term.objects.none()
+        selected_term = _resolve_active_or_selected_term(
+            self.request,
+            term_id=self.request.GET.get('term'),
+            activate_selected=False,
+        )
+        context['selected_term'] = str(selected_term.pk) if selected_term else ''
 
         payments = self.get_queryset().filter(status=PaymentStatus.COMPLETED)
         context['total_amount'] = payments.aggregate(total=Sum('amount'))['total'] or 0
@@ -1247,7 +1291,6 @@ class PaymentListView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequiredM
         try:
             from portal.views import _finance_kpis, _get_current_term
 
-            organization = getattr(self.request, 'organization', None)
             term = _get_current_term(organization=organization)
             term_stats = _finance_kpis(term=term, organization=organization)['term_stats']
             context['reconciled_total_amount'] = term_stats.get('collected') or 0
@@ -2540,16 +2583,13 @@ class CollectionsReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
         term_id = self.request.GET.get('term')
 
         organization = getattr(self.request, 'organization', None)
-        term = None
-        if term_id:
-            term = activate_selected_term_from_request(self.request, term_id=term_id)
+        term = _resolve_active_or_selected_term(self.request, term_id=term_id)
 
-        if start_date or end_date or term:
-            context['report_data'] = FinanceReportService.get_collections_summary(
-                start_date=start_date,
-                end_date=end_date,
-                term=term
-            )
+        context['report_data'] = FinanceReportService.get_collections_summary(
+            start_date=start_date,
+            end_date=end_date,
+            term=term
+        )
 
         if organization:
             context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
@@ -2557,7 +2597,7 @@ class CollectionsReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleReq
             context['terms'] = Term.objects.none()
         context['start_date'] = start_date or ''
         context['end_date'] = end_date or ''
-        context['selected_term'] = term_id or ''
+        context['selected_term'] = str(term.pk) if term else ''
         return context
 
 
@@ -2577,10 +2617,10 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
             status=InvoiceStatus.CANCELLED
         ).select_related('student', 'term')
 
-        term = self.request.GET.get('term')
-        if term:
-            selected_term = activate_selected_term_from_request(self.request, term_id=term)
-            queryset = queryset.filter(term=selected_term) if selected_term else queryset.none()
+        term_id = self.request.GET.get('term')
+        selected_term = _resolve_active_or_selected_term(self.request, term_id=term_id)
+        if selected_term:
+            queryset = queryset.filter(term=selected_term)
 
         grade = self.request.GET.get('grade')
         if grade:
@@ -2598,7 +2638,12 @@ class OutstandingBalancesReportView(LoginRequiredMixin, OrganizationFilterMixin,
         context['total_outstanding'] = self.get_queryset().aggregate(
             total=Sum('balance')
         )['total'] or 0
-        context['selected_term'] = self.request.GET.get('term', '')
+        selected_term = _resolve_active_or_selected_term(
+            self.request,
+            term_id=self.request.GET.get('term'),
+            activate_selected=False,
+        )
+        context['selected_term'] = str(selected_term.pk) if selected_term else ''
         context['selected_grade'] = self.request.GET.get('grade', '')
         return context
 
@@ -2627,10 +2672,22 @@ class StudentInvoicesAPIView(LoginRequiredMixin, OrganizationFilterMixin, View):
             organization=organization,
             is_active=True,
             balance__gt=0
-        ).exclude(status=InvoiceStatus.CANCELLED).values(
-            'id', 'invoice_number', 'total_amount', 'balance', 'term__name'
-        )
-        return JsonResponse(list(invoices), safe=False)
+        ).exclude(status=InvoiceStatus.CANCELLED)
+        selected_term = _resolve_active_or_selected_term(request, activate_selected=False)
+        if selected_term:
+            invoices = invoices.filter(term=selected_term)
+
+        payload = [
+            {
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'total_amount': invoice.total_amount,
+                'balance': invoice.balance,
+                'term': str(invoice.term) if invoice.term_id else '',
+            }
+            for invoice in invoices.select_related('term')
+        ]
+        return JsonResponse(payload, safe=False)
 
 
 class StudentBalanceAPIView(LoginRequiredMixin, OrganizationFilterMixin, View):
@@ -2680,9 +2737,7 @@ class StudentStatementView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
 
         organization = getattr(self.request, 'organization', None)
         term_id = self.request.GET.get('term')
-        term = None
-        if term_id:
-            term = activate_selected_term_from_request(self.request, term_id=term_id)
+        term = _resolve_active_or_selected_term(self.request, term_id=term_id)
 
         statement = InvoiceService.get_student_statement(self.object, term)
         context.update(statement)
@@ -2690,7 +2745,7 @@ class StudentStatementView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequ
             context['terms'] = Term.objects.filter(organization=organization, is_active=True).select_related('academic_year')
         else:
             context['terms'] = Term.objects.none()
-        context['selected_term'] = term_id or ''
+        context['selected_term'] = str(term.pk) if term else ''
         
         # Extract admission number only (remove "PWA/" prefix if present)
         admission_number = self.object.admission_number or ''
@@ -2795,10 +2850,7 @@ class StudentStatementPrintView(LoginRequiredMixin, OrganizationFilterMixin, Rol
         # Term filter
         organization = getattr(self.request, 'organization', None)
         term_id = self.request.GET.get('term')
-        if term_id:
-            term = activate_selected_term_from_request(self.request, term_id=term_id)
-        else:
-            term = None
+        term = _resolve_active_or_selected_term(self.request, term_id=term_id)
 
         # Prepare statement using existing InvoiceService helper
         statement = InvoiceService.get_student_statement(student, term)
@@ -2893,7 +2945,7 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
 
         export_type = request.GET.get('type', 'invoices')
         term_id = request.GET.get('term')
-        selected_term = activate_selected_term_from_request(request, term_id=term_id) if term_id else None
+        selected_term = _resolve_active_or_selected_term(request, term_id=term_id)
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{export_type}_{timezone.now().date()}.csv"'
@@ -2902,7 +2954,13 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
         if export_type == 'invoices':
             writer.writerow(['Invoice #', 'Student', 'Admission #', 'Term', 'Total', 'Paid', 'Balance', 'Status'])
 
+            organization = getattr(request, 'organization', None)
             invoices = Invoice.objects.filter(is_active=True).select_related('student', 'term')
+            if organization:
+                invoices = invoices.filter(
+                    Q(organization=organization) |
+                    Q(organization__isnull=True, student__organization=organization)
+                )
             if selected_term:
                 invoices = invoices.filter(term=selected_term)
 
@@ -2921,7 +2979,7 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
         elif export_type == 'payments':
             writer.writerow(['Date', 'Receipt #', 'Student', 'Amount', 'Method', 'Reference', 'Status'])
 
-            payments = Payment.objects.filter(is_active=True).select_related('student')
+            payments = get_payment_list_base_queryset(request)
             for pmt in payments:
                 writer.writerow([
                     pmt.payment_date.strftime('%Y-%m-%d %H:%M') if pmt.payment_date else '',
@@ -2929,7 +2987,7 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
                     getattr(pmt.student, 'full_name', ''),
                     pmt.amount,
                     pmt.payment_method,
-                    pmt.transaction_reference or '',
+                    get_payment_external_reference(pmt),
                     pmt.status
                 ])
 
@@ -2939,6 +2997,12 @@ class FinanceExportView(LoginRequiredMixin, RoleRequiredMixin, View):
             invoices = Invoice.objects.filter(
                 is_active=True, balance__gt=0
             ).exclude(status=InvoiceStatus.CANCELLED).select_related('student')
+            organization = getattr(request, 'organization', None)
+            if organization:
+                invoices = invoices.filter(
+                    Q(organization=organization) |
+                    Q(organization__isnull=True, student__organization=organization)
+                )
 
             if selected_term:
                 invoices = invoices.filter(term=selected_term)

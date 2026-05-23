@@ -227,7 +227,8 @@ class InvoiceService:
             Decimal("0.00"),
             (invoice.total_amount or Decimal("0.00")) + opening_balance,
         )
-        opening_credit_applied = min(opening_prepayment, opening_exposure)
+        opening_credit_applied = opening_prepayment
+        opening_surplus_credit = max(Decimal("0.00"), opening_prepayment - opening_exposure)
 
         # These header fields remain as immutable snapshots for the term
         invoice.balance_bf = opening_balance
@@ -322,8 +323,10 @@ class InvoiceService:
                 amount_to_apply=credit_to_apply,
             )
 
-        # Decrement live credit by the portion represented on this invoice once.
+        # Decrement live credit by the portion represented on this invoice once,
+        # then preserve any opening credit that exceeds the term exposure.
         new_credit = starting_credit - credit_used_by_opening_prepayment - internal_allocated
+        new_credit = max(Decimal("0.00"), new_credit) + opening_surplus_credit
         student.credit_balance = max(Decimal("0.00"), new_credit)
         # Persist student changes (even if no internal allocation, updated_at is still useful)
         student.save(update_fields=["credit_balance", "updated_at"])
@@ -532,16 +535,19 @@ class InvoiceService:
                     })
             else:
                 pmt = item['obj']
+                from payments.utils import get_payment_external_reference
+
                 pmt_date = pmt.payment_date.date() if hasattr(pmt.payment_date, 'date') else pmt.payment_date
                 allocated_amount = pmt.allocations.filter(is_active=True).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
                 unapplied_amount = pmt.unallocated_amount if pmt.unallocated_amount is not None else max(Decimal('0.00'), (pmt.amount or Decimal('0.00')) - allocated_amount)
+                payment_reference = get_payment_external_reference(pmt) or pmt.receipt_number or pmt.payment_reference or '-'
 
                 if allocated_amount > 0:
                     running_balance -= allocated_amount
                     transactions.append({
                         'date': pmt_date,
                         'description': f"Payment - {pmt.get_payment_source_display()}",
-                        'reference': pmt.receipt_number or pmt.payment_reference or '-',
+                        'reference': payment_reference,
                         'debit': None,
                         'credit': allocated_amount,
                         'running_balance': running_balance
@@ -551,7 +557,7 @@ class InvoiceService:
                     transactions.append({
                         'date': pmt_date,
                         'description': 'Unapplied payment moved to credit balance',
-                        'reference': pmt.receipt_number or pmt.payment_reference or '-',
+                        'reference': payment_reference,
                         'debit': None,
                         'credit': unapplied_amount,
                         'running_balance': running_balance

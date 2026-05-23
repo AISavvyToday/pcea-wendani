@@ -129,7 +129,7 @@ class NotificationService:
         Amount Paid: KES {payment.amount:,.0f}
         Payment Date: {payment.payment_date.strftime('%Y-%m-%d %H:%M')}
         Payment Method: {payment.get_payment_method_display()}
-        Transaction Reference: {payment.transaction_reference}
+        Transaction Reference: {payment.external_reference}
 
         Current Balance: KES {payment.invoice.balance if payment.invoice else 0:,.0f}
 

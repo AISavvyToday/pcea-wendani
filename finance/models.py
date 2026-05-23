@@ -282,7 +282,9 @@ class Invoice(BaseModel):
         """
         total = (self.balance_bf or Decimal("0.00")) + (self.total_amount or Decimal("0.00"))
         deductions = (self.prepayment or Decimal("0.00")) + (self.amount_paid or Decimal("0.00"))
-        self.balance = total - deductions
+        # Negative invoice balances are represented on the student account as
+        # credit_balance, not as receivables. Keep invoice balance non-negative.
+        self.balance = max(total - deductions, Decimal("0.00"))
 
     def _recalculate_status(self):
         from datetime import date

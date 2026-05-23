@@ -103,6 +103,19 @@ class Payment(BaseModel):
         Used for template and reporting compatibility.
         """
         return self.unallocated_amount
+
+    @property
+    def external_reference(self):
+        from payments.utils import get_payment_external_reference
+
+        return get_payment_external_reference(self)
+
+    @property
+    def student_bill_reference(self):
+        from payments.utils import get_payment_student_bill_reference
+
+        return get_payment_student_bill_reference(self)
+
     class Meta:
         db_table = 'payments'
         ordering = ['-payment_date']
@@ -241,6 +254,14 @@ class BankTransaction(BaseModel):
 
     def __str__(self):
         return f"{self.gateway} - {self.transaction_id} - KES {self.amount}"
+
+    @property
+    def external_reference(self):
+        return self.transaction_id or ""
+
+    @property
+    def student_bill_reference(self):
+        return self.transaction_reference or ""
 
     @property
     def allocated_amount(self):

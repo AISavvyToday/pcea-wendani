@@ -21,10 +21,13 @@ def get_current_term(organization=None):
     return get_current_term_for_org(organization)
 
 
-def get_student_base_queryset(organization=None):
+def get_student_base_queryset(organization=None, *, include_inactive_terminal=False):
     queryset = Student.objects.all()
     if any(getattr(field, 'name', None) == 'is_active' for field in Student._meta.get_fields()):
-        queryset = queryset.filter(is_active=True)
+        if include_inactive_terminal:
+            queryset = queryset.filter(Q(is_active=True) | Q(status__in=TERM_EVENT_STATUSES))
+        else:
+            queryset = queryset.filter(is_active=True)
     if organization is not None:
         queryset = queryset.filter(organization=organization)
     return queryset

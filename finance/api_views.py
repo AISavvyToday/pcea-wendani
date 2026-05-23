@@ -11,17 +11,34 @@ import logging
 from .models import Invoice
 from payments.services import PaymentService
 from students.models import Student
+from academics.services.term_state import get_current_term_for_org
 
 logger = logging.getLogger(__name__)
 
 
 class StudentInvoicesAPIView(View):
     def get(self, request, student_pk):
+        organization = getattr(request, "organization", None)
         invoices = Invoice.objects.filter(
             student_id=student_pk, is_active=True, balance__gt=0
-        ).exclude(status='cancelled').values('id', 'invoice_number', 'balance', 'term__name')
+        ).exclude(status='cancelled')
+        if organization:
+            invoices = invoices.filter(organization=organization)
+        current_term = get_current_term_for_org(organization)
+        if current_term:
+            invoices = invoices.filter(term=current_term)
 
-        return JsonResponse(list(invoices), safe=False)
+        payload = [
+            {
+                "id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "balance": invoice.balance,
+                "term": str(invoice.term) if invoice.term_id else "",
+            }
+            for invoice in invoices.select_related("term")
+        ]
+
+        return JsonResponse(payload, safe=False)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

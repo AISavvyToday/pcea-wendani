@@ -15,6 +15,7 @@ from academics.models import Term
 from communications.models import SMSNotification
 from communications.services.sms_api_client import sms_api_client
 from communications.services.sms_template_service import SMSTemplateService
+from academics.services.term_state import get_current_term_for_org
 from finance.models import Invoice
 from students.models import Student
 
@@ -33,8 +34,8 @@ class SMSWorkflowService:
     """Reusable engine for personalized SMS previews and sends."""
 
     @staticmethod
-    def _current_term(term: Term | None = None) -> Term | None:
-        return term or Term.objects.filter(is_current=True).select_related('academic_year').first()
+    def _current_term(term: Term | None = None, organization=None) -> Term | None:
+        return term or get_current_term_for_org(organization)
 
     @staticmethod
     def _student_queryset(organization, grade_levels=None, student_ids=None):
@@ -53,7 +54,7 @@ class SMSWorkflowService:
 
     @staticmethod
     def _current_invoice(student: Student, term: Term | None = None) -> Invoice | None:
-        current_term = SMSWorkflowService._current_term(term)
+        current_term = SMSWorkflowService._current_term(term, getattr(student, 'organization', None))
         queryset = student.invoices.filter(is_active=True).select_related('term', 'organization')
         if current_term:
             invoice = queryset.filter(term=current_term).first()
@@ -162,6 +163,7 @@ class SMSWorkflowService:
         remaining_balance = student.outstanding_balance or Decimal('0.00')
         if payment is None and invoice is not None:
             remaining_balance = total_due
+        payment_external_reference = getattr(payment, 'external_reference', '') if payment else ''
         context = {
             'parent': parent,
             'student': {
@@ -198,7 +200,9 @@ class SMSWorkflowService:
                 'print_url': receipt_link,
             },
             'payment': {
-                'transaction_reference': getattr(payment, 'transaction_reference', ''),
+                'transaction_reference': payment_external_reference,
+                'external_reference': payment_external_reference,
+                'student_bill_reference': getattr(payment, 'student_bill_reference', '') if payment else '',
                 'payment_date': getattr(payment, 'payment_date', None),
                 'payment_date_long': cls._format_long_date(getattr(payment, 'payment_date', None)),
                 'remaining_balance': remaining_balance,

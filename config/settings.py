@@ -35,8 +35,17 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "").lower() == "true"
 
 ALLOWED_HOSTS = ['*']
 
-CSRF_TRUSTED_ORIGINS = [
-    host for host in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if host
+DEFAULT_SITE_DOMAIN = "pceawendaniacademy.co.ke"
+SITE_URL = os.environ.get("SITE_URL", f"https://{DEFAULT_SITE_DOMAIN}").rstrip("/")
+
+_csrf_origins = [
+    host.strip()
+    for host in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if host.strip()
+]
+CSRF_TRUSTED_ORIGINS = _csrf_origins or [
+    f"https://{DEFAULT_SITE_DOMAIN}",
+    f"https://www.{DEFAULT_SITE_DOMAIN}",
 ]
 
 # ------------------------------------------------------------------------------
@@ -129,11 +138,12 @@ DATABASES = {
 # Override with DATABASE_URL if present (Heroku)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
+    database_ssl_require = os.environ.get('DATABASE_SSL_REQUIRE', 'True').lower() in {'1', 'true', 'yes', 'on'}
     DATABASES['default'] = dj_database_url.config(
         default=DATABASE_URL,
         conn_max_age=600,
         conn_health_checks=True,
-        ssl_require=True,
+        ssl_require=database_ssl_require,
     )
 
 # ------------------------------------------------------------------------------

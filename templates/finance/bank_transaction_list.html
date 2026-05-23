@@ -92,10 +92,10 @@
             <td>
               <div class="fw-semibold">
                 <a href="{% url 'finance:bank_transaction_detail' transaction.pk %}" class="text-decoration-none">
-                  <code class="text-dark">{{ transaction.transaction_reference|default:transaction.transaction_id|truncatechars:24 }}</code>
+                  <code class="text-dark">{{ transaction.external_reference|truncatechars:24 }}</code>
                 </a>
               </div>
-              <small class="text-muted d-block">Txn ID: {{ transaction.transaction_id|truncatechars:24 }}</small>
+              <small class="text-muted d-block">Student/Bill Ref: {{ transaction.student_bill_reference|default:"-"|truncatechars:24 }}</small>
               {% if transaction.remaining_amount > 0 and transaction.allocated_amount > 0 %}
                 <small class="text-warning d-block">Partially allocated · Remaining KES {{ transaction.remaining_amount|floatformat:2 }}</small>
               {% endif %}

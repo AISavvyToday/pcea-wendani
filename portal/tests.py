@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from academics.models import AcademicYear, Term
+from academics.models import AcademicYear, Term, TermTransitionLog
 from core.models import Gender, Organization, PaymentSource, PaymentStatus, TermChoices, UserRole
 from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
 from finance.services import InvoiceService, transition_frozen_balances
@@ -249,6 +249,58 @@ class DashboardStudentTermStateTests(TestCase):
         self.assertIn("New-1", student_card['helper_lines'])
         self.assertIn("Graduated-1", student_card['helper_lines'])
         self.assertIn("Transferred-1", student_card['helper_lines'])
+
+
+class ActiveTermSettingsTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name='PCEA Wendani Academy', code='PCEA_WENDANI')
+        self.user = User.objects.create_user(
+            email='settings-admin@example.com',
+            password='password123',
+            first_name='Settings',
+            last_name='Admin',
+            role=UserRole.SCHOOL_ADMIN,
+            organization=self.organization,
+            is_staff=True,
+        )
+        self.academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term1 = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term=TermChoices.TERM_1,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 30),
+            is_current=True,
+        )
+        self.term2 = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term=TermChoices.TERM_2,
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 8, 31),
+            is_current=False,
+        )
+
+    def test_changing_active_term_is_view_only(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('portal:set_active_term'),
+            data={'term': self.term2.pk},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.term1.refresh_from_db()
+        self.term2.refresh_from_db()
+        self.assertFalse(self.term1.is_current)
+        self.assertTrue(self.term2.is_current)
+        self.assertEqual(TermTransitionLog.objects.count(), 0)
 
 
 class DashboardFinanceKpiAlignmentTests(TestCase):

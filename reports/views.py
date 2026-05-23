@@ -20,12 +20,14 @@ from .forms import (
 )
 from .models import ReportRequest
 from payments.models import Payment, PaymentAllocation
+from payments.utils import get_payment_external_reference
 from finance.models import Invoice, InvoiceItem
 from other_income.models import OtherIncomeInvoice
 from academics.models import AcademicYear, Term
 from academics.services.term_state import activate_selected_term_from_request, get_current_term_for_org
 from transport.models import TransportFee
 from students.models import Student
+from students.metrics import apply_student_filters, get_student_base_queryset
 from core.models import InvoiceStatus
 from .report_utils import (
     build_invoice_summary_report_data,
@@ -152,9 +154,9 @@ def get_fees_collection_datetime_bounds(start_date=None, end_date=None):
 
 def get_fees_collection_reference(payment):
     return (
+        get_payment_external_reference(payment) or
         getattr(payment, 'receipt_number', '') or
         getattr(payment, 'payment_reference', '') or
-        getattr(payment, 'transaction_reference', '') or
         ''
     )
 
@@ -1316,10 +1318,18 @@ class TransferredStudentsReportView(LoginRequiredMixin, OrganizationFilterMixin,
             start_date = active_term.start_date
             end_date = active_term.end_date
 
-        # Base queryset: transferred students
-        students_qs = Student.objects.filter(status='transferred').select_related('current_class')
-        if organization:
-            students_qs = students_qs.filter(organization=organization)
+        # Base queryset: transferred students, using the same term-state rule as
+        # the students table so counts stay aligned.
+        students_qs = get_student_base_queryset(
+            organization=organization,
+            include_inactive_terminal=True,
+        ).select_related('current_class')
+        students_qs = apply_student_filters(
+            students_qs,
+            status='transferred',
+            term=active_term,
+            organization=organization,
+        )
 
         # Filter by academic year (if provided, filter by status_date within that year)
         if academic_year:

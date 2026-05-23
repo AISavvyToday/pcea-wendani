@@ -70,10 +70,16 @@
                                 {% endif %}
                             </td>
                         </tr>
-                        {% if payment.transaction_reference %}
+                        {% if payment.external_reference %}
                         <tr>
                             <td class="text-muted">Transaction Reference:</td>
-                            <td>{{ payment.transaction_reference }}</td>
+                            <td>{{ payment.external_reference }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if payment.student_bill_reference %}
+                        <tr>
+                            <td class="text-muted">Student/Bill Reference:</td>
+                            <td>{{ payment.student_bill_reference }}</td>
                         </tr>
                         {% endif %}
                         {% if payment.received_by %}

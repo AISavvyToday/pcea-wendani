@@ -38,11 +38,15 @@
                             <table class="table table-sm table-borderless mb-0">
                                 <tr>
                                     <td class="text-muted" style="width: 180px;"><strong>Transaction ID:</strong></td>
-                                    <td><code class="bg-light p-1 rounded">{{ transaction.transaction_id }}</code></td>
+                                    <td><code class="bg-light p-1 rounded">{{ transaction.external_reference }}</code></td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Reference:</strong></td>
-                                    <td>{{ transaction.transaction_reference|default:"N/A" }}</td>
+                                    <td>{{ transaction.external_reference|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted"><strong>Student/Bill Reference:</strong></td>
+                                    <td>{{ transaction.student_bill_reference|default:"N/A" }}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted"><strong>Gateway:</strong></td>

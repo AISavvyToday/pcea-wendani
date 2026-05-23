@@ -1,13 +1,14 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from academics.models import AcademicYear, Class, Term
 from accounts.models import User
 from core.models import GradeLevel, Organization, StreamChoices, TermChoices, UserRole
 from students.metrics import get_student_status_counters
-from students.models import Club, ClubMembership, Student
+from students.models import Club, ClubMembership, Student, StudentTermState
 
 
 @override_settings(
@@ -201,3 +202,32 @@ class StudentsRegressionTests(TestCase):
         counters = get_student_status_counters(base_queryset, term=None, organization=self.organization)
 
         self.assertEqual(counters['new'], 3)
+
+    def test_transferred_student_table_uses_term_state_visibility(self):
+        transferred = Student.objects.create(
+            organization=self.organization,
+            admission_number='ADM-2885',
+            admission_date=date(2025, 5, 1),
+            first_name='Zaneta',
+            last_name='Transfer',
+            gender='F',
+            date_of_birth=date(2015, 2, 1),
+            status='transferred',
+            status_date=timezone.make_aware(datetime(2026, 2, 14, 9, 0)),
+            current_class=self.grade4_east,
+            is_active=False,
+        )
+        StudentTermState.objects.create(
+            organization=self.organization,
+            student=transferred,
+            term=self.current_term,
+            status='transferred',
+            status_date=transferred.status_date,
+            class_obj=self.grade4_east,
+            is_active=True,
+        )
+
+        response = self.client.get(reverse('students:list'), {'status': 'transferred'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(transferred, list(response.context['students']))

@@ -19,6 +19,7 @@ from .forms import (
     AcademicYearForm, TermForm, SubjectForm, ClassForm,
     ClassSubjectForm, ExamForm, AttendanceForm, GradeForm, StaffOnboardingForm
 )
+from .services.term_state import get_current_term_for_org
 from students.models import Student
 
 
@@ -320,7 +321,7 @@ class AcademicReportView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Example: aggregate average marks per class and subject for current term
-        current_term = Term.objects.filter(is_current=True).first()
+        current_term = get_current_term_for_org(getattr(self.request, 'organization', None))
         if not current_term:
             context['error'] = "No current term set."
             return context
@@ -522,7 +523,7 @@ class TeacherScheduleView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequi
         if term_id:
             term = get_object_or_404(Term, pk=term_id, organization=request.organization)
         else:
-            term = Term.objects.filter(is_current=True, organization=request.organization).first()
+            term = get_current_term_for_org(request.organization)
         
         timetable_entries = Timetable.objects.filter(
             teacher=staff,

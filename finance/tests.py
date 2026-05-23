@@ -8,7 +8,8 @@ from django.utils import timezone
 from accounts.models import User
 from academics.models import AcademicYear, Term
 from core.models import Organization, UserRole
-from finance.models import Invoice, InvoiceItem
+from finance.models import FeeItem, FeeStructure, Invoice, InvoiceItem
+from finance.services import InvoiceService
 from payments.models import BankTransaction, Payment, PaymentAllocation
 from students.models import Parent, Student, StudentParent
 from portal.views import _finance_kpis
@@ -769,3 +770,78 @@ class PaymentReceiptOpeningAdjustmentTests(TestCase):
         self.assertContains(response, 'Outstanding Balance')
         self.assertContains(response, 'KES 25,000')
         self.assertNotContains(response, 'KES 24,000')
+
+
+class InvoicePrepaymentCarryForwardTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(
+            name='PCEA Wendani Academy',
+            code='PCEA_WENDANI',
+        )
+        self.user = User.objects.create_user(
+            email='prepayment-admin@school.test',
+            password='testpass123',
+            first_name='Prepay',
+            last_name='Admin',
+            role=UserRole.ACCOUNTANT,
+            organization=self.organization,
+        )
+        self.academic_year = AcademicYear.objects.create(
+            organization=self.organization,
+            year=2026,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_current=True,
+        )
+        self.term = Term.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term='term_2',
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 8, 31),
+            is_current=True,
+        )
+        self.fee_structure = FeeStructure.objects.create(
+            organization=self.organization,
+            academic_year=self.academic_year,
+            term=self.term.term,
+            name='Term 2 Fees',
+            grade_levels=[],
+        )
+        FeeItem.objects.create(
+            fee_structure=self.fee_structure,
+            category='tuition',
+            description='Tuition',
+            amount=Decimal('35000.00'),
+        )
+        self.student = Student.objects.create(
+            organization=self.organization,
+            admission_number='2631',
+            admission_date=date(2026, 1, 5),
+            first_name='Shanice',
+            last_name='Test',
+            gender='F',
+            date_of_birth=date(2016, 5, 20),
+            status='active',
+            prepayment_original=Decimal('36000.00'),
+            credit_balance=Decimal('36000.00'),
+        )
+
+    def test_full_opening_prepayment_is_preserved_and_surplus_carried_forward(self):
+        invoice, created = InvoiceService.generate_invoice(
+            self.student,
+            self.term,
+            generated_by=self.user,
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(invoice.total_amount, Decimal('35000.00'))
+        self.assertEqual(invoice.prepayment, Decimal('36000.00'))
+        self.assertEqual(invoice.amount_paid, Decimal('0.00'))
+        self.assertEqual(invoice.balance, Decimal('0.00'))
+
+        prepayment_item = invoice.items.get(category='prepayment', is_active=True)
+        self.assertEqual(prepayment_item.amount, Decimal('-36000.00'))
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.outstanding_balance, Decimal('0.00'))
+        self.assertEqual(self.student.credit_balance, Decimal('1000.00'))
