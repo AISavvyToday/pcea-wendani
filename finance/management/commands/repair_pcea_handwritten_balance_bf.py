@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.management.base import BaseCommand, CommandError
@@ -101,9 +102,17 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"{mode} checked={stats['checked']} updated={stats['updated']} "
-                f"double_count_candidates={stats['double_count_candidates']}"
+                f"blocked={stats['blocked']} double_count_candidates={stats['double_count_candidates']}"
             )
         )
+        if stats["blocked"]:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{stats['blocked']} row(s) need admission/name review before APPLY."
+                )
+            )
+            if not dry_run:
+                raise CommandError("Blocked rows were found; apply was rolled back.")
         if dry_run:
             self.stdout.write("No DB changes were saved. Re-run with --apply after reviewing every match.")
 
@@ -120,7 +129,7 @@ class Command(BaseCommand):
         return [target for target in self.TARGETS if target["admission"] in wanted]
 
     def _repair(self, *, organization, term, targets, dry_run):
-        stats = {"checked": 0, "updated": 0, "double_count_candidates": 0}
+        stats = {"checked": 0, "updated": 0, "blocked": 0, "double_count_candidates": 0}
 
         for target in targets:
             stats["checked"] += 1
@@ -132,9 +141,36 @@ class Command(BaseCommand):
                 organization=organization,
             ).first()
             if not student:
-                raise CommandError(f"Student not found in {organization.name}: {admission_number}")
+                stats["blocked"] += 1
+                self._write_blocked(
+                    admission_number=admission_number,
+                    expected_name=target["expected_name"],
+                    reason="student admission number not found",
+                    organization=organization,
+                )
+                continue
 
-            invoice = self._get_invoice(student=student, term=term, organization=organization)
+            if not self._name_matches(student.full_name, target["expected_name"]):
+                stats["blocked"] += 1
+                self._write_blocked(
+                    admission_number=admission_number,
+                    expected_name=target["expected_name"],
+                    reason=f"name mismatch: DB has '{student.full_name}'",
+                    organization=organization,
+                )
+                continue
+
+            try:
+                invoice = self._get_invoice(student=student, term=term, organization=organization)
+            except CommandError as exc:
+                stats["blocked"] += 1
+                self._write_blocked(
+                    admission_number=admission_number,
+                    expected_name=target["expected_name"],
+                    reason=str(exc),
+                    organization=organization,
+                )
+                continue
             term_totals = self._term_item_totals(invoice)
             correct_total = term_totals["total"]
             current_total = self._money(invoice.total_amount)
@@ -150,10 +186,17 @@ class Command(BaseCommand):
                 stats["double_count_candidates"] += 1
 
             if kind == "prepayment" and prepayment <= 0:
-                raise CommandError(
-                    f"{admission_number} is marked as prepayment in the handwritten list, "
-                    f"but invoice {invoice.invoice_number} has prepayment={prepayment}."
+                stats["blocked"] += 1
+                self._write_blocked(
+                    admission_number=admission_number,
+                    expected_name=target["expected_name"],
+                    reason=(
+                        f"marked as prepayment in the handwritten list, but invoice "
+                        f"{invoice.invoice_number} has prepayment={prepayment}"
+                    ),
+                    organization=organization,
                 )
+                continue
 
             projected_credit = self._project_credit(student=student, invoice=invoice, correct_total=correct_total)
             projected_outstanding = self._project_student_outstanding(
@@ -228,6 +271,20 @@ class Command(BaseCommand):
             stats["updated"] += 1
 
         return stats
+
+    def _write_blocked(self, *, admission_number, expected_name, reason, organization):
+        self.stdout.write(
+            self.style.WARNING(
+                f"BLOCKED {admission_number} | note='{expected_name}' | reason={reason}"
+            )
+        )
+        suggestions = self._student_suggestions(expected_name=expected_name, organization=organization)
+        if suggestions:
+            self.stdout.write("  possible DB matches:")
+            for student in suggestions:
+                self.stdout.write(f"    {student.admission_number} {student.full_name}")
+        else:
+            self.stdout.write("  possible DB matches: none")
 
     def _get_invoice(self, *, student, term, organization):
         invoices = list(
@@ -312,3 +369,65 @@ class Command(BaseCommand):
 
     def _money(self, value):
         return (value or Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    def _name_matches(self, db_name, expected_name):
+        expected_tokens = self._name_tokens(expected_name)
+        db_tokens = self._name_tokens(db_name)
+        if not expected_tokens or not db_tokens:
+            return False
+
+        for expected in expected_tokens:
+            for actual in db_tokens:
+                if expected == actual:
+                    return True
+                if len(expected) >= 5 and len(actual) >= 5 and self._edit_distance(expected, actual) <= 2:
+                    return True
+        return False
+
+    def _student_suggestions(self, *, expected_name, organization):
+        expected_tokens = self._name_tokens(expected_name)
+        if not expected_tokens:
+            return []
+
+        scored = []
+        qs = Student.objects.filter(organization=organization).only(
+            "admission_number", "first_name", "middle_name", "last_name"
+        )
+        for student in qs:
+            db_tokens = self._name_tokens(student.full_name)
+            score = 0
+            for expected in expected_tokens:
+                for actual in db_tokens:
+                    if expected == actual:
+                        score += 3
+                    elif len(expected) >= 5 and len(actual) >= 5 and self._edit_distance(expected, actual) <= 2:
+                        score += 2
+            if score:
+                scored.append((score, student.admission_number or "", student))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [student for _, _, student in scored[:5]]
+
+    def _name_tokens(self, value):
+        return [
+            token
+            for token in re.sub(r"[^a-z0-9 ]+", " ", (value or "").lower()).split()
+            if len(token) >= 4
+        ]
+
+    def _edit_distance(self, left, right):
+        if abs(len(left) - len(right)) > 2:
+            return 3
+        previous = list(range(len(right) + 1))
+        for i, left_char in enumerate(left, start=1):
+            current = [i]
+            for j, right_char in enumerate(right, start=1):
+                current.append(
+                    min(
+                        current[-1] + 1,
+                        previous[j] + 1,
+                        previous[j - 1] + (left_char != right_char),
+                    )
+                )
+            previous = current
+        return previous[-1]
