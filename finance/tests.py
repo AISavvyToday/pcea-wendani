@@ -714,7 +714,7 @@ class PaymentReceiptOpeningAdjustmentTests(TestCase):
         self.assertNotContains(response, 'Current Credit')
         self.assertContains(response, 'Student Balance')
 
-    def test_split_term_payment_receipt_uses_only_current_term_amount_for_balance_math(self):
+    def test_split_term_payment_receipt_uses_full_payment_received_for_balance_math(self):
         term1_invoice, term1_item = self._create_invoice(
             self.term1,
             'INV-SPLIT-T1',
@@ -768,8 +768,8 @@ class PaymentReceiptOpeningAdjustmentTests(TestCase):
         self.assertContains(response, 'Applied to Other Term(s)')
         self.assertContains(response, 'KES 1,000')
         self.assertContains(response, 'Outstanding Balance')
-        self.assertContains(response, 'KES 25,000')
-        self.assertNotContains(response, 'KES 24,000')
+        self.assertContains(response, 'KES 24,000')
+        self.assertNotContains(response, 'KES 25,000')
 
 
 class InvoicePrepaymentCarryForwardTests(TestCase):

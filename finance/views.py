@@ -1810,12 +1810,16 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 previous_term_payments,
                 current_invoices,
             )
+            total_cash_paid_before = previous_term_payments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0.00')
         else:
             receipt_amount_paid = payment.amount or Decimal('0.00')
             other_term_allocations_total = Decimal('0.00')
             total_paid_before = previous_term_payments.aggregate(
                 total=Sum('amount')
             )['total'] or Decimal('0.00')
+            total_cash_paid_before = total_paid_before
 
         # Opening balances belong to a term, so only the first receipt for
         # that same term should show them.
@@ -1871,23 +1875,27 @@ class PaymentReceiptView(LoginRequiredMixin, OrganizationFilterMixin, RoleRequir
                 prepayment_display = Decimal('0.00')
 
             # Canonical receipt math for students with invoices.
-            # Use total paid before this receipt to derive the balance immediately before payment.
+            # Use total cash paid before this receipt to derive the balance
+            # immediately before payment. Split receipts may allocate part of
+            # the same payment to old-term B/F rows, but the receipt's running
+            # balance should still reduce by the full payment received.
             invoice_exposure = max(
                 Decimal('0.00'),
                 total_invoice_amount + total_balance_bf - total_prepayment
             )
-            invoice_balance_before_this_payment = invoice_exposure - total_paid_before
+            invoice_balance_before_this_payment = invoice_exposure - total_cash_paid_before
 
             # Student balance at payment = invoice balance before this payment
             student_balance_at_payment = max(Decimal('0.00'), invoice_balance_before_this_payment)
 
         # Outstanding AFTER this payment
         if current_invoices.exists():
-            # Canonical outstanding after payment comes from invoice math using total payments up to this receipt.
-            total_paid_up_to_invoice = self._receipt_amount_for_payments(
-                payments_up_to_this_receipt,
-                current_invoices,
-            )
+            # Canonical outstanding after payment comes from invoice math using
+            # total cash paid up to this receipt, not only the current-term
+            # allocation portion. The split details remain visible separately.
+            total_paid_up_to_invoice = payments_up_to_this_receipt.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0.00')
 
             outstanding_balance_after = (
                 total_invoice_amount + total_balance_bf - total_prepayment - total_paid_up_to_invoice
