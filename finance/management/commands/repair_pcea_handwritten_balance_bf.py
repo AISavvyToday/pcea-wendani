@@ -96,7 +96,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             stats = self._repair(organization=organization, term=term, targets=targets, dry_run=dry_run)
-            if dry_run:
+            if dry_run or stats["blocked"]:
                 transaction.set_rollback(True)
 
         self.stdout.write(
