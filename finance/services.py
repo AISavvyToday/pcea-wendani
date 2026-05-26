@@ -23,7 +23,7 @@ from .models import (
 from payments.models import Payment, PaymentAllocation, BankTransaction
 from students.models import Student
 from academics.models import Term
-from core.models import PaymentStatus, PaymentSource
+from core.models import InvoiceStatus, PaymentStatus, PaymentSource
 from other_income.models import OtherIncomeInvoice
 
 
@@ -1083,6 +1083,16 @@ def transition_frozen_balances(previous_term, new_term, dry_run=False):
                 old_credit != student.credit_balance or
                 old_outstanding != student.outstanding_balance
             )
+
+            if prev_invoice and not dry_run:
+                Invoice.objects.filter(
+                    student=student,
+                    term=previous_term,
+                    is_active=True,
+                ).exclude(status=InvoiceStatus.CANCELLED).update(
+                    is_active=False,
+                    updated_at=timezone.now(),
+                )
             
             if changed:
                 logger.debug(

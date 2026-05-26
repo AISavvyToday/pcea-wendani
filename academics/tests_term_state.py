@@ -80,9 +80,11 @@ class TermActivationServiceTests(TestCase):
         self.term1.refresh_from_db()
         self.term2.refresh_from_db()
         self.student.refresh_from_db()
+        previous_invoice = Invoice.objects.get(invoice_number='INV-TERM-001')
 
         self.assertFalse(self.term1.is_current)
         self.assertTrue(self.term2.is_current)
+        self.assertFalse(previous_invoice.is_active)
         self.assertEqual(self.student.balance_bf_original, Decimal('750.00'))
         self.assertEqual(TermTransitionLog.objects.count(), 1)
         self.assertFalse(stats['transition_skipped'])
